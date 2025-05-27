@@ -26,7 +26,7 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
     <Sidebar collapsible="icon" {...props}>
       <SidebarContent>
         <div className="flex justify-center items-center pt-2">
-            <Image src="/logo.png" alt="Logo Del Yaqui" width={100} height={100} />
+            <Image src="/logo-no-fondo.png" alt="Logo Del Yaqui" width={100} height={100} />
         </div>
         <NavMenu items={sidebarMenu.items} />
         <NavSecondary items={sidebarMenu.secondary} className="mt-auto" />
