@@ -1,0 +1,118 @@
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon } from "lucide-react"
+
+export interface NavItem {
+    title: string
+    href: string
+    icon: React.ElementType,
+    roles?: string[]
+}
+
+export const sidebarMenu = {
+  items: [
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: HomeIcon,
+      isActive: false,
+    },
+    { 
+      title: "Administración",
+      url:"#",
+      icon: BuildingIcon,
+      isActive: false,
+      items: [
+        {
+          name: "Sucursales",
+          url: "/sucursales",
+          icon: BuildingIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        }
+      ]
+    },
+    {
+      title: "Operaciones",
+      url: "#",
+      icon: BriefcaseBusinessIcon,
+      isActive: false,
+      items: [
+        {
+          name: "Envios",
+          url: "/envios",
+          icon: PackageIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
+          name: "Rutas",
+          url: "/rutas",
+          icon: TruckIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+      ]
+    },
+    {
+      title: "Mtto. Vehículos",
+      url: "#",
+      icon: Truck,
+      isActive: false,
+      items: [
+        {
+          name: "Programación",
+          url: "/programacion-mtto",
+          icon: PenToolIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
+          name: "Historial",
+          url: "/historial-mtto",
+          icon: HistoryIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+      ]
+    },
+    {
+      title: "Finanzas",
+      url: "#",
+      icon: Wallet2Icon,
+      isActive: false,
+      items: [
+        {
+          name: "Ingresos",
+          url: "/ingresos",
+          icon: BarChart3,
+          permission: "ingresos:view",
+        },
+        {
+          name: "Gastos",
+          url: "/gastos",
+          icon: PieChart,
+          permission: "gastos:view",
+        },
+      ]
+    },
+    {
+      title: "Reportes",
+      url: "#",
+      icon: ChartNoAxesCombinedIcon,
+      isActive: false,
+    },
+    {
+      title: "Nómina",
+      url: "#",
+      icon: DollarSignIcon,
+      isActive: false,
+    },
+  ],
+  secondary: [
+    {
+      title: "Configuración",
+      url: "/configuracion",
+      icon: SettingsIcon,
+      isActive: false,
+    }
+  ]
+}
