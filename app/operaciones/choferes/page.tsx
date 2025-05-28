@@ -1,9 +1,9 @@
-import { PageHeader } from "@/components/PageHeader"
-import { DataTable } from "@/components/ui/data-table"
+
+import { DataTable } from "@/components/data-table/data-table"
 import { columns } from "./columns"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-import { NewDriverDialog } from "@/components/NewDriverDialog"
+import { NewDriverDialog } from "@/components/modals/new-driver-modal"
 
 const data = [
   {
@@ -27,7 +27,6 @@ export default function DriversPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <PageHeader title="Repartidores" description="Gestión de repartidores" />
         <NewDriverDialog>
           <Button className="bg-brand-brown hover:bg-brand-brown/90">
             <PlusCircle className="mr-2 h-4 w-4" />
