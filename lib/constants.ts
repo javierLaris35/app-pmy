@@ -38,14 +38,14 @@ export const sidebarMenu = {
       items: [
         {
           name: "Envios",
-          url: "/envios",
+          url: "/operaciones/envios",
           icon: PackageIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },
         {
           name: "Rutas",
-          url: "/rutas",
+          url: "/operaciones/rutas",
           icon: TruckIcon,
           roles: ["admin", "superadmin"],
           isActive: false

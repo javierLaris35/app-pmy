@@ -75,3 +75,43 @@ export type AuthState = {
   user: User | null
   isLoading: boolean
 }
+
+export type Shipment = {
+  trackingNumber: string
+  recipientName: string
+  recipientAddress: string
+  recipientCity: string
+  recipientZip: string
+  commitDate: string
+  commitTime: string
+  recipientPhone: string
+  status: "recoleccion" | "pendiente" | "en_ruta" | "entregado" | "no_entregado"
+  payment?: {
+    amount: number
+    status: "paid" | "pending" | "failed"
+  } | null
+  priority?: "alta" | "media" | "baja"
+  statusHistory?: Array<{
+    status: "recoleccion" | "pendiente" | "en_ruta" | "entregado" | "no_entregado"
+    timestamp: string
+    notes?: string
+  }>
+}
+
+export type Driver = {
+  id: string
+  name: string
+  licenseNumber: string
+  phoneNumber: string
+  status: "active" | "inactive"
+}
+
+export type Route = {
+  id: string
+  name: string
+  driver: string
+  vehicle: string
+  status: "En progreso" | "Completada" | "Pendiente" | "Cancelada"
+  startTime: string
+  estimatedArrival: string
+}
