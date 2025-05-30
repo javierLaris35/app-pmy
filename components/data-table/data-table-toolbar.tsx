@@ -28,14 +28,14 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
           className="h-8 w-[150px] lg:w-[250px]"
         />
         {table.getColumn("status") && (
-          <DataTableFacetedFilter column={table.getColumn("status")} title="Status" options={statuses} />
+          <DataTableFacetedFilter column={table.getColumn("status")} title="Estatus" options={statuses} />
         )}
         {table.getColumn("priority") && (
-          <DataTableFacetedFilter column={table.getColumn("priority")} title="Priority" options={priorities} />
+          <DataTableFacetedFilter column={table.getColumn("priority")} title="Prioridad" options={priorities} />
         )}
         {isFiltered && (
           <Button variant="ghost" onClick={() => table.resetColumnFilters()} className="h-8 px-2 lg:px-3">
-            Reset
+            Borrar
             <Cross2Icon className="ml-2 h-4 w-4" />
           </Button>
         )}

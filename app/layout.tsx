@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/logo-no-fondo.png",
     apple: "/logo-no-fondo.png",
-    shortcut: "/favicon-32x32.png",
+    shortcut: "/logo-no-fondo.png",
   },
   authors: [{ name: "Paquetería del Yaqui © 2025" }],
 }

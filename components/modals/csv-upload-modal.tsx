@@ -28,17 +28,22 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: CSVUploa
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0]
-    setError(null)
+    const selectedFile = event.target.files?.[0];
+    setError(null);
 
     if (selectedFile) {
-      if (selectedFile.type !== "text/csv") {
-        setError("Por favor seleccione un archivo CSV válido")
-        return
+      const allowedExtensions = ["csv", "xls", "xlsx"];
+      const fileName = selectedFile.name;
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+
+      if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+        setError("Por favor seleccione un archivo válido: CSV, XLS o XLSX");
+        return;
       }
-      setFile(selectedFile)
+
+      setFile(selectedFile);
     }
-  }
+  };
 
   const handleUpload = async () => {
     if (!file) {
@@ -78,7 +83,7 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: CSVUploa
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="csv-file">Archivo CSV</Label>
-            <Input id="csv-file" type="file" accept=".csv" ref={fileInputRef} onChange={handleFileChange} />
+            <Input id="csv-file" type="file" accept=".csv, .xlx, .xls, .xlxs " ref={fileInputRef} onChange={handleFileChange} />
           </div>
           {file && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
