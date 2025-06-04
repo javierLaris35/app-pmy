@@ -1,13 +1,10 @@
 "use client"
 
 import type * as React from "react"
-import { MainSidebar } from "@/components/main-sidebar"
-import { Badge } from "./ui/badge"
-import { Button } from "./ui/button"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { AppSidebar } from "./app-sidebar"
-import { SidebarProvider, SidebarTrigger } from "./ui/sidebar"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "./ui/sidebar"
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -38,14 +35,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       })
     }
   }
- 
+  
   return (
     <SidebarProvider>
       <AppSidebar user={user}/>
-      <main className="flex-1 p-4 md:p-6 overflow-auto">
-        <SidebarTrigger className="mb-2"/>
-        {children}
-      </main>
+        <main className="flex-1 p-4 md:p-6 overflow-auto">
+          <SidebarTrigger className="mb-2"/>
+          {children}
+        </main>
     </SidebarProvider>
   )
 }

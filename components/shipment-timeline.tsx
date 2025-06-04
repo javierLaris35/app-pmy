@@ -18,8 +18,7 @@ import { Separator } from "@/components/ui/separator"
 
 const statusMap = {
   recoleccion: { icon: Package, color: "text-blue-500", bgColor: "bg-blue-100", label: "Recolección" },
-  pendiente: { icon: Clock, color: "text-yellow-500", bgColor: "bg-yellow-100", label: "Pendiente" },
-  en_ruta: { icon: Truck, color: "text-purple-500", bgColor: "bg-purple-100", label: "En Ruta" },
+  en_ruta: { icon: Truck, color: "text-purple-500", bgColor: "bg-violet-100", label: "En Ruta" },
   entregado: { icon: CheckCircle, color: "text-green-500", bgColor: "bg-green-100", label: "Entregado" },
   no_entregado: { icon: XCircle, color: "text-red-500", bgColor: "bg-red-100", label: "No Entregado" },
 } as const
@@ -31,7 +30,7 @@ const priorityMap = {
 } as const
 
 export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
-  const statuses = ["recoleccion", "pendiente", "en_ruta", "entregado", "no_entregado"] as const
+  const statuses = ["recoleccion", "en_ruta", "entregado", "no_entregado"] as const
   const currentStatusIndex = statuses.indexOf(shipment.status)
 
   // Get the status history or create a default one if not provided
@@ -81,7 +80,7 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
               <p className="text-sm font-medium text-gray-500">Información de Pago</p>
               <div className="flex items-center gap-2 mt-1">
                 <DollarSign className="h-4 w-4 text-gray-400" />
-                <span className="font-medium">${shipment.payment.amount.toFixed(2)}</span>
+                <span className="font-medium">${shipment.payment.amount}</span>
                 <Badge
                   variant={
                     shipment.payment.status === "paid"
@@ -138,16 +137,6 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
               </span>
             </div>
           </div>
-
-          {/*shipment.instructions && (
-            <div>
-              <p className="text-sm font-medium text-gray-500">Instrucciones Especiales</p>
-              <div className="flex items-start gap-2 mt-1">
-                <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
-                <span className="text-sm italic">{shipment.instructions}</span>
-              </div>
-            </div>
-          )*/}
         </div>
       </div>
 

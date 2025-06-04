@@ -85,14 +85,14 @@ export type Shipment = {
   commitDate: string
   commitTime: string
   recipientPhone: string
-  status: "recoleccion" | "pendiente" | "en_ruta" | "entregado" | "no_entregado"
+  status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado"
   payment?: {
     amount: number
     status: "paid" | "pending" | "failed"
   } | null
   priority?: "alta" | "media" | "baja"
   statusHistory?: Array<{
-    status: "recoleccion" | "pendiente" | "en_ruta" | "entregado" | "no_entregado"
+    status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado"
     timestamp: string
     notes?: string
   }>

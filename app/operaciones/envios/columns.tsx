@@ -31,6 +31,31 @@ export const columns: ColumnDef<Shipment>[] = [
     enableHiding: false,
   },
   {
+    accessorKey: "shipmentType",
+    header: "Tipo",
+    cell: ({ row }) => {
+      const shipmentType: string = row.getValue("shipmentType");
+
+      // Asignar colores según la prioridad
+      let color: string;
+      
+      switch (shipmentType) {
+        case "fedex":
+          color = "bg-blue-500"; // rojo para alta
+          break;
+        case "dhl":
+          color = "bg-red-500"; // amarillo para media
+          break;
+      }
+
+      return (
+        <Badge className={`${color} text-white`}>
+          {shipmentType.charAt(0).toUpperCase() + shipmentType.slice(1)}
+        </Badge>
+      );
+    },
+  },
+  {
     accessorKey: "trackingNumber",
     header: ({ column }) => <DataTableColumnHeader column={column} title="No. Rastreo" />,
     cell: ({ row }) => <div className="font-medium">{row.getValue("trackingNumber")}</div>,
@@ -71,7 +96,7 @@ export const columns: ColumnDef<Shipment>[] = [
       const statusMap = {
         recoleccion: { label: "Recolección", variant: "default" as const },
         pendiente: { label: "Pendiente", variant: "warning" as const },
-        en_ruta: { label: "En Ruta", variant: "info" as const },
+        en_ruta: { label: "En Ruta", variant: "outline" as const },
         entregado: { label: "Entregado", variant: "success" as const },
         no_entregado: { label: "No Entregado", variant: "destructive" as const },
       }

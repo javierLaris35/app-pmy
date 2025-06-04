@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DataTableViewOptions } from "./data-table-view-options"
 
-import { priorities, statuses } from "@/lib/data"
+import { priorities, statuses, shipmentTypes } from "@/lib/data"
 import { DataTableFacetedFilter } from "./data-table-faceted-filter"
 
 interface DataTableToolbarProps<TData> {
@@ -27,6 +27,9 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="h-8 w-[150px] lg:w-[250px]"
         />
+        {table.getColumn("shipmentType") && (
+          <DataTableFacetedFilter column={table.getColumn("shipmentType")} title="Tipo" options={shipmentTypes} />
+        )}
         {table.getColumn("status") && (
           <DataTableFacetedFilter column={table.getColumn("status")} title="Estatus" options={statuses} />
         )}

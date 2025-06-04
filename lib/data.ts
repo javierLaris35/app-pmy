@@ -581,3 +581,8 @@ export const priorities = [
   { label: "Media", value: "media" },
   { label: "Baja", value: "baja" },
 ]
+
+export const shipmentTypes = [
+  { label: "Fedex", value: "fedex" },
+  { label: "DHL", value: "dhl" },
+]

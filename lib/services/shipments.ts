@@ -31,6 +31,21 @@ export const uploadShipmentFile = async (file: File): Promise<Shipment[]> => {
   return response.data;
 };
 
+export const uploadShipmentFileDhl = async (text: string): Promise<Shipment[]> => {
+  const blob = new Blob([text], { type: 'text/plain' });
+  const file = new File([blob], 'shipment.txt', { type: 'text/plain' });
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await axiosConfig.post<Shipment[]>('/shipments/upload-dhl', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return response.data;
+}
+
 export {
     getShipments,
     getShipmentById,

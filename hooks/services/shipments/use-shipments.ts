@@ -6,9 +6,6 @@ import useSWR from 'swr';
 export function useShipments() {
     const { data, error, isLoading, mutate } = useSWR('/shipments', getShipments);
 
-    console.log("data: ", data)
-    console.log("error: ", error)
-
     return {
         shipments: data,
         isLoading,
