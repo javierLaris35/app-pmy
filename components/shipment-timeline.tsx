@@ -11,10 +11,15 @@ import {
   User,
   Phone,
   Calendar,
+  CalendarClockIcon,
+  PackageCheckIcon,
+  TriangleAlertIcon,
 } from "lucide-react"
 import type { Shipment } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { format } from "date-fns"
+import Link from "next/link"
 
 const statusMap = {
   recoleccion: { icon: Package, color: "text-blue-500", bgColor: "bg-blue-100", label: "Recolección" },
@@ -48,9 +53,16 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500">Número de Rastreo</p>
-              <p className="text-lg font-bold">{shipment.trackingNumber}</p>
+              <Link
+                href={`https://www.fedex.com/fedextrack/?trknbr=${shipment.trackingNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg font-bold text-blue-600 hover:text-blue-800 no-underline"
+              >
+                {shipment.trackingNumber}
+              </Link>
             </div>
             {shipment.priority && (
               <Badge
@@ -63,17 +75,62 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
 
           <div>
             <p className="text-sm font-medium text-gray-500">Estado Actual</p>
-            <div className="flex items-center gap-2 mt-1">
-              <div className={`p-1 rounded-full ${statusMap[shipment.status].bgColor}`}>
-                {React.createElement(statusMap[shipment.status].icon, {
-                  className: `h-5 w-5 ${statusMap[shipment.status].color}`,
-                })}
+            <div className="flex flex-col gap-2 mt-1">
+              <div className="flex items-center gap-2">
+                <div className={`p-1 rounded-full ${statusMap[shipment.status].bgColor}`}>
+                  {React.createElement(statusMap[shipment.status].icon, {
+                    className: `h-5 w-5 ${statusMap[shipment.status].color}`,
+                  })}
+                </div>
+                <span className={`font-medium ${statusMap[shipment.status].color}`}>
+                  {statusMap[shipment.status].label}
+                </span>
               </div>
-              <span className={`font-medium ${statusMap[shipment.status].color}`}>
-                {statusMap[shipment.status].label}
-              </span>
+
+              {(shipment.status === 'entregado' || shipment.status === 'no_entregado') && (
+                <div className="flex flex-wrap items-center gap-4 mt-2">
+                  {(() => {
+                    const entrega = shipment.statusHistory?.find(status => status.status === shipment.status);
+                    const fecha = entrega?.timestamp ? new Date(entrega.timestamp) : null;
+                    
+                    return (
+                      <>
+                        <div className="flex items-center gap-1">
+                          <CalendarClockIcon className="h-4 w-4 inline-block text-gray-400"/>
+                          <span className="text-sm text-gray-600">
+                            {`Fecha de ${shipment.status === 'entregado' ? 'Entrega' : 'Actualización'}: ${
+                              fecha
+                                ? format(fecha, 'dd-MM-yyyy HH:mm:ss')
+                                : 'Fecha no disponible'
+                            }`}
+                          </span>
+                        </div>
+
+                        {shipment.status === 'entregado' && shipment.receivedByName && (
+                          <div className="flex items-center gap-1">
+                            <PackageCheckIcon className="h-4 w-4 inline-block text-gray-400"/>
+                            <span className="text-sm text-gray-600">
+                              {`Entregado a: ${shipment.receivedByName}`}
+                            </span>
+                          </div>
+                        )}
+
+                        {shipment.status === 'no_entregado' && entrega?.notes && (
+                          <div className="flex items-center gap-1">
+                            <TriangleAlertIcon className="h-4 w-4 inline-block text-gray-400"/>
+                            <span className="text-sm text-gray-600">
+                              {`Nota: ${entrega.notes}`}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
+
 
           {shipment.payment && (
             <div>
@@ -156,14 +213,14 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
             const historyEntry = statusHistory.find((h) => h.status === status)
             const timestamp = historyEntry ? new Date(historyEntry.timestamp) : null
             const notes = historyEntry?.notes
-            const location = historyEntry?.location
-            const updatedBy = historyEntry?.updatedBy
+            //const location = historyEntry?.location
+            //const updatedBy = historyEntry?.updatedBy
 
             return (
               <div key={status} className="relative flex items-start space-x-4 py-4">
                 <div
                   className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full ${
-                    isActive ? "bg-white" : "bg-gray-100"
+                    isActive ? "bg-white shadow-md" : "bg-gray-100"
                   }`}
                 >
                   <Icon className={`h-6 w-6 ${isActive ? color : "text-gray-400"}`} />
@@ -175,13 +232,13 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
                       {timestamp.toLocaleDateString()} {timestamp.toLocaleTimeString()}
                     </p>
                   )}
-                  {location && (
+                  {/*{location && (
                     <div className="flex items-center gap-1 mt-1">
                       <MapPin className="h-3 w-3 text-gray-400" />
                       <p className="text-xs text-gray-500">{location}</p>
                     </div>
                   )}
-                  {updatedBy && <p className="text-xs text-gray-500 mt-1">Actualizado por: {updatedBy}</p>}
+                  {updatedBy && <p className="text-xs text-gray-500 mt-1">Actualizado por: {updatedBy}</p>}*/}
                   {notes && <p className="text-xs italic text-gray-500 mt-1">{notes}</p>}
                   {isCurrentStatus && shipment.status !== "no_entregado" && shipment.status !== "entregado" && (
                     <Badge variant="outline" className="mt-1 text-xs">

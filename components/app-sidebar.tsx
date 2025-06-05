@@ -20,8 +20,14 @@ import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
 import { User } from "@/lib/types"
 
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  user: User
+  className?: string
+  defaultCollapsed?: boolean
+  onCollapseChange?: (collapsed: boolean) => void
+}
 
-export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: User }) {
+export function AppSidebar({ user, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarContent>

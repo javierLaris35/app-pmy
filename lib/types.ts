@@ -59,12 +59,14 @@ export type Role = {
   permissions?: Permission[]
 }
 
+type UserRole = "user" | "admin";
+
 export type User = {
   id?: string
   email: string
   name?: string
   lastName?: string
-  role: "admin" | "user"
+  role: UserRole
   subsidiaryId?: string
   roles?: Role[]
   permissions?: string[],
@@ -96,6 +98,7 @@ export type Shipment = {
     timestamp: string
     notes?: string
   }>
+  receivedByName: string
 }
 
 export type Driver = {

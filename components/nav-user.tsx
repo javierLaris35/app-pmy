@@ -29,6 +29,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { User } from "@/lib/types"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 interface NavUserProps {
   user: User
@@ -36,6 +38,22 @@ interface NavUserProps {
 
 export function NavUser({user}: NavUserProps) {
   const { isMobile } = useSidebar()
+  const router = useRouter();
+  const { toast } = useToast()
+  
+  const handleLogout = async () => { 
+    try {
+      //await logout()
+      router.push("/login")
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo cerrar sesión correctamente",
+        variant: "destructive",
+      })
+    }
+  }
 
   return (
     <SidebarMenu>

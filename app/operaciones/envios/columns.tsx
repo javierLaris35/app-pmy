@@ -36,15 +36,14 @@ export const columns: ColumnDef<Shipment>[] = [
     cell: ({ row }) => {
       const shipmentType: string = row.getValue("shipmentType");
 
-      // Asignar colores según la prioridad
       let color: string;
       
       switch (shipmentType) {
         case "fedex":
-          color = "bg-blue-500"; // rojo para alta
+          color = "bg-blue-500";
           break;
         case "dhl":
-          color = "bg-red-500"; // amarillo para media
+          color = "bg-red-500";
           break;
       }
 
@@ -94,14 +93,14 @@ export const columns: ColumnDef<Shipment>[] = [
     cell: ({ row }) => {
       const status = row.getValue("status") as Shipment["status"]
       const statusMap = {
-        recoleccion: { label: "Recolección", variant: "default" as const },
-        pendiente: { label: "Pendiente", variant: "warning" as const },
-        en_ruta: { label: "En Ruta", variant: "outline" as const },
-        entregado: { label: "Entregado", variant: "success" as const },
-        no_entregado: { label: "No Entregado", variant: "destructive" as const },
+        recoleccion: { label: "Recolección", color: "bg-blue-50 text-blue-700 ring-blue-700/10" as const },
+        pendiente: { label: "Pendiente", color: "bg-yellow-50 text-yellow-800 ring-yellow-600/20" as const },
+        en_ruta: { label: "En Ruta", color: "bg-purple-50 text-purple-700 ring-purple-700/10" as const },
+        entregado: { label: "Entregado", color: "bg-green-50 text-green-700 ring-green-600/20" as const },
+        no_entregado: { label: "No Entregado", color: "destructive" as const },
       }
-      const { label, variant } = statusMap[status] || { label: "Desconocido", variant: "default" as const }
-      return <Badge variant={variant}>{label}</Badge>
+      const { label, color } = statusMap[status] || { label: "Desconocido", color: "default" as const }
+      return <Badge className={color}>{label}</Badge>
     },
   },
   {

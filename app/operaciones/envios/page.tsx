@@ -9,14 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Package, Eye, Map } from "lucide-react"
 import { columns } from "./columns"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
 import dynamic from "next/dynamic"
 import { Shipment } from "@/lib/types"
@@ -70,8 +65,24 @@ export default function ShipmentsPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Skeleton para los botones de acción */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
-          <div className="flex flex-col items-end sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Contenedor título + subtítulo */}
+          <div>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-64" />
+                <Skeleton className="h-5 w-80" />
+              </div>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold tracking-tight">Envios</h2>
+                <p className="text-muted-foreground">Administra las paquetes a enviar de las diferentes empresas (Fedex & DHL)</p>
+              </>
+            )}
+          </div>
+
+          {/* Contenedor botones */}
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
             {isLoading ? (
               <>
                 <Skeleton className="h-10 w-32 rounded-md" />
@@ -88,16 +99,16 @@ export default function ShipmentsPage() {
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] bg-white rounded-lg">
-                    {/* ... (contenido del diálogo igual que antes) */}
+                    {/* contenido del diálogo */}
                   </DialogContent>
                 </Dialog>
-                
+
                 <CSVUploadModal 
                   open={isUploadModalOpen} 
                   onOpenChange={setIsUploadModalOpen} 
                   onUploadSuccess={handleUploadSuccess}
                 />
-                
+
                 <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" className="bg-white hover:bg-gray-100">
@@ -141,8 +152,8 @@ export default function ShipmentsPage() {
         ) : (
           <DataTable
             columns={updatedColumns}
-            isLoading={isLoading}
-            data={shipments}
+            //isLoading={isLoading}
+            data={shipments || []}
             searchKey="trackingNumber"
             filters={[ /*** Mover esto de aquí a utils, data o types */
               {

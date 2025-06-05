@@ -1,16 +1,17 @@
 "use client"
 
 import type * as React from "react"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
 import { AppSidebar } from "./app-sidebar"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "./ui/sidebar"
+import { User } from "@/lib/types"
 
 interface AppLayoutProps {
   children: React.ReactNode
 }
 
-const user = {
+
+
+const user: User = {
   name: "Juan",
   lastName: "Pérez",
   email: "juan.perez@delyaqui.com.mx",
@@ -19,23 +20,6 @@ const user = {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const router = useRouter();
-  const { toast } = useToast()
-
-  const handleLogout = async () => { 
-    try {
-      //await logout()
-      router.push("/login")
-    } catch (error) {
-      console.error("Error al cerrar sesión:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo cerrar sesión correctamente",
-        variant: "destructive",
-      })
-    }
-  }
-  
   return (
     <SidebarProvider>
       <AppSidebar user={user}/>

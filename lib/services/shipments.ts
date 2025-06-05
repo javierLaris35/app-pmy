@@ -2,49 +2,67 @@ import { axiosConfig } from "../axios-config";
 import { Shipment } from "../types";
 
 //GET
-const getShipments = async (url: string) => { 
-    const response = await axiosConfig.get<Shipment[]>(url);
-    return response.data;
-}
+  const getShipments = async (url: string) => { 
+      const response = await axiosConfig.get<Shipment[]>(url);
+      return response.data;
+  }
 
-const getShipmentById = async (id: string) => {
-    const response = await axiosConfig.get(`/shipments/${id}`); 
-    return response.data;
-}
+  const getShipmentById = async (id: string) => {
+      const response = await axiosConfig.get(`/shipments/${id}`); 
+      return response.data;
+  }
 
-const saveShipments = async (shipments: Shipment[]) => {
-    const response = await axiosConfig.post<Shipment[]>('/shipments', shipments);  
-    return response.data;
-}
+  const saveShipments = async (shipments: Shipment[]) => {
+      const response = await axiosConfig.post<Shipment[]>('/shipments', shipments);  
+      return response.data;
+  }
 
+  export async function uploadShipmentFile(
+    file: File,
+    onProgress?: (progress: number) => void
+  ) {
+    const formData = new FormData()
+    formData.append("file", file)
 
-export const uploadShipmentFile = async (file: File): Promise<Shipment[]> => {
-  const formData = new FormData();
-  formData.append('file', file);
+    const response = await axiosConfig.post("/shipments/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data"
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          console.log("Progreso:", percent)
+          onProgress(percent)
+        }
+      }
+    })
 
-  const response = await axiosConfig.post<Shipment[]>('/shipments/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+    return response.data
+  }
 
-  return response.data;
-};
+  export const uploadShipmentFileDhl = async (
+    text: string,
+    onProgress?: (progress: number) => void
+  ): Promise<Shipment[]> => {
+    const blob = new Blob([text], { type: 'text/plain' })
+    const file = new File([blob], 'shipment.txt', { type: 'text/plain' })
+    const formData = new FormData()
+    formData.append('file', file)
 
-export const uploadShipmentFileDhl = async (text: string): Promise<Shipment[]> => {
-  const blob = new Blob([text], { type: 'text/plain' });
-  const file = new File([blob], 'shipment.txt', { type: 'text/plain' });
-  const formData = new FormData();
-  formData.append('file', file);
+    const response = await axiosConfig.post<Shipment[]>('/shipments/upload-dhl', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (event) => {
+        if (event.total) {
+          const percent = Math.round((event.loaded * 100) / event.total)
+          onProgress?.(percent)
+        }
+      },
+    })
 
-  const response = await axiosConfig.post<Shipment[]>('/shipments/upload-dhl', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-
-  return response.data;
-}
+    return response.data
+  }
 
 export {
     getShipments,

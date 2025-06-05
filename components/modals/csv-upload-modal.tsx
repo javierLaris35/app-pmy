@@ -1,8 +1,18 @@
 "use client"
 
 import { useState, useRef, useCallback } from "react"
-import { Upload, File, AlertCircle, Loader2, ClipboardPaste, X } from "lucide-react"
-import { uploadShipmentFile, uploadShipmentFileDhl } from "@/lib/services/shipments"
+import {
+  Upload,
+  File as FileIcon,
+  AlertCircle,
+  Loader2,
+  ClipboardPaste,
+  X
+} from "lucide-react"
+import {
+  uploadShipmentFile,
+  uploadShipmentFileDhl
+} from "@/lib/services/shipments"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTrigger,
+  DialogTrigger
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 
 interface DualUploadModalProps {
   open: boolean
@@ -33,7 +44,11 @@ const ALLOWED_MIME_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ]
 
-export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUploadModalProps) {
+export function CSVUploadModal({
+  open,
+  onOpenChange,
+  onUploadSuccess
+}: DualUploadModalProps) {
   const [file, setFile] = useState<File | null>(null)
   const [textInput, setTextInput] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +65,7 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
       return
     }
 
-    const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase()
+    const fileExtension = selectedFile.name.split(".").pop()?.toLowerCase()
     const isValidExtension = fileExtension && ALLOWED_EXTENSIONS.includes(fileExtension)
     const isValidMimeType = ALLOWED_MIME_TYPES.includes(selectedFile.type)
 
@@ -101,9 +116,11 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
       } else if (activeTab === "text" && textInput.trim()) {
         await uploadShipmentFileDhl(textInput)
       } else {
-        setError(activeTab === "file" 
-          ? "Por favor seleccione un archivo" 
-          : "Por favor ingrese el texto con los envíos")
+        setError(
+          activeTab === "file"
+            ? "Por favor seleccione un archivo"
+            : "Por favor ingrese el texto con los envíos"
+        )
         return
       }
 
@@ -113,8 +130,8 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
     } catch (err) {
       console.error("Error processing shipments:", err)
       setError(
-        err instanceof Error 
-          ? err.message 
+        err instanceof Error
+          ? err.message
           : "Error al procesar los envíos. Verifique el formato e intente nuevamente."
       )
     } finally {
@@ -130,7 +147,7 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
           Importar Envíos
         </Button>
       </DialogTrigger>
-      
+
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -142,14 +159,14 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onValueChange={(value) => setActiveTab(value as "file" | "text")}
           className="mt-2"
         >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="file" className="gap-2">
-              <File className="h-4 w-4" />
+              <FileIcon className="h-4 w-4" />
               Archivo
             </TabsTrigger>
             <TabsTrigger value="text" className="gap-2">
@@ -181,7 +198,7 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
             {file && (
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="flex items-center gap-3">
-                  <File className="h-5 w-5 text-muted-foreground" />
+                  <FileIcon className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="font-medium">{file.name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -203,18 +220,19 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
 
           <TabsContent value="text" className="mt-4 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="text-input">Pegue su texto</Label>
+              <Label htmlFor="text-input">Ingrese en el siguiete recuadro el FD de DHL</Label>
               <Textarea
                 id="text-input"
-                placeholder={`Ejemplo:\n123456789|Juan Pérez|Av. Principal 123|Ciudad de México|06500|5551234567`}
+                placeholder={`Ejemplo:\nAWB : XXXXXXXXXX \nOrig  Dest  Shipment Time     Prod  Pcs  Kilos  Decl. Value    Description of Goods`}
                 rows={6}
                 value={textInput}
                 onChange={handleTextChange}
                 disabled={isLoading}
                 className="resize-none font-mono text-sm"
               />
-              <div className="text-xs text-muted-foreground">
-                <p>Formato esperado: <Badge variant="outline">AWB|Destinatario|Dirección|Ciudad|CP|Teléfono</Badge></p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>Formato esperado:</p>
+                <Badge variant="outline">AWB : XXXXXXXXXX Orig  Dest  Shipment Time     Prod  Pcs  Kilos  Decl. Value    Description of Goods</Badge>
               </div>
             </div>
           </TabsContent>
@@ -229,14 +247,14 @@ export function CSVUploadModal({ open, onOpenChange, onUploadSuccess }: DualUplo
         )}
 
         <div className="mt-6 flex justify-end gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
             Cancelar
           </Button>
-          <Button 
+          <Button
             onClick={handleUpload}
             disabled={isLoading || (activeTab === "file" ? !file : !textInput.trim())}
           >
