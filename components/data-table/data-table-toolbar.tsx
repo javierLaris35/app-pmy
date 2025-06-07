@@ -18,6 +18,21 @@ interface DataTableToolbarProps<TData> {
 export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0
 
+  // Mapa de opciones de filtro por columna
+  const filterOptions: Record<string, { title: string; options: { label: string; value: string }[] }> = {
+    status: { title: "Estatus", options: statuses },
+    priority: { title: "Prioridad", options: priorities },
+    shipmentType: { title: "Tipo", options: shipmentTypes },
+  }
+
+  // Obtener columnas disponibles
+  const availableColumns = table.getAllColumns().reduce((acc, column) => {
+    if (column.id in filterOptions) {
+      acc[column.id] = filterOptions[column.id]
+    }
+    return acc
+  }, {} as Record<string, { title: string; options: { label: string; value: string }[] }>)
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
@@ -27,15 +42,14 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="h-8 w-[150px] lg:w-[250px]"
         />
-        {table.getColumn("shipmentType") && (
-          <DataTableFacetedFilter column={table.getColumn("shipmentType")} title="Tipo" options={shipmentTypes} />
-        )}
-        {table.getColumn("status") && (
-          <DataTableFacetedFilter column={table.getColumn("status")} title="Estatus" options={statuses} />
-        )}
-        {table.getColumn("priority") && (
-          <DataTableFacetedFilter column={table.getColumn("priority")} title="Prioridad" options={priorities} />
-        )}
+        {Object.entries(availableColumns).map(([columnId, { title, options }]) => (
+          <DataTableFacetedFilter
+            key={columnId}
+            column={table.getColumn(columnId)}
+            title={title}
+            options={options}
+          />
+        ))}
         {isFiltered && (
           <Button variant="ghost" onClick={() => table.resetColumnFilters()} className="h-8 px-2 lg:px-3">
             Borrar
@@ -47,4 +61,3 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
     </div>
   )
 }
-

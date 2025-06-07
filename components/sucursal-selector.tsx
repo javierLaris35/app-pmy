@@ -20,18 +20,32 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
   const [selectedSucursal, setSelectedSucursal] = useState<Subsidiary | undefined>()
 
   useEffect(() => {
-    // Cargar sucursales
-    const loadedSucursales = getSucursales() || []
-    setSucursales(loadedSucursales)
+    let isMounted = true
 
-    // Establecer la sucursal seleccionada si hay un valor
-    if (value && loadedSucursales.length > 0) {
-      const selected = loadedSucursales.find((s) => s.id === value)
-      setSelectedSucursal(selected)
-    } else if (loadedSucursales.length > 0) {
-      // Seleccionar la primera sucursal por defecto
-      setSelectedSucursal(loadedSucursales[0])
-      onValueChange(loadedSucursales[0].id)
+    async function loadSucursales() {
+      try {
+        const loadedSucursales = await getSucursales()
+        if (!isMounted) return
+
+        setSucursales(loadedSucursales)
+
+        const selected = loadedSucursales.find((s) => s.id === value)
+        if (selected) {
+          setSelectedSucursal(selected)
+        } else if (loadedSucursales.length > 0) {
+          // Solo actualizar si el valor actual no es válido
+          const defaultSucursal = loadedSucursales[0]
+          setSelectedSucursal(defaultSucursal)
+          onValueChange(defaultSucursal.id)
+        }
+      } catch (error) {
+        console.error("Error loading branches:", error)
+      }
+    }
+
+    loadSucursales()
+    return () => {
+      isMounted = false
     }
   }, [value, onValueChange])
 
@@ -49,7 +63,7 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
           <CommandList>
             <CommandEmpty>No se encontraron sucursales.</CommandEmpty>
             <CommandGroup>
-              {(sucursales || []).map((sucursal) => (
+              {sucursales.map((sucursal) => (
                 <CommandItem
                   key={sucursal.id}
                   value={sucursal.id}

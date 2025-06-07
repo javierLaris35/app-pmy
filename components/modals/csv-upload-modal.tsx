@@ -28,7 +28,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 
 interface DualUploadModalProps {
   open: boolean
@@ -114,7 +113,7 @@ export function CSVUploadModal({
       if (activeTab === "file" && file) {
         await uploadShipmentFile(file)
       } else if (activeTab === "text" && textInput.trim()) {
-        await uploadShipmentFileDhl(textInput)
+        await uploadShipmentFileDhl(textInput, file)
       } else {
         setError(
           activeTab === "file"
@@ -220,7 +219,7 @@ export function CSVUploadModal({
 
           <TabsContent value="text" className="mt-4 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="text-input">Ingrese en el siguiete recuadro el FD de DHL</Label>
+              <Label htmlFor="text-input">Ingrese en el siguiente recuadro el FD de DHL</Label>
               <Textarea
                 id="text-input"
                 placeholder={`Ejemplo:\nAWB : XXXXXXXXXX \nOrig  Dest  Shipment Time     Prod  Pcs  Kilos  Decl. Value    Description of Goods`}
@@ -232,9 +231,50 @@ export function CSVUploadModal({
               />
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>Formato esperado:</p>
-                <Badge variant="outline">AWB : XXXXXXXXXX Orig  Dest  Shipment Time     Prod  Pcs  Kilos  Decl. Value    Description of Goods</Badge>
+                <Badge variant="outline">
+                  AWB : XXXXXXXXXX Orig Dest Shipment Time Prod Pcs Kilos Decl. Value Description of Goods
+                </Badge>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="extra-file">Adjunte archivo con más datos</Label>
+              <Input
+                id="extra-file"
+                type="file"
+                accept={ALLOWED_EXTENSIONS.map(ext => `.${ext}`).join(",")}
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                disabled={isLoading}
+                className="cursor-pointer"
+              />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Formatos: {ALLOWED_EXTENSIONS.join(", ")}</span>
+                <span>Máx: {MAX_FILE_SIZE_MB}MB</span>
+              </div>
+            </div>
+
+            {file && (
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex items-center gap-3">
+                  <FileIcon className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRemoveFile}
+                  disabled={isLoading}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
@@ -264,7 +304,7 @@ export function CSVUploadModal({
                 Procesando...
               </>
             ) : (
-              "Importar Envíos"
+              "Subir"
             )}
           </Button>
         </div>

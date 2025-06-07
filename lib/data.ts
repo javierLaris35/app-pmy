@@ -1,10 +1,10 @@
-import type { Subsidiary, RouteIncome, ExpenseCategory, Expense } from "./types"
+import type { Subsidiary, RouteIncome, ExpenseCategory, Expense, Collection } from "./types"
 
 // Datos de ejemplo para sucursales
 export const sucursales: Subsidiary[] = [
   {
-    id: "1",
-    name: "Villa Juárez DHL",
+    id: "5dd4132f-03ee-40b8-be5f-926eb7715219",
+    name: "Cd. Obregon",
     address: "Calle Principal #123, Villa Juárez",
     phone: "123-456-7890",
     active: true,
@@ -36,78 +36,56 @@ export const categoriasGasto: ExpenseCategory[] = [
 const getAbrilDate = (day: number) => new Date(2025, 4, day)
 
 // Datos de ejemplo para ingresos
-export const ingresos: RouteIncome[] = [
+export let getCollections: Collection[] = [
   {
-    id: "1",
-    subsidiaryId: "1",
-    date: getAbrilDate(14),
-    ok: 39,
-    ba: 0,
-    collections: 0,
-    total: 39,
-    totalIncome: 1755,
+    id: "col-001",
+    trackingNumber: "TRK123456789",
+    subsidiaryId: "5dd4132f-03ee-40b8-be5f-926eb7715219",
+    status: "pending",
+    fecha: new Date("2025-06-05T10:00:00Z"),
+    isPickUp: true,
   },
   {
-    id: "2",
-    subsidiaryId: "1",
-    date: getAbrilDate(15),
-    ok: 0,
-    ba: 0,
-    collections: 0,
-    total: 0,
-    totalIncome: 0,
+    id: "col-002",
+    trackingNumber: "TRK987654321",
+    subsidiaryId: "5dd4132f-03ee-40b8-be5f-926eb7715219",
+    status: "completed",
+    fecha: new Date("2025-06-05T12:30:00Z"),
+    isPickUp: false,
   },
   {
-    id: "3",
-    subsidiaryId: "1",
-    date: getAbrilDate(16),
-    ok: 15,
-    ba: 0,
-    collections: 0,
-    total: 15,
-    totalIncome: 675,
+    id: "col-003",
+    trackingNumber: "TRK456789123",
+    subsidiaryId: "5dd4132f-03ee-40b8-be5f-926eb7715219",
+    status: "failed",
+    fecha: new Date("2025-06-06T09:15:00Z"),
+    isPickUp: true,
   },
   {
-    id: "4",
-    subsidiaryId: "1",
-    date: getAbrilDate(17),
-    ok: 10,
-    ba: 2,
-    collections: 0,
-    total: 12,
-    totalIncome: 540,
-  },
-  {
-    id: "5",
-    subsidiaryId: "1",
-    date: getAbrilDate(18),
-    ok: 0,
-    ba: 0,
-    collections: 0,
-    total: 0,
-    totalIncome: 0,
-  },
-  {
-    id: "6",
-    subsidiaryId: "1",
-    date: getAbrilDate(19),
-    ok: 0,
-    ba: 0,
-    collections: 0,
-    total: 0,
-    totalIncome: 0,
-  },
-  {
-    id: "7",
-    subsidiaryId: "1",
-    date: getAbrilDate(20),
-    ok: 0,
-    ba: 0,
-    collections: 0,
-    total: 0,
-    totalIncome: 0,
+    id: "col-004",
+    trackingNumber: "TRK789123456",
+    subsidiaryId: "another-subsidiary-id",
+    status: "pending",
+    fecha: new Date("2025-06-06T14:00:00Z"),
+    isPickUp: false,
   },
 ]
+
+export async function addCollection(data: Omit<Collection, "id">): Promise<void> {
+  const newCollection: Collection = {
+    ...data,
+    id: `col-${getCollections.length + 1}`,
+  }
+  getCollections.push(newCollection)
+  localStorage.setItem("getCollections", JSON.stringify(getCollections))
+}
+
+// Cargar desde localStorage al iniciar
+/*const storedCollections = localStorage.getItem("getCollections")
+
+if (storedCollections) {
+  getCollections = JSON.parse(storedCollections)
+}*/
 
 // Datos de ejemplo para gastos
 export const gastos: Expense[] = [

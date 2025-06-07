@@ -41,13 +41,15 @@ import { Shipment } from "../types";
   }
 
   export const uploadShipmentFileDhl = async (
-    text: string,
+    text: string, file: File,
     onProgress?: (progress: number) => void
   ): Promise<Shipment[]> => {
     const blob = new Blob([text], { type: 'text/plain' })
-    const file = new File([blob], 'shipment.txt', { type: 'text/plain' })
+    const fileParsed = new File([blob], 'shipment.txt', { type: 'text/plain' })
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('excelFile', file); // archivo .xlsx
+    formData.append('txtFile', fileParsed); 
+    
 
     const response = await axiosConfig.post<Shipment[]>('/shipments/upload-dhl', formData, {
       headers: {

@@ -6,12 +6,22 @@ export type Subsidiary = {
   active: boolean
 }
 
+export type Collection = {
+  id?: string
+  trackingNumber: string
+  subsidiaryId: string
+  status?: string | null
+  fecha?: Date
+  isPickUp: boolean
+}
+
 export type RouteIncome = {
   id: string
   subsidiaryId: string
   date: Date
   ok: number
   ba: number
+  ne: number
   collections: number
   total: number
   totalIncome: number

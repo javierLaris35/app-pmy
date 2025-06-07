@@ -1,4 +1,4 @@
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon } from "lucide-react"
 
 export interface NavItem {
     title: string
@@ -40,6 +40,13 @@ export const sidebarMenu = {
           name: "Envios",
           url: "/operaciones/envios",
           icon: PackageIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
+          name: "Recoleciones",
+          url: "/operaciones/recolecciones",
+          icon: PackagePlusIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },

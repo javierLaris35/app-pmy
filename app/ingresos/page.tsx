@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Plus } from "lucide-react"
-import { getIngresosBySucursal, addIngreso, updateIngreso } from "@/lib/data"
+import { addIngreso, updateIngreso } from "@/lib/data"
 import type { RouteIncome } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { AppLayout } from "@/components/app-layout"
@@ -27,32 +26,21 @@ import {
   createActionsColumn,
   createViewColumn,
 } from "@/components/data-table/columns"
+
 import { Card, CardContent } from "@/components/ui/card"
+import { useIncomes } from "@/hooks/services/incomes/use-income"
 
 export default function IngresosPage() {
-  const [selectedSucursalId, setSelectedSucursalId] = useState("")
-  const [ingresos, setIngresos] = useState<RouteIncome[]>([])
+  const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingIngreso, setEditingIngreso] = useState<RouteIncome | null>(null)
+  const { incomes, isLoading, isError, mutate } = useIncomes(selectedSucursalId)
 
-  // Formulario
+  // Form state
   const [fecha, setFecha] = useState("")
   const [ok, setOk] = useState(0)
   const [ba, setBa] = useState(0)
   const [recolecciones, setRecolecciones] = useState(0)
-
-  useEffect(() => {
-    if (selectedSucursalId) {
-      loadIngresos()
-    }
-  }, [selectedSucursalId])
-
-  const loadIngresos = () => {
-    const ingresosData = getIngresosBySucursal(selectedSucursalId)
-    // Ordenar por fecha descendente
-    ingresosData.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-    setIngresos(ingresosData)
-  }
 
   const resetForm = () => {
     setEditingIngreso(null)
@@ -76,38 +64,39 @@ export default function IngresosPage() {
     setIsDialogOpen(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const total = ok + ba + recolecciones
-    // Calcular el total de ingresos (asumiendo $45 por cada OK y $0 por BA)
     const totalIngresos = ok * 45
 
-    if (editingIngreso) {
-      // Actualizar ingreso existente
-      updateIngreso(editingIngreso.id, {
-        fecha: new Date(fecha),
-        ok,
-        ba,
-        recolecciones,
-        total,
-        totalIngresos,
-      })
-    } else {
-      // Crear nuevo ingreso
-      addIngreso({
-        sucursalId: selectedSucursalId,
-        fecha: new Date(fecha),
-        ok,
-        ba,
-        recolecciones,
-        total,
-        totalIngresos,
-      })
+    try {
+      if (editingIngreso) {
+        await updateIngreso(editingIngreso.id, {
+          fecha: new Date(fecha),
+          ok,
+          ba,
+          recolecciones,
+          total,
+          totalIngresos,
+        })
+      } else {
+        await addIngreso({
+          sucursalId: selectedSucursalId,
+          fecha: new Date(fecha),
+          ok,
+          ba,
+          recolecciones,
+          total,
+          totalIngresos,
+        })
+      }
+      setIsDialogOpen(false)
+      resetForm()
+      mutate() // Refresh the data
+    } catch (error) {
+      console.error("Error saving income:", error)
     }
-
-    setIsDialogOpen(false)
-    loadIngresos()
   }
 
   const columns = [
@@ -120,24 +109,14 @@ export default function IngresosPage() {
     ),
     createSortableColumn<RouteIncome>("ok", "OK", (row) => row.ok),
     createSortableColumn<RouteIncome>("ba", "BA", (row) => row.ba),
+    createSortableColumn<RouteIncome>("ne", "NE", (row) => row.ne),
     createSortableColumn<RouteIncome>("recolecciones", "Recolecciones", (row) => row.collections),
     createSortableColumn<RouteIncome>("total", "Total", (row) => row.total),
     createSortableColumn<RouteIncome>(
       "totalIngresos",
       "Total Ingresos",
       (row) => row.totalIncome,
-      (value) => <span className="font-medium">{formatCurrency(value)}</span>,
     ),
-    createActionsColumn<RouteIncome>([
-      {
-        label: "Editar",
-        onClick: (data) => openEditIngresoDialog(data),
-      },
-      {
-        label: "Eliminar",
-        onClick: (data) => console.log("Eliminar", data),
-      },
-    ]),
     createViewColumn<RouteIncome>((data) => console.log("Ver detalles", data)),
   ]
 
@@ -151,7 +130,10 @@ export default function IngresosPage() {
           </div>
           <div className="flex items-center gap-4">
             <div className="w-[250px]">
-              <SucursalSelector value={selectedSucursalId} onValueChange={setSelectedSucursalId} />
+              <SucursalSelector
+                value={selectedSucursalId}
+                onValueChange={setSelectedSucursalId}
+              />
             </div>
             <Button onClick={openNewIngresoDialog} disabled={!selectedSucursalId}>
               <Plus className="mr-2 h-4 w-4" />
@@ -162,8 +144,20 @@ export default function IngresosPage() {
 
         <Card>
           <CardContent className="p-6">
-            {selectedSucursalId ? (
-              <DataTable columns={columns} data={ingresos} filterPlaceholder="Filtrar ingresos..." />
+            {isLoading ? (
+              <div className="flex h-[200px] items-center justify-center">
+                <p className="text-muted-foreground">Cargando ingresos...</p>
+              </div>
+            ) : isError ? (
+              <div className="flex h-[200px] items-center justify-center">
+                <p className="text-destructive">Error al cargar los ingresos</p>
+              </div>
+            ) : selectedSucursalId ? (
+              <DataTable
+                columns={columns}
+                data={incomes || []} // Use incomes from useIncomes
+                filterPlaceholder="Filtrar ingresos..."
+              />
             ) : (
               <div className="flex h-[200px] items-center justify-center">
                 <p className="text-muted-foreground">Selecciona una sucursal para ver los ingresos</p>
@@ -183,7 +177,13 @@ export default function IngresosPage() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="fecha">Fecha</Label>
-                <Input id="fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
+                <Input
+                  id="fecha"
+                  type="date"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  required
+                />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="grid gap-2">
@@ -222,11 +222,15 @@ export default function IngresosPage() {
               </div>
               <div className="grid gap-2">
                 <Label>Total</Label>
-                <div className="rounded-md border border-input bg-muted px-3 py-2">{ok + ba + recolecciones}</div>
+                <div className="rounded-md border border-input bg-muted px-3 py-2">
+                  {ok + ba + recolecciones}
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label>Total Ingresos</Label>
-                <div className="rounded-md border border-input bg-muted px-3 py-2">{formatCurrency(ok * 45)}</div>
+                <div className="rounded-md border border-input bg-muted px-3 py-2">
+                  {formatCurrency(ok * 45)}
+                </div>
               </div>
             </div>
             <DialogFooter>

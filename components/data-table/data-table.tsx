@@ -1,110 +1,100 @@
 "use client"
 
-import * as React from "react"
+import { useState, useMemo } from "react"
 import {
-  type ColumnDef,
-  type ColumnFiltersState,
-  type SortingState,
-  type VisibilityState,
-  flexRender,
+  useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
-  useReactTable,
+  getPaginationRowModel,
+  flexRender,
+  type ColumnDef,
 } from "@tanstack/react-table"
-
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
-import { DataTablePagination } from "@/components/data-table/data-table-pagination"
-import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
+import { DataTableToolbar } from "./data-table-toolbar"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-  searchKey?: string
-  filters?: {
-    columnId: string
-    title: string
-    options: { label: string; value: string }[]
-  }[]
+  filterPlaceholder?: string
 }
 
-export function DataTable<TData, TValue>({ columns, data, searchKey, filters }: DataTableProps<TData, TValue>) {
-  const [rowSelection, setRowSelection] = React.useState({})
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [globalFilter, setGlobalFilter] = React.useState<string>("")
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  filterPlaceholder,
+}: DataTableProps<TData, TValue>) {
+  const [globalFilter, setGlobalFilter] = useState("")
+  const [columnFilters, setColumnFilters] = useState<{ id: string; value: unknown }[]>([])
+
+  const columnIds = useMemo(() => columns.map((col) => col.id).filter(Boolean), [columns])
+
+  const validColumnFilters = useMemo(
+    () => columnFilters.filter((filter) => columnIds.includes(filter.id)),
+    [columnFilters, columnIds]
+  )
 
   const table = useReactTable({
     data,
     columns,
     state: {
-      sorting,
-      columnVisibility,
-      rowSelection,
-      columnFilters,
-      globalFilter
+      globalFilter,
+      columnFilters: validColumnFilters,
     },
-    enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    globalFilterFn: (row, columnId, filterValue) => {
-      const search = filterValue.toLowerCase();
-
-      return ["recipientName", "recipientAddress", "recipientCity", "recipientZip", "trackingNumber"].some((col) => {
-        return row.getValue(col)?.toString().toLowerCase().includes(search);
-      });
-    },
+    getPaginationRowModel: getPaginationRowModel(),
   })
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar table={table} searchKey={searchKey} filters={filters} setGlobalFilter={setGlobalFilter}/>
+      <DataTableToolbar table={table} setGlobalFilter={setGlobalFilter} />
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead  key={header.id}>
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  )
-                })}
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No hay resultados.
+                  Sin resultados.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
     </div>
   )
 }
-
