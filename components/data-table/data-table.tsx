@@ -11,6 +11,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table"
 import { DataTableToolbar } from "./data-table-toolbar"
+import { DataTablePagination } from "@/components/data-table/data-table-pagination"
 import {
   Table,
   TableBody,
@@ -95,6 +96,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
+      <DataTablePagination table={table} />
     </div>
   )
 }

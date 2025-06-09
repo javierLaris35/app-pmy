@@ -23,18 +23,27 @@ import { DataTable } from "@/components/data-table/data-table"
 import {
   createSelectColumn,
   createSortableColumn,
-  createActionsColumn,
   createViewColumn,
 } from "@/components/data-table/columns"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { useIncomes } from "@/hooks/services/incomes/use-income"
+import { DateRange } from "react-day-picker"
+import { DateRangePicker } from "@/components/date-range-picker" 
 
 export default function IngresosPage() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingIngreso, setEditingIngreso] = useState<RouteIncome | null>(null)
-  const { incomes, isLoading, isError, mutate } = useIncomes(selectedSucursalId)
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: new Date(),
+    to: new Date(),
+  })
+
+  const { incomes, isLoading, isError, mutate } = useIncomes(
+    selectedSucursalId,
+    dateRange?.from && dateRange?.to ? { from: dateRange.from, to: dateRange.to } : undefined
+  )
 
   // Form state
   const [fecha, setFecha] = useState("")
@@ -135,6 +144,10 @@ export default function IngresosPage() {
                 onValueChange={setSelectedSucursalId}
               />
             </div>
+            <DateRangePicker
+              date={dateRange}
+              setDate={setDateRange}
+            />
             <Button onClick={openNewIngresoDialog} disabled={!selectedSucursalId}>
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Ingreso

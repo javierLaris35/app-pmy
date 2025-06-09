@@ -32,7 +32,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     <Sidebar collapsible="icon" {...props}>
       <SidebarContent>
         <div className="flex justify-center items-center pt-2">
-          <Image src="/logo-no-fondo.png" alt="Logo Del Yaqui" width={150} height={150} />
+          <Image src="/logo-no-fondo.png" alt="Logo Del Yaqui" width={200} height={200} />
         </div>
         <NavMenu items={sidebarMenu.items} />
         <NavSecondary items={sidebarMenu.secondary} className="mt-auto" />

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useCollections } from "@/hooks/services/collections/use-collections"
 import CollectionForm from "@/components/modals/collection-form"
 import type { Collection } from "@/lib/types"
+import { getSucursales } from "@/lib/data"
 
 export default function RecoleccionesPage() {
   // Unificar nombre de variable y usar null como estado inicial
@@ -31,6 +32,13 @@ export default function RecoleccionesPage() {
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
 
   const { collections, isLoading, isError, mutate } = useCollections(selectedSucursalId ?? "")
+
+  useEffect(() => {
+      const sucursales = getSucursales()
+      if (sucursales.length > 0 && !selectedSucursalId) {
+        setSelectedSucursalId(sucursales[0].id)
+      }
+    }, [selectedSucursalId])
 
   const openNewCollectionDialog = () => {
     setEditingCollection(null)
@@ -51,10 +59,13 @@ export default function RecoleccionesPage() {
       (value) => value
     ),
     createSortableColumn<Collection>(
-      "fecha",
+      "createdAt",
       "Fecha",
-      (row) => row.fecha,
-      (value) => new Date(value).toLocaleDateString("es-MX")
+      (row) => row.createdAt,
+      (value) => {
+        const date = new Date(value + 'T12:00:00'); // Hora fija para evitar cambio de fecha
+        return date.toLocaleDateString("es-MX");
+      }
     ),
     createSortableColumn<Collection>("status", "Estado", (row) => row.status),
     createSortableColumn<Collection>(
@@ -62,23 +73,14 @@ export default function RecoleccionesPage() {
       "¿Tiene estatus Pick Up?",
       (row) => row.isPickUp,
       (value) =>
-        value ? (
-          <CheckIcon className="w-4 h-4 text-green-600" />
-        ) : (
-          <XIcon className="w-4 h-4 text-red-500" />
-        )
+         <div className="flex justify-center">
+          {value ? (
+            <CheckIcon className="w-4 h-4 text-green-600" />
+          ) : (
+            <XIcon className="w-4 h-4 text-red-500" />
+          )}
+        </div>
     ),
-    createActionsColumn<Collection>([
-      {
-        label: "Editar",
-        onClick: (data) => openEditCollectionDialog(data),
-      },
-      {
-        label: "Eliminar",
-        onClick: (data) => console.log("Eliminar", data),
-      },
-    ]),
-    createViewColumn<Collection>((data) => console.log("Ver detalles", data)),
   ]
 
   return (

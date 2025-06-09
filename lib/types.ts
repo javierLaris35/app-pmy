@@ -11,20 +11,20 @@ export type Collection = {
   trackingNumber: string
   subsidiaryId: string
   status?: string | null
-  fecha?: Date
+  createdAt?: Date
   isPickUp: boolean
 }
 
 export type RouteIncome = {
   id: string
   subsidiaryId: string
-  date: Date
+  date: string
   ok: number
   ba: number
   ne: number
   collections: number
   total: number
-  totalIncome: number
+  totalIncome: string
 }
 
 export type ExpenseCategory = {
@@ -36,9 +36,8 @@ export type ExpenseCategory = {
 export type Expense = {
   id: string
   subsidiaryId: string
-  categoryId: string
-  categoryName: string
-  date: Date
+  category: ExpenseCategory
+  date: string
   amount: number
   description?: string
   paymentMethod?: string

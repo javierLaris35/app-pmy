@@ -37,6 +37,7 @@ import {
   createViewColumn,
 } from "@/components/data-table/columns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useExpenses } from "@/hooks/services/expenses/use-expenses"
 
 // Métodos de pago disponibles
 const metodosPago = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "Transferencia", "Cheque", "Otro"]
@@ -60,7 +61,7 @@ const getCategoryColor = (categoryName: string): string => {
 }
 
 export default function GastosPage() {
-  const [selectedSucursalId, setSelectedSucursalId] = useState("")
+  const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
   const [gastos, setGastos] = useState<Expense[]>([])
   const [categorias, setCategorias] = useState<ExpenseCategory[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -76,23 +77,8 @@ export default function GastosPage() {
   const [responsable, setResponsable] = useState("")
   const [notas, setNotas] = useState("")
   const [comprobante, setComprobante] = useState<File | null>(null)
+  const { expenses, isLoading, isError, mutate } = useExpenses(selectedSucursalId)
 
-  useEffect(() => {
-    // Cargar categorías
-    const categoriasData = getCategorias()
-    setCategorias(categoriasData)
-
-    if (selectedSucursalId) {
-      loadGastos()
-    }
-  }, [selectedSucursalId])
-
-  const loadGastos = () => {
-    const gastosData = getGastosBySucursal(selectedSucursalId)
-    // Ordenar por fecha descendente
-    gastosData.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-    setGastos(gastosData)
-  }
 
   const resetForm = () => {
     setEditingGasto(null)
@@ -272,11 +258,11 @@ export default function GastosPage() {
     createSortableColumn<Expense>(
       "categoria",
       "Categoría",
-      (row) => row.categoryName,
+      (row) => row.category?.name ?? '',
       (value) => (
         <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${getCategoryColor(value)}`}></div>
-          <span>{value}</span>
+          <div className={`w-3 h-3 rounded-full ${getCategoryColor(value || "")}`}></div>
+          <span>{value || "Sin categoría"}</span>
         </div>
       ),
     ),
@@ -289,16 +275,6 @@ export default function GastosPage() {
     ),
     createSortableColumn<Expense>("metodoPago", "Método de Pago", (row) => row.paymentMethod || "No especificado"),
     createSortableColumn<Expense>("responsable", "Responsable", (row) => row.responsible || "No especificado"),
-    createActionsColumn<Expense>([
-      {
-        label: "Editar",
-        onClick: (data) => openEditGastoDialog(data),
-      },
-      {
-        label: "Eliminar",
-        onClick: (data) => console.log("Eliminar", data),
-      },
-    ]),
     createViewColumn<Expense>((data) => console.log("Ver detalles", data)),
   ]
 
@@ -356,7 +332,7 @@ export default function GastosPage() {
           </CardHeader>
           <CardContent>
             {selectedSucursalId ? (
-              <DataTable columns={columns} data={gastos} filterPlaceholder="Filtrar gastos..." />
+              <DataTable columns={columns} data={expenses} filterPlaceholder="Filtrar gastos..." />
             ) : (
               <div className="flex h-[200px] items-center justify-center">
                 <p className="text-muted-foreground">Selecciona una sucursal para ver los gastos</p>
