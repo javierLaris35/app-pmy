@@ -30,7 +30,7 @@ const quitarRolDeUsuario = async (usuarioId: string, rolId: string): Promise<voi
 }
 
 export default function UsuariosPage() {
-  const { users, isLoading, isError } = useUsers()
+  const { users, isLoading, isError, mutate } = useUsers()
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedUsuario, setSelectedUsuario] = useState<User | null>(null)
   const [usuarioRoles, setUsuarioRoles] = useState<Role[]>([])
@@ -40,7 +40,7 @@ export default function UsuariosPage() {
   useEffect(() => {
     if (users.length > 0 && !selectedUsuario) {
       setSelectedUsuario(users[0])
-    }
+    }s
   }, [users])
 
   useEffect(() => {

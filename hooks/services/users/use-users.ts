@@ -7,7 +7,7 @@ export function useUsers() {
   const { data, error, isLoading, mutate } = useSWR(getUsers)
 
   return {
-    users: data,
+    users: data ?? [],
     isLoading,
     isError: !!error,
     mutate

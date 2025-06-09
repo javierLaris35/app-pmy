@@ -27,7 +27,7 @@ import { getFinantialResume } from "@/lib/services/incomes"
 import { useSubsidiaryStore } from "@/store/subsidiary.store"
 import { useAuthStore } from "@/store/auth.store"
 import { useExpenses } from "@/hooks/services/expenses/use-expenses"
-import { useIncomes } from "@/hooks/services/incomes/use-income"
+import { useIncomesByMonth } from "@/hooks/services/incomes/use-income"
 import { formatDateWithTimeToDDMMYYYY, parseDateFromDDMMYYYY } from "@/utils/date.utils"
 
 // Colores para el gráfico de pastel
@@ -60,9 +60,13 @@ export default function DashboardPage() {
   const [gastosData, setGastosData] = useState<any[]>([])
   const [gastosPorCategoria, setGastosPorCategoria] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const fechaActual = new Date()
+  const primerDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1).toISOString()
+  const ultimoDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0).toISOString()
+
 
   // Se renombran variables para evitar conflicto de nombres con el mismo hook
-  const { incomes, isLoading: loadingIncomes, isError: errorIncomes, mutate: mutateIncomes } = useIncomes(selectedSucursalId)
+  const { incomes, isLoading: loadingIncomes, isError: errorIncomes, mutate: mutateIncomes } = useIncomesByMonth(primerDiaMes, ultimoDiaMes)
   const { expenses, isLoading: loadingExpenses, isError: errorExpenses, mutate: mutateExpenses } = useExpenses(selectedSucursalId)
   
   useEffect(() => {
@@ -88,9 +92,6 @@ export default function DashboardPage() {
     console.log('📉 Expenses:', expenses)
 
     setLoading(true)
-    const fechaActual = new Date()
-    const primerDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1).toISOString()
-    const ultimoDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0).toISOString()
 
     const resumenYFormateo = async () => {
       try {
