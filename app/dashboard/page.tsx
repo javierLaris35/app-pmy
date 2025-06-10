@@ -22,13 +22,11 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import type { FinancialSummary, Expense } from "@/lib/types"
-import { getFinantialResume } from "@/lib/services/incomes"
+import type { FinancialSummary, Expense, RouteIncome } from "@/lib/types"
 import { useSubsidiaryStore } from "@/store/subsidiary.store"
 import { useAuthStore } from "@/store/auth.store"
-import { useExpenses } from "@/hooks/services/expenses/use-expenses"
-import { useIncomesByMonth } from "@/hooks/services/incomes/use-income"
 import { formatDateWithTimeToDDMMYYYY, parseDateFromDDMMYYYY } from "@/utils/date.utils"
+import { useFinancialSummary } from "@/hooks/services/incomes/use-income"
 
 // Colores para el gráfico de pastel
 const COLORS = [
@@ -50,24 +48,21 @@ export default function DashboardPage() {
   const setSelectedSucursalId = useSubsidiaryStore((state) => state.setSelectedSubsidiaryId)
 
   const [resumen, setResumen] = useState<FinancialSummary>({
-    income: 0,
-    expenses: 0,
-    balance: 0,
-    period: "",
+    incomes: [],
+    expenses: [],
+    finantial: {
+      income: 0,
+      expenses: 0,
+      balance: 0,
+      period: "",
+    }
   })
 
   const [ingresosData, setIngresosData] = useState<any[]>([])
   const [gastosData, setGastosData] = useState<any[]>([])
   const [gastosPorCategoria, setGastosPorCategoria] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const fechaActual = new Date()
-  const primerDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1).toISOString()
-  const ultimoDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0).toISOString()
-
-
-  // Se renombran variables para evitar conflicto de nombres con el mismo hook
-  const { incomes, isLoading: loadingIncomes, isError: errorIncomes, mutate: mutateIncomes } = useIncomesByMonth(primerDiaMes, ultimoDiaMes)
-  const { expenses, isLoading: loadingExpenses, isError: errorExpenses, mutate: mutateExpenses } = useExpenses(selectedSucursalId)
+  const { summary, isLoading, isError, mutate } = useFinancialSummary(selectedSucursalId)
   
   useEffect(() => {
     const sucursales = getSucursales()
@@ -86,19 +81,19 @@ export default function DashboardPage() {
   }, [user, selectedSucursalId, setSelectedSucursalId])
 
   useEffect(() => {
-    if (!selectedSucursalId || loadingIncomes || loadingExpenses) return
+    if (!selectedSucursalId || isLoading) return
 
-    console.log('📊 Incomes:', incomes)
-    console.log('📉 Expenses:', expenses)
+    console.log('📊 Incomes:', summary?.incomes)
+    console.log('📉 Expenses:', summary?.expenses)
 
     setLoading(true)
 
     const resumenYFormateo = async () => {
       try {
-        const resumenData = await getFinantialResume(selectedSucursalId, primerDiaMes, ultimoDiaMes)
+        const resumenData = summary
         setResumen(resumenData)
 
-        const ingresosFormateados = incomes.map((ingreso) => {
+        const ingresosFormateados = summary?.incomes.map((ingreso: RouteIncome) => {
           return {
             fecha:  parseDateFromDDMMYYYY(ingreso.date).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
           	ingresos: Number(ingreso.totalIncome.replace(/[$,]/g, '')),
@@ -106,7 +101,7 @@ export default function DashboardPage() {
         })
         setIngresosData(ingresosFormateados)
 
-        const gastosFormateados = expenses.map((gasto) => {
+        const gastosFormateados = summary?.expenses.map((gasto: Expense) => {
           return {
             fecha: formatDateWithTimeToDDMMYYYY(gasto.date).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
             monto: gasto.amount,
@@ -114,7 +109,7 @@ export default function DashboardPage() {
         })
         setGastosData(gastosFormateados)
 
-        const gastosPorCat = calcularGastosPorCategoria(expenses)
+        const gastosPorCat = calcularGastosPorCategoria(summary?.expenses)
         setGastosPorCategoria(gastosPorCat)
       } catch (error) {
         console.error("Error al cargar datos financieros:", error)
@@ -124,23 +119,23 @@ export default function DashboardPage() {
     }
 
     resumenYFormateo()
-  }, [selectedSucursalId, incomes, expenses, loadingIncomes, loadingExpenses])
+  }, [selectedSucursalId, summary, isLoading])
 
   useEffect(() => {
     if (selectedSucursalId) {
-      mutateExpenses();
-      mutateIncomes();
+      mutate
     }
-  }, [selectedSucursalId, mutateExpenses, mutateIncomes]);
+  }, [selectedSucursalId, mutate]);
 
   const calcularGastosPorCategoria = (gastos: Expense[]) => {
     const categorias: Record<string, number> = {}
 
     gastos.forEach((gasto) => {
-      if (categorias[gasto.categoryName]) {
-        categorias[gasto.categoryName] += gasto.amount
+      const monto = parseFloat(gasto.amount)
+      if (categorias[gasto.category.name]) {
+        categorias[gasto.category.name] += monto
       } else {
-        categorias[gasto.categoryName] = gasto.amount
+        categorias[gasto.category.name] = monto
       }
     })
 
@@ -148,8 +143,8 @@ export default function DashboardPage() {
   }
 
   const calcularEficiencia = () => {
-    if (resumen.income === 0) return 0
-    return Math.round(((resumen.income - resumen.expenses) / resumen.income) * 100)
+    if (resumen.finantial.income === 0) return 0
+    return Math.round(((resumen.finantial.income - resumen.finantial.expenses) / resumen.finantial.income) * 100)
   }
 
   return (
@@ -170,11 +165,11 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ingresos Totales</CardTitle>
-            <DollarSign className={`${resumen.income > 0 ? "text-success" : "text-warning"} h-4 w-4`} />
+            <DollarSign className={`${resumen.finantial.income > 0 ? "text-success" : "text-warning"} h-4 w-4`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(resumen.income)}</div>
-            <p className="text-xs text-muted-foreground">{resumen.period}</p>
+            <div className="text-2xl font-bold">{formatCurrency(resumen.finantial.income)}</div>
+            <p className="text-xs text-muted-foreground">{resumen.finantial.period}</p>
           </CardContent>
         </Card>
 
@@ -184,21 +179,21 @@ export default function DashboardPage() {
             <ArrowDownIcon className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(resumen.expenses)}</div>
-            <p className="text-xs text-muted-foreground">{resumen.period}</p>
+            <div className="text-2xl font-bold">{formatCurrency(resumen.finantial.expenses)}</div>
+            <p className="text-xs text-muted-foreground">{resumen.finantial.period}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Balance</CardTitle>
-            <ArrowUpIcon className={`${resumen.balance > 0 ? "text-success" : "text-warning"} h-4 w-4`} />
+            <ArrowUpIcon className={`${resumen.finantial.balance > 0 ? "text-success" : "text-warning"} h-4 w-4`} />
           </CardHeader>
           <CardContent>
-            <div className={`${resumen.balance > 0 ? "text-success" : "text-warning"} text-2xl font-bold`}>
-              {formatCurrency(resumen.balance)}
+            <div className={`${resumen.finantial.balance > 0 ? "text-success" : "text-warning"} text-2xl font-bold`}>
+              {formatCurrency(resumen.finantial.balance)}
             </div>
-            <p className="text-xs text-muted-foreground">{resumen.period}</p>
+            <p className="text-xs text-muted-foreground">{resumen.finantial.period}</p>
           </CardContent>
         </Card>
 
@@ -222,9 +217,9 @@ export default function DashboardPage() {
             <CardTitle>Ingresos por Día</CardTitle>
           </CardHeader>
           <CardContent>
-            {loadingIncomes || ingresosData.length === 0 ? (
+            {isLoading || ingresosData.length === 0 ? (
               <div className="flex h-[300px] items-center justify-center">
-                <p className="text-muted-foreground">{loadingIncomes ? "Cargando datos..." : "No hay datos de ingresos para mostrar"}</p>
+                <p className="text-muted-foreground">{isLoading ? "Cargando datos..." : "No hay datos de ingresos para mostrar"}</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
@@ -254,7 +249,7 @@ export default function DashboardPage() {
             <CardTitle>Gastos por Día</CardTitle>
           </CardHeader>
           <CardContent>
-            {loadingExpenses || gastosData.length === 0 ? (
+            {isLoading || gastosData.length === 0 ? (
               <div className="flex h-[300px] items-center justify-center">
                 <p className="text-muted-foreground">{loading ? "Cargando datos..." : "No hay datos de gastos para mostrar"}</p>
               </div>
@@ -286,7 +281,7 @@ export default function DashboardPage() {
             <CardTitle>Gastos por Categoría</CardTitle>
           </CardHeader>
           <CardContent>
-            {loadingExpenses || gastosPorCategoria.length === 0 ? (
+            {isLoading || gastosPorCategoria.length === 0 ? (
               <div className="flex h-[300px] items-center justify-center">
                 <p className="text-muted-foreground">{loading ? "Cargando datos..." : "No hay datos de gastos por categoría"}</p>
               </div>

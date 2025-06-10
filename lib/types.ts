@@ -47,10 +47,14 @@ export type Expense = {
 }
 
 export type FinancialSummary = {
-  income: number
-  expenses: number
-  balance: number
-  period: string
+  incomes: RouteIncome[],
+  expenses: Expense[],
+  finantial: {
+    income: number
+    expenses: number
+    balance: number
+    period: string
+  }
 }
 
 export type Permission = {

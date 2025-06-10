@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,7 +27,7 @@ import {
 } from "@/components/data-table/columns"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { useIncomes } from "@/hooks/services/incomes/use-income"
+import { useIncomesByMonthAndSucursal } from "@/hooks/services/incomes/use-income"
 import { DateRange } from "react-day-picker"
 import { DateRangePicker } from "@/components/date-range-picker" 
 
@@ -38,12 +38,16 @@ export default function IngresosPage() {
   const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(),
     to: new Date(),
-  })
+  });
 
-  const { incomes, isLoading, isError, mutate } = useIncomes(
+  const firstDay = dateRange?.from.toISOString().split('T')[0];
+  const lastDay = dateRange?.to.toISOString().split('T')[0];
+
+  const { incomes, isLoading, isError, mutate } = useIncomesByMonthAndSucursal(
     selectedSucursalId,
-    dateRange?.from && dateRange?.to ? { from: dateRange.from, to: dateRange.to } : undefined
-  )
+    firstDay,
+    lastDay
+  );
 
   // Form state
   const [fecha, setFecha] = useState("")
