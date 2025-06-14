@@ -5,6 +5,7 @@ const url = '/users';
 
 const getUsers = async() => {
     const response = await axiosConfig.get<User[]>(url);
+    console.log("🚀 ~ getUsers ~ response.data:", response.data)
     return response.data;
 }
 

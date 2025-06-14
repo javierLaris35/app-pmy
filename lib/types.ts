@@ -1,8 +1,10 @@
 export type Subsidiary = {
-  id: string
+  id?: string
   name: string
   address?: string
   phone?: string
+  officeManager: string
+  managerPhone?: string
   active: boolean
 }
 
@@ -72,6 +74,44 @@ export type Role = {
   permissions?: Permission[]
 }
 
+export type KpiData = {
+  total: number;
+  entregados: number;
+  enRuta: number;
+  inventario: number;
+  noEntregadosPercent: number;
+  promedioEntrega: number;
+}
+
+export type NewIncome = {
+  date: string
+  fedex: {
+    pod: number
+    dex: number
+    total: number
+    totalIncome: string
+  }
+  dhl: {
+    ba: number
+    ne: number
+    total: number
+    totalIncome: string
+  }
+  collections: number
+  cargas: number
+  total: number
+  totalIncome: string
+  items: {
+    type: string
+    trackingNumber: string
+    shipmentType: string
+    status: string
+    date: string
+    cost: number
+  }[]
+}
+
+
 type UserRole = "user" | "admin";
 
 export type User = {
@@ -81,9 +121,8 @@ export type User = {
   lastName?: string
   role: UserRole
   subsidiaryId?: string
-  roles?: Role[]
-  permissions?: string[],
   avatar?: string
+  active: boolean
 }
 
 export type AuthState = {
@@ -111,6 +150,8 @@ export type Shipment = {
     timestamp: string
     notes?: string
   }>
+  createdAt: string
+  shipmentType?: "fedex" | "dhl"
   receivedByName: string
 }
 

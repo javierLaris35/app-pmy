@@ -4,10 +4,18 @@ import { useState, useEffect } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { Subsidiary } from "@/lib/types"
-import { getSucursales } from "@/lib/data"
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
+import { useAuthStore } from "@/store/auth.store" // Ajusta el path si es necesario
 
 interface SucursalSelectorProps {
   value: string
@@ -15,44 +23,34 @@ interface SucursalSelectorProps {
 }
 
 export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps) {
+  const { subsidiaries, isLoading } = useSubsidiaries()
   const [open, setOpen] = useState(false)
-  const [sucursales, setSucursales] = useState<Subsidiary[]>([])
   const [selectedSucursal, setSelectedSucursal] = useState<Subsidiary | undefined>()
 
+  const user = useAuthStore((state) => state.user)
+
   useEffect(() => {
-    let isMounted = true
+    if (!subsidiaries || subsidiaries.length === 0 || !user) return
 
-    async function loadSucursales() {
-      try {
-        const loadedSucursales = await getSucursales()
-        if (!isMounted) return
-
-        setSucursales(loadedSucursales)
-
-        const selected = loadedSucursales.find((s) => s.id === value)
-        if (selected) {
-          setSelectedSucursal(selected)
-        } else if (loadedSucursales.length > 0) {
-          // Solo actualizar si el valor actual no es válido
-          const defaultSucursal = loadedSucursales[0]
-          setSelectedSucursal(defaultSucursal)
-          onValueChange(defaultSucursal.id)
-        }
-      } catch (error) {
-        console.error("Error loading branches:", error)
-      }
+    const selected = subsidiaries.find((s) => s.id === value)
+    if (selected) {
+      setSelectedSucursal(selected)
+    } else {
+      const defaultSucursal = subsidiaries.find((s) => s.id === user.subsidiaryId) || subsidiaries[0]
+      setSelectedSucursal(defaultSucursal)
+      onValueChange(defaultSucursal.id)
     }
-
-    loadSucursales()
-    return () => {
-      isMounted = false
-    }
-  }, [value, onValueChange])
+  }, [subsidiaries, value, user, onValueChange])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+        >
           {selectedSucursal ? selectedSucursal.name : "Seleccionar sucursal..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -61,14 +59,14 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
         <Command>
           <CommandInput placeholder="Buscar sucursal..." />
           <CommandList>
-            <CommandEmpty>No se encontraron sucursales.</CommandEmpty>
+            <CommandEmpty>{isLoading ? "Cargando sucursales..." : "No se encontraron sucursales."}</CommandEmpty>
             <CommandGroup>
-              {sucursales.map((sucursal) => (
+              {subsidiaries.map((sucursal) => (
                 <CommandItem
                   key={sucursal.id}
                   value={sucursal.id}
                   onSelect={(currentValue) => {
-                    const selected = sucursales.find((s) => s.id === currentValue)
+                    const selected = subsidiaries.find((s) => s.id === currentValue)
                     if (selected) {
                       setSelectedSucursal(selected)
                       onValueChange(selected.id)
@@ -76,7 +74,12 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
                     setOpen(false)
                   }}
                 >
-                  <Check className={cn("mr-2 h-4 w-4", value === sucursal.id ? "opacity-100" : "opacity-0")} />
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === sucursal.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
                   {sucursal.name}
                 </CommandItem>
               ))}

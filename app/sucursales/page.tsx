@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,8 +14,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
-import { Plus } from "lucide-react"
-import { getSucursales, addSucursal, updateSucursal } from "@/lib/data"
+import {
+  MapPin,
+  Pencil,
+  Phone,
+  Plus,
+  Smartphone,
+  Trash2,
+  User,
+} from "lucide-react"
+import { updateSucursal } from "@/lib/data"
 import type { Subsidiary } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
@@ -24,35 +31,40 @@ import {
   createSelectColumn,
   createSortableColumn,
   createActionsColumn,
-  createStatusColumn,
+  createSwitchColumn
 } from "@/components/data-table/columns"
-import { Card, CardContent } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { useSaveSubsidiary, useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 
 export default function SucursalesPage() {
-  const [sucursales, setSucursales] = useState<Subsidiary[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSucursal, setEditingSucursal] = useState<Subsidiary | null>(null)
+  const { subsidiaries, isLoading, isError, mutate } = useSubsidiaries()
+  const { save, isSaving, isError: isSaveError } = useSaveSubsidiary();
 
-  // Formulario
   const [nombre, setNombre] = useState("")
   const [direccion, setDireccion] = useState("")
   const [telefono, setTelefono] = useState("")
+  const [encargado, setEncargado] = useState("")
+  const [encargadoTelefono, setEncargadoTelefono] = useState("")
   const [activo, setActivo] = useState(true)
 
-  useEffect(() => {
-    loadSucursales()
-  }, [])
 
-  const loadSucursales = () => {
-    const sucursalesData = getSucursales()
-    setSucursales(sucursalesData)
-  }
+  const isMobile = useIsMobile()
 
   const resetForm = () => {
     setEditingSucursal(null)
     setNombre("")
     setDireccion("")
     setTelefono("")
+    setEncargado("")
+    setEncargadoTelefono("")
     setActivo(true)
   }
 
@@ -66,38 +78,51 @@ export default function SucursalesPage() {
     setNombre(sucursal.name)
     setDireccion(sucursal.address || "")
     setTelefono(sucursal.phone || "")
+    setEncargado(sucursal.officeManager || "")
+    setEncargadoTelefono(sucursal.managerPhone || "")
     setActivo(sucursal.active)
     setIsDialogOpen(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (editingSucursal) {
-      // Actualizar sucursal existente
-      updateSucursal(editingSucursal.id, {
-        nombre,
-        direccion,
-        telefono,
-        activo,
-      })
+      save({
+        id: editingSucursal.id,
+        name: nombre,
+        address: direccion,
+        phone: telefono,
+        officeManager: encargado,
+        managerPhone: encargadoTelefono,
+        active: activo
+      });
     } else {
-      // Crear nueva sucursal
-      addSucursal({
-        nombre,
-        direccion,
-        telefono,
-        activo,
-      })
+      save({
+        name: nombre,
+        address: direccion,
+        phone: telefono,
+        officeManager: encargado,
+        managerPhone: encargadoTelefono,
+        active: activo
+      });
     }
 
     setIsDialogOpen(false)
-    loadSucursales()
+    mutate
   }
+
+  const handleToggleActive = async (subsidiary: Subsidiary, checked: boolean) => {
+    try {
+      await save({ ...subsidiary, active: checked });
+      mutate();
+    } catch (error) {
+      console.error("Error al cambiar estado:", error);
+    }
+  };
 
   const columns = [
     createSelectColumn<Subsidiary>(),
-    createSortableColumn<Subsidiary>("id", "ID", (row) => row.id),
     createSortableColumn<Subsidiary>(
       "nombre",
       "Nombre",
@@ -106,10 +131,19 @@ export default function SucursalesPage() {
     ),
     createSortableColumn<Subsidiary>("direccion", "Dirección", (row) => row.address || "-"),
     createSortableColumn<Subsidiary>("telefono", "Teléfono", (row) => row.phone || "-"),
-    createStatusColumn<Subsidiary>("activo", "Estado", (row) => (row.active ? "activo" : "inactivo"), {
-      activo: { label: "Activo", variant: "success" },
-      inactivo: { label: "Inactivo", variant: "destructive" },
-    }),
+    createSortableColumn<Subsidiary>("encargado", "Encargado", (row) => row.officeManager || "-"),
+    createSwitchColumn<Subsidiary>(
+      "active",
+      "Estado",
+      (row) => row.active,
+      (value, row) => (
+        <Switch
+          id={`switch-${row.id}`}
+          checked={value}
+          onCheckedChange={(checked) => handleToggleActive(row, checked)}
+        />
+      )
+    ),
     createActionsColumn<Subsidiary>([
       {
         label: "Editar",
@@ -136,11 +170,100 @@ export default function SucursalesPage() {
           </Button>
         </div>
 
-        <Card>
-          <CardContent className="p-6">
-            <DataTable columns={columns} data={sucursales} filterPlaceholder="Filtrar sucursales..." />
-          </CardContent>
-        </Card>
+        {isLoading ? (
+          <p className="text-muted-foreground">Cargando sucursales...</p>
+        ) : isError ? (
+          <p className="text-red-500">Error al cargar las sucursales.</p>
+        ) : isMobile ? (
+          <div className="grid gap-4">
+            {subsidiaries.map((sucursal: Subsidiary) => (
+              <Card key={sucursal.id} className="border shadow-sm rounded-xl">
+                <CardHeader className="pb-2 flex flex-row items-start justify-between">
+                  <CardTitle className="text-base">{sucursal.name}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={sucursal.active}
+                      onCheckedChange={(value) =>
+                        updateSucursal(sucursal.id, {
+                          nombre: sucursal.name,
+                          direccion: sucursal.address || "",
+                          telefono: sucursal.phone || "",
+                          activo: value,
+                        }).then(() => mutate())
+                      }
+                      id={`switch-${sucursal.id}`}
+                    />
+                    <label htmlFor={`switch-${sucursal.id}`} className="text-sm text-muted-foreground">
+                      {sucursal.active ? "Activo" : "Inactivo"}
+                    </label>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-3">
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-4 h-4 mt-0.5 text-foreground" />
+                      <p>
+                        <span className="font-medium text-foreground">Dirección:</span>{" "}
+                        {sucursal.address || "-"}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Phone className="w-4 h-4 mt-0.5 text-foreground" />
+                      <p>
+                        <span className="font-medium text-foreground">Teléfono:</span>{" "}
+                        {sucursal.phone || "-"}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <User className="w-4 h-4 mt-0.5 text-foreground" />
+                      <p>
+                        <span className="font-medium text-foreground">Encargado:</span>{" "}
+                        {sucursal.officeManager || "-"}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Smartphone className="w-4 h-4 mt-0.5 text-foreground" />
+                      <p>
+                        <span className="font-medium text-foreground">Tel. encargado:</span>{" "}
+                        {sucursal.managerPhone || "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEditSucursalDialog(sucursal)}
+                    >
+                      <Pencil className="w-4 h-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => console.log("Eliminar", sucursal)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Eliminar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-6">
+              <DataTable
+                columns={columns}
+                data={subsidiaries}
+                filterPlaceholder="Filtrar sucursales..."
+              />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -153,15 +276,44 @@ export default function SucursalesPage() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="nombre">Nombre</Label>
-                <Input id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                <Input
+                  id="nombre"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  required
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="direccion">Dirección</Label>
-                <Input id="direccion" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+                <Input
+                  id="direccion"
+                  value={direccion}
+                  onChange={(e) => setDireccion(e.target.value)}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="telefono">Teléfono</Label>
-                <Input id="telefono" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+                <Input
+                  id="telefono"
+                  value={telefono}
+                  onChange={(e) => setTelefono(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="encargado">Encargado</Label>
+                <Input
+                  id="encargado"
+                  value={encargado}
+                  onChange={(e) => setEncargado(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="encargado_telefono">Teléfono Encargado</Label>
+                <Input
+                  id="encargado_telefono"
+                  value={encargadoTelefono}
+                  onChange={(e) => setEncargadoTelefono(e.target.value)}
+                />
               </div>
               <div className="flex items-center gap-2">
                 <Switch id="activo" checked={activo} onCheckedChange={setActivo} />
@@ -169,7 +321,9 @@ export default function SucursalesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">{editingSucursal ? "Actualizar" : "Guardar"}</Button>
+              <Button type="submit">
+                {editingSucursal ? "Actualizar" : "Guardar"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

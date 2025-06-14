@@ -123,6 +123,21 @@ export function createStatusColumn<T>(
   }
 }
 
+// Función para crear columnas switch con status
+export function createSwitchColumn<T>(
+  accessorKey: keyof T,
+  header: string,
+  valueSelector: (row: T) => boolean,
+  render: (value: boolean, row: T) => React.ReactNode
+) {
+  return {
+    accessorKey,
+    header,
+    cell: ({ row }: { row: { original: T } }) =>
+      render(valueSelector(row.original), row.original),
+  };
+}
+
 // Función para crear columnas con vista
 export function createViewColumn<T>(onClick: (data: T) => void): ColumnDef<T, any> {
   return {

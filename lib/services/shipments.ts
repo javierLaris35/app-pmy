@@ -17,6 +17,11 @@ import { Shipment } from "../types";
       return response.data;
   }
 
+  const generateKpis = async() => {
+    const response = await axiosConfig.get('/shipments/kpis');
+    return response.data;
+  }
+
   export async function uploadShipmentFile(
     file: File,
     onProgress?: (progress: number) => void
@@ -69,5 +74,6 @@ import { Shipment } from "../types";
 export {
     getShipments,
     getShipmentById,
-    saveShipments
+    saveShipments,
+    generateKpis
 }

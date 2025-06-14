@@ -1,4 +1,4 @@
-import { RouteIncome, FinancialSummary } from '@/lib/types';
+import { RouteIncome, FinancialSummary, NewIncome } from '@/lib/types';
 import { getIncomes, getIncomeByMonth, getIncomeByMonthAndSucursal, getFinantialResume } from '@/lib/services/incomes';
 import useSWR from 'swr';
 
@@ -44,9 +44,11 @@ export function useIncomesByMonth(firstDay: string, lastDay: string) {
 }
 
 export function useIncomesByMonthAndSucursal(subsidiaryId: string, firstDay: string, lastDay: string) {
-  const isValid = subsidiaryId && firstDay && lastDay;
+  const isValid = Boolean(subsidiaryId && firstDay && lastDay);
 
-  const { data, error, isLoading, mutate } = useSWR<RouteIncome[]>(
+  console.log("🔁 Hook ejecutando fetch con:", subsidiaryId, firstDay, lastDay);
+
+  const { data, error, isLoading, mutate } = useSWR<NewIncome[]>(
     isValid
       ? [`/incomes/month/`, subsidiaryId, firstDay, lastDay]
       : null,

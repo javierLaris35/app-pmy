@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Package, Eye, Map } from "lucide-react"
+import { Eye, Package } from "lucide-react"
 import { columns } from "./columns"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
 import dynamic from "next/dynamic"
@@ -20,6 +20,10 @@ import { AppLayout } from "@/components/app-layout"
 import { useShipments } from "@/hooks/services/shipments/use-shipments"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useIsMobile } from "@/hooks/use-mobile"
+import ShipmentFilters from "@/components/operaciones/envios/ShipmentFilters"
+import { filters } from "./filters"
+import KPIShipmentCards from "@/components/operaciones/envios/KpiCards"
 
 const ShipmentMap = dynamic(() => import("@/components/shipment-map"), { 
   ssr: false,
@@ -33,6 +37,7 @@ export default function ShipmentsPage() {
   const [isMapOpen, setIsMapOpen] = useState(false)
   const { shipments, isLoading, mutate } = useShipments()
   const { toast } = useToast()
+  const isMobile = useIsMobile()
 
   const handleViewTimeline = useCallback((shipment: Shipment) => {
     setSelectedShipment(shipment)
@@ -47,6 +52,7 @@ export default function ShipmentsPage() {
     mutate()
   }
 
+  
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
       ? {
@@ -60,6 +66,7 @@ export default function ShipmentsPage() {
         }
       : col,
   )
+
 
   return (
     <AppLayout>
@@ -108,86 +115,62 @@ export default function ShipmentsPage() {
                   onOpenChange={setIsUploadModalOpen} 
                   onUploadSuccess={handleUploadSuccess}
                 />
-
-                <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="bg-white hover:bg-gray-100">
-                      <Map className="mr-2 h-4 w-4" />
-                      Ver Mapa
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[800px] bg-white rounded-lg">
-                    <DialogHeader>
-                      <DialogTitle>Mapa de Envíos</DialogTitle>
-                    </DialogHeader>
-                    <ShipmentMap shipments={shipments} />
-                  </DialogContent>
-                </Dialog>
               </>
             )}
           </div>
         </div>
 
-        {/* Skeleton para la tabla de datos */}
-        {isLoading ? (
-          <div className="rounded-md border">
-            <div className="p-4 flex justify-between items-center">
-              <Skeleton className="h-8 w-64 rounded-md" />
-              <Skeleton className="h-8 w-32 rounded-md" />
-            </div>
-            <div className="space-y-2 p-4">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full rounded-md" />
-              ))}
-            </div>
-            <div className="p-4 flex justify-between items-center">
-              <Skeleton className="h-8 w-32 rounded-md" />
-              <div className="flex gap-2">
-                <Skeleton className="h-8 w-8 rounded-md" />
-                <Skeleton className="h-8 w-8 rounded-md" />
-                <Skeleton className="h-8 w-8 rounded-md" />
-              </div>
-            </div>
-          </div>
+        {/* Sección KPI's */}      
+        { isLoading ? (
+          <span> Cargando datos de kpis</span>
         ) : (
-          <DataTable
-            columns={updatedColumns}
-            //isLoading={isLoading}
-            data={shipments || []}
-            searchKey="trackingNumber"
-            filters={[ /*** Mover esto de aquí a utils, data o types */
-              {
-                columnId: "status",
-                title: "Estado",
-                options: [
-                  { label: "Recolección", value: "recoleccion" },
-                  { label: "Pendiente", value: "pendiente" },
-                  { label: "En Ruta", value: "en_ruta" },
-                  { label: "Entregado", value: "entregado" },
-                  { label: "No Entregado", value: "no_entregado" },
-                ],
-              },
-              {
-                columnId: "payment",
-                title: "Estado de Pago",
-                options: [
-                  { label: "Pagado", value: "paid" },
-                  { label: "Pendiente", value: "pending" },
-                  { label: "Fallido", value: "failed" },
-                ],
-              },
-              {
-                columnId: "shipmentType",
-                title: "Tipo",
-                options: [
-                  { label: "Fedex", value: "fedex" },
-                  { label: "DHL", value: "dhl" },
-                ]
-              }
-            ]}
-          />
+          <KPIShipmentCards />
         )}
 
+        {/* Skeleton para la tabla de datos */}
+        {isLoading ? (
+          isMobile ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-28 w-full rounded-md" />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <div className="p-4 flex justify-between items-center">
+                <Skeleton className="h-8 w-64 rounded-md" />
+                <Skeleton className="h-8 w-32 rounded-md" />
+              </div>
+              <div className="space-y-2 p-4">
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-md" />
+                ))}
+              </div>
+              <div className="p-4 flex justify-between items-center">
+                <Skeleton className="h-8 w-32 rounded-md" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+              </div>
+            </div>
+          )
+        ) : (
+          isMobile ? (
+            <div>
+              <ShipmentFilters shipments={shipments || []} />
+            </div>
+          ) : (
+            <DataTable
+              columns={updatedColumns}
+              data={shipments || []}
+              searchKey="trackingNumber"
+              filters={filters}
+            />
+          )
+        )}
+ 
         {selectedShipment && (
           <Dialog open={!!selectedShipment} onOpenChange={() => setSelectedShipment(null)}>
             <DialogContent className="sm:max-w-[600px] bg-white rounded-lg">

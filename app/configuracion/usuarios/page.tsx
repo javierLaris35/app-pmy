@@ -1,205 +1,164 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { AppLayout } from "@/components/app-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Loader2, Mail, Pencil, Phone, Shield, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useUsers } from "@/hooks/services/users/use-users" // Importar tu nuevo hook
-import type { Role, User } from "@/lib/types"
-
-const getUserRoles = async (usuarioId: string): Promise<Role[]> => {
-  if (usuarioId === "1") {
-    return [
-      { id: "1", name: "Administrador", description: "Acceso completo al sistema", isDefault: true },
-      { id: "2", name: "Usuario", description: "Acceso limitado al sistema", isDefault: false },
-    ]
-  }
-  return [{ id: "2", name: "Usuario", description: "Acceso limitado al sistema", isDefault: false }]
-}
-
-const asignarRolAUsuario = async (usuarioId: string, rolId: string): Promise<void> => {
-  console.log(`Rol ${rolId} asignado al usuario ${usuarioId}`)
-}
-
-const quitarRolDeUsuario = async (usuarioId: string, rolId: string): Promise<void> => {
-  console.log(`Rol ${rolId} quitado del usuario ${usuarioId}`)
-}
+import { useUsers } from "@/hooks/services/users/use-users"
+import { DataTable } from "@/components/data-table/data-table"
+import type { User } from "@/lib/types"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { columns } from "./columns"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Switch } from "@radix-ui/react-switch"
 
 export default function UsuariosPage() {
   const { users, isLoading, isError, mutate } = useUsers()
-  const [roles, setRoles] = useState<Role[]>([])
-  const [selectedUsuario, setSelectedUsuario] = useState<User | null>(null)
-  const [usuarioRoles, setUsuarioRoles] = useState<Role[]>([])
-  const [loadingRoles, setLoadingRoles] = useState(false)
   const { toast } = useToast()
+  const isMobile = useIsMobile()
 
-  useEffect(() => {
-    if (users.length > 0 && !selectedUsuario) {
-      setSelectedUsuario(users[0])
-    }s
-  }, [users])
+  console.log("users", users, "loading", isLoading, "error", isError)
 
-  useEffect(() => {
-    if (selectedUsuario) {
-      loadUsuarioRoles(selectedUsuario.id)
-    }
-  }, [selectedUsuario])
 
-  useEffect(() => {
-    const rolesData: Role[] = [
-      { id: "1", name: "Administrador", description: "Acceso completo al sistema", isDefault: true },
-      { id: "2", name: "Usuario", description: "Acceso limitado al sistema", isDefault: false },
-      { id: "3", name: "Invitado", description: "Acceso muy limitado", isDefault: false },
-    ]
-    setRoles(rolesData)
-  }, [])
+  const [form, setForm] = useState({ name: "", lastName: "", email: "" })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const loadUsuarioRoles = async (usuarioId: string) => {
-    setLoadingRoles(true)
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
     try {
-      const rolesData = await getUserRoles(usuarioId)
-      setUsuarioRoles(rolesData)
+      // await api.post("/api/users", form)
+      console.log("Nuevo usuario:", form)
+      toast({ title: "Usuario creado correctamente" })
+      setForm({ name: "", lastName: "", email: "" })
+      mutate()
     } catch (error) {
-      console.error("Error al cargar roles del usuario:", error)
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los roles del usuario",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "No se pudo crear el usuario", variant: "destructive" })
     } finally {
-      setLoadingRoles(false)
+      setIsSubmitting(false)
     }
   }
 
-  const handleToggleRol = async (rol: Role, isChecked: boolean) => {
-    if (!selectedUsuario) return
+  const onToggleActive = (id: string, value: any) => {
 
-    try {
-      if (isChecked) {
-        await asignarRolAUsuario(selectedUsuario.id, rol.id)
-        setUsuarioRoles((prev) => [...prev, rol])
-      } else {
-        await quitarRolDeUsuario(selectedUsuario.id, rol.id)
-        setUsuarioRoles((prev) => prev.filter((r) => r.id !== rol.id))
-      }
-    } catch (error) {
-      console.error("Error al actualizar rol:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el rol",
-        variant: "destructive",
-      })
-    }
   }
 
-  const isRolAsignado = (rolId: string) => {
-    return usuarioRoles.some((r) => r.id === rolId)
+  const onDelete = (user: User) => {
+
   }
 
-  return (
+  const onEdit = (user: User) => {
+
+  }
+
+    return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Gestión de Usuarios</h2>
-          <p className="text-muted-foreground">Administra los usuarios y sus roles</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Gestión de Usuarios</h2>
+            <p className="text-muted-foreground">Administra los usuarios del sistema</p>
+          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>Nuevo Usuario</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Agregar nuevo usuario</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Nombre</Label>
+                  <Input id="name" name="name" value={form.name} onChange={handleInputChange} required />
+                </div>
+                <div>
+                  <Label htmlFor="lastName">Apellido</Label>
+                  <Input id="lastName" name="lastName" value={form.lastName} onChange={handleInputChange} required />
+                </div>
+                <div>
+                  <Label htmlFor="email">Correo</Label>
+                  <Input id="email" type="email" name="email" value={form.email} onChange={handleInputChange} required />
+                </div>
+                <Button type="submit" disabled={isSubmitting} className="w-full">
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Crear Usuario
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="col-span-1 space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Usuarios</CardTitle>
-                <CardDescription>Selecciona un usuario para gestionar sus roles</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : isError ? (
-                  <div className="text-red-500 text-sm">Error al cargar usuarios</div>
-                ) : (
-                  <div className="space-y-2">
-                    {users.map((usuario) => (
-                      <div
-                        key={usuario.id}
-                        className={`p-3 rounded-md cursor-pointer ${
-                          selectedUsuario?.id === usuario.id ? "bg-secondary" : "hover:bg-secondary/50"
-                        }`}
-                        onClick={() => setSelectedUsuario(usuario)}
-                      >
-                        <div className="font-medium">
-                          {usuario.name} {usuario.lastName}
+        {/* Vista según tamaño de pantalla */}
+        { isLoading ? (
+            <Loader2 className="mx-auto animate-spin" />
+          ) : isError ? (
+            <p className="text-red-500">Error al cargar usuarios</p>
+          ) : users && users.length > 0 ? (
+            isMobile ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {users.map((user) => (
+                  <Card key={user.id} className="border shadow-sm rounded-xl">
+                    <CardHeader className="pb-2 flex flex-row items-start justify-between">
+                      <CardTitle className="text-base">{user.name + " " + user.lastName}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={user.active}
+                          onCheckedChange={(value) => onToggleActive(user?.id, value)}
+                          id={`switch-${user.id}`}
+                        />
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <Mail className="w-4 h-4 mt-0.5 text-foreground" />
+                          <p>
+                            <span className="font-medium text-foreground">Correo:</span>{" "}
+                            {user.email}
+                          </p>
                         </div>
-                        <div className="text-sm text-muted-foreground">{usuario.email}</div>
-                        <div className="mt-1">
-                          <Badge variant={usuario.role === "admin" ? "default" : "secondary"}>
-                            {usuario.role === "admin" ? "Administrador" : "Usuario"}
-                          </Badge>
+                        <div className="flex items-start gap-2">
+                          <Shield className="w-4 h-4 mt-0.5 text-foreground" />
+                          <p>
+                            <span className="font-medium text-foreground">Rol:</span>{" "}
+                            {user.role || "Sin rol"}
+                          </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
 
-          <div className="col-span-1 md:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {selectedUsuario ? `Roles de ${selectedUsuario.name} ${selectedUsuario.lastName}` : "Roles"}
-                </CardTitle>
-                <CardDescription>
-                  {selectedUsuario
-                    ? "Gestiona los roles asignados a este usuario"
-                    : "Selecciona un usuario para gestionar sus roles"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {!selectedUsuario ? (
-                  <div className="flex items-center justify-center py-4">
-                    <p className="text-muted-foreground">Selecciona un usuario para ver sus roles</p>
-                  </div>
-                ) : loadingRoles ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {roles.map((rol) => (
-                        <div key={rol.id} className="flex items-start space-x-2 p-3 rounded-md border">
-                          <Checkbox
-                            id={`rol-${rol.id}`}
-                            checked={isRolAsignado(rol.id)}
-                            onCheckedChange={(checked) => handleToggleRol(rol, checked === true)}
-                          />
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={`rol-${rol.id}`} className="font-medium">
-                              {rol.name}
-                            </Label>
-                            {rol.description && <p className="text-sm text-muted-foreground">{rol.description}</p>}
-                            {rol.isDefault && (
-                              <Badge variant="outline" className="w-fit">
-                                Predeterminado
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Editar
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => onDelete(user)}>
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Eliminar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              // Tabla
+              <DataTable columns={columns} data={users} />
+            )
+          ) : (
+            <p className="text-muted-foreground">No hay usuarios registrados</p>
+          )}
+
       </div>
     </AppLayout>
   )

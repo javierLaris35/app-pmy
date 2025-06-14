@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config";
-import { FinancialSummary, RouteIncome } from "../types";
+import { FinancialSummary, NewIncome, RouteIncome } from "../types";
 
 const baseUrl = "/incomes";
 
@@ -17,7 +17,7 @@ const getIncomeByMonth = async (from: string, to: string) => {
 
 // GET: ingresos por mes con subsidiaria
 const getIncomeByMonthAndSucursal = async (subsidiaryId: string, from: string, to: string) => {
-  const response = await axiosConfig.get<RouteIncome[]>(`${baseUrl}/bySucursal/${subsidiaryId}?fromDate=${from}&toDate=${to}`);
+  const response = await axiosConfig.get<NewIncome[]>(`${baseUrl}/bySucursal/${subsidiaryId}?fromDate=${from}&toDate=${to}`);
   return response.data;
 };
 

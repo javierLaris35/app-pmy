@@ -34,8 +34,20 @@ function getLastWeekRange(): DateRange {
   }
 }
 
-export function DateRangePicker() {
+export function DateRangePicker({
+  value,
+  onChange,
+}: {
+  value?: DateRange
+  onChange?: (range: DateRange | undefined) => void
+}) {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(getLastWeekRange())
+
+   const handleSelect = (range: DateRange | undefined) => {
+    console.log("🚀 ~ handleSelect ~ range:", range)
+    setDateRange(range)
+    onChange?.(range)
+  }
 
   // Función para mostrar texto en el botón principal
   const formattedDateRange = React.useMemo(() => {
@@ -74,7 +86,7 @@ export function DateRangePicker() {
             numberOfMonths={1}
             defaultMonth={dateRange?.from}
             selected={dateRange}
-            onSelect={setDateRange}
+            onSelect={handleSelect}
           />
         </div>
       </PopoverContent>

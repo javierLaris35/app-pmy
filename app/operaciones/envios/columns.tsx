@@ -32,7 +32,7 @@ export const columns: ColumnDef<Shipment>[] = [
   },
   {
     accessorKey: "shipmentType",
-    header: "Tipo",
+    header: "Empresa",
     cell: ({ row }) => {
       const shipmentType: string = row.getValue("shipmentType");
 

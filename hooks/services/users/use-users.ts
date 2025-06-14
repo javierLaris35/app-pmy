@@ -4,7 +4,9 @@ import { User } from "@/lib/types"
 
 // Hook para obtener todos los usuarios
 export function useUsers() {
-  const { data, error, isLoading, mutate } = useSWR(getUsers)
+  const { data, error, isLoading, mutate } = useSWR('/users',getUsers)
+  
+  console.log("🚀 ~ useUsers ~ data:", data)
 
   return {
     users: data ?? [],

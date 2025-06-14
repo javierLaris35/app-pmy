@@ -21,7 +21,7 @@ export const filters = [
     },
     {
         columnId: "shipmentType",
-        title: "Tipo",
+        title: "Empresa",
         options: [
             { label: "Fedex", value: "fedex" },
             { label: "DHL", value: "dhl" },
