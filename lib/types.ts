@@ -5,6 +5,8 @@ export type Subsidiary = {
   phone?: string
   officeManager: string
   managerPhone?: string
+  fedexCostPackage: number
+  dhlCostPackage: number
   active: boolean
 }
 

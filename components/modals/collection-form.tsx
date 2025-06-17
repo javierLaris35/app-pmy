@@ -180,7 +180,7 @@ const CollectionForm: React.FC<Props> = ({ selectedSubsidiaryId, onSuccess }) =>
               placeholder="Escanea los códigos aquí..."
               rows={6}
               disabled={isLoading}
-              className={classNames("resize-none", {
+              className={classNames("resize-none overflow-y-auto max-h-60", {
                 "border-red-500": invalidNumbers.length > 0
               })}
             />
@@ -222,8 +222,8 @@ const CollectionForm: React.FC<Props> = ({ selectedSubsidiaryId, onSuccess }) =>
           {collections.length > 0 && (
             <div className="mt-6 space-y-4">
               <h3 className="text-lg font-semibold">Recolecciones validadas</h3>
-
-              <ul className="divide-y divide-gray-300 border border-gray-300 rounded-md">
+              <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
+                <ul className="divide-y divide-gray-300">
                 {collections.map(({ trackingNumber, status }) => (
                   <li
                     key={trackingNumber}
@@ -264,7 +264,8 @@ const CollectionForm: React.FC<Props> = ({ selectedSubsidiaryId, onSuccess }) =>
                     </button>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </div>
             </div>
           )}
         </div>

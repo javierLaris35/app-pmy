@@ -54,6 +54,8 @@ export default function SucursalesPage() {
   const [encargado, setEncargado] = useState("")
   const [encargadoTelefono, setEncargadoTelefono] = useState("")
   const [activo, setActivo] = useState(true)
+  const [fedexCostPackage, setFedexCostPackage] = useState("0.00")
+  const [dhlCostPackage, setDhlCostPackage] = useState("0.00")
 
 
   const isMobile = useIsMobile()
@@ -66,6 +68,8 @@ export default function SucursalesPage() {
     setEncargado("")
     setEncargadoTelefono("")
     setActivo(true)
+    setFedexCostPackage("0.00")
+    setDhlCostPackage("0.00")
   }
 
   const openNewSucursalDialog = () => {
@@ -80,6 +84,8 @@ export default function SucursalesPage() {
     setTelefono(sucursal.phone || "")
     setEncargado(sucursal.officeManager || "")
     setEncargadoTelefono(sucursal.managerPhone || "")
+    setFedexCostPackage(sucursal.fedexCostPackage || "0.00")
+    setDhlCostPackage(sucursal.dhlCostPackage || "0.00")
     setActivo(sucursal.active)
     setIsDialogOpen(true)
   }
@@ -144,16 +150,6 @@ export default function SucursalesPage() {
         />
       )
     ),
-    createActionsColumn<Subsidiary>([
-      {
-        label: "Editar",
-        onClick: (data) => openEditSucursalDialog(data),
-      },
-      {
-        label: "Eliminar",
-        onClick: (data) => console.log("Eliminar", data),
-      },
-    ]),
   ]
 
   return (
@@ -272,60 +268,84 @@ export default function SucursalesPage() {
             <DialogTitle>{editingSucursal ? "Editar Sucursal" : "Nueva Sucursal"}</DialogTitle>
             <DialogDescription>Ingresa los datos de la sucursal</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="nombre">Nombre</Label>
-                <Input
-                  id="nombre"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  required
-                />
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="nombre">Nombre</Label>
+                  <Input
+                    id="nombre"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="direccion">Dirección</Label>
+                  <Input
+                    id="direccion"
+                    value={direccion}
+                    onChange={(e) => setDireccion(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="telefono">Teléfono</Label>
+                  <Input
+                    id="telefono"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="encargado">Encargado</Label>
+                  <Input
+                    id="encargado"
+                    value={encargado}
+                    onChange={(e) => setEncargado(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="encargadoTelefono">Teléfono Encargado</Label>
+                  <Input
+                    id="encargadoTelefono"
+                    value={encargadoTelefono}
+                    onChange={(e) => setEncargadoTelefono(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="fedexCostPackage">Costo Paquete FedEx</Label>
+                  <Input
+                    id="fedexCostPackage"
+                    type="number"
+                    step="0.01"
+                    value={fedexCostPackage}
+                    onChange={(e) => setFedexCostPackage(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="dhlCostPackage">Costo Paquete DHL</Label>
+                  <Input
+                    id="dhlCostPackage"
+                    type="number"
+                    step="0.01"
+                    value={dhlCostPackage}
+                    onChange={(e) => setDhlCostPackage(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="activo"
+                    checked={activo}
+                    onCheckedChange={setActivo}
+                  />
+                  <Label htmlFor="activo">Activo</Label>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="direccion">Dirección</Label>
-                <Input
-                  id="direccion"
-                  value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="telefono">Teléfono</Label>
-                <Input
-                  id="telefono"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="encargado">Encargado</Label>
-                <Input
-                  id="encargado"
-                  value={encargado}
-                  onChange={(e) => setEncargado(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="encargado_telefono">Teléfono Encargado</Label>
-                <Input
-                  id="encargado_telefono"
-                  value={encargadoTelefono}
-                  onChange={(e) => setEncargadoTelefono(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch id="activo" checked={activo} onCheckedChange={setActivo} />
-                <Label htmlFor="activo">Activo</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit">
-                {editingSucursal ? "Actualizar" : "Guardar"}
-              </Button>
-            </DialogFooter>
-          </form>
+              <DialogFooter>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? "Guardando..." : "Guardar"}
+                </Button>
+              </DialogFooter>
+            </form>
         </DialogContent>
       </Dialog>
     </AppLayout>

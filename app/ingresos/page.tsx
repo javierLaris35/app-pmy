@@ -203,22 +203,16 @@ export default function IngresosPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <header className="flex justify-between items-end px-4 py-6">
-          {/* Botón a la izquierda */}
-          <div className="flex items-end">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
             <h2 className="text-2xl font-bold tracking-tight">Gestión de Ingresos</h2>
             <p className="text-muted-foreground">Administra los ingresos diarios por sucursal</p>
           </div>
-
-          {/* Título y descripción alineados a la derecha */}
-          <div className="flex flex-col items-end text-right">
-            <Button onClick={exportToExcel} disabled={isLoading || !incomes?.length}>
-              Exportar Excel
-            </Button>
-          </div>
-        </header>
+          <Button onClick={exportToExcel} disabled={isLoading || !incomes?.length}>
+            Exportar Excel
+          </Button>
+        </div>
 
         {/* Filtros */}
         <Card>

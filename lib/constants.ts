@@ -103,13 +103,13 @@ export const sidebarMenu = {
     },
     {
       title: "Reportes",
-      url: "#",
+      url: "/reportes",
       icon: ChartNoAxesCombinedIcon,
       isActive: false,
     },
     {
       title: "Nómina",
-      url: "#",
+      url: "/nomina",
       icon: DollarSignIcon,
       isActive: false,
     },
