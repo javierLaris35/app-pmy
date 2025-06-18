@@ -31,6 +31,7 @@ import {
 import { User } from "@/lib/types"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { useAuthStore } from "@/store/auth.store";
 
 interface NavUserProps {
   user: User
@@ -40,10 +41,11 @@ export function NavUser({user}: NavUserProps) {
   const { isMobile } = useSidebar()
   const router = useRouter();
   const { toast } = useToast()
-  
+  const logout = useAuthStore((state) => state.logout);
+
   const handleLogout = async () => { 
     try {
-      //await logout()
+      await logout()
       router.push("/login")
     } catch (error) {
       console.error("Error al cerrar sesión:", error)
@@ -113,7 +115,7 @@ export function NavUser({user}: NavUserProps) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
               Log out
             </DropdownMenuItem>

@@ -48,11 +48,74 @@ export default function IngresosPage() {
       alert("No hay datos para exportar")
       return
     }
-    const ws = XLSX.utils.json_to_sheet(incomes)
+
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Ingresos")
+
+    // Mapear ingresos con campos requeridos
+    const ingresosData = incomes.map((i) => ({
+      Fecha: i.date,
+      Total: i.total,
+      IngresoTotal: parseCurrency(i.totalIncome),
+      FedexTotal: i.fedex?.total ?? 0,
+      IngresoFedex: parseCurrency(i.fedex?.totalIncome),
+      DHLTotal: i.dhl?.total ?? 0,
+      IngresoDHL: parseCurrency(i.dhl?.totalIncome),
+      Recolecciones: i.collections ?? 0,
+      Cargas: i.cargas ?? 0,
+    }))
+
+    // Calcular totales
+    const totales = ingresosData.reduce(
+      (acc, curr) => {
+        acc.Total += curr.Total || 0
+        acc.IngresoTotal += curr.IngresoTotal || 0
+        acc.FedexTotal += curr.FedexTotal || 0
+        acc.IngresoFedex += curr.IngresoFedex || 0
+        acc.DHLTotal += curr.DHLTotal || 0
+        acc.IngresoDHL += curr.IngresoDHL || 0
+        acc.Recolecciones += curr.Recolecciones || 0
+        acc.Cargas += curr.Cargas || 0
+        return acc
+      },
+      {
+        Fecha: "Totales",
+        Total: 0,
+        IngresoTotal: 0,
+        FedexTotal: 0,
+        IngresoFedex: 0,
+        DHLTotal: 0,
+        IngresoDHL: 0,
+        Recolecciones: 0,
+        Cargas: 0,
+      }
+    )
+
+    // Agregar totales a la hoja principal
+    ingresosData.push(totales)
+
+    const mainSheet = XLSX.utils.json_to_sheet(ingresosData)
+    XLSX.utils.book_append_sheet(wb, mainSheet, "Ingresos")
+
+    // Hoja de items por día
+    const itemsSheetData = incomes.flatMap((i) => {
+      const fecha = i.date
+      if (!i.items || !Array.isArray(i.items)) return []
+
+      return i.items.map((item) => ({
+        Fecha: fecha,
+        ...item,
+      }))
+    })
+
+    if (itemsSheetData.length > 0) {
+      const itemsSheet = XLSX.utils.json_to_sheet(itemsSheetData)
+      XLSX.utils.book_append_sheet(wb, itemsSheet, "Ingresos por día")
+    }
+
+    // Guardar archivo
     XLSX.writeFile(wb, "ingresos.xlsx")
   }
+
 
   // Convierte string con formato monetario a número
   const parseCurrency = (val: string | number) => {
