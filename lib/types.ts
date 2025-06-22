@@ -154,6 +154,7 @@ export type Shipment = {
   }>
   createdAt: string
   shipmentType?: "fedex" | "dhl"
+  isChargePackage?: boolean
   receivedByName: string
 }
 
@@ -173,4 +174,27 @@ export type Route = {
   status: "En progreso" | "Completada" | "Pendiente" | "Cancelada"
   startTime: string
   estimatedArrival: string
+}
+
+export interface ChargeShipment {
+    id: string;
+    trackingNumber: string;
+    status: string;
+    commitDate: string;
+    recipientName: string;
+    chargeId: string;
+}
+
+export interface Charge {
+    id: string;
+    chargeDate: string;
+    numberOfPackages: number;
+    subsidiaryId: string;
+    subsidiary: {
+        id: string;
+        name: string;
+    };
+    isChargeComplete: boolean;
+    createdAt: string;
+    shipments: ChargeShipment[];
 }

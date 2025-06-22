@@ -1,4 +1,4 @@
-import { generateKpis, getShipments } from '@/lib/services/shipments';
+import { generateKpis, getCharges, getShipments } from '@/lib/services/shipments';
 import { KpiData } from '@/lib/types';
 import useSWR from 'swr';
 import qs from "query-string";
@@ -24,5 +24,16 @@ export function useKpiData(date: string, subsidiaryId?: string) {
     data,
     isLoading,
     error,
+  };
+}
+
+export function useCharges() {
+  const { data, error, isLoading, mutate } = useSWR('/shipments/charges', getCharges);
+
+  return {
+    charges: data,
+    isLoading,
+    isError: !!error,
+    mutate,
   };
 }

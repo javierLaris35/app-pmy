@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { SucursalSelector } from "@/components/sucursal-selector" // Asegúrate de tener esta ruta correcta
 
 interface DualUploadModalProps {
   open: boolean
@@ -50,6 +51,7 @@ export function CSVUploadModal({
 }: DualUploadModalProps) {
   const [file, setFile] = useState<File | null>(null)
   const [textInput, setTextInput] = useState("")
+  const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<"file" | "text">("file")
@@ -92,6 +94,7 @@ export function CSVUploadModal({
     setFile(null)
     setTextInput("")
     setError(null)
+    setSelectedSucursalId("")
     if (fileInputRef.current) fileInputRef.current.value = ""
   }, [])
 
@@ -110,10 +113,15 @@ export function CSVUploadModal({
     setError(null)
 
     try {
+      if (!selectedSucursalId) {
+        setError("Debe seleccionar una sucursal antes de subir los datos.")
+        return
+      }
+
       if (activeTab === "file" && file) {
-        await uploadShipmentFile(file)
+        await uploadShipmentFile(file, selectedSucursalId)
       } else if (activeTab === "text" && textInput.trim()) {
-        await uploadShipmentFileDhl(textInput, file)
+        await uploadShipmentFileDhl(textInput, file) ///*, selectedSucursalId*/ aún no se ha implementado el ID de sucursal en esta función
       } else {
         setError(
           activeTab === "file"
@@ -136,7 +144,7 @@ export function CSVUploadModal({
     } finally {
       setIsLoading(false)
     }
-  }, [activeTab, file, textInput, onUploadSuccess, onOpenChange, resetForm])
+  }, [activeTab, file, textInput, selectedSucursalId, onUploadSuccess, onOpenChange, resetForm])
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -154,14 +162,25 @@ export function CSVUploadModal({
             <span>Importar Envíos</span>
           </DialogTitle>
           <DialogDescription>
-            Seleccione el método para importar sus envíos
+            Seleccione el método para importar sus envíos.{" "}
+            <strong>Debe seleccionar una sucursal</strong>.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Selector de Sucursal */}
+        <div className="space-y-2">
+          <Label htmlFor="sucursal">Sucursal destino</Label>
+          <SucursalSelector
+            value={selectedSucursalId}
+            onValueChange={setSelectedSucursalId}
+          />
+        </div>
+
+        {/* Tabs de subida */}
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as "file" | "text")}
-          className="mt-2"
+          className="mt-4"
         >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="file" className="gap-2">
@@ -174,24 +193,21 @@ export function CSVUploadModal({
             </TabsTrigger>
           </TabsList>
 
+          {/* Subida por archivo */}
           <TabsContent value="file" className="mt-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="csv-file">Seleccione su archivo</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="csv-file"
-                  type="file"
-                  accept={ALLOWED_EXTENSIONS.map(ext => `.${ext}`).join(",")}
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  disabled={isLoading}
-                  className="cursor-pointer"
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Formatos: {ALLOWED_EXTENSIONS.join(", ")}</span>
-                <span>Máx: {MAX_FILE_SIZE_MB}MB</span>
-              </div>
+            <Label htmlFor="csv-file">Seleccione su archivo</Label>
+            <Input
+              id="csv-file"
+              type="file"
+              accept={ALLOWED_EXTENSIONS.map(ext => `.${ext}`).join(",")}
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              disabled={isLoading}
+              className="cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Formatos: {ALLOWED_EXTENSIONS.join(", ")}</span>
+              <span>Máx: {MAX_FILE_SIZE_MB}MB</span>
             </div>
 
             {file && (
@@ -205,76 +221,42 @@ export function CSVUploadModal({
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRemoveFile}
-                  disabled={isLoading}
-                >
+                <Button variant="ghost" size="icon" onClick={handleRemoveFile}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             )}
           </TabsContent>
 
+          {/* Subida por texto */}
           <TabsContent value="text" className="mt-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="text-input">Ingrese en el siguiente recuadro el FD de DHL</Label>
-              <Textarea
-                id="text-input"
-                placeholder={`Ejemplo:\nAWB : XXXXXXXXXX \nOrig  Dest  Shipment Time     Prod  Pcs  Kilos  Decl. Value    Description of Goods`}
-                rows={6}
-                value={textInput}
-                onChange={handleTextChange}
-                disabled={isLoading}
-                className="resize-none font-mono text-sm"
-              />
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p>Formato esperado:</p>
-                <Badge variant="outline">
-                  AWB : XXXXXXXXXX Orig Dest Shipment Time Prod Pcs Kilos Decl. Value Description of Goods
-                </Badge>
-              </div>
+            <Label htmlFor="text-input">Ingrese el contenido del FD</Label>
+            <Textarea
+              id="text-input"
+              placeholder={`Ejemplo:\nAWB : XXXXXXXXXX \nOrig  Dest  Shipment Time     Prod  Pcs  Kilos  Decl. Value    Description of Goods`}
+              rows={6}
+              value={textInput}
+              onChange={handleTextChange}
+              disabled={isLoading}
+              className="resize-none font-mono text-sm"
+            />
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>Formato esperado:</p>
+              <Badge variant="outline">
+                AWB : XXXXXXXXXX Orig Dest Shipment Time Prod Pcs Kilos Decl. Value Description of Goods
+              </Badge>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="extra-file">Adjunte archivo con más datos</Label>
-              <Input
-                id="extra-file"
-                type="file"
-                accept={ALLOWED_EXTENSIONS.map(ext => `.${ext}`).join(",")}
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                disabled={isLoading}
-                className="cursor-pointer"
-              />
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Formatos: {ALLOWED_EXTENSIONS.join(", ")}</span>
-                <span>Máx: {MAX_FILE_SIZE_MB}MB</span>
-              </div>
-            </div>
-
-            {file && (
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
-                  <FileIcon className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRemoveFile}
-                  disabled={isLoading}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+            <Label htmlFor="extra-file">Archivo adjunto opcional</Label>
+            <Input
+              id="extra-file"
+              type="file"
+              accept={ALLOWED_EXTENSIONS.map(ext => `.${ext}`).join(",")}
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              disabled={isLoading}
+              className="cursor-pointer"
+            />
           </TabsContent>
         </Tabs>
 
@@ -296,7 +278,7 @@ export function CSVUploadModal({
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={isLoading || (activeTab === "file" ? !file : !textInput.trim())}
+            disabled={isLoading || !selectedSucursalId || (activeTab === "file" ? !file : !textInput.trim())}
           >
             {isLoading ? (
               <>

@@ -12,6 +12,11 @@ import { Shipment } from "../types";
       return response.data;
   }
 
+  const getCharges = async () => {
+    const response = await axiosConfig.get('/shipments/charges');
+    return response.data;
+  }
+
   const saveShipments = async (shipments: Shipment[]) => {
       const response = await axiosConfig.post<Shipment[]>('/shipments', shipments);  
       return response.data;
@@ -24,10 +29,12 @@ import { Shipment } from "../types";
 
   export async function uploadShipmentFile(
     file: File,
+    subsidiaryId: string,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData()
     formData.append("file", file)
+    formData.append("subsidiaryId", subsidiaryId)
 
     const response = await axiosConfig.post("/shipments/upload", formData, {
       headers: {
@@ -75,5 +82,6 @@ export {
     getShipments,
     getShipmentById,
     saveShipments,
-    generateKpis
+    generateKpis,
+    getCharges
 }

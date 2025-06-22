@@ -5,7 +5,9 @@ import { DataTable } from "@/components/data-table/data-table"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -24,6 +26,10 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import ShipmentFilters from "@/components/operaciones/envios/ShipmentFilters"
 import { filters } from "./filters"
 import KPIShipmentCards from "@/components/operaciones/envios/KpiCards"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { NewShipmentDialog } from "@/components/modals/new-shipment-modal"
 
 const ShipmentMap = dynamic(() => import("@/components/shipment-map"), { 
   ssr: false,
@@ -34,7 +40,6 @@ export default function ShipmentsPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isNewShipmentOpen, setIsNewShipmentOpen] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
-  const [isMapOpen, setIsMapOpen] = useState(false)
   const { shipments, isLoading, mutate } = useShipments()
   const { toast } = useToast()
   const isMobile = useIsMobile()
@@ -51,7 +56,6 @@ export default function ShipmentsPage() {
     })
     mutate()
   }
-
   
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
@@ -98,18 +102,8 @@ export default function ShipmentsPage() {
               </>
             ) : (
               <>
-                <Dialog open={isNewShipmentOpen} onOpenChange={setIsNewShipmentOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="rounded-md">
-                      <Package className="mr-2 h-4 w-4" />
-                      Nuevo Envío
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px] bg-white rounded-lg">
-                    {/* contenido del diálogo */}
-                  </DialogContent>
-                </Dialog>
-
+                <NewShipmentDialog />
+                
                 <CSVUploadModal 
                   open={isUploadModalOpen} 
                   onOpenChange={setIsUploadModalOpen} 

@@ -19,7 +19,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Eye, BarChart3, DollarSign, Truck } from "lucide-react"
+import { Eye, BarChart3, DollarSign, Truck, Ship } from "lucide-react"
+import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog"
 
 
 
@@ -244,22 +245,8 @@ export default function IngresosPage() {
       id: "detalles",
       header: "Detalles",
       cell: ({ row }) => (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Ver detalles">
-              <Eye className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Detalle del Envío</DialogTitle>
-            </DialogHeader>
-            <pre className="text-xs overflow-auto whitespace-pre-wrap max-h-64">
-              {JSON.stringify(row.original.items ?? { mock: "Sin datos disponibles" }, null, 2)}
-            </pre>
-          </DialogContent>
-        </Dialog>
-      ),
+        <ShipmentDetailDialog row={row} />
+      )
     },
   ]
 
@@ -285,8 +272,6 @@ export default function IngresosPage() {
               <SucursalSelector
                 value={selectedSucursalId}
                 onValueChange={setSelectedSucursalId}
-                id="sucursal"
-                name="sucursal"
               />
             </div>
             <div>
@@ -399,15 +384,15 @@ export default function IngresosPage() {
             </div>
           </Card>
 
-           <Card className="flex items-center gap-2 p-4">
-              <DollarSign className="h-6 w-6 text-yellow-600" />
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Ingreso a facturar</p>
-                <p className="text-sm font-semibold">
-                  {formatCurrency(totalIngreso || 0)}
-                </p>
-              </div>
-            </Card>
+          <Card className="flex items-center gap-2 p-4">
+            <DollarSign className="h-6 w-6 text-yellow-600" />
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Ingreso a facturar</p>
+              <p className="text-sm font-semibold">
+                {formatCurrency(totalIngreso || 0)}
+              </p>
+            </div>
+          </Card>
         </div>
 
         {/* Tabla */}

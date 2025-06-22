@@ -1,3 +1,4 @@
+import { IconTruckLoading } from "@tabler/icons-react"
 import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon } from "lucide-react"
 
 export interface NavItem {
@@ -36,6 +37,13 @@ export const sidebarMenu = {
       icon: BriefcaseBusinessIcon,
       isActive: false,
       items: [
+        {
+          name: "Cargas",
+          url: "/operaciones/cargas",
+          icon: IconTruckLoading,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
         {
           name: "Envios",
           url: "/operaciones/envios",

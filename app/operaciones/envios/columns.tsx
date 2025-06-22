@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
 import { Button } from "@/components/ui/button"
-import { Eye } from "lucide-react"
+import { Check, CheckCircle, Eye, Minus, XCircle } from "lucide-react"
 import { Shipment } from "@/lib/types"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export const columns: ColumnDef<Shipment>[] = [
   {
@@ -58,6 +59,17 @@ export const columns: ColumnDef<Shipment>[] = [
     accessorKey: "trackingNumber",
     header: ({ column }) => <DataTableColumnHeader column={column} title="No. Rastreo" />,
     cell: ({ row }) => <div className="font-medium">{row.getValue("trackingNumber")}</div>,
+  },
+  {
+    accessorKey: "isChargePackage",
+    header: " ",
+    cell: ({ row }) => {
+      const isChargePackage = row.getValue("isChargePackage") as boolean
+
+      return isChargePackage ? (
+        <Badge className="bg-emerald-500 text-white">Carga</Badge>
+      ) : null
+    },
   },
   {
     accessorKey: "recipientName",
