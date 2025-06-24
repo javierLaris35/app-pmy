@@ -113,7 +113,6 @@ export type NewIncome = {
   }[]
 }
 
-
 type UserRole = "user" | "admin";
 
 export type User = {

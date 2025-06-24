@@ -12,15 +12,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useIncomesByMonthAndSucursal } from "@/hooks/services/incomes/use-income"
 import { formatCurrency } from "@/lib/utils"
 import * as XLSX from "xlsx"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Eye, BarChart3, DollarSign, Truck, Ship } from "lucide-react"
+import { BarChart3, DollarSign, Truck } from "lucide-react"
 import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog"
+import { NewIncome } from "@/lib/types"
 
 
 

@@ -30,13 +30,13 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
   const user = useAuthStore((state) => state.user)
 
   useEffect(() => {
-    if (!subsidiaries || subsidiaries.length === 0 || !user) return
+    if (!subsidiaries || subsidiaries.length === 0) return
 
     const selected = subsidiaries.find((s) => s.id === value)
     if (selected) {
       setSelectedSucursal(selected)
-    } else {
-      const defaultSucursal = subsidiaries.find((s) => s.id === user.subsidiaryId) || subsidiaries[0]
+    } else if (!value) {
+      const defaultSucursal = subsidiaries.find((s) => s.id === user?.subsidiaryId) || subsidiaries[0]
       setSelectedSucursal(defaultSucursal)
       onValueChange(defaultSucursal.id)
     }

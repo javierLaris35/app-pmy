@@ -6,8 +6,6 @@ import { User } from "@/lib/types"
 export function useUsers() {
   const { data, error, isLoading, mutate } = useSWR('/users',getUsers)
   
-  console.log("🚀 ~ useUsers ~ data:", data)
-
   return {
     users: data ?? [],
     isLoading,

@@ -1,66 +1,127 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { AppLayout } from "@/components/app-layout"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, Pencil, Phone, Shield, Trash2 } from "lucide-react"
+import { Loader2, Mail, Pencil, Shield, Trash2, Plus, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useUsers } from "@/hooks/services/users/use-users"
 import { DataTable } from "@/components/data-table/data-table"
 import type { User } from "@/lib/types"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { columns } from "./columns"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Switch } from "@radix-ui/react-switch"
+import { UserDialog, UserFormData } from "@/components/modals/user-dialog-modal"
+import { deleteUser, register, updateUser } from "@/lib/services/users"
+import { ColumnDef } from "@tanstack/react-table"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from "@/components/ui/dialog"
 
 export default function UsuariosPage() {
   const { users, isLoading, isError, mutate } = useUsers()
   const { toast } = useToast()
   const isMobile = useIsMobile()
 
-  console.log("users", users, "loading", isLoading, "error", isError)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
 
-
-  const [form, setForm] = useState({ name: "", lastName: "", email: "" })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
+  const handleUserSubmit = async (data: UserFormData) => {
+    try {
+      if (data.id) {
+        await updateUser(data)
+        toast({ title: "Usuario actualizado correctamente" })
+      } else {
+        await register(data)
+        toast({ title: "Usuario creado correctamente" })
+      }
+      mutate()
+    } catch (err) {
+      toast({ title: "Error", description: "No se pudo guardar el usuario", variant: "destructive" })
+    }
+    setDialogOpen(false)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+  const onToggleActive = async (id: string, value: boolean) => {
     try {
-      // await api.post("/api/users", form)
-      console.log("Nuevo usuario:", form)
-      toast({ title: "Usuario creado correctamente" })
-      setForm({ name: "", lastName: "", email: "" })
+      const user = users.find(user => user.id === id) as UserFormData
+      if (!user) return
+
+      user.active = value
+      await updateUser(user)
       mutate()
-    } catch (error) {
-      toast({ title: "Error", description: "No se pudo crear el usuario", variant: "destructive" })
-    } finally {
-      setIsSubmitting(false)
+    } catch (err) {
+      toast({ title: "Error al cambiar estado del usuario", variant: "destructive" })
     }
   }
 
-  const onToggleActive = (id: string, value: any) => {
-
+  const onDelete = (user: User) => {
+    setUserToDelete(user)
   }
 
-  const onDelete = (user: User) => {
-
+  const confirmDelete = async () => {
+    if (!userToDelete) return
+    try {
+      await deleteUser(userToDelete.id)
+      mutate()
+      toast({ title: "Usuario eliminado correctamente" })
+    } catch (err) {
+      toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" })
+    }
+    setUserToDelete(null)
   }
 
   const onEdit = (user: User) => {
-
+    setEditingUser(user)
+    setDialogOpen(true)
   }
 
-    return (
+  const tableColumns: ColumnDef<User>[] = [
+    {
+      accessorKey: "name",
+      header: "Nombre",
+      cell: ({ row }) => `${row.original.name} ${row.original.lastName || ""}`,
+    },
+    {
+      accessorKey: "email",
+      header: "Correo",
+    },
+    {
+      accessorKey: "role",
+      header: "Rol",
+    },
+    {
+      accessorKey: "active",
+      header: "Activo",
+      cell: ({ row }) => (
+        <Switch
+          checked={row.original.active}
+          onCheckedChange={(value) => onToggleActive(row.original.id, value)}
+        />
+      ),
+    },
+    {
+      id: "actions",
+      header: "Acciones",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Button size="icon" variant="outline" onClick={() => onEdit(row.original)}>
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button size="icon" variant="destructive" onClick={() => onDelete(row.original)}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
+  return (
     <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -68,97 +129,92 @@ export default function UsuariosPage() {
             <h2 className="text-2xl font-bold tracking-tight">Gestión de Usuarios</h2>
             <p className="text-muted-foreground">Administra los usuarios del sistema</p>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>Nuevo Usuario</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Agregar nuevo usuario</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Nombre</Label>
-                  <Input id="name" name="name" value={form.name} onChange={handleInputChange} required />
-                </div>
-                <div>
-                  <Label htmlFor="lastName">Apellido</Label>
-                  <Input id="lastName" name="lastName" value={form.lastName} onChange={handleInputChange} required />
-                </div>
-                <div>
-                  <Label htmlFor="email">Correo</Label>
-                  <Input id="email" type="email" name="email" value={form.email} onChange={handleInputChange} required />
-                </div>
-                <Button type="submit" disabled={isSubmitting} className="w-full">
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Crear Usuario
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => {
+            setEditingUser(null)
+            setDialogOpen(true)
+          }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Usuario
+          </Button>
         </div>
 
-        {/* Vista según tamaño de pantalla */}
-        { isLoading ? (
-            <Loader2 className="mx-auto animate-spin" />
-          ) : isError ? (
-            <p className="text-red-500">Error al cargar usuarios</p>
-          ) : users && users.length > 0 ? (
-            isMobile ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {users.map((user) => (
-                  <Card key={user.id} className="border shadow-sm rounded-xl">
-                    <CardHeader className="pb-2 flex flex-row items-start justify-between">
-                      <CardTitle className="text-base">{user.name + " " + user.lastName}</CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={user.active}
-                          onCheckedChange={(value) => onToggleActive(user?.id, value)}
-                          id={`switch-${user.id}`}
-                        />
-                      </div>
-                    </CardHeader>
+        <UserDialog
+          open={dialogOpen}
+          user={editingUser}
+          onSubmit={handleUserSubmit}
+          onClose={() => setDialogOpen(false)}
+        />
 
-                    <CardContent className="space-y-3">
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <div className="flex items-start gap-2">
-                          <Mail className="w-4 h-4 mt-0.5 text-foreground" />
-                          <p>
-                            <span className="font-medium text-foreground">Correo:</span>{" "}
-                            {user.email}
-                          </p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Shield className="w-4 h-4 mt-0.5 text-foreground" />
-                          <p>
-                            <span className="font-medium text-foreground">Rol:</span>{" "}
-                            {user.role || "Sin rol"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end gap-2 pt-2">
-                        <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
-                          <Pencil className="w-4 h-4 mr-1" />
-                          Editar
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => onDelete(user)}>
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          Eliminar
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+        {/* 🧨 Modal de confirmación de eliminación */}
+        {userToDelete && (
+          <Dialog open={true} onOpenChange={() => setUserToDelete(null)}>
+            <DialogContent>
+              <DialogHeader className="flex items-center gap-2">
+                <AlertTriangle className="text-red-500 w-5 h-5" />
+                <DialogTitle>Confirmar eliminación</DialogTitle>
+              </DialogHeader>
+              <DialogDescription>
+                ¿Estás seguro que deseas eliminar a <strong>{userToDelete.name} {userToDelete.lastName}</strong>?
+                Esta acción no se puede deshacer.
+              </DialogDescription>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setUserToDelete(null)}>
+                  Cancelar
+                </Button>
+                <Button variant="destructive" onClick={confirmDelete}>
+                  Eliminar
+                </Button>
               </div>
-            ) : (
-              // Tabla
-              <DataTable columns={columns} data={users} />
-            )
-          ) : (
-            <p className="text-muted-foreground">No hay usuarios registrados</p>
-          )}
+            </DialogContent>
+          </Dialog>
+        )}
 
+        {isLoading ? (
+          <Loader2 className="mx-auto animate-spin" />
+        ) : isError ? (
+          <p className="text-red-500">Error al cargar usuarios</p>
+        ) : users && users.length > 0 ? (
+          isMobile ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {users.map((user) => (
+                <Card key={user.id} className="border shadow-sm rounded-xl">
+                  <CardHeader className="pb-2 flex flex-row items-start justify-between">
+                    <CardTitle className="text-base">{user.name + " " + user.lastName}</CardTitle>
+                    <Switch
+                      checked={user.active}
+                      onCheckedChange={(value) => onToggleActive(user.id, value)}
+                      id={`switch-${user.id}`}
+                    />
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-start gap-2">
+                        <Mail className="w-4 h-4 mt-0.5 text-foreground" />
+                        <p><span className="font-medium text-foreground">Correo:</span> {user.email}</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Shield className="w-4 h-4 mt-0.5 text-foreground" />
+                        <p><span className="font-medium text-foreground">Rol:</span> {user.role}</p>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button size="icon" variant="outline" onClick={() => onEdit(user)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="destructive" onClick={() => onDelete(user)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <DataTable columns={tableColumns} data={users} />
+          )
+        ) : (
+          <p className="text-muted-foreground">No hay usuarios registrados</p>
+        )}
       </div>
     </AppLayout>
   )

@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon } from "lucide-react"
 
 export interface NavItem {
     title: string
@@ -40,7 +40,7 @@ export const sidebarMenu = {
         {
           name: "Cargas",
           url: "/operaciones/cargas",
-          icon: IconTruckLoading,
+          icon: TruckIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },
@@ -61,7 +61,7 @@ export const sidebarMenu = {
         {
           name: "Rutas",
           url: "/operaciones/rutas",
-          icon: TruckIcon,
+          icon: MapIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },
