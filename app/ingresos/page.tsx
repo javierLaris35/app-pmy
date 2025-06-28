@@ -1,4 +1,4 @@
-"use client"  // (asegúrate de que esta línea sea la primera, sin espacios ni comentarios antes)
+"use client" // (asegúrate de que esta línea sea la primera, sin espacios ni comentarios antes)
 
 import React, { useMemo, useState, useEffect } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
@@ -15,13 +15,11 @@ import * as XLSX from "xlsx"
 import { BarChart3, DollarSign, Truck } from "lucide-react"
 import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog"
 import { NewIncome } from "@/lib/types"
-
-
+import { getLastWeekRange } from "@/utils/date.utils"
 
 export default function IngresosPage() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
-  const [fromDate, setFromDate] = useState<string>("2025-06-03")
-  const [toDate, setToDate] = useState<string>("2025-06-09")
+  const [{ fromDate, toDate }, setRange] = useState(getLastWeekRange())
 
   // Hook de consulta
   const { incomes, isLoading, isError, mutate } = useIncomesByMonthAndSucursal(
@@ -37,6 +35,12 @@ export default function IngresosPage() {
     }
   }, [selectedSucursalId, fromDate, toDate, mutate])
 
+  // Convierte string con formato monetario a número
+  const parseCurrency = (val: string | number) => {
+    if (typeof val === "string") return parseFloat(val.replace(/[$,]/g, "")) || 0
+    return val || 0
+  }
+
   // Exportar a Excel - Manejar caso de no tener datos
   const exportToExcel = () => {
     if (!incomes || incomes.length === 0) {
@@ -46,20 +50,20 @@ export default function IngresosPage() {
 
     const wb = XLSX.utils.book_new()
 
-    // Mapear ingresos con campos requeridos
+    // Mapear ingresos con campos requeridos y normalizados a números
     const ingresosData = incomes.map((i) => ({
       Fecha: i.date,
-      Total: i.total,
+      Total: Number(i.total) || 0,
       IngresoTotal: parseCurrency(i.totalIncome),
-      FedexTotal: i.fedex?.total ?? 0,
+      FedexTotal: Number(i.fedex?.total) || 0,
       IngresoFedex: parseCurrency(i.fedex?.totalIncome),
-      DHLTotal: i.dhl?.total ?? 0,
+      DHLTotal: Number(i.dhl?.total) || 0,
       IngresoDHL: parseCurrency(i.dhl?.totalIncome),
-      Recolecciones: i.collections ?? 0,
-      Cargas: i.cargas ?? 0,
+      Recolecciones: Number(i.collections) || 0,
+      Cargas: Number(i.cargas) || 0,
     }))
 
-    // Calcular totales
+    // Calcular totales correctamente con números
     const totales = ingresosData.reduce(
       (acc, curr) => {
         acc.Total += curr.Total || 0
@@ -111,32 +115,46 @@ export default function IngresosPage() {
     XLSX.writeFile(wb, "ingresos.xlsx")
   }
 
-
-  // Convierte string con formato monetario a número
-  const parseCurrency = (val: string | number) => {
-    if (typeof val === "string") return parseFloat(val.replace(/[$,]/g, "")) || 0
-    return val || 0
-  }
-
   // Cálculos con useMemo para evitar recálculo innecesario
   const totalRegistros = incomes?.length || 0
-  const totalCollections = useMemo(() => incomes?.reduce((acc, i) => acc + i.collections, 0) || 0, [incomes])
+  const totalCollections = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.collections) || 0), 0) || 0,
+    [incomes]
+  )
 
-  const totalFedex = useMemo(() => incomes?.reduce((acc, i) => acc + i.fedex.total, 0) || 0, [incomes])
+  const totalFedex = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.total) || 0), 0) || 0,
+    [incomes]
+  )
   const totalFedexIncome = useMemo(
-    () => incomes?.reduce((acc, i) => acc + parseCurrency(i.fedex.totalIncome), 0) || 0,
+    () => incomes?.reduce((acc, i) => acc + parseCurrency(i.fedex?.totalIncome), 0) || 0,
     [incomes]
   )
-  const totalFedexPOD = useMemo(() => incomes?.reduce((acc, i) => acc + i.fedex.pod, 0) || 0, [incomes])
-  const totalFedexDEX = useMemo(() => incomes?.reduce((acc, i) => acc + i.fedex.dex, 0) || 0, [incomes])
+  const totalFedexPOD = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.pod) || 0), 0) || 0,
+    [incomes]
+  )
+  const totalFedexDEX = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.dex) || 0), 0) || 0,
+    [incomes]
+  )
 
-  const totalDHL = useMemo(() => incomes?.reduce((acc, i) => acc + i.dhl.total, 0) || 0, [incomes])
-  const totalDHLIncome = useMemo(
-    () => incomes?.reduce((acc, i) => acc + parseCurrency(i.dhl.totalIncome), 0) || 0,
+  const totalDHL = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.dhl?.total) || 0), 0) || 0,
     [incomes]
   )
-  const totalDHLPOD = useMemo(() => incomes?.reduce((acc, i) => acc + i.dhl.pod, 0) || 0, [incomes])
-  const totalDHLDEX = useMemo(() => incomes?.reduce((acc, i) => acc + i.dhl.dex, 0) || 0, [incomes])
+  const totalDHLIncome = useMemo(
+    () => incomes?.reduce((acc, i) => acc + parseCurrency(i.dhl?.totalIncome), 0) || 0,
+    [incomes]
+  )
+  const totalDHLPOD = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.dhl?.ba) || 0), 0) || 0,
+    [incomes]
+  )
+  const totalDHLDEX = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.dhl?.ne) || 0), 0) || 0,
+    [incomes]
+  )
 
   const totalIngreso = useMemo(
     () => incomes?.reduce((acc, i) => acc + parseCurrency(i.totalIncome), 0) || 0,
@@ -155,25 +173,25 @@ export default function IngresosPage() {
       "fecha",
       "Fecha",
       (row) => row.date ?? "-",
-      (value) => (value ? new Date(value).toLocaleDateString("es-MX") : "-")
+      (value) => (value ? value : "-")
     ),
     {
       id: "fedexPod",
       header: "Fedex POD",
-      cell: ({ row }) => row.original.fedex?.pod ?? "-",
-      sortingFn: (a, b) => (a.original.fedex?.pod ?? 0) - (b.original.fedex?.pod ?? 0),
+      cell: ({ row }) => Number(row.original.fedex?.pod) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.fedex?.pod) || 0) - (Number(b.original.fedex?.pod) || 0),
     },
     {
       id: "fedexDex",
       header: "Fedex DEX",
-      cell: ({ row }) => row.original.fedex?.dex ?? "-",
-      sortingFn: (a, b) => (a.original.fedex?.dex ?? 0) - (b.original.fedex?.dex ?? 0),
+      cell: ({ row }) => Number(row.original.fedex?.dex) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.fedex?.dex) || 0) - (Number(b.original.fedex?.dex) || 0),
     },
     {
       id: "fedexTotal",
       header: "Fedex Total",
-      cell: ({ row }) => row.original.fedex?.total ?? "-",
-      sortingFn: (a, b) => (a.original.fedex?.total ?? 0) - (b.original.fedex?.total ?? 0),
+      cell: ({ row }) => Number(row.original.fedex?.total) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.fedex?.total) || 0) - (Number(b.original.fedex?.total) || 0),
     },
     {
       id: "fedexIncome",
@@ -181,26 +199,25 @@ export default function IngresosPage() {
       cell: ({ row }) =>
         formatCurrency(parseCurrency(row.original.fedex?.totalIncome ?? "$0")),
       sortingFn: (a, b) =>
-        parseCurrency(a.original.fedex?.totalIncome ?? "$0") -
-        parseCurrency(b.original.fedex?.totalIncome ?? "$0"),
+        parseCurrency(a.original.fedex?.totalIncome ?? "$0") - parseCurrency(b.original.fedex?.totalIncome ?? "$0"),
     },
     {
       id: "dhlPod",
       header: "DHL BA",
-      cell: ({ row }) => row.original.dhl?.ba ?? "-",
-      sortingFn: (a, b) => (a.original.dhl?.ba ?? 0) - (b.original.dhl?.ba ?? 0),
+      cell: ({ row }) => Number(row.original.dhl?.ba) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.dhl?.ba) || 0) - (Number(b.original.dhl?.ba) || 0),
     },
     {
       id: "dhlDex",
       header: "DHL NE",
-      cell: ({ row }) => row.original.dhl?.ne ?? "-",
-      sortingFn: (a, b) => (a.original.dhl?.ne ?? 0) - (b.original.dhl?.ne ?? 0),
+      cell: ({ row }) => Number(row.original.dhl?.ne) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.dhl?.ne) || 0) - (Number(b.original.dhl?.ne) || 0),
     },
     {
       id: "dhlTotal",
       header: "DHL Total",
-      cell: ({ row }) => row.original.dhl?.total ?? "-",
-      sortingFn: (a, b) => (a.original.dhl?.total ?? 0) - (b.original.dhl?.total ?? 0),
+      cell: ({ row }) => Number(row.original.dhl?.total) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.dhl?.total) || 0) - (Number(b.original.dhl?.total) || 0),
     },
     {
       id: "dhlIncome",
@@ -208,23 +225,22 @@ export default function IngresosPage() {
       cell: ({ row }) =>
         formatCurrency(parseCurrency(row.original.dhl?.totalIncome ?? "$0")),
       sortingFn: (a, b) =>
-        parseCurrency(a.original.dhl?.totalIncome ?? "$0") -
-        parseCurrency(b.original.dhl?.totalIncome ?? "$0"),
+        parseCurrency(a.original.dhl?.totalIncome ?? "$0") - parseCurrency(b.original.dhl?.totalIncome ?? "$0"),
     },
     createSortableColumn<NewIncome>(
       "collections",
       "Recolecciones",
-      (row) => row.collections ?? 0
+      (row) => Number(row.collections) || 0
     ),
     createSortableColumn<NewIncome>(
       "cargas",
       "Cargas",
-      (row) => row.cargas ?? 0
+      (row) => Number(row.cargas) || 0
     ),
     createSortableColumn<NewIncome>(
       "total",
       "Total",
-      (row) => row.total ?? 0
+      (row) => Number(row.total) || 0
     ),
     {
       id: "totalIncome",
@@ -232,18 +248,14 @@ export default function IngresosPage() {
       cell: ({ row }) =>
         formatCurrency(parseCurrency(row.original.totalIncome ?? "$0")),
       sortingFn: (a, b) =>
-        parseCurrency(a.original.totalIncome ?? "$0") -
-        parseCurrency(b.original.totalIncome ?? "$0"),
+        parseCurrency(a.original.totalIncome ?? "$0") - parseCurrency(b.original.totalIncome ?? "$0"),
     },
     {
       id: "detalles",
       header: "Detalles",
-      cell: ({ row }) => (
-        <ShipmentDetailDialog row={row} />
-      )
+      cell: ({ row }) => <ShipmentDetailDialog row={row} />,
     },
   ]
-
 
   return (
     <AppLayout>
@@ -274,7 +286,7 @@ export default function IngresosPage() {
                 id="fromDate"
                 type="date"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => setRange((r) => ({ ...r, fromDate: e.target.value }))}
               />
             </div>
             <div>
@@ -283,7 +295,7 @@ export default function IngresosPage() {
                 id="toDate"
                 type="date"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => setRange((r) => ({ ...r, toDate: e.target.value }))}
               />
             </div>
           </CardContent>
@@ -314,7 +326,7 @@ export default function IngresosPage() {
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total de Cargas</p>
               <p className="text-sm font-semibold">
-                {incomes?.reduce((acc, i) => acc + (i.cargas ?? 0), 0) || 0}
+                {incomes?.reduce((acc, i) => acc + (Number(i.cargas) || 0), 0) || 0}
               </p>
             </div>
           </Card>
@@ -343,7 +355,7 @@ export default function IngresosPage() {
               <p className="text-xs font-medium text-muted-foreground">Ingreso por Envío</p>
               <p className="text-sm font-semibold">
                 {formatCurrency(
-                  ((totalFedexPOD + totalFedexDEX + totalDHLPOD + totalDHLDEX) > 0)
+                  (totalFedexPOD + totalFedexDEX + totalDHLPOD + totalDHLDEX) > 0
                     ? totalIngreso / (totalFedexPOD + totalFedexDEX + totalDHLPOD + totalDHLDEX)
                     : 0
                 )}
@@ -371,9 +383,7 @@ export default function IngresosPage() {
             <div>
               <p className="text-xs font-medium text-muted-foreground">Ingresos FedEx vs DHL</p>
               <p className="text-sm font-semibold">
-                {(() => {
-                  return `FedEx ${formatCurrency(totalFedexIncome || 0)} / DHL ${formatCurrency(totalDHLIncome || 0)}`
-                })()}
+                {`FedEx ${formatCurrency(totalFedexIncome || 0)} / DHL ${formatCurrency(totalDHLIncome || 0)}`}
               </p>
             </div>
           </Card>
@@ -390,9 +400,7 @@ export default function IngresosPage() {
         </div>
 
         {/* Tabla */}
-        <Card>
-          <DataTable columns={columns} data={incomes || []} />
-        </Card>
+        <DataTable columns={columns} data={incomes || []} />
       </div>
     </AppLayout>
   )

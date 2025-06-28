@@ -564,3 +564,16 @@ export const shipmentTypes = [
   { label: "Fedex", value: "fedex" },
   { label: "DHL", value: "dhl" },
 ]
+
+
+export const subsidiaries = [
+  { label: "Huatabampo", value: "Huatabampo" },
+  { label: "Hermosillo", value: "Hermosillo" },
+  { label: "Constitución", value: "Constitución" },
+  { label: "Loreto", value: "Loreto" },
+  { label: "Cd Obregon", value: "Cd" },
+  { label: "Cabo San Lucas", value: "Cabo San Lucas" },
+  { label: "Guaymas", value: "Guaymas" },
+  { label: "Navojoa", value: "Navojoa" },
+  { label: "Puerto Peñasco", value: "Puerto Peñasco" },
+]

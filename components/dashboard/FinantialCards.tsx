@@ -21,7 +21,7 @@ export const FinancialCards = ({ income, expenses, balance, period }: FinancialC
 
   return (
     <>
-      <Card>
+      <Card className="shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Ingresos Totales</CardTitle>
           <DollarSign className={`${income > 0 ? "text-success" : "text-warning"} h-4 w-4`} />
@@ -71,3 +71,6 @@ export const FinancialCards = ({ income, expenses, balance, period }: FinancialC
     </>
   )
 }
+
+
+export default FinancialCards

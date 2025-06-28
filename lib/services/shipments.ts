@@ -27,6 +27,17 @@ import { Shipment } from "../types";
     return response.data;
   }
 
+  const generateDashboardKpis = async (from?: string, to?: string, subsidiaryId?: string) => {
+    const params: Record<string, string> = {}
+
+    if (from) params.from = from
+    if (to) params.to = to
+    if (subsidiaryId) params.subsidiaryId = subsidiaryId
+
+    const response = await axiosConfig.get('/shipments/dashboard/kpis', { params })
+
+    return response.data
+  }
   export async function uploadShipmentFile(
     file: File,
     subsidiaryId: string,
@@ -83,5 +94,6 @@ export {
     getShipmentById,
     saveShipments,
     generateKpis,
+    generateDashboardKpis,
     getCharges
 }

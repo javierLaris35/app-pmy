@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { FileSpreadsheet, FileUp, Plus, Upload } from "lucide-react"
-import { getGastosBySucursal, addGasto, updateGasto, getCategorias } from "@/lib/data"
+import { addGasto, updateGasto, getCategorias } from "@/lib/data"
 import type { Expense, ExpenseCategory } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { AppLayout } from "@/components/app-layout"
@@ -33,11 +33,12 @@ import { DataTable } from "@/components/data-table/data-table"
 import {
   createSelectColumn,
   createSortableColumn,
-  createActionsColumn,
   createViewColumn,
 } from "@/components/data-table/columns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useExpenses } from "@/hooks/services/expenses/use-expenses"
+import { useExpenses, useSaveExpense } from "@/hooks/services/expenses/use-expenses"
+import { categoriasGasto } from "@/lib/data"  // tu lista de categorías
+
 
 // Métodos de pago disponibles
 const metodosPago = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "Transferencia", "Cheque", "Otro"]
@@ -78,7 +79,16 @@ export default function GastosPage() {
   const [notas, setNotas] = useState("")
   const [comprobante, setComprobante] = useState<File | null>(null)
   const { expenses, isLoading, isError, mutate } = useExpenses(selectedSucursalId)
+  const { save, isSaving, isError: isSaveError } = useSaveExpense();
 
+
+  useEffect(() => {
+    const loadCategorias = async () => {
+      const res = await getCategorias()
+      setCategorias(res || [])
+    }
+    loadCategorias()
+  }, [])
 
   const resetForm = () => {
     setEditingGasto(null)
@@ -98,9 +108,11 @@ export default function GastosPage() {
   }
 
   const openEditGastoDialog = (gasto: Expense) => {
+    const selectedCategoria = categorias.find((c) => c.name === gasto.category)
+
     setEditingGasto(gasto)
     setFecha(new Date(gasto.date))
-    setCategoriaId(gasto.categoryId)
+    setCategoriaId(gasto.category)
     setMonto(gasto.amount)
     setDescripcion(gasto.description || "")
     setMetodoPago(gasto.paymentMethod || "Efectivo")
@@ -125,37 +137,21 @@ export default function GastosPage() {
       return
     }
 
-    if (editingGasto) {
-      // Actualizar gasto existente
-      updateGasto(editingGasto.id, {
-        fecha,
-        categoriaId,
-        categoriaNombre: selectedCategoria.name,
-        monto,
-        descripcion,
-        metodoPago,
-        responsable,
-        notas,
-        // En una aplicación real, aquí se manejaría la subida del comprobante
-      })
-    } else {
-      // Crear nuevo gasto
-      addGasto({
-        sucursalId: selectedSucursalId,
-        fecha,
-        categoriaId,
-        categoriaNombre: selectedCategoria.name,
-        monto,
-        descripcion,
-        metodoPago,
-        responsable,
-        notas,
-        // En una aplicación real, aquí se manejaría la subida del comprobante
-      })
-    }
+    const payload: Expense = {
+      subsidiaryId: selectedSucursalId,
+      date: fecha,
+      category: categoriaId, // nombre de la categoría directamente
+      amount: monto,
+      description: descripcion,
+      paymentMethod: metodoPago,
+      responsible: responsable,
+      notes: notas,
+    };
 
+
+    save(payload)
     setIsDialogOpen(false)
-    loadGastos()
+    mutate()
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -256,15 +252,27 @@ export default function GastosPage() {
       (value) => format(new Date(value), "dd/MM/yyyy", { locale: es }),
     ),
     createSortableColumn<Expense>(
-      "categoria",
+      "category",
       "Categoría",
-      (row) => row.category?.name ?? '',
-      (value) => (
-        <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${getCategoryColor(value || "")}`}></div>
-          <span>{value || "Sin categoría"}</span>
-        </div>
-      ),
+      // ahora simplemente devolvemos el string
+      row => row.category ?? "",
+      // y lo renderizamos con el mismo badge/dot
+      value => {
+        // opcional: si quieres información extra (p.ej. descripción), la puedes
+        // buscar en `categoriasGasto`:
+        const cat = categoriasGasto.find(c => c.name === value)
+        return (
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${getCategoryColor(value)}`}></div>
+            <div className="flex flex-col">
+              <span>{value || "Sin categoría"}</span>
+              {cat && (
+                <span className="text-xs text-gray-500">{cat.description}</span>
+              )}
+            </div>
+          </div>
+        )
+      }
     ),
     createSortableColumn<Expense>("descripcion", "Descripción", (row) => row.description || "-"),
     createSortableColumn<Expense>(
@@ -332,7 +340,7 @@ export default function GastosPage() {
           </CardHeader>
           <CardContent>
             {selectedSucursalId ? (
-              <DataTable columns={columns} data={expenses} filterPlaceholder="Filtrar gastos..." />
+              <DataTable columns={columns} data={expenses} />
             ) : (
               <div className="flex h-[200px] items-center justify-center">
                 <p className="text-muted-foreground">Selecciona una sucursal para ver los gastos</p>
@@ -372,7 +380,7 @@ export default function GastosPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fecha" className="font-medium">
+                <Label htmlFor="date" className="font-medium">
                   Fecha <span className="text-destructive">*</span>
                 </Label>
                 <Popover>

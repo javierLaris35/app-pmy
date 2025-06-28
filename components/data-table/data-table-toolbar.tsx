@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DataTableViewOptions } from "./data-table-view-options"
 
-import { priorities, statuses, shipmentTypes } from "@/lib/data"
+import { priorities, statuses, shipmentTypes, subsidiaries } from "@/lib/data"
 import { DataTableFacetedFilter } from "./data-table-faceted-filter"
+import { Switch } from "../ui/switch"
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>,
@@ -23,6 +24,7 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
     status: { title: "Estatus", options: statuses },
     priority: { title: "Prioridad", options: priorities },
     shipmentType: { title: "Tipo", options: shipmentTypes },
+    subsidiary: { title: "Sucursal", options: subsidiaries },
   }
 
   // Obtener columnas disponibles
@@ -32,6 +34,9 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
     }
     return acc
   }, {} as Record<string, { title: string; options: { label: string; value: string }[] }>)
+
+  // Validar si existe la columna de isChargePackage
+  const chargeColumn = table.getAllColumns().find(col => col.id === 'isChargePackage');
 
   return (
     <div className="flex items-center justify-between">
@@ -50,6 +55,20 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
             options={options}
           />
         ))}
+        {chargeColumn  && (
+          <div className="flex items-center space-x-2 px-2">
+            <Switch
+              id="filter-charge"
+              checked={table.getColumn("isChargePackage")?.getFilterValue() === true}
+              onCheckedChange={(checked) =>
+                table.getColumn("isChargePackage")?.setFilterValue(checked ? true : undefined)
+              }
+            />
+            <label htmlFor="filter-charge" className="text-sm">
+              Solo carga
+            </label>
+          </div>
+        )}
         {isFiltered && (
           <Button variant="ghost" onClick={() => table.resetColumnFilters()} className="h-8 px-2 lg:px-3">
             Borrar

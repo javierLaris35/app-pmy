@@ -7,7 +7,6 @@ import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useCharges } from "@/hooks/services/shipments/use-shipments";
 import { Loader } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
 import { Package, CheckCircle2, ClipboardList } from "lucide-react";
@@ -15,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { Charge, ChargeShipment } from "@/lib/types";
 import { ChargeShipmentDetailDialog } from "@/components/modals/charge-shipment-detail-dialog";
+import { useCharges } from "@/hooks/services/shipments/use-shipments";
 
 export default function ChargesWithKpis() {
   const { charges, isLoading, mutate } = useCharges();

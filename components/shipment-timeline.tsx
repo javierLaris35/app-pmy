@@ -14,6 +14,7 @@ import {
   CalendarClockIcon,
   PackageCheckIcon,
   TriangleAlertIcon,
+  AlertCircleIcon,
 } from "lucide-react"
 import type { Shipment } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +27,7 @@ const statusMap = {
   en_ruta: { icon: Truck, color: "text-purple-500", bgColor: "bg-violet-100", label: "En Ruta" },
   entregado: { icon: CheckCircle, color: "text-green-500", bgColor: "bg-green-100", label: "Entregado" },
   no_entregado: { icon: XCircle, color: "text-red-500", bgColor: "bg-red-100", label: "No Entregado" },
+  desconocido: { icon: AlertCircleIcon, color: "text-black-500", bgColor: "bg-gray-100", label: "Desconocido" },
 } as const
 
 const priorityMap = {
@@ -35,7 +37,7 @@ const priorityMap = {
 } as const
 
 export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
-  const statuses = ["recoleccion", "en_ruta", "entregado", "no_entregado"] as const
+  const statuses = ["recoleccion", "en_ruta", "entregado", "no_entregado", "desconocido"] as const
   const currentStatusIndex = statuses.indexOf(shipment.status)
 
   // Get the status history or create a default one if not provided
@@ -213,8 +215,6 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
             const historyEntry = statusHistory.find((h) => h.status === status)
             const timestamp = historyEntry ? new Date(historyEntry.timestamp) : null
             const notes = historyEntry?.notes
-            //const location = historyEntry?.location
-            //const updatedBy = historyEntry?.updatedBy
 
             return (
               <div key={status} className="relative flex items-start space-x-4 py-4">
@@ -232,13 +232,6 @@ export function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
                       {timestamp.toLocaleDateString()} {timestamp.toLocaleTimeString()}
                     </p>
                   )}
-                  {/*{location && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <MapPin className="h-3 w-3 text-gray-400" />
-                      <p className="text-xs text-gray-500">{location}</p>
-                    </div>
-                  )}
-                  {updatedBy && <p className="text-xs text-gray-500 mt-1">Actualizado por: {updatedBy}</p>}*/}
                   {notes && <p className="text-xs italic text-gray-500 mt-1">{notes}</p>}
                   {isCurrentStatus && shipment.status !== "no_entregado" && shipment.status !== "entregado" && (
                     <Badge variant="outline" className="mt-1 text-xs">

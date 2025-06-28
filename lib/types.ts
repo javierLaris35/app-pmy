@@ -38,10 +38,10 @@ export type ExpenseCategory = {
 }
 
 export type Expense = {
-  id: string
+  id?: string
   subsidiaryId: string
   category: ExpenseCategory
-  date: string
+  date: string | Date
   amount: number
   description?: string
   paymentMethod?: string
@@ -50,9 +50,16 @@ export type Expense = {
   receiptUrl?: string
 }
 
+export type GroupExpese = {
+  date: string
+  total: number
+  items: Expense[]
+}
+
+
 export type FinancialSummary = {
   incomes: RouteIncome[],
-  expenses: Expense[],
+  expenses: GroupExpese[],
   finantial: {
     income: number
     expenses: number
@@ -140,19 +147,21 @@ export type Shipment = {
   commitDate: string
   commitTime: string
   recipientPhone: string
-  status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado"
+  status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado" | "desconocido"
   payment?: {
     amount: number
     status: "paid" | "pending" | "failed"
   } | null
   priority?: "alta" | "media" | "baja"
   statusHistory?: Array<{
-    status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado"
+    status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado" | "desconocido"
     timestamp: string
     notes?: string
   }>
   createdAt: string
   shipmentType?: "fedex" | "dhl"
+  subsidiary?: Subsidiary
+  charge?: Charge
   isChargePackage?: boolean
   receivedByName: string
 }

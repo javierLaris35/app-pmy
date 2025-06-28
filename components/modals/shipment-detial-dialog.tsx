@@ -21,15 +21,15 @@ import { es } from "date-fns/locale"
 import { JSX } from "react"
 import { DataTable } from "../data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
-
+import { IconTruckLoading } from "@tabler/icons-react"
 
 interface ShipmentItem {
-  trackingNumber: string
+  trackingNumber: string | null
   date: string
   cost: number
   type: string
   shipmentType: string
-  status: string
+  status?: string
 }
 
 export function ShipmentDetailDialog({ row }: { row: any }) {
@@ -49,8 +49,20 @@ export function ShipmentDetailDialog({ row }: { row: any }) {
     </Badge>
   )
 
-  const renderStatusBadge = (status: string) => {
-    const normalized = status.toLowerCase()
+  // Ahora acepta también el type para manejar 'carga'
+  const renderStatusBadge = (status: string | undefined, type: string) => {
+    // 1) Si es una carga, mostramos badge fijo
+    if (type === "carga") {
+      return (
+        <Badge variant="outline" className="gap-1">
+          <IconTruckLoading className="h-3 w-3 text-blue-600" />
+          CARGA
+        </Badge>
+      )
+    }
+
+    // 2) Normalizamos status existente
+    const normalized = status?.toLowerCase() ?? ""
     const statusMap: Record<string, { label: string; icon: JSX.Element }> = {
       entregado: {
         label: "Entregado",
@@ -71,7 +83,7 @@ export function ShipmentDetailDialog({ row }: { row: any }) {
     }
 
     const fallback = {
-      label: status,
+      label: status ?? "Desconocido",
       icon: <AlertTriangle className="h-3 w-3 text-muted-foreground" />
     }
 
@@ -90,7 +102,9 @@ export function ShipmentDetailDialog({ row }: { row: any }) {
       accessorKey: "trackingNumber",
       header: "Tracking",
       cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.getValue("trackingNumber")}</span>
+        <span className="text-muted-foreground">
+          {row.getValue("trackingNumber") ?? "-"}
+        </span>
       )
     },
     {
@@ -124,7 +138,11 @@ export function ShipmentDetailDialog({ row }: { row: any }) {
     {
       accessorKey: "status",
       header: "Estado",
-      cell: ({ row }) => renderStatusBadge(row.getValue("status"))
+      cell: ({ row }) => {
+        const type = row.getValue("type")
+        const status = row.getValue("status")
+        return renderStatusBadge(status, type)
+      }
     }
   ]
 

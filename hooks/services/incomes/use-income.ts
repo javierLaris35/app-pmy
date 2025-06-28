@@ -46,8 +46,6 @@ export function useIncomesByMonth(firstDay: string, lastDay: string) {
 export function useIncomesByMonthAndSucursal(subsidiaryId: string, firstDay: string, lastDay: string) {
   const isValid = Boolean(subsidiaryId && firstDay && lastDay);
 
-  console.log("🔁 Hook ejecutando fetch con:", subsidiaryId, firstDay, lastDay);
-
   const { data, error, isLoading, mutate } = useSWR<NewIncome[]>(
     isValid
       ? [`/incomes/month/`, subsidiaryId, firstDay, lastDay]

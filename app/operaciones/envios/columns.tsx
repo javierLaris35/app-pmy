@@ -84,6 +84,13 @@ export const columns: ColumnDef<Shipment>[] = [
     header: ({ column }) => <DataTableColumnHeader column={column} title="Ciudad" />,
   },
   {
+    accessorKey: "subsidiary.name",
+    id: "subsidiary", // 👈 este id debe coincidir con el usado en el filtro
+    header: "Sucursal",
+    cell: ({ row }) => row.original.subsidiary?.name ?? "-",
+    /*enableColumnFilter: true,*/
+  },
+  {
     accessorKey: "recipientZip",
     header: ({ column }) => <DataTableColumnHeader column={column} title="CP" />,
   },
