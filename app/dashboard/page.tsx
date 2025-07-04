@@ -1,284 +1,186 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { SucursalSelector } from "@/components/sucursal-selector"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowDownIcon, ArrowUpIcon, DollarSign, PercentIcon } from "lucide-react"
-import { formatCurrency } from "@/lib/utils"
 import { AppLayout } from "@/components/app-layout"
-import {
-  getSucursales,
-} from "@/lib/data"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts"
-import type { FinancialSummary, Expense, RouteIncome, GroupExpese } from "@/lib/types"
-import { useSubsidiaryStore } from "@/store/subsidiary.store"
+import { DashboardHeader } from "@/components/dashboard/dashboard-header"
+import { KPIGrid } from "@/components/dashboard/kpi-grid"
+import { ChartsSection } from "@/components/dashboard/charts-section"
+import { BranchOverview } from "@/components/dashboard/branch-overview"
+import { IncomeExpenseCharts } from "@/components/dashboard/income-expense-charts"
+import { InteractiveMap } from "@/components/dashboard/interactive-map"
+import { OperationalMetrics } from "@/components/dashboard/operational-metrics"
+import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { useAuthStore } from "@/store/auth.store"
-import { formatDateWithTimeToDDMMYYYY, parseDateFromDDMMYYYY } from "@/utils/date.utils"
+import { useSubsidiaryStore } from "@/store/subsidiary.store"
 import { useFinancialSummary } from "@/hooks/services/incomes/use-income"
-import { ShipmentKpis } from "@/components/shipment/shipment-kpis"
-import { Input } from "@/components/ui/input"
-import FinantialCards from "@/components/dashboard/FinantialCards"
-import { format, parseISO } from "date-fns"
+import { parseDateFromDDMMYYYY } from "@/utils/date.utils"
+import { format, startOfMonth, endOfMonth, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
-import { ChartTooltip } from "@/components/dashboard/ChartTooltip"
-import { IncomeChart } from "@/components/dashboard/IncomeChart"
-import { ExpensesChart } from "@/components/dashboard/ExpensesChart"
+import type { FinancialSummary, GroupExpese } from "@/lib/types"
 import { ExpensesByCategoryPie } from "@/components/dashboard/ExpensesByCategoryChart"
-
-// Colores para el gráfico de pastel
-const COLORS = [
-  "#0088FE",
-  "#00C49F",
-  "#FFBB28",
-  "#FF8042",
-  "#8884d8",
-  "#82ca9d",
-  "#ffc658",
-  "#8dd1e1",
-  "#a4de6c",
-  "#d0ed57",
-]
+import { FinantialOperationKpis } from "@/components/dashboard/finantial-operation"
+import { SubsidiaryMetricsGrid } from "@/components/subsidiary/subsidiary-metrics"
+import { useDashboard } from "@/hooks/services/dashboard/use-dashboard"
+import { SubsidiaryPerformanceList } from "@/components/subsidiary/subsidiary-performance-list"
 
 export default function DashboardPage() {
-  const user = useAuthStore((state) => state.user)
-  const selectedSucursalId = useSubsidiaryStore((state) => state.selectedSubsidiaryId)
-  const setSelectedSucursalId = useSubsidiaryStore((state) => state.setSelectedSubsidiaryId)
-
-  const [resumen, setResumen] = useState<FinancialSummary>({
-    incomes: [],
-    expenses: [],
-    finantial: {
-      income: 0,
-      expenses: 0,
-      balance: 0,
-      period: "",
-    }
+  const today = new Date()
+  const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
+  const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
+  
+  const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"))
+  const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"))
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
+    from: startDayOfMonth,
+    to: endDayOfMonth,
   })
+
+  const user = useAuthStore((s) => s.user)
+  const selectedSucursalId = useSubsidiaryStore((s) => s.selectedSubsidiaryId)
+  const setSelectedSucursalId = useSubsidiaryStore((s) => s.setSelectedSubsidiaryId)
+
+  const { summary, isLoading, mutate } = useFinancialSummary(selectedSucursalId, fromDate, toDate)
+  const { data, isLoading: isDashboardLoading, mutate: mutateDashboard } = useDashboard(fromDate, toDate);
+
 
   const [ingresosData, setIngresosData] = useState<any[]>([])
   const [gastosData, setGastosData] = useState<any[]>([])
   const [gastosPorCategoria, setGastosPorCategoria] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const { summary, isLoading, isError, mutate } = useFinancialSummary(selectedSucursalId)
-  
-  const [fromDate, setFromDate] = useState("2025-06-01")
-  const [toDate, setToDate] = useState("2025-06-30")
-  
+
   useEffect(() => {
-    const sucursales = getSucursales()
-
-    if (user?.subsidiaryId && !selectedSucursalId) {
-      const existeSucursal = sucursales.some((s) => s.id === user.subsidiaryId)
-      if (existeSucursal) {
-        setSelectedSucursalId(user.subsidiaryId)
-        return
-      }
+    if (fromDate) {
+      const newDate = parseISO(fromDate)
+      setToDate(format(endOfMonth(newDate), "yyyy-MM-dd"))
     }
+  }, [fromDate])
 
-    if (sucursales.length > 0 && !selectedSucursalId) {
-      setSelectedSucursalId(sucursales[0].id)
+  useEffect(() => {
+    if (!selectedSucursalId && user?.subsidiaryId) {
+      setSelectedSucursalId(user.subsidiaryId)
     }
   }, [user, selectedSucursalId, setSelectedSucursalId])
 
   useEffect(() => {
-    if (!selectedSucursalId || isLoading) return
+    if (!summary || isLoading) return
 
-    //console.log('📊 Incomes:', summary?.incomes)
-    //console.log('📉 Expenses:', summary?.expenses)
+    const resumenData: FinancialSummary = summary
+    const safeIncomes = Array.isArray(resumenData.incomes) ? resumenData.incomes : []
+    const safeExpenses = Array.isArray(resumenData.expenses) ? resumenData.expenses : []
 
-    setLoading(true)
+    const ingresosFormateados = safeIncomes.map((ingreso) => ({
+      date: parseDateFromDDMMYYYY(ingreso.date).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
+      amount: Number(ingreso.totalIncome.replace(/[$,]/g, '')),
+    }))
+    setIngresosData(ingresosFormateados)
 
-    const resumenYFormateo = async () => {
-      try {
-        const resumenData = summary
-        setResumen({
-          incomes: resumenData?.incomes || [],
-          expenses: resumenData?.expenses || [],
-          finantial: resumenData?.finantial || { income: 0, expenses: 0, balance: 0, period: "" },
-        })
-
-        const ingresosFormateados = summary?.incomes?.map((ingreso) => ({
-          date: parseDateFromDDMMYYYY(ingreso.date).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
-          amount: Number(ingreso.totalIncome.replace(/[$,]/g, '')),
-        })) || []
-        setIngresosData(ingresosFormateados)
-
-        const gastosFormateados = summary?.expenses.map((gasto) => {
-          const fechaObj = parseISO(gasto.date); // convierte "2025-06-16" → Date
-          return {
-            date: format(fechaObj, "dd MMM", { locale: es }), // "16 jun"
-            amount: gasto.total,
-          };
-        }) || []
-
-        console.log("🚀 ~ gastosFormateados ~ gastosFormateados:", gastosFormateados)
-        setGastosData(gastosFormateados)
-
-        const gastosPorCat = calcularGastosPorCategoria(summary?.expenses) || []
-        setGastosPorCategoria(gastosPorCat)
-      } catch (error) {
-        console.error("Error al cargar datos financieros:", error)
-      } finally {
-        setLoading(false)
+    const gastosFormateados = safeExpenses.map((gasto) => {
+      const fechaObj = parseISO(gasto.date)
+      return {
+        date: format(fechaObj, "dd MMM", { locale: es }),
+        amount: gasto.total,
       }
-    }
+    })
+    setGastosData(gastosFormateados)
 
-    resumenYFormateo()
-  }, [selectedSucursalId, summary, isLoading])
+    const gastosPorCat = calcularGastosPorCategoria(safeExpenses)
+    setGastosPorCategoria(gastosPorCat)
+  }, [summary, isLoading])
 
   useEffect(() => {
-    if (selectedSucursalId) {
-      mutate
-    }
-  }, [selectedSucursalId, mutate]);
+    if (selectedSucursalId) mutate()
+  }, [selectedSucursalId])
 
-  const calcularGastosPorCategoria = (
-    dailyExpenses: GroupExpese[]
-  ): { name: string; value: number }[] => {
+  const calcularGastosPorCategoria = (dailyExpenses: GroupExpese[] = []) => {
     const acumulado: Record<string, number> = {}
-
-    if (!Array.isArray(dailyExpenses)) return []
-
-    // Recorremos cada día...
     dailyExpenses.forEach(({ items }) => {
-      // ...y cada gasto dentro de ese día
       items.forEach((gasto) => {
         const name = gasto.category?.trim() || 'Sin categoría'
-        const amount =
-          typeof gasto.amount === 'number'
-            ? gasto.amount
-            : parseFloat(String(gasto.amount)) || 0
-
+        const amount = typeof gasto.amount === 'number'
+          ? gasto.amount
+          : parseFloat(String(gasto.amount)) || 0
         acumulado[name] = (acumulado[name] || 0) + amount
       })
     })
-
-    // Convertimos el mapa a un array [{ name, value }]
-    return Object.entries(acumulado).map(([name, value]) => ({
-      name,
-      value,
-    }))
+    return Object.entries(acumulado).map(([name, value]) => ({ name, value }))
   }
 
+  const branchData = [] // Puedes poblar esto si lo deseas con data de sucursales reales
 
   return (
     <AppLayout>
-      {/** HEADER Y CARDS */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="col-span-full">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Dashboard Financiero</CardTitle>
-              <CardDescription>Visualiza los ingresos y gastos de tu sucursal</CardDescription>
+      <div className="min-h-screen">
+        <div className="space-y-8 p-6">
+          <DashboardHeader
+            dateRange={dateRange}
+            onDateRangeChange={(range) => {
+              setDateRange(range)
+              setFromDate(range.from)
+              setToDate(range.to)
+            }}
+          />
+
+          <SubsidiaryMetricsGrid data={data || []}/>
+
+          <SubsidiaryPerformanceList data={data || []}/>
+
+          <InteractiveMap branches={data || []} />
+
+          <FinantialOperationKpis />
+
+          <KPIGrid
+            financialKPIs={{
+              revenue: summary?.finantial.income || 0,
+              revenueChange: 0,
+              profit: summary?.finantial.balance || 0,
+              profitMargin: summary?.finantial.income ? (summary.finantial.balance / summary.finantial.income) * 100 : 0,
+              expenses: summary?.finantial.expenses || 0,
+              expensesChange: 0,
+              netIncome: summary?.finantial.balance || 0,
+              netIncomeChange: 0,
+            }}
+            operationalKPIs={{
+              totalOrders: 0,
+              ordersChange: 0,
+              fulfillmentRate: 0,
+              fulfillmentChange: 0,
+              avgDeliveryTime: 0,
+              deliveryTimeChange: 0,
+              customerSatisfaction: 0,
+              satisfactionChange: 0,
+              onTimeDelivery: 0,
+              onTimeChange: 0,
+              returnRate: 0,
+              returnChange: 0,
+            }}
+          />
+
+          {/*<ChartsSection ingresos={ingresosData} gastos={gastosData} />
+
+          <ExpensesByCategoryPie gastosPorCategoria={gastosPorCategoria} />
+
+          <InteractiveMap branches={branchData} />
+
+          <BranchOverview branchData={branchData} />
+
+          <IncomeExpenseCharts data={{
+            monthly: [],
+            categories: gastosPorCategoria.map((cat) => ({
+              category: cat.name,
+              amount: cat.value,
+              percentage: 0,
+            })),
+            byBranch: [],
+          }} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <OperationalMetrics branches={branchData} />
             </div>
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <SucursalSelector value={selectedSucursalId} onValueChange={setSelectedSucursalId} />
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <div className="lg:col-span-1">
+              <RecentActivity branches={branchData} />
             </div>
-          </CardHeader>
-        </Card>
-
-        <FinantialCards 
-          income={resumen?.finantial?.income || 0}
-          expenses={resumen?.finantial?.expenses || 0}
-          balance={resumen?.finantial?.balance || 0}
-          period={`${resumen.finantial.period}`}
-        />
-
-      </div>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {/** CHART INGRESOS */}
-        <IncomeChart key={"ingresos"} data={ingresosData} isLoading={isLoading}/>
-
-        {/** CHART GASTOS */}
-        <ExpensesChart key={"gastos"} data={gastosData} isLoading={isLoading} />
-
-        {/** CHART GASTOS POR CATEGORIA */}
-        
-
-        <Card className="flex flex-col">
-          <CardHeader className="flex-row items-start space-y-0 pb-0">
-            <div className="grid gap-1">
-              <CardTitle>Gastos por Categoría</CardTitle>
-              <CardDescription>Elige una categoría</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-1 justify-center pb-0">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={gastosPorCategoria}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {gastosPorCategoria.map((entry, idx) => (
-                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<ChartTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <ExpensesByCategoryPie gastosPorCategoria={gastosPorCategoria} />
-
-        <Card className="col-span-full">
-          <CardHeader>
-            <CardTitle>Gastos por Categoría</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading || gastosPorCategoria.length === 0 ? (
-              <div className="flex h-[300px] items-center justify-center">
-                <p className="text-muted-foreground">{isLoading ? "Cargando datos..." : "No hay datos de gastos por categoría"}</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={gastosPorCategoria}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {gastosPorCategoria.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value as number)}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+          </div>/*/}
+        </div>
       </div>
     </AppLayout>
   )

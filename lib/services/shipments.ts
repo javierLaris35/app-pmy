@@ -38,18 +38,27 @@ import { Shipment } from "../types";
 
     return response.data
   }
+
   export async function uploadShipmentFile(
     file: File,
     subsidiaryId: string,
+    consNumber: string = "",
+    consDate?: string,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData()
     formData.append("file", file)
     formData.append("subsidiaryId", subsidiaryId)
+    formData.append("consNumber", consNumber || "")
+
+    // Solo agrega consDate si existe
+    if (consDate) {
+      formData.append("consDate", consDate)
+    }
 
     const response = await axiosConfig.post("/shipments/upload", formData, {
       headers: {
-        "Content-Type": "multipart/form-data"
+        "Content-Type": "multipart/form-data",
       },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
@@ -57,7 +66,63 @@ import { Shipment } from "../types";
           console.log("Progreso:", percent)
           onProgress(percent)
         }
-      }
+      },
+    })
+
+    return response.data
+  }
+
+  export async function uploadF2ChargeShipments(
+    file: File,
+    subsidiaryId: string,
+    consNumber: string = "",
+    consDate?: string,
+    onProgress?: (progress: number) => void
+  ) {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("subsidiaryId", subsidiaryId)
+    formData.append("consNumber", consNumber || "")
+
+    // Solo agrega consDate si existe
+    if (consDate) {
+      formData.append("consDate", consDate)
+    }
+
+    const response = await axiosConfig.post("/shipments/upload-charge", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          console.log("Progreso:", percent)
+          onProgress(percent)
+        }
+      },
+    })
+
+    return response.data
+  }
+
+  export async function uploadShipmentPayments(
+    file: File,
+    onProgress?: (progress: number) => void
+  ) {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const response = await axiosConfig.post("/shipments/upload-payment", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          console.log("Progreso:", percent)
+          onProgress(percent)
+        }
+      },
     })
 
     return response.data

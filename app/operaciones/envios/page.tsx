@@ -5,43 +5,31 @@ import { DataTable } from "@/components/data-table/data-table"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
-import { Eye, Package } from "lucide-react"
+import { Eye, Upload } from "lucide-react"
 import { columns } from "./columns"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
-import dynamic from "next/dynamic"
 import { Shipment } from "@/lib/types"
 import { CSVUploadModal } from "@/components/modals/csv-upload-modal"
 import { AppLayout } from "@/components/app-layout"
 import { useShipments } from "@/hooks/services/shipments/use-shipments"
-import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useIsMobile } from "@/hooks/use-mobile"
 import ShipmentFilters from "@/components/operaciones/envios/ShipmentFilters"
 import { filters } from "./filters"
 import KPIShipmentCards from "@/components/operaciones/envios/KpiCards"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NewShipmentDialog } from "@/components/modals/new-shipment-modal"
+import { toast } from "sonner"
+import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
 
-const ShipmentMap = dynamic(() => import("@/components/shipment-map"), { 
-  ssr: false,
-  loading: () => <Skeleton className="w-full h-[400px] rounded-lg" />
-})
 
 export default function ShipmentsPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
-  const [isNewShipmentOpen, setIsNewShipmentOpen] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
   const { shipments, isLoading, mutate } = useShipments()
-  const { toast } = useToast()
   const isMobile = useIsMobile()
 
   const handleViewTimeline = useCallback((shipment: Shipment) => {
@@ -49,12 +37,13 @@ export default function ShipmentsPage() {
   }, [])
 
   const handleUploadSuccess = () => {
-    toast({
+    toast("La importación de los envíos se realizó correctamente.")
+    /*toast({
       title: "Importación de Envíos",
       description: "La importación de los envíos se realizó correctamente.",
       variant: "default",
     })
-    mutate()
+    mutate()*/
   }
   
   const updatedColumns = columns.map((col) =>
@@ -104,11 +93,22 @@ export default function ShipmentsPage() {
               <>
                 <NewShipmentDialog />
                 
-                <CSVUploadModal 
+                <Button onClick={() => setIsUploadModalOpen(true)}>
+                  <Upload className="h-4 w-4" />
+                  Importar Envíos
+                </Button>
+
+                <ShipmentWizardModal 
                   open={isUploadModalOpen} 
                   onOpenChange={setIsUploadModalOpen} 
                   onUploadSuccess={handleUploadSuccess}
                 />
+
+                {/*<CSVUploadModal 
+                  open={isUploadModalOpen} 
+                  onOpenChange={setIsUploadModalOpen} 
+                  onUploadSuccess={handleUploadSuccess}
+                />*/}
               </>
             )}
           </div>

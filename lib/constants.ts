@@ -45,6 +45,13 @@ export const sidebarMenu = {
           isActive: false
         },
         {
+          name: "Consolidados",
+          url: "/operaciones/consolidados",
+          icon: IconTruckLoading,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
           name: "Envios",
           url: "/operaciones/envios",
           icon: PackageIcon,

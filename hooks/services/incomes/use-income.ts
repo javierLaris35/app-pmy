@@ -61,14 +61,14 @@ export function useIncomesByMonthAndSucursal(subsidiaryId: string, firstDay: str
   };
 }
 
-export function useFinancialSummary(subsidiaryId: string) {
-  const isValid = subsidiaryId
+export function useFinancialSummary(subsidiaryId: string, firstDay: string, lastDay: string) {
+  const isValid = Boolean(subsidiaryId && firstDay && lastDay);
 
   const { data, error, isLoading, mutate } = useSWR<FinancialSummary>(
     isValid
-      ? [`/incomes/finantial`, subsidiaryId ]
+      ? [`/incomes/finantial`, subsidiaryId, firstDay, lastDay ]
       : null,
-    ([, id] : [string, string]) => getFinantialResume(id)
+    ([, subsidiaryId, from, to] : [string, string, string, string]) => getFinantialResume(subsidiaryId, from, to)
   );
 
   return {

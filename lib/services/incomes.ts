@@ -22,8 +22,8 @@ const getIncomeByMonthAndSucursal = async (subsidiaryId: string, from: string, t
 };
 
 // GET: resumen financiero
-const getFinantialResume = async (subsidiaryId: string) => {
-  const response = await axiosConfig.get<FinancialSummary>(`${baseUrl}/finantial/${subsidiaryId}`);
+const getFinantialResume = async (subsidiaryId: string, from: string, to: string) => {
+  const response = await axiosConfig.get<FinancialSummary>(`${baseUrl}/finantial/${subsidiaryId}/${from}/${to}`);
   return response.data;
 };
 

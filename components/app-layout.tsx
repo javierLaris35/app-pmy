@@ -7,6 +7,7 @@ import { AppSidebar } from "./app-sidebar"
 import { SidebarProvider, SidebarTrigger } from "./ui/sidebar"
 import { useAuthStore } from "@/store/auth.store"
 import { Loader } from "./loader"
+import { Toaster } from "./ui/sonner"
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -41,6 +42,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarTrigger className="mb-2" />
         {children}
       </main>
+      <Toaster />
     </SidebarProvider>
   )
 }

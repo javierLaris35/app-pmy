@@ -206,3 +206,48 @@ export interface Charge {
     createdAt: string;
     shipments: ChargeShipment[];
 }
+
+export interface Consolidated {
+  id: string;
+  date: string;
+  type: "Ordinaria" | "Aereo" | "Carga";
+  numberOfPackages: number;
+  subsidiaryId: string;
+  subsidiary: {
+      id: string;
+      name: string;
+  };
+  isCompleted: boolean;
+  consNumber: string;
+  efficiency: number;
+  shipments: Shipment[];
+}
+
+export interface SubsidiaryMetrics {
+  subsidiaryId: string;
+  subsidiaryName: string;
+  totalPackages: number;
+  deliveredPackages: number;
+  undeliveredPackages: number;
+  undeliveredDetails: {
+    total: number;
+    byExceptionCode: {
+      code07: number;
+      code08: number;
+      code03: number;
+      unknown: number;
+    };
+  };
+  inTransitPackages: number;
+  totalCharges: number;
+  consolidations: {
+    ordinary: number;
+    air: number;
+    total: number;
+  };
+  averageRevenuePerPackage: number;
+  totalRevenue: number;
+  totalExpenses: number;
+  averageEfficiency: number;
+  totalProfit: number;
+}

@@ -16,6 +16,7 @@ import { BarChart3, DollarSign, Truck } from "lucide-react"
 import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog"
 import { NewIncome } from "@/lib/types"
 import { getLastWeekRange } from "@/utils/date.utils"
+import { TrackingValidationButton } from "@/components/modals/tracking-validation-button"
 
 export default function IngresosPage() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
@@ -268,6 +269,7 @@ export default function IngresosPage() {
           <Button onClick={exportToExcel} disabled={isLoading || !incomes?.length}>
             Exportar Excel
           </Button>
+          <TrackingValidationButton />
         </div>
 
         {/* Filtros */}

@@ -26,7 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "@radix-ui/react-icons"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Calendar, Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import * as XLSX from "xlsx"
 import { DataTable } from "@/components/data-table/data-table"
@@ -38,6 +38,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useExpenses, useSaveExpense } from "@/hooks/services/expenses/use-expenses"
 import { categoriasGasto } from "@/lib/data"  // tu lista de categorías
+import { toast } from "sonner"
 
 
 // Métodos de pago disponibles
@@ -152,6 +153,7 @@ export default function GastosPage() {
     save(payload)
     setIsDialogOpen(false)
     mutate()
+    toast.success("Se registrado con éxito el nuevo gasto.")
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -385,6 +387,35 @@ export default function GastosPage() {
                 </Label>
                 <Popover>
                   <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-[240px] pl-3 text-left font-normal",
+                          !fecha && "text-muted-foreground"
+                        )}
+                      >
+                        {fecha ? (
+                          format(fecha, "dd/MM/yyyy")
+                        ) : (
+                          <span>Seleccione un fecha</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fecha}
+                      onSelect={setFecha}
+                      disabled={(date) =>
+                        date > new Date() || date < new Date("1900-01-01")
+                      }
+                      captionLayout="dropdown"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {/*<Popover>
+                  <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       className={cn("w-full justify-start text-left font-normal", !fecha && "text-muted-foreground")}
@@ -396,7 +427,7 @@ export default function GastosPage() {
                   <PopoverContent className="w-auto p-0">
                     <CalendarComponent mode="single" selected={fecha} onSelect={setFecha} initialFocus />
                   </PopoverContent>
-                </Popover>
+                </Popover>*/}
               </div>
             </div>
 
