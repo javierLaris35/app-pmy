@@ -13,7 +13,6 @@ import {
 } from "@tanstack/react-table"
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
 import { DataTablePagination } from "@/components/data-table/data-table-pagination"
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 
@@ -28,7 +27,12 @@ interface DataTableProps<TData, TValue> {
   }[]
 }
 
-export function DataTable<TData, TValue>({ columns, data, searchKey, filters }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  searchKey,
+  filters,
+}: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -43,7 +47,7 @@ export function DataTable<TData, TValue>({ columns, data, searchKey, filters }: 
       columnVisibility,
       rowSelection,
       columnFilters,
-      globalFilter
+      globalFilter,
     },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -56,29 +60,46 @@ export function DataTable<TData, TValue>({ columns, data, searchKey, filters }: 
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     globalFilterFn: (row, columnId, filterValue) => {
-      const search = filterValue.toLowerCase();
+      const search = filterValue.toLowerCase()
 
-      return ["recipientName", "recipientAddress", "recipientCity", "recipientZip", "trackingNumber"].some((col) => {
-        return row.getValue(col)?.toString().toLowerCase().includes(search);
-      });
+      const targetCols = [
+        "recipientName",
+        "recipientAddress",
+        "recipientCity",
+        "recipientZip",
+        "trackingNumber",
+      ]
+
+      const availableCols = row.getAllCells().map((cell) => cell.column.id)
+
+      return targetCols
+        .filter((col) => availableCols.includes(col))
+        .some((col) => {
+          const val = row.getValue(col)
+          return val?.toString().toLowerCase().includes(search)
+        })
     },
   })
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar table={table} searchKey={searchKey} filters={filters} setGlobalFilter={setGlobalFilter}/>
+      <DataTableToolbar
+        table={table}
+        filters={filters}
+        setGlobalFilter={setGlobalFilter}
+      />
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead  key={header.id}>
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  )
-                })}
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
           </TableHeader>
@@ -87,7 +108,9 @@ export function DataTable<TData, TValue>({ columns, data, searchKey, filters }: 
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))

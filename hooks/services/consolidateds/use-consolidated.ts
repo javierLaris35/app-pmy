@@ -1,4 +1,4 @@
-import { getConsolidated } from "@/lib/services/consolidated";
+import { getConsolidated, getFedexStatus } from "@/lib/services/consolidated";
 import useSWR from "swr";
 
 
@@ -11,4 +11,15 @@ export function useConsolidated() {
         isError: !!error,
         mutate,
     };
+}
+
+export function useUpdateFedexStatus () {
+    const { data, error, isLoading, mutate } = useSWR('/consolidated/update-fedex-status', getFedexStatus);
+
+    return {
+        updates: data,
+        isLoading, 
+        isError: !!error,
+        mutate
+    }
 }

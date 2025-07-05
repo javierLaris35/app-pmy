@@ -27,15 +27,15 @@ const statusConfig: Record<
 > = {
   recoleccion: {
     label: "Recolectado",
-    icon: <MapPin className="h-5 w-5 text-pink-600" />,
-    color: "text-pink-700",
-    dotColor: "bg-pink-500",
+    icon: <MapPin className="h-5 w-5 text-blue-600" />,
+    color: "text-blue-700",
+    dotColor: "bg-blue-500",
   },
   en_ruta: {
     label: "En Ruta",
-    icon: <Truck className="h-5 w-5 text-blue-600" />,
-    color: "text-blue-700",
-    dotColor: "bg-blue-500",
+    icon: <Truck className="h-5 w-5 text-purple-600" />,
+    color: "text-purple-700",
+    dotColor: "bg-purple-500",
   },
   entregado: {
     label: "Entregado",
@@ -48,6 +48,12 @@ const statusConfig: Record<
     icon: <Clock className="h-5 w-5 text-yellow-600" />,
     color: "text-yellow-700",
     dotColor: "bg-yellow-500",
+  },
+  no_entregado: {
+    label: "No Entregado",
+    icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
+    color: "text-red-700",
+    dotColor: "bg-red-500",
   },
   error: {
     label: "Error",
@@ -103,7 +109,7 @@ export function StatusHistoryTimeline({ history }: Props) {
 
               {/* Timestamp */}
               <p className="text-xs text-slate-500 mt-1">
-                {format(new Date(item.timestamp), "dd MMM yyyy, HH:mm", { locale: es })}
+                {format(new Date(item.timestamp), "dd/MM/yyyy, HH:mm a", { locale: es })}
               </p>
             </div>
           );

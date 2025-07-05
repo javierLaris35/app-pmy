@@ -138,6 +138,14 @@ export type AuthState = {
   isLoading: boolean
 }
 
+export type StatusHistory = {
+  id?: string
+  status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado" | "desconocido"
+  exceptionCode: string
+  timestamp: string
+  notes?: string
+}
+
 export type Shipment = {
   trackingNumber: string
   recipientName: string
@@ -153,11 +161,7 @@ export type Shipment = {
     status: "paid" | "pending" | "failed"
   } | null
   priority?: "alta" | "media" | "baja"
-  statusHistory?: Array<{
-    status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado" | "desconocido"
-    timestamp: string
-    notes?: string
-  }>
+  statusHistory?: Array<StatusHistory>
   createdAt: string
   shipmentType?: "fedex" | "dhl"
   subsidiary?: Subsidiary

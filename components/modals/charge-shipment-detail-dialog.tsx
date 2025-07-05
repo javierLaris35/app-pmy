@@ -28,7 +28,12 @@ const shipmentColumns: ColumnDef<ChargeShipment>[] = [
         header: "Estado",
         cell: ({ row }) => {
             const status = row.getValue("status") as string;
-            const color = status === "entregado" ? "bg-green-600" : "bg-yellow-400 text-black";
+            const color =
+            status === "entregado"
+                ? "bg-green-600"
+                : status === "no_entregado"
+                ? "bg-red-500"
+                : "bg-yellow-400 text-black";
             return <Badge variant="default" className={color}>{status.toUpperCase()}</Badge>;
         },
     },

@@ -4,21 +4,35 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
+import { endOfMonth, format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Loader } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
-import { Package, CheckCircle2, Layers3, AlertTriangle, Clock } from "lucide-react";
+import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { Consolidated } from "@/lib/types";
 import { useConsolidated } from "@/hooks/services/consolidateds/use-consolidated";
 import { ConsolidatedDetailDialog } from "@/components/modals/consolidated-shipment-detail-dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getFedexStatus } from "@/lib/services/consolidated";
 
 export default function ConsolidatedWithKpis() {
-  const { consolidateds, isLoading } = useConsolidated();
+  const today = new Date()
+  const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
+  const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
+  const [fromDate, setFromDate] = useState(startDayOfMonth)
+  const [toDate, setToDate] = useState(endDayOfMonth)
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | undefined>(undefined);
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
+    from: startDayOfMonth,
+    to: endDayOfMonth,
+  })
 
+  const { consolidateds, isLoading } = useConsolidated();
+    
   if (!consolidateds || isLoading) return <Loader />;
 
   // Conteos corregidos
@@ -45,7 +59,7 @@ export default function ConsolidatedWithKpis() {
       header: "Fecha",
       cell: ({ row }) => (
         <div>
-          {format(new Date(row.getValue("date")), "dd MMM yyyy", { locale: es })}
+          {format(new Date(row.getValue("date")), "dd/MM/yyyy", { locale: es })}
         </div>
       ),
     },
@@ -113,22 +127,71 @@ export default function ConsolidatedWithKpis() {
     },
   ];
 
+  const handleUpdateFedexStatus = async () => {
+    await getFedexStatus();
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          {/* Izquierda: Título y subtítulo */}
+          <div className="flex flex-col">
             <h2 className="text-2xl font-bold tracking-tight">Consolidados</h2>
             <p className="text-muted-foreground">Resumen de consolidaciones por sucursal</p>
           </div>
-          <div>
-            <Label htmlFor="sucursal">Sucursal</Label>
-            <SucursalSelector
-              value={selectedSucursalId}
-              onValueChange={setSelectedSucursalId}
-            />
+
+          {/* Derecha: Filtros y botón */}
+          <div className="flex items-center gap-4 ml-auto flex-wrap">
+            <div className="pt-6">
+              <Label className="invisible">Actualizar</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="bg-green-500 h-9"
+                    onClick={handleUpdateFedexStatus}
+                  >
+                    <RefreshCcwIcon className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Actualizar estatus de FedEx
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div>
+              <Label htmlFor="sucursal">Sucursal</Label>
+              <SucursalSelector
+                value={selectedSucursalId}
+                onValueChange={setSelectedSucursalId}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="fromDate">Desde</Label>
+              <Input
+                id="fromDate"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setDateRange((r) => ({ ...r, fromDate: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="toDate">Hasta</Label>
+              <Input
+                id="toDate"
+                type="date"
+                value={toDate}
+                onChange={(e) => setDateRange((r) => ({ ...r, toDate: e.target.value }))}
+              />
+            </div>
           </div>
         </div>
+
 
         {/* KPIs estilo moderno */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

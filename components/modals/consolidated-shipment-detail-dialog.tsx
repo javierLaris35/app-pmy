@@ -39,22 +39,24 @@ export function ConsolidatedDetailDialog({ consolidated }: Props) {
       accessorKey: "commitDate",
       header: "Fecha Compromiso",
       cell: ({ row }) =>
-        format(new Date(row.getValue("commitDate")), "dd MMM yyyy", { locale: es }),
+        format(new Date(row.getValue("commitDate")), "dd/MM/yyyy", { locale: es }),
     },
     {
       accessorKey: "status",
       header: "Estado",
       cell: ({ row }) => {
         const status = row.getValue("status") as string;
+        const capitalizeFirstLetter = (text: string) => text.charAt(0).toUpperCase() + text.slice(1).replace("_", " ");
         const color =
           status === "entregado"
-            ? "bg-green-600"
-            : status === "no entregado"
+            ? "bg-green-50 text-green-700 ring-green-600/20"
+          : status === "no_entregado"
             ? "bg-red-500"
+          : status === "en_ruta" ? "bg-purple-50 text-purple-700 ring-purple-700/10" 
             : "bg-yellow-400 text-black";
         return (
           <Badge variant="default" className={color}>
-            {status.toUpperCase()}
+            {capitalizeFirstLetter(status)}
           </Badge>
         );
       },

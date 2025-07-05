@@ -41,10 +41,10 @@ export const columns: ColumnDef<Shipment>[] = [
       
       switch (shipmentType) {
         case "fedex":
-          color = "bg-blue-500";
+          color = "bg-[#4D148C] hover:bg-[#3c0f6e] text-white";
           break;
         case "dhl":
-          color = "bg-red-500";
+          color = "bg-[#FFE100] hover:bg-[#ffd700] text-[#D40511] font-semibold";
           break;
       }
 

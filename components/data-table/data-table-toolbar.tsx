@@ -12,8 +12,14 @@ import { DataTableFacetedFilter } from "./data-table-faceted-filter"
 import { Switch } from "../ui/switch"
 
 interface DataTableToolbarProps<TData> {
-  table: Table<TData>,
+  table: Table<TData>
   setGlobalFilter: (value: string) => void
+  searchKey?: string
+  filters?: {
+    columnId: string
+    title: string
+    options: { label: string; value: string }[]
+  }[]
 }
 
 export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToolbarProps<TData>) {
