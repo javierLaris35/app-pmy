@@ -24,7 +24,8 @@ interface DataTableProps<TData, TValue> {
     columnId: string
     title: string
     options: { label: string; value: string }[]
-  }[]
+  }[],
+   onTableReady?: (table: ReturnType<typeof useReactTable>) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -32,6 +33,7 @@ export function DataTable<TData, TValue>({
   data,
   searchKey,
   filters,
+  onTableReady,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -80,6 +82,12 @@ export function DataTable<TData, TValue>({
         })
     },
   })
+
+  React.useEffect(() => {
+    if (onTableReady) {
+      onTableReady(table)
+    }
+  }, [table, onTableReady])
 
   return (
     <div className="space-y-4">

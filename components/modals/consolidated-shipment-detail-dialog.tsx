@@ -10,21 +10,110 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { format } from "date-fns";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, useReactTable } from "@tanstack/react-table";
 import { es } from "date-fns/locale";
 import { Shipment } from "@/lib/types";
 import { Badge } from "../ui/badge";
 import { StatusHistoryTimeline } from "./status-history-timeline";
+import * as XLSX from "xlsx"
 
 interface Props {
   consolidated: {
     shipments: Shipment[];
   };
+  date: string
 }
 
-export function ConsolidatedDetailDialog({ consolidated }: Props) {
+export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [openStatusDialog, setOpenStatusDialog] = useState(false);
+  const [table, setTable] = useState<ReturnType<typeof useReactTable> | null>(null)
+
+  const exportToExcel = () => {
+    if (!table) return;
+
+    const rows = table.getFilteredRowModel().rows;
+
+    // Hoja 1: resumen
+    const resumenData = rows.map((row) => {
+      const s = row.original as Shipment;
+      return {
+        "No. Rastreo": s.trackingNumber,
+        "Destinatario": s.recipientName,
+        "Fecha Compromiso": s.commitDateTime
+          ? format(new Date(s.commitDateTime), "dd/MM/yyyy hh:mm a", { locale: es })
+          : "",
+        "Estado": s.status,
+        "Días en Ruta": s.status === "en_ruta" ? s.daysInRoute ?? 0 : "", // solo si está en_ruta
+      };
+    });
+
+    const workbook = XLSX.utils.book_new();
+    const resumenSheet = XLSX.utils.json_to_sheet(resumenData);
+    XLSX.utils.book_append_sheet(workbook, resumenSheet, "Resumen");
+
+    // Hoja 2: historial
+    const historyData: {
+      "No. Rastreo": string;
+      "Estatus": string;
+      "Fecha": string;
+      "Notas": string;
+      _rawDate: string;
+    }[] = [];
+
+    for (const row of rows) {
+      const shipment = row.original as Shipment;
+
+      // Validación explícita
+      if (!shipment.statusHistory || shipment.statusHistory.length === 0) continue;
+
+      shipment.statusHistory.forEach((entry) => {
+        if (!entry.timestamp) return;
+
+        historyData.push({
+          "No. Rastreo": shipment.trackingNumber,
+          "Estatus": entry.status.charAt(0).toUpperCase() + entry.status.slice(1).replace("_", " "),
+          "Fecha": format(new Date(entry.timestamp), "dd/MM/yyyy hh:mm a", { locale: es }),
+          "Notas": entry.notes ?? "",
+          _rawDate: entry.timestamp,
+        });
+      });
+    }
+
+    const cleanedHistoryData = historyData.map(({ _rawDate, ...rest }) => rest);
+    const historySheet = XLSX.utils.json_to_sheet(cleanedHistoryData);
+    XLSX.utils.book_append_sheet(workbook, historySheet, "Historial");
+
+    // Filtros en nombre
+    const { columnFilters, globalFilter } = table.getState();
+    const filterLabels: string[] = [];
+
+    if (globalFilter) {
+      filterLabels.push(`busqueda-${globalFilter}`);
+    }
+
+    for (const filter of columnFilters) {
+      if (filter.value) {
+        filterLabels.push(`${filter.id}-${filter.value}`);
+      }
+    }
+
+    const sanitize = (text: string) =>
+      text.replace(/[^a-z0-9-_]/gi, "_").toLowerCase();
+
+    const filtersStr = filterLabels.length > 0
+      ? `_${sanitize(filterLabels.join("_"))}`
+      : "";
+
+    const consolidatedDateStr = date
+      ? format(new Date(date), "yyyy-MM-dd")
+      : "sin_fecha";
+
+    const fileName = `reporte_envios_en_consolidado_${consolidatedDateStr}${filtersStr}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
+  };
+
 
   const shipmentColumns: ColumnDef<Shipment>[] = [
     {
@@ -57,6 +146,27 @@ export function ConsolidatedDetailDialog({ consolidated }: Props) {
         return (
           <Badge variant="default" className={color}>
             {capitalizeFirstLetter(status)}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "daysInRoute",
+      header: "Días en Ruta",
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const days: number = row.getValue("daysInRoute");
+
+        if (status !== "en_ruta") return "-";
+
+        let colorClass = "bg-gray-100 text-gray-800";
+        if (days >= 7) colorClass = "bg-red-100 text-red-700";        // Crítico
+        else if (days >= 4) colorClass = "bg-yellow-100 text-yellow-700"; // Advertencia
+        else colorClass = "bg-green-100 text-green-700";              // Bien
+
+        return (
+          <Badge variant="default" className={colorClass}>
+            {days} día{days === 1 ? "" : "s"}
           </Badge>
         );
       },
@@ -97,11 +207,20 @@ export function ConsolidatedDetailDialog({ consolidated }: Props) {
               Envíos de la Carga ({consolidated.shipments.length})
             </DialogTitle>
           </DialogHeader>
+
+          {/* Botón de exportación */}
+          <div className="flex justify-end pb-2">
+            <Button onClick={exportToExcel} variant="default" size="sm">
+              Exportar a Excel
+            </Button>
+          </div>
+
           {consolidated.shipments && consolidated.shipments.length > 0 ? (
             <div className="max-h-[80vh] overflow-y-auto p-1">
               <DataTable
                 columns={shipmentColumns}
                 data={consolidated.shipments}
+                onTableReady={setTable}
                 searchKey="trackingNumber"
               />
             </div>

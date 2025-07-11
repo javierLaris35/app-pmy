@@ -167,7 +167,8 @@ export type Shipment = {
   subsidiary?: Subsidiary
   charge?: Charge
   isChargePackage?: boolean
-  receivedByName: string
+  receivedByName: string,
+  daysInRoute?: number;
 }
 
 export type Driver = {

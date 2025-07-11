@@ -130,7 +130,7 @@ export default function ConsolidatedWithKpis() {
       header: "Acciones",
       cell: ({ row }) => {
         const consolidated = row.original;
-        return <ConsolidatedDetailDialog consolidated={consolidated} />;
+        return <ConsolidatedDetailDialog consolidated={consolidated} date={consolidated.date}/>;
       },
     },
   ];
