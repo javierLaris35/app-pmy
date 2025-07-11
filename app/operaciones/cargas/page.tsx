@@ -31,14 +31,19 @@ export default function ChargesWithKpis() {
     const totalShipments = charges.reduce((sum, c) => sum + c.shipments.length, 0);
 
     const columns: ColumnDef<Charge>[] = [
+
         {
             accessorKey: "chargeDate",
-            header: "Fecha de Carga",
-            cell: ({ row }) => (
-                <div>
-                {format(new Date(row.getValue("chargeDate")), "dd MMM yyyy", { locale: es })}
-                </div>
-            ),
+            header: "Fecha",
+            cell: ({ row }) => {
+                const raw: string = row.getValue("chargeDate")
+                
+                if (!raw) return "Sin fecha"
+
+                const [year, month, day] = raw.split("T")[0].split("-") // "2025-06-30" => [2025, 06, 30]
+
+                return `${day}/${month}/${year}` // "30/06/2025"
+            }
         },
         {
             accessorKey: "numberOfPackages",

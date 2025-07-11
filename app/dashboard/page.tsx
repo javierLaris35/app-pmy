@@ -121,7 +121,7 @@ export default function DashboardPage() {
 
           <SubsidiaryMetricsGrid data={data || []}/>
 
-          <SubsidiaryPerformanceList data={data || []}/>
+          {/*<SubsidiaryPerformanceList data={data || []}/>*/}
 
           <InteractiveMap branches={data || []} />
 

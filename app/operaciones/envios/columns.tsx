@@ -94,13 +94,26 @@ export const columns: ColumnDef<Shipment>[] = [
     accessorKey: "recipientZip",
     header: ({ column }) => <DataTableColumnHeader column={column} title="CP" />,
   },
-  {
-    accessorKey: "commitDate",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Fecha" />,
-  },
-  {
-    accessorKey: "commitTime",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Hora" />,
+    {
+    accessorKey: "commitDateTime",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Fecha y Hora" />,
+    cell: ({ row }) => {
+      const rawValue = row.getValue("commitDateTime");
+      const date = rawValue ? new Date(rawValue as string) : null;
+
+      const formatted = date
+        ? date.toLocaleString("es-MX", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : "N/A";
+
+      return <div className="font-medium">{formatted}</div>;
+    },
   },
   {
     accessorKey: "recipientPhone",

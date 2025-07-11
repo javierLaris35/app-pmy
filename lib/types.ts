@@ -7,6 +7,7 @@ export type Subsidiary = {
   managerPhone?: string
   fedexCostPackage: number
   dhlCostPackage: number
+  chargeCost: number
   active: boolean
 }
 
@@ -152,8 +153,7 @@ export type Shipment = {
   recipientAddress: string
   recipientCity: string
   recipientZip: string
-  commitDate: string
-  commitTime: string
+  commitDateTime: string
   recipientPhone: string
   status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado" | "desconocido"
   payment?: {

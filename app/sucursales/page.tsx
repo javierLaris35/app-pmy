@@ -54,8 +54,9 @@ export default function SucursalesPage() {
   const [encargado, setEncargado] = useState("")
   const [encargadoTelefono, setEncargadoTelefono] = useState("")
   const [activo, setActivo] = useState(true)
-  const [fedexCostPackage, setFedexCostPackage] = useState("0.00")
-  const [dhlCostPackage, setDhlCostPackage] = useState("0.00")
+  const [fedexCostPackage, setFedexCostPackage] = useState(0.00)
+  const [dhlCostPackage, setDhlCostPackage] = useState(0.00)
+  const [chargeCost, setChargeCost] = useState(0.00)
 
 
   const isMobile = useIsMobile()
@@ -68,8 +69,8 @@ export default function SucursalesPage() {
     setEncargado("")
     setEncargadoTelefono("")
     setActivo(true)
-    setFedexCostPackage("0.00")
-    setDhlCostPackage("0.00")
+    setFedexCostPackage(0.00)
+    setDhlCostPackage(0.00)
   }
 
   const openNewSucursalDialog = () => {
@@ -84,8 +85,8 @@ export default function SucursalesPage() {
     setTelefono(sucursal.phone || "")
     setEncargado(sucursal.officeManager || "")
     setEncargadoTelefono(sucursal.managerPhone || "")
-    setFedexCostPackage(sucursal.fedexCostPackage || "0.00")
-    setDhlCostPackage(sucursal.dhlCostPackage || "0.00")
+    setFedexCostPackage(sucursal.fedexCostPackage || 0)
+    setDhlCostPackage(sucursal.dhlCostPackage || 0)
     setActivo(sucursal.active)
     setIsDialogOpen(true)
   }
@@ -101,6 +102,9 @@ export default function SucursalesPage() {
         phone: telefono,
         officeManager: encargado,
         managerPhone: encargadoTelefono,
+        fedexCostPackage,
+        dhlCostPackage,
+        chargeCost,
         active: activo
       });
     } else {
@@ -110,6 +114,9 @@ export default function SucursalesPage() {
         phone: telefono,
         officeManager: encargado,
         managerPhone: encargadoTelefono,
+        fedexCostPackage,
+        dhlCostPackage,
+        chargeCost,
         active: activo
       });
     }
@@ -255,7 +262,6 @@ export default function SucursalesPage() {
               <DataTable
                 columns={columns}
                 data={subsidiaries}
-                filterPlaceholder="Filtrar sucursales..."
               />
             </CardContent>
           </Card>
@@ -318,7 +324,7 @@ export default function SucursalesPage() {
                     type="number"
                     step="0.01"
                     value={fedexCostPackage}
-                    onChange={(e) => setFedexCostPackage(e.target.value)}
+                    onChange={(e) => setFedexCostPackage(+e.target.value)}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -328,7 +334,17 @@ export default function SucursalesPage() {
                     type="number"
                     step="0.01"
                     value={dhlCostPackage}
-                    onChange={(e) => setDhlCostPackage(e.target.value)}
+                    onChange={(e) => setDhlCostPackage(+e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="dhlCostPackage">Costo por Carga</Label>
+                  <Input
+                    id="chargeCost"
+                    type="number"
+                    step="0.01"
+                    value={chargeCost}
+                    onChange={(e) => setChargeCost(+e.target.value)}
                   />
                 </div>
                 <div className="flex items-center space-x-2">

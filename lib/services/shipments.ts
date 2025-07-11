@@ -1,3 +1,4 @@
+import { format, toZonedTime } from 'date-fns-tz';
 import { axiosConfig } from "../axios-config";
 import { Shipment } from "../types";
 
@@ -42,34 +43,46 @@ import { Shipment } from "../types";
   export async function uploadShipmentFile(
     file: File,
     subsidiaryId: string,
-    consNumber: string = "",
+    consNumber: string = '',
     consDate?: string,
     onProgress?: (progress: number) => void
   ) {
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("subsidiaryId", subsidiaryId)
-    formData.append("consNumber", consNumber || "")
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('subsidiaryId', subsidiaryId);
+    formData.append('consNumber', consNumber || '');
 
-    // Solo agrega consDate si existe
+    // Convert consDate to UTC and format as ISO 8601
     if (consDate) {
-      formData.append("consDate", consDate)
+      try {
+        const parsedDate = new Date(consDate);
+        if (isNaN(parsedDate.getTime())) {
+          throw new Error('Invalid consDate format');
+        }
+        // Convert to UTC and format as ISO 8601 (e.g., 2025-07-10T02:00:00Z)
+        const utcDate = toZonedTime(parsedDate, 'UTC');
+        const formattedDate = format(utcDate, "yyyy-MM-dd'T'HH:mm:ss'Z'", { timeZone: 'UTC' });
+        formData.append('consDate', formattedDate);
+      } catch (error) {
+        console.error('Error formatting consDate:', error);
+        throw new Error('Invalid consDate format. Please use a valid date (e.g., YYYY-MM-DD).');
+      }
     }
 
-    const response = await axiosConfig.post("/shipments/upload", formData, {
+    const response= await axiosConfig.post('/shipments/upload', formData, {
       headers: {
-        "Content-Type": "multipart/form-data",
+        'Content-Type': 'multipart/form-data',
       },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          console.log("Progreso:", percent)
-          onProgress(percent)
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log('Progreso:', percent);
+          onProgress(percent);
         }
       },
-    })
+    });
 
-    return response.data
+    return response.data;
   }
 
   export async function uploadF2ChargeShipments(

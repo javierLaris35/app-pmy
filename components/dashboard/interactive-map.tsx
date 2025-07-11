@@ -102,7 +102,7 @@ const branchData = [
     },
     {
       id: "cd-obregon",
-      name: "Cd Obregon",
+      name: "Cuidad Obregon",
       revenue: 720000,
       orders: 3600,
       efficiency: 95.3,
@@ -401,9 +401,9 @@ export function InteractiveMap({ branches }: InteractiveMapProps) {
             <div className="pt-4 border-t border-orange-100">
               <div className="text-xs text-slate-600 font-semibold mb-1">Detalle DEX por código:</div>
               <ul className="text-sm text-slate-700 pl-4 list-disc space-y-1">
-                <li>Código 07: {selectedBranch.undeliveredDetails.byExceptionCode.code07}</li>
-                <li>Código 08: {selectedBranch.undeliveredDetails.byExceptionCode.code08}</li>
-                <li>Código 03: {selectedBranch.undeliveredDetails.byExceptionCode.code03}</li>
+                <li>DEX 07: {selectedBranch.undeliveredDetails.byExceptionCode.code07}</li>
+                <li>DEX 08: {selectedBranch.undeliveredDetails.byExceptionCode.code08}</li>
+                <li>DEX 03: {selectedBranch.undeliveredDetails.byExceptionCode.code03}</li>
                 <li>Desconocido: {selectedBranch.undeliveredDetails.byExceptionCode.unknown}</li>
               </ul>
             </div>

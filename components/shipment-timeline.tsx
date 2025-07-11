@@ -15,6 +15,7 @@ import {
   PackageCheckIcon,
   TriangleAlertIcon,
   AlertCircleIcon,
+  CircleAlertIcon,
 } from "lucide-react"
 import type { Shipment } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +28,7 @@ const statusMap = {
   en_ruta: { icon: Truck, color: "text-purple-500", bgColor: "bg-violet-100", label: "En Ruta" },
   entregado: { icon: CheckCircle, color: "text-green-500", bgColor: "bg-green-100", label: "Entregado" },
   no_entregado: { icon: XCircle, color: "text-red-500", bgColor: "bg-red-100", label: "No Entregado" },
+  pendiente: { icon: CircleAlertIcon, color: "text-yellow-500", bgColor: "bg-yellow-100", label: "Pendiente" },
   desconocido: { icon: AlertCircleIcon, color: "text-black-500", bgColor: "bg-gray-100", label: "Desconocido" },
 } as const
 

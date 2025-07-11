@@ -23,7 +23,7 @@ interface Props {
 
 export function SubsidiaryMetricsGrid({ data }: Props) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-4 gap-6">
       {data.map((subsidiary) => (
         <Card key={subsidiary.subsidiaryId} className="bg-white shadow-md rounded-xl">
           <CardHeader>
@@ -116,9 +116,9 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
               <div className="pt-2">
                 <div className="text-xs font-medium text-slate-500 mb-1">Detalles de No Entregados:</div>
                 <ul className="text-xs text-slate-700 pl-4 list-disc space-y-1">
-                  <li>Code 07: {subsidiary.undeliveredDetails.byExceptionCode.code07}</li>
-                  <li>Code 08: {subsidiary.undeliveredDetails.byExceptionCode.code08}</li>
-                  <li>Code 03: {subsidiary.undeliveredDetails.byExceptionCode.code03}</li>
+                  <li>DEX 07: {subsidiary.undeliveredDetails.byExceptionCode.code07}</li>
+                  <li>DEX 08: {subsidiary.undeliveredDetails.byExceptionCode.code08}</li>
+                  <li>DEX 03: {subsidiary.undeliveredDetails.byExceptionCode.code03}</li>
                   <li>Desconocido: {subsidiary.undeliveredDetails.byExceptionCode.unknown}</li>
                 </ul>
               </div>

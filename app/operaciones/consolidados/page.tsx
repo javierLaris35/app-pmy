@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
-import { endOfMonth, format, startOfMonth } from "date-fns";
+import { endOfMonth, format, isValid, parseISO, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Loader } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
@@ -57,11 +57,15 @@ export default function ConsolidatedWithKpis() {
     {
       accessorKey: "date",
       header: "Fecha",
-      cell: ({ row }) => (
-        <div>
-          {format(new Date(row.getValue("date")), "dd/MM/yyyy", { locale: es })}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const raw: string = row.getValue("date")
+        
+        if (!raw) return "Sin fecha"
+
+        const [year, month, day] = raw.split("T")[0].split("-") // "2025-06-30" => [2025, 06, 30]
+
+        return `${day}/${month}/${year}` // "30/06/2025"
+      }
     },
     {
       accessorKey: "numberOfPackages",
@@ -74,6 +78,10 @@ export default function ConsolidatedWithKpis() {
         const subsidiary = row.getValue("subsidiary") as { name: string };
         return <span>{subsidiary?.name ?? "N/A"}</span>;
       },
+    },
+    {
+      accessorKey: "type",
+      header: "Tipo",
     },
     {
       header: "POD (Entregados)",

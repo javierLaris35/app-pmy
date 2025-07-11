@@ -36,10 +36,10 @@ export function ConsolidatedDetailDialog({ consolidated }: Props) {
       header: "Destinatario",
     },
     {
-      accessorKey: "commitDate",
+      accessorKey: "commitDateTime",
       header: "Fecha Compromiso",
       cell: ({ row }) =>
-        format(new Date(row.getValue("commitDate")), "dd/MM/yyyy", { locale: es }),
+        format(new Date(row.getValue("commitDateTime")), "dd/MM/yyyy hh:mm a", { locale: es }),
     },
     {
       accessorKey: "status",
