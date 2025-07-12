@@ -193,9 +193,10 @@ export interface ChargeShipment {
     id: string;
     trackingNumber: string;
     status: string;
-    commitDate: string;
+    commitDateTime: string;
     recipientName: string;
     chargeId: string;
+    statusHistory?: Array<StatusHistory>
 }
 
 export interface Charge {

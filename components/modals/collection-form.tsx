@@ -11,7 +11,9 @@ import { saveCollections, validateCollection } from "@/lib/services/collections"
 
 export type Collection = {
   trackingNumber: string
-  subsidiaryId: string
+  subsidiary: {
+    id: string 
+  }
   status: string | null
   isPickUp: boolean
 }
@@ -94,7 +96,9 @@ const CollectionForm: React.FC<Props> = ({ selectedSubsidiaryId, onSuccess }) =>
       const info = await checkTrackingInfo(tn)
       results.push({
         trackingNumber: tn,
-        subsidiaryId: selectedSubsidiaryId,
+        subsidiary: {
+          id: selectedSubsidiaryId
+        },
         status: info.status,
         isPickUp: info.isPickUp
       })

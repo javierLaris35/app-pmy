@@ -17,6 +17,8 @@ import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog
 import { NewIncome } from "@/lib/types"
 import { getLastWeekRange } from "@/utils/date.utils"
 import { TrackingValidationButton } from "@/components/modals/tracking-validation-button"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 export default function IngresosPage() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
@@ -174,7 +176,10 @@ export default function IngresosPage() {
       "fecha",
       "Fecha",
       (row) => row.date ?? "-",
-      (value) => (value ? value : "-")
+      (value) =>
+        value && typeof value === "string"
+          ? value.split("T")[0].split("-").reverse().join("/")
+          : "-"
     ),
     {
       id: "fedexPod",

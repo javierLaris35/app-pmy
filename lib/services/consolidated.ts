@@ -1,8 +1,8 @@
 import { axiosConfig } from "../axios-config";
 
-const getConsolidated = async () => {
-    const response = await axiosConfig.get('/consolidated');
-    return response.data;
+const getConsolidated = async (url: string) => {        
+        const response = await axiosConfig.get(url);
+        return response.data;
 }
 
 const getFedexStatus = async () => {

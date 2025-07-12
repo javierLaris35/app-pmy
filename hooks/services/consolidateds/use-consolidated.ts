@@ -1,9 +1,15 @@
 import { getConsolidated, getFedexStatus } from "@/lib/services/consolidated";
 import useSWR from "swr";
+import qs from "query-string";
 
+export function useConsolidated(
+    subsidiaryId: string,
+    fromDate: string,
+    toDate: string) {
 
-export function useConsolidated() {
-    const { data, error, isLoading, mutate } = useSWR('/consolidated', getConsolidated);
+    const query = qs.stringify({subsidiaryId, fromDate, toDate})
+
+    const { data, error, isLoading, mutate } = useSWR(`/consolidated?${query}`, getConsolidated);
 
     return {
         consolidateds: data,

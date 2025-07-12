@@ -45,12 +45,14 @@ import { Shipment } from "../types";
     subsidiaryId: string,
     consNumber: string = '',
     consDate?: string,
+    isAereo?: boolean,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('subsidiaryId', subsidiaryId);
     formData.append('consNumber', consNumber || '');
+    formData.append('isAereo', String(isAereo ?? false));
 
     // Convert consDate to UTC and format as ISO 8601
     if (consDate) {

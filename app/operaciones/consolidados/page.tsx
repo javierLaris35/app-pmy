@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
@@ -8,7 +8,7 @@ import { endOfMonth, format, isValid, parseISO, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Loader } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
-import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon } from "lucide-react";
+import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon, Plane, Truck } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { Consolidated } from "@/lib/types";
@@ -23,16 +23,32 @@ export default function ConsolidatedWithKpis() {
   const today = new Date()
   const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
   const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
-  const [fromDate, setFromDate] = useState(startDayOfMonth)
-  const [toDate, setToDate] = useState(endDayOfMonth)
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
     from: startDayOfMonth,
     to: endDayOfMonth,
   })
 
-  const { consolidateds, isLoading } = useConsolidated();
-    
+  const { consolidateds, isLoading, mutate } = useConsolidated(
+    selectedSucursalId, 
+    dateRange.from, 
+    dateRange.to
+  );
+
+    // Efecto para recargar datos cuando cambian los filtros
+  useEffect(() => {
+    mutate;
+  }, [dateRange.from, dateRange.to, selectedSucursalId, mutate]);
+
+  // Función para manejar cambios de fecha
+  const handleDateChange = (type: 'from' | 'to', value: string) => {
+    setDateRange(prev => ({
+      ...prev,
+      [type]: value
+    }));
+  };
+
+
   if (!consolidateds || isLoading) return <Loader />;
 
   // Conteos corregidos
@@ -82,6 +98,39 @@ export default function ConsolidatedWithKpis() {
     {
       accessorKey: "type",
       header: "Tipo",
+      cell: ({ row }) => {
+        const type = row.getValue("type") as string;
+        
+        // Definimos los íconos según el tipo de consolidado
+        const typeIcons = {
+          ordinario: <Truck className="h-5 w-5 text-blue-600" />,
+          aereo: <Plane className="h-5 w-5 text-purple-600" />,
+        };
+
+        // Mapeo de tipos a nombres completos
+        const typeNames = {
+          terrestre: "Terrestre",
+          aereo: "Aéreo",
+          maritimo: "Marítimo",
+          ferroviario: "Ferroviario",
+        };
+
+        const icon = typeIcons[type.toLowerCase()] || <Truck className="h-5 w-5" />;
+        const name = typeNames[type.toLowerCase()] || type;
+
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2">
+                {icon}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Tipo: {name}</p>
+            </TooltipContent>
+          </Tooltip>
+        );
+      },
     },
     {
       header: "POD (Entregados)",
@@ -183,8 +232,8 @@ export default function ConsolidatedWithKpis() {
               <Input
                 id="fromDate"
                 type="date"
-                value={fromDate}
-                onChange={(e) => setDateRange((r) => ({ ...r, fromDate: e.target.value }))}
+                value={dateRange.from}
+                onChange={(e) => handleDateChange('from', e.target.value)}
               />
             </div>
 
@@ -193,8 +242,9 @@ export default function ConsolidatedWithKpis() {
               <Input
                 id="toDate"
                 type="date"
-                value={toDate}
-                onChange={(e) => setDateRange((r) => ({ ...r, toDate: e.target.value }))}
+                value={dateRange.to}
+                onChange={(e) => handleDateChange('to', e.target.value)}
+                min={dateRange.from}
               />
             </div>
           </div>
