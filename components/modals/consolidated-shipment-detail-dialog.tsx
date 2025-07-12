@@ -1,3 +1,5 @@
+"use client"
+
 import { useState } from "react";
 import { Eye, History } from "lucide-react";
 import { DataTable } from "../data-table/data-table";
@@ -34,17 +36,37 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
 
     const rows = table.getFilteredRowModel().rows;
 
-    // Hoja 1: resumen
+    // Hoja 1: Resumen con columnas nuevas
     const resumenData = rows.map((row) => {
       const s = row.original as Shipment;
+
+      // Buscar la fecha de entrega en el historial (si existe)
+      const entregaEntry = s.statusHistory?.find(
+        (entry) => entry.status === "entregado"
+      );
+      const fechaEntrega = entregaEntry?.timestamp;
+
+      // Calcular días de retraso (si hay fecha de entrega y fecha compromiso)
+      let diasRetraso = "";
+      if (fechaEntrega && s.commitDateTime) {
+        const fechaCompromiso = new Date(s.commitDateTime);
+        const fechaEntregaDate = new Date(fechaEntrega);
+        const diffTime = fechaEntregaDate.getTime() - fechaCompromiso.getTime();
+        diasRetraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24)).toString();
+      }
+
       return {
         "No. Rastreo": s.trackingNumber,
         "Destinatario": s.recipientName,
         "Fecha Compromiso": s.commitDateTime
           ? format(new Date(s.commitDateTime), "dd/MM/yyyy hh:mm a", { locale: es })
           : "",
+        "Fecha de Entrega": fechaEntrega
+          ? format(new Date(fechaEntrega), "dd/MM/yyyy hh:mm a", { locale: es })
+          : "",
+        "Días de Retraso": diasRetraso,
         "Estado": s.status,
-        "Días en Ruta": s.status === "en_ruta" ? s.daysInRoute ?? 0 : "", // solo si está en_ruta
+        "Días en Ruta": s.status === "en_ruta" ? s.daysInRoute ?? 0 : "",
       };
     });
 
@@ -52,7 +74,7 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
     const resumenSheet = XLSX.utils.json_to_sheet(resumenData);
     XLSX.utils.book_append_sheet(workbook, resumenSheet, "Resumen");
 
-    // Hoja 2: historial
+    // Hoja 2: Historial (código original sin cambios)
     const historyData: {
       "No. Rastreo": string;
       "Estatus": string;
@@ -64,7 +86,6 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
     for (const row of rows) {
       const shipment = row.original as Shipment;
 
-      // Validación explícita
       if (!shipment.statusHistory || shipment.statusHistory.length === 0) continue;
 
       shipment.statusHistory.forEach((entry) => {
@@ -84,7 +105,7 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
     const historySheet = XLSX.utils.json_to_sheet(cleanedHistoryData);
     XLSX.utils.book_append_sheet(workbook, historySheet, "Historial");
 
-    // Filtros en nombre
+    // Generar nombre del archivo (código original sin cambios)
     const { columnFilters, globalFilter } = table.getState();
     const filterLabels: string[] = [];
 
