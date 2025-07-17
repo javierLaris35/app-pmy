@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
-import { endOfMonth, format, isValid, parseISO, startOfMonth } from "date-fns";
+import { endOfMonth, format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Loader } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
@@ -14,20 +14,24 @@ import { SucursalSelector } from "@/components/sucursal-selector";
 import { Consolidated } from "@/lib/types";
 import { useConsolidated } from "@/hooks/services/consolidateds/use-consolidated";
 import { ConsolidatedDetailDialog } from "@/components/modals/consolidated-shipment-detail-dialog";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getFedexStatus } from "@/lib/services/consolidated";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 export default function ConsolidatedWithKpis() {
-  const today = new Date()
-  const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
-  const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
+  const today = new Date();
+  const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd");
+  const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd");
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
     from: startDayOfMonth,
     to: endDayOfMonth,
-  })
+  });
+  const [fromDateOpen, setFromDateOpen] = useState(false);
+  const [toDateOpen, setToDateOpen] = useState(false);
 
   const { consolidateds, isLoading, mutate } = useConsolidated(
     selectedSucursalId, 
@@ -35,19 +39,22 @@ export default function ConsolidatedWithKpis() {
     dateRange.to
   );
 
-    // Efecto para recargar datos cuando cambian los filtros
+  // Efecto para recargar datos cuando cambian los filtros
   useEffect(() => {
-    mutate;
+    mutate();
   }, [dateRange.from, dateRange.to, selectedSucursalId, mutate]);
 
   // Función para manejar cambios de fecha
-  const handleDateChange = (type: 'from' | 'to', value: string) => {
+  const handleDateChange = (type: 'from' | 'to', value: Date | undefined) => {
+    if (!value) return;
+    const formattedDate = format(value, "yyyy-MM-dd");
     setDateRange(prev => ({
       ...prev,
-      [type]: value
+      [type]: formattedDate
     }));
+    if (type === 'from') setFromDateOpen(false);
+    if (type === 'to') setToDateOpen(false);
   };
-
 
   if (!consolidateds || isLoading) return <Loader />;
 
@@ -74,13 +81,10 @@ export default function ConsolidatedWithKpis() {
       accessorKey: "date",
       header: "Fecha",
       cell: ({ row }) => {
-        const raw: string = row.getValue("date")
-        
-        if (!raw) return "Sin fecha"
-
-        const [year, month, day] = raw.split("T")[0].split("-") // "2025-06-30" => [2025, 06, 30]
-
-        return `${day}/${month}/${year}` // "30/06/2025"
+        const raw: string = row.getValue("date");
+        if (!raw) return "Sin fecha";
+        const [year, month, day] = raw.split("T")[0].split("-");
+        return `${day}/${month}/${year}`;
       }
     },
     {
@@ -101,16 +105,16 @@ export default function ConsolidatedWithKpis() {
       cell: ({ row }) => {
         const type = row.getValue("type") as string;
         
-        // Definimos los íconos según el tipo de consolidado
         const typeIcons = {
-          ordinario: <Truck className="h-5 w-5 text-blue-600" />,
+          terrestre: <Truck className="h-5 w-5 text-blue-600" />,
           aereo: <Plane className="h-5 w-5 text-purple-600" />,
         };
 
-        // Mapeo de tipos a nombres completos
         const typeNames = {
-          ordinario: "Terrestre",
-          aereo: "Aéreo"
+          terrestre: "Terrestre",
+          aereo: "Aéreo",
+          maritimo: "Marítimo",
+          ferroviario: "Ferroviario",
         };
 
         const icon = typeIcons[type.toLowerCase()] || <Truck className="h-5 w-5" />;
@@ -184,19 +188,17 @@ export default function ConsolidatedWithKpis() {
 
   const handleUpdateFedexStatus = async () => {
     await getFedexStatus();
-  }
+  };
 
   return (
     <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          {/* Izquierda: Título y subtítulo */}
           <div className="flex flex-col">
             <h2 className="text-2xl font-bold tracking-tight">Consolidados</h2>
             <p className="text-muted-foreground">Resumen de consolidaciones por sucursal</p>
           </div>
 
-          {/* Derecha: Filtros y botón */}
           <div className="flex items-center gap-4 ml-auto flex-wrap">
             <div className="pt-6">
               <Label className="invisible">Actualizar</Label>
@@ -225,31 +227,60 @@ export default function ConsolidatedWithKpis() {
               />
             </div>
 
-            <div>
-              <Label htmlFor="fromDate">Desde</Label>
-              <Input
-                id="fromDate"
-                type="date"
-                value={dateRange.from}
-                onChange={(e) => handleDateChange('from', e.target.value)}
-              />
+            <div className="flex flex-col space-y-1">
+              <Label>Desde</Label>
+              <Popover open={fromDateOpen} onOpenChange={setFromDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-[240px] justify-start text-left font-normal",
+                      !dateRange.from && "text-muted-foreground"
+                    )}
+                  >
+                    {dateRange.from ? format(new Date(dateRange.from), "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={new Date(dateRange.from)}
+                    onSelect={(date) => handleDateChange('from', date)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
-            <div>
-              <Label htmlFor="toDate">Hasta</Label>
-              <Input
-                id="toDate"
-                type="date"
-                value={dateRange.to}
-                onChange={(e) => handleDateChange('to', e.target.value)}
-                min={dateRange.from}
-              />
+            <div className="flex flex-col space-y-1">
+              <Label>Hasta</Label>
+              <Popover open={toDateOpen} onOpenChange={setToDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-[240px] justify-start text-left font-normal",
+                      !dateRange.to && "text-muted-foreground"
+                    )}
+                    disabled={!dateRange.from}
+                  >
+                    {dateRange.to ? format(new Date(dateRange.to), "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={new Date(dateRange.to)}
+                    onSelect={(date) => handleDateChange('to', date)}
+                    initialFocus
+                    fromDate={new Date(dateRange.from)}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
 
-
-        {/* KPIs estilo moderno */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
@@ -306,7 +337,6 @@ export default function ConsolidatedWithKpis() {
           </div>
         </div>
 
-        {/* Tabla */}
         <DataTable
           columns={columns}
           data={consolidateds}

@@ -257,3 +257,51 @@ export interface SubsidiaryMetrics {
   averageEfficiency: number;
   totalProfit: number;
 }
+
+export interface TrackingValidationModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+export interface DuplicateInfo {
+  trackingNumber: string
+  count: number
+  positions: number[]
+  source: "finanzas" | "sistema" | "both"
+}
+
+export interface ValidationResults {
+  onlyInFinanzas: string[]
+  onlyInSistema: string[]
+  common: string[]
+  duplicatesFinanzas: DuplicateInfo[]
+  duplicatesSistema: DuplicateInfo[]
+  crossDuplicates: DuplicateInfo[]
+}
+
+export interface TrackingDetail {
+  trackingNumber: string
+  recipientName?: string
+  recipientAddress?: string
+  recipientPhone?: string
+  status?: string
+  commitDate?: string
+  shipmentType?: string
+  statusHistory: Array<any>
+  error?: string
+  source: "finanzas" | "sistema" | "both"
+}
+
+export interface ValidationSummary {
+  totalFinanzas: number
+  totalSistema: number
+  uniqueFinanzas: number
+  uniqueSistema: number
+  duplicatesInFinanzas: number
+  duplicatesInSistema: number
+  crossDuplicates: number
+  onlyInFinanzas: number
+  onlyInSistema: number
+  common: number
+  validationIssues: number
+}

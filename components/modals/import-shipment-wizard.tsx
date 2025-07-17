@@ -11,12 +11,14 @@ import {
   DollarSign,
   CheckSquare,
   Plane,
+  Gem
 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,6 +29,7 @@ import {
   uploadF2ChargeShipments,
   uploadShipmentFile,
   uploadShipmentPayments,
+  uploadHighValueShipments
 } from "@/lib/services/shipments"
 
 const steps = [
@@ -39,6 +42,11 @@ const steps = [
     label: "Envíos Aéreos",
     description: "Archivo específico para envíos por avión.",
     icon: Plane,
+  },
+  {
+    label: "High Value",
+    description: "Sube el archivo con envíos de alto valor.",
+    icon: Gem,
   },
   {
     label: "Remover cargas",
@@ -75,12 +83,13 @@ export function ShipmentWizardModal({
   const [consNumber, setConsNumber] = useState("")
   const [files, setFiles] = useState<(File | null)[]>(() => {
     const saved = localStorage.getItem("shipmentWizardFiles")
-    return saved ? JSON.parse(saved) : [null, null, null, null]
+    return saved ? JSON.parse(saved) : Array(steps.length - 1).fill(null)
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Efectos para persistencia en localStorage
   useEffect(() => {
     localStorage.setItem("shipmentWizardFiles", JSON.stringify(files))
   }, [files])
@@ -111,7 +120,7 @@ export function ShipmentWizardModal({
     setSucursalId("")
     setDate("")
     setConsNumber("")
-    setFiles([null, null, null, null])
+    setFiles(Array(steps.length - 1).fill(null))
     setError("")
     localStorage.removeItem("shipmentWizardFiles")
     localStorage.removeItem("shipmentWizardSucursal")
@@ -150,8 +159,9 @@ export function ShipmentWizardModal({
       setLoading(true)
       if (step === 0 && files[0]) await uploadShipmentFile(files[0], sucursalId, consNumber, date || "")
       if (step === 1 && files[1]) await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true)
-      if (step === 2 && files[2]) await uploadF2ChargeShipments(files[2], sucursalId, consNumber, date || "")
-      if (step === 3 && files[3]) await uploadShipmentPayments(files[3])
+      if (step === 2 && files[2]) await uploadHighValueShipments(files[2], sucursalId, consNumber, date || "")
+      if (step === 3 && files[3]) await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "")
+      if (step === 4 && files[4]) await uploadShipmentPayments(files[4])
     } catch (e: any) {
       return setError(e.message || `Error al subir el archivo del paso ${step + 1}.`)
     } finally {
@@ -175,6 +185,9 @@ export function ShipmentWizardModal({
           <DialogTitle className="flex items-center gap-2 text-orange-600 text-lg">
             <Upload className="h-5 w-5" /> Importar Envíos
           </DialogTitle>
+          <DialogDescription>
+            Asistente para importar diferentes tipos de envíos
+          </DialogDescription>
         </DialogHeader>
 
         <div className="w-full overflow-x-auto mb-6">
@@ -185,7 +198,7 @@ export function ShipmentWizardModal({
               return (
                 <div
                   key={i}
-                  className="flex-1 cursor-pointer transition-transform duration-300 hover:scale-105"
+                  className="flex-1 transition-all"
                   onClick={() => setStep(i)}
                 >
                   <div className="flex flex-col items-center">
@@ -193,7 +206,7 @@ export function ShipmentWizardModal({
                       className={clsx(
                         "w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all",
                         isActive
-                          ? "border-orange-600 bg-orange-100 text-orange-600 shadow"
+                          ? "border-orange-600 bg-orange-100 text-orange-600 shadow-lg scale-110"
                           : isComplete
                           ? "border-green-500 bg-green-100 text-green-600"
                           : "border-gray-300 bg-white text-gray-400"
@@ -204,7 +217,7 @@ export function ShipmentWizardModal({
                     <p
                       className={clsx(
                         "text-xs mt-2 text-center transition-all",
-                        isActive && "font-semibold text-orange-700"
+                        isActive ? "font-semibold text-orange-700" : "text-gray-600"
                       )}
                     >
                       {label}
@@ -272,7 +285,7 @@ export function ShipmentWizardModal({
             <div className="border p-4 rounded-xl bg-gray-50 shadow-sm">
               <p className="text-sm mb-2">Resumen de archivos cargados:</p>
               <ul className="space-y-2 text-sm">
-                {steps.slice(0, 4).map((s, i) => (
+                {steps.slice(0, steps.length - 1).map((s, i) => (
                   <li key={i} className="flex items-center gap-2">
                     {files[i] ? <CheckCircle className="text-green-500 h-4 w-4" /> : <X className="text-red-500 h-4 w-4" />}
                     {s.label}: {files[i]?.name || "No cargado"}

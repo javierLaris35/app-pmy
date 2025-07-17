@@ -135,7 +135,6 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
     XLSX.writeFile(workbook, fileName);
   };
 
-
   const shipmentColumns: ColumnDef<Shipment>[] = [
     {
       accessorKey: "trackingNumber",
@@ -225,7 +224,7 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>
-              Envíos de la Carga ({consolidated.shipments.length})
+              Envíos del Consolidado ({consolidated.shipments.length})
             </DialogTitle>
           </DialogHeader>
 

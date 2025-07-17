@@ -13,6 +13,16 @@ import { Shipment } from "../types";
       return response.data;
   }
 
+  const getShipmentByTrackingNumber = async (trackingNumber: string) => {
+    const response = await axiosConfig.get(`/shipments/${trackingNumber}`);
+    return response.data;
+  }
+
+  const getShipmentByTrackingNumberShowHistory = async (trackingNumber: string) => {
+    const response = await axiosConfig.get(`/shipments/${trackingNumber}/history`);
+    return response.data;
+  }
+
   const getCharges = async () => {
     const response = await axiosConfig.get('/shipments/charges');
     return response.data;
@@ -169,11 +179,15 @@ import { Shipment } from "../types";
     return response.data
   }
 
+  export const uploadHighValueShipments = async () => {}
+
 export {
     getShipments,
     getShipmentById,
     saveShipments,
     generateKpis,
     generateDashboardKpis,
-    getCharges
+    getCharges,
+    getShipmentByTrackingNumberShowHistory,
+    getShipmentByTrackingNumber
 }
