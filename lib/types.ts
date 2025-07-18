@@ -169,6 +169,7 @@ export type Shipment = {
   isChargePackage?: boolean
   receivedByName: string,
   daysInRoute?: number;
+  isHighValue?: boolean
 }
 
 export type Driver = {
@@ -258,6 +259,27 @@ export interface SubsidiaryMetrics {
   totalProfit: number;
 }
 
+export enum ShipmentType {
+  FEDEX = 'fedex',
+  DHL = 'dhl'
+}
+
+export enum ShipmentStatusType {
+  RECOLECCION = 'recoleccion',
+  PENDIENTE = 'pendiente',
+  EN_RUTA = 'en_ruta',
+  ENTREGADO = 'entregado',
+  NO_ENTREGADO = 'no_entregado',
+  DESCONOCIDO = 'desconocido'
+}
+
+export enum Priority {
+  ALTA = 'alta',
+  MEDIA = 'media',
+  BAJA = 'baja',
+}
+
+
 export interface TrackingValidationModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -304,4 +326,12 @@ export interface ValidationSummary {
   onlyInSistema: number
   common: number
   validationIssues: number
+}
+
+interface FedexReport {
+  pod: number;
+  dex07: number;
+  dex08: number;
+  total: number;
+  totalIncome: string;
 }

@@ -1,4 +1,4 @@
-"use client" // (asegúrate de que esta línea sea la primera, sin espacios ni comentarios antes)
+"use client"
 
 import React, { useMemo, useState, useEffect } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
@@ -17,8 +17,6 @@ import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog
 import { NewIncome } from "@/lib/types"
 import { getLastWeekRange } from "@/utils/date.utils"
 import { TrackingValidationButton } from "@/components/modals/tracking-validation-button"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
 
 export default function IngresosPage() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
@@ -44,7 +42,7 @@ export default function IngresosPage() {
     return val || 0
   }
 
-  // Exportar a Excel - Manejar caso de no tener datos
+  // Exportar a Excel
   const exportToExcel = () => {
     if (!incomes || incomes.length === 0) {
       alert("No hay datos para exportar")
@@ -53,42 +51,57 @@ export default function IngresosPage() {
 
     const wb = XLSX.utils.book_new()
 
-    // Mapear ingresos con campos requeridos y normalizados a números
+    // Mapear ingresos con todas las columnas de la tabla
     const ingresosData = incomes.map((i) => ({
       Fecha: i.date,
-      Total: Number(i.total) || 0,
-      IngresoTotal: parseCurrency(i.totalIncome),
+      FedexPOD: Number(i.fedex?.pod) || 0,
+      FedexDEX07: Number(i.fedex?.dex07) || 0,
+      FedexDEX08: Number(i.fedex?.dex08) || 0,
       FedexTotal: Number(i.fedex?.total) || 0,
       IngresoFedex: parseCurrency(i.fedex?.totalIncome),
+      DHLPOD: Number(i.dhl?.ba) || 0,
+      DHLNE: Number(i.dhl?.ne) || 0,
       DHLTotal: Number(i.dhl?.total) || 0,
       IngresoDHL: parseCurrency(i.dhl?.totalIncome),
       Recolecciones: Number(i.collections) || 0,
       Cargas: Number(i.cargas) || 0,
+      Total: Number(i.total) || 0,
+      IngresoTotal: parseCurrency(i.totalIncome),
     }))
 
-    // Calcular totales correctamente con números
+    // Calcular totales
     const totales = ingresosData.reduce(
       (acc, curr) => {
-        acc.Total += curr.Total || 0
-        acc.IngresoTotal += curr.IngresoTotal || 0
+        acc.FedexPOD += curr.FedexPOD || 0
+        acc.FedexDEX07 += curr.FedexDEX07 || 0
+        acc.FedexDEX08 += curr.FedexDEX08 || 0
         acc.FedexTotal += curr.FedexTotal || 0
         acc.IngresoFedex += curr.IngresoFedex || 0
+        acc.DHLPOD += curr.DHLPOD || 0
+        acc.DHLNE += curr.DHLNE || 0
         acc.DHLTotal += curr.DHLTotal || 0
         acc.IngresoDHL += curr.IngresoDHL || 0
         acc.Recolecciones += curr.Recolecciones || 0
         acc.Cargas += curr.Cargas || 0
+        acc.Total += curr.Total || 0
+        acc.IngresoTotal += curr.IngresoTotal || 0
         return acc
       },
       {
         Fecha: "Totales",
-        Total: 0,
-        IngresoTotal: 0,
+        FedexPOD: 0,
+        FedexDEX07: 0,
+        FedexDEX08: 0,
         FedexTotal: 0,
         IngresoFedex: 0,
+        DHLPOD: 0,
+        DHLNE: 0,
         DHLTotal: 0,
         IngresoDHL: 0,
         Recolecciones: 0,
         Cargas: 0,
+        Total: 0,
+        IngresoTotal: 0,
       }
     )
 
@@ -98,33 +111,51 @@ export default function IngresosPage() {
     const mainSheet = XLSX.utils.json_to_sheet(ingresosData)
     XLSX.utils.book_append_sheet(wb, mainSheet, "Ingresos")
 
-    // Hoja de items por día
+    // Hoja de items por día con validación
     const itemsSheetData = incomes.flatMap((i) => {
       const fecha = i.date
-      if (!i.items || !Array.isArray(i.items)) return []
+      if (!i.items || !Array.isArray(i.items)) {
+        console.warn(`No items found for date ${fecha}`);
+        return []
+      }
 
-      return i.items.map((item) => ({
-        Fecha: fecha,
-        ...item,
-      }))
+      return i.items
+        .filter((item) => {
+          // Validar que no haya nonDeliveryStatus = '03' (aunque ya filtrado en backend)
+          if (item.shipmentType === 'fedex' && item.status === 'no_entregado') {
+            console.warn(`Unexpected status 'no_entregado' for FedEx item ${item.trackingNumber} on ${fecha}`);
+            return false
+          }
+          return true
+        })
+        .map((item) => ({
+          Fecha: fecha,
+          Tipo: item.type,
+          TrackingNumber: item.trackingNumber,
+          ShipmentType: item.shipmentType || '',
+          Status: item.status || '',
+          FechaItem: item.date,
+          CommitDateTime: item.commitDateTime ? new Date(item.commitDateTime).toISOString() : '',
+        }))
     })
 
     if (itemsSheetData.length > 0) {
       const itemsSheet = XLSX.utils.json_to_sheet(itemsSheetData)
       XLSX.utils.book_append_sheet(wb, itemsSheet, "Ingresos por día")
+    } else {
+      console.warn("No valid items data for Ingresos por día sheet")
     }
 
     // Guardar archivo
     XLSX.writeFile(wb, "ingresos.xlsx")
   }
 
-  // Cálculos con useMemo para evitar recálculo innecesario
+  // Cálculos con useMemo
   const totalRegistros = incomes?.length || 0
   const totalCollections = useMemo(
     () => incomes?.reduce((acc, i) => acc + (Number(i.collections) || 0), 0) || 0,
     [incomes]
   )
-
   const totalFedex = useMemo(
     () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.total) || 0), 0) || 0,
     [incomes]
@@ -137,11 +168,14 @@ export default function IngresosPage() {
     () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.pod) || 0), 0) || 0,
     [incomes]
   )
-  const totalFedexDEX = useMemo(
-    () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.dex) || 0), 0) || 0,
+  const totalFedexDEX07 = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.dex07) || 0), 0) || 0,
     [incomes]
   )
-
+  const totalFedexDEX08 = useMemo(
+    () => incomes?.reduce((acc, i) => acc + (Number(i.fedex?.dex08) || 0), 0) || 0,
+    [incomes]
+  )
   const totalDHL = useMemo(
     () => incomes?.reduce((acc, i) => acc + (Number(i.dhl?.total) || 0), 0) || 0,
     [incomes]
@@ -158,18 +192,16 @@ export default function IngresosPage() {
     () => incomes?.reduce((acc, i) => acc + (Number(i.dhl?.ne) || 0), 0) || 0,
     [incomes]
   )
-
   const totalIngreso = useMemo(
     () => incomes?.reduce((acc, i) => acc + parseCurrency(i.totalIncome), 0) || 0,
     [incomes]
   )
-
   const recoleccionesRatio = useMemo(() => {
     const total = incomes?.length || 1
     return ((totalCollections / total) * 100).toFixed(1)
   }, [incomes, totalCollections])
 
-  // Columnas tabla - asegurando tipos y protección contra undefined
+  // Columnas tabla
   const columns = [
     createSelectColumn<NewIncome>(),
     createSortableColumn<NewIncome>(
@@ -188,10 +220,16 @@ export default function IngresosPage() {
       sortingFn: (a, b) => (Number(a.original.fedex?.pod) || 0) - (Number(b.original.fedex?.pod) || 0),
     },
     {
-      id: "fedexDex",
-      header: "Fedex DEX",
-      cell: ({ row }) => Number(row.original.fedex?.dex) ?? "-",
-      sortingFn: (a, b) => (Number(a.original.fedex?.dex) || 0) - (Number(b.original.fedex?.dex) || 0),
+      id: "fedexDex07",
+      header: "Fedex DEX07",
+      cell: ({ row }) => Number(row.original.fedex?.dex07) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.fedex?.dex07) || 0) - (Number(b.original.fedex?.dex07) || 0),
+    },
+    {
+      id: "fedexDex08",
+      header: "Fedex DEX08",
+      cell: ({ row }) => Number(row.original.fedex?.dex08) ?? "-",
+      sortingFn: (a, b) => (Number(a.original.fedex?.dex08) || 0) - (Number(b.original.fedex?.dex08) || 0),
     },
     {
       id: "fedexTotal",
@@ -362,8 +400,8 @@ export default function IngresosPage() {
               <p className="text-xs font-medium text-muted-foreground">Ingreso por Envío</p>
               <p className="text-sm font-semibold">
                 {formatCurrency(
-                  (totalFedexPOD + totalFedexDEX + totalDHLPOD + totalDHLDEX) > 0
-                    ? totalIngreso / (totalFedexPOD + totalFedexDEX + totalDHLPOD + totalDHLDEX)
+                  (totalFedexPOD + totalFedexDEX07 + totalFedexDEX08 + totalDHLPOD + totalDHLDEX) > 0
+                    ? totalIngreso / (totalFedexPOD + totalFedexDEX07 + totalFedexDEX08 + totalDHLPOD + totalDHLDEX)
                     : 0
                 )}
               </p>

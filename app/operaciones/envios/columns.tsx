@@ -5,9 +5,8 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
 import { Button } from "@/components/ui/button"
-import { Check, CheckCircle, Eye, Minus, XCircle } from "lucide-react"
+import { Diamond, DollarSignIcon, Eye } from "lucide-react"
 import { Shipment } from "@/lib/types"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export const columns: ColumnDef<Shipment>[] = [
   {
@@ -68,6 +67,19 @@ export const columns: ColumnDef<Shipment>[] = [
 
       return isChargePackage ? (
         <Badge className="bg-emerald-500 text-white">Carga</Badge>
+      ) : null
+    },
+  },
+  {
+    accessorKey: "isHighValue",
+    header: " ",
+    cell: ({ row }) => {
+      const isHighValue = row.getValue("isHighValue") as boolean
+
+      return isHighValue ? (
+        <Badge className="bg-violet-500 text-white">
+          <DollarSignIcon className="h-4 w-4" />
+        </Badge>
       ) : null
     },
   },

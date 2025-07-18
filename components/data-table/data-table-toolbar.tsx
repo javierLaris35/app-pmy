@@ -44,6 +44,8 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
   // Validar si existe la columna de isChargePackage
   const chargeColumn = table.getAllColumns().find(col => col.id === 'isChargePackage');
 
+  const isHighValueColumn = table.getAllColumns().find(col => col.id === 'isHighValue');
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
@@ -72,6 +74,20 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToo
             />
             <label htmlFor="filter-charge" className="text-sm">
               Solo carga
+            </label>
+          </div>
+        )}
+        {isHighValueColumn  && (
+          <div className="flex items-center space-x-2 px-2">
+            <Switch
+              id="filter-charge"
+              checked={table.getColumn("isHighValue")?.getFilterValue() === true}
+              onCheckedChange={(checked) =>
+                table.getColumn("isHighValue")?.setFilterValue(checked ? true : undefined)
+              }
+            />
+            <label htmlFor="filter-charge" className="text-sm">
+              Solo high value
             </label>
           </div>
         )}
