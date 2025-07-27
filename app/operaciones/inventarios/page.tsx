@@ -1,7 +1,10 @@
 "use client"
 
 import InventoryPageControl from "@/components/operaciones/inventory/inventory-page"
+import {withAuth} from "@/hoc/withAuth";
 
-export default function Inventory(){
+function Inventory(){
     return <InventoryPageControl />
 }
+
+export default withAuth(Inventory, "operaciones.inventarios")

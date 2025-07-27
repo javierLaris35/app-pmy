@@ -18,8 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getFedexStatus } from "@/lib/services/consolidated";
+import { withAuth } from "@/hoc/withAuth";
 
-export default function ConsolidatedWithKpis() {
+function ConsolidatedWithKpis() {
   const today = new Date()
   const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
   const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
@@ -330,3 +331,5 @@ export default function ConsolidatedWithKpis() {
     </AppLayout>
   );
 }
+
+export default withAuth(ConsolidatedWithKpis, 'operaciones.consolidados');

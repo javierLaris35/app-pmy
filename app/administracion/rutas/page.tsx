@@ -1,7 +1,10 @@
 "use client"
 
 import RoutesPage from "@/components/administration/route/route-page"
+import {withAuth} from "@/hoc/withAuth";
 
-export default function FedExControlPage() {
+function FedExControlPage() {
   return <RoutesPage />
 }
+
+export default withAuth(FedExControlPage, "administracion.rutas")

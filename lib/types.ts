@@ -121,7 +121,13 @@ export type NewIncome = {
   }[]
 }
 
-type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "superadmin";
+
+export enum UserRoleEnum {
+  USER = 'user',
+  ADMIN = 'admin',
+  SUPERADMIN = 'superadmin'
+}
 
 export type User = {
   id?: string
