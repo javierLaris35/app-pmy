@@ -22,8 +22,9 @@ import { FinantialOperationKpis } from "@/components/dashboard/finantial-operati
 import { SubsidiaryMetricsGrid } from "@/components/subsidiary/subsidiary-metrics"
 import { useDashboard } from "@/hooks/services/dashboard/use-dashboard"
 import { SubsidiaryPerformanceList } from "@/components/subsidiary/subsidiary-performance-list"
+import {withAuth} from "@/hoc/withAuth";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const today = new Date()
   const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
   const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
@@ -185,3 +186,5 @@ export default function DashboardPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(DashboardContent, "dashboard")

@@ -14,8 +14,9 @@ import { AlertCircle, Check, Save, User, Database, FileText, Shield, Users } fro
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+import { withAuth } from "@/hoc/withAuth";
 
-export default function ConfiguracionPage() {
+function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState("general")
   const [saveSuccess, setSaveSuccess] = useState(false)
   const { toast } = useToast()
@@ -463,3 +464,5 @@ export default function ConfiguracionPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(ConfiguracionPage, 'configuracion')

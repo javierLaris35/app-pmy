@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "@/styles/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import HistoryTracker from "@/app/HistoryTracker";
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,9 +28,10 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <TooltipProvider>
-            {children}
-          </TooltipProvider>
+            <TooltipProvider>
+                <HistoryTracker/>
+                {children}
+            </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

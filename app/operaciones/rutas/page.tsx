@@ -3,6 +3,7 @@
 import { DataTable } from "@/components/data-table/data-table"
 import { columns } from "./columns"
 import { AppLayout } from "@/components/app-layout"
+import { withAuth } from "@/hoc/withAuth";
 
 const data = [
   {
@@ -35,7 +36,7 @@ const data = [
   // Añade más rutas aquí...
 ]
 
-export default function RoutesPage() {
+function RoutesPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -45,3 +46,4 @@ export default function RoutesPage() {
   )
 }
 
+export default withAuth(RoutesPage, 'operaciones');

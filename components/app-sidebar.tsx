@@ -13,12 +13,12 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-import { sidebarMenu } from "@/lib/constants"
 import { NavUser } from "./nav-user"
 import Image from "next/image"
 import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
 import { User } from "@/lib/types"
+import {useFilteredMenu} from "@/hooks/use-filtered-menu";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: User
@@ -28,6 +28,8 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
+  const sidebarMenu: any = useFilteredMenu();
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarContent>

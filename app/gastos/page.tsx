@@ -39,6 +39,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useExpenses, useSaveExpense } from "@/hooks/services/expenses/use-expenses"
 import { categoriasGasto } from "@/lib/data"  // tu lista de categorías
 import { toast } from "sonner"
+import { withAuth } from "@/hoc/withAuth";
 
 
 // Métodos de pago disponibles
@@ -62,7 +63,7 @@ const getCategoryColor = (categoryName: string): string => {
   return colorMap[categoryName] || "bg-gray-500"
 }
 
-export default function GastosPage() {
+function GastosPage() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
   const [gastos, setGastos] = useState<Expense[]>([])
   const [categorias, setCategorias] = useState<ExpenseCategory[]>([])
@@ -543,3 +544,5 @@ export default function GastosPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(GastosPage, "gastos")
