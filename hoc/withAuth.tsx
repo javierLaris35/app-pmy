@@ -29,16 +29,14 @@ export function withAuth<P extends object>(Component: ComponentType<P>, access?:
         useEffect(() => {
             if (!hasHydrated) return;
 
-            // Si no está autenticado
             if (!isAuthenticated) {
                 if (pathname !== '/login') {
-                    console.warn('No autenticado, redirigiendo a login');
-                    router.push('/login'); // push para permitir volver
+
+                    router.push('/login');
                 }
                 return;
             }
 
-            // Si el usuario aún no tiene rol (por retraso en la carga)
             if (!user?.role) return;
 
             const roleNotAllowed = roles.length > 0 && !roles.includes(user.role);
@@ -46,10 +44,10 @@ export function withAuth<P extends object>(Component: ComponentType<P>, access?:
             if (roleNotAllowed) {
                 if (previous && previous !== pathname) {
                     console.warn(`Rol no permitido (${user.role}), regresando a la página anterior`);
-                    router.push(previous); // intenta volver a la anterior
+                    router.push(previous);
                 } else {
                     console.warn(`Rol no permitido (${user.role}), redirigiendo a /dashboard`);
-                    router.push('/dashboard'); // fallback
+                    router.push('/dashboard');
                 }
             }
         }, [hasHydrated, isAuthenticated, user?.role, roles, router, pathname, previous]);
