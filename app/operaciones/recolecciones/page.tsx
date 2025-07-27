@@ -24,8 +24,9 @@ import { useCollections } from "@/hooks/services/collections/use-collections"
 import CollectionForm from "@/components/modals/collection-form"
 import type { Collection } from "@/lib/types"
 import { getSucursales } from "@/lib/data"
+import { withAuth } from "@/hoc/withAuth";
 
-export default function RecoleccionesPage() {
+function RecoleccionesPage() {
   // Unificar nombre de variable y usar null como estado inicial
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -152,3 +153,5 @@ export default function RecoleccionesPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(RecoleccionesPage, 'operaciones')

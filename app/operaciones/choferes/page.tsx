@@ -5,6 +5,7 @@ import { columns } from "./columns"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { NewDriverDialog } from "@/components/modals/new-driver-modal"
+import { withAuth } from "@/hoc/withAuth";
 
 const data = [
   {
@@ -24,7 +25,7 @@ const data = [
   // Add more sample data as needed
 ]
 
-export default function DriversPage() {
+function DriversPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -39,3 +40,5 @@ export default function DriversPage() {
     </div>
   )
 }
+
+export default withAuth(DriversPage, 'operaciones');

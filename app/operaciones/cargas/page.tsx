@@ -15,8 +15,9 @@ import { SucursalSelector } from "@/components/sucursal-selector";
 import { Charge, ChargeShipment } from "@/lib/types";
 import { ChargeShipmentDetailDialog } from "@/components/modals/charge-shipment-detail-dialog";
 import { useCharges } from "@/hooks/services/shipments/use-shipments";
+import {withAuth} from "@/hoc/withAuth";
 
-export default function ChargesWithKpis() {
+function ChargesWithKpis() {
   const { charges, isLoading, mutate } = useCharges();
     const [selectedShipments, setSelectedShipments] = useState<ChargeShipment[] | null>(null);
     const [selectedSucursalId, setSelectedSucursalId] = useState<string | undefined>(undefined)
@@ -155,3 +156,5 @@ export default function ChargesWithKpis() {
         </AppLayout>
     );
 }
+
+export default withAuth(ChargesWithKpis, 'operaciones');

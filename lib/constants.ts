@@ -1,10 +1,12 @@
 import { IconTruckLoading } from "@tabler/icons-react"
 import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon } from "lucide-react"
+import { ElementType } from "react";
+import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
 export interface NavItem {
     title: string
     href: string
-    icon: React.ElementType,
+    icon: ElementType,
     roles?: string[]
 }
 
@@ -15,10 +17,11 @@ export const sidebarMenu = {
       url: "/dashboard",
       icon: HomeIcon,
       isActive: false,
+      roles: allowedPageRoles.dashboard,
     },
-    { 
+    {
       title: "Administración",
-      url:"#",
+      url: "#",
       icon: BuildingIcon,
       isActive: false,
       items: [
@@ -26,8 +29,8 @@ export const sidebarMenu = {
           name: "Sucursales",
           url: "/sucursales",
           icon: BuildingIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.sucursales,
+          isActive: false,
         }
       ]
     },
@@ -41,45 +44,45 @@ export const sidebarMenu = {
           name: "Cargas",
           url: "/operaciones/cargas",
           icon: TruckIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.operaciones,
+          isActive: false,
         },
         {
           name: "Consolidados",
           url: "/operaciones/consolidados",
           icon: IconTruckLoading,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.operaciones,
+          isActive: false,
         },
         {
           name: "Envios",
           url: "/operaciones/envios",
           icon: PackageIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.operaciones,
+          isActive: false,
         },
         {
           name: "Monitoreo",
           url: "/operaciones/monitoreo",
           icon: MonitorCheckIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.operaciones,
+          isActive: false,
         },
         {
           name: "Recoleciones",
           url: "/operaciones/recolecciones",
           icon: PackagePlusIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.operaciones,
+          isActive: false,
         },
         {
           name: "Rutas",
           url: "/operaciones/rutas",
           icon: MapIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.operaciones,
+          isActive: false,
         },
-      ]
+      ],
     },
     {
       title: "Mtto. Vehículos",
@@ -91,17 +94,17 @@ export const sidebarMenu = {
           name: "Programación",
           url: "/programacion-mtto",
           icon: PenToolIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.mttoVehiculos,
+          isActive: false,
         },
         {
           name: "Historial",
           url: "/historial-mtto",
           icon: HistoryIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
+          roles: allowedPageRoles.mttoVehiculos,
+          isActive: false,
         },
-      ]
+      ],
     },
     {
       title: "Finanzas",
@@ -113,15 +116,15 @@ export const sidebarMenu = {
           name: "Ingresos",
           url: "/ingresos",
           icon: BarChart3,
-          permission: "ingresos:view",
+          roles: allowedPageRoles.ingresos, // del diccionario
         },
         {
           name: "Gastos",
           url: "/gastos",
           icon: PieChart,
-          permission: "gastos:view",
+          roles: allowedPageRoles.gastos,
         },
-      ]
+      ],
     },
     {
       title: "Reportes",
@@ -134,6 +137,7 @@ export const sidebarMenu = {
       url: "/nomina",
       icon: DollarSignIcon,
       isActive: false,
+      roles: allowedPageRoles.nomina,
     },
   ],
   secondary: [
@@ -142,6 +146,7 @@ export const sidebarMenu = {
       url: "/configuracion",
       icon: SettingsIcon,
       isActive: false,
+      roles: allowedPageRoles.configuracion,
     }
   ]
 }

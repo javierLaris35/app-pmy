@@ -17,8 +17,9 @@ import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog
 import { NewIncome } from "@/lib/types"
 import { getLastWeekRange } from "@/utils/date.utils"
 import { TrackingValidationButton } from "@/components/modals/tracking-validation-button"
+import { withAuth } from "@/hoc/withAuth";
 
-export default function IngresosPage() {
+function IngresosPage() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
   const [{ fromDate, toDate }, setRange] = useState(getLastWeekRange())
 
@@ -450,3 +451,5 @@ export default function IngresosPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(IngresosPage, "ingresos");

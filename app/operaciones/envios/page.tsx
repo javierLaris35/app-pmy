@@ -24,9 +24,10 @@ import KPIShipmentCards from "@/components/operaciones/envios/KpiCards"
 import { NewShipmentDialog } from "@/components/modals/new-shipment-modal"
 import { toast } from "sonner"
 import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
+import { withAuth } from "@/hoc/withAuth";
 
 
-export default function ShipmentsPage() {
+function ShipmentsPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
   const { shipments, isLoading, mutate } = useShipments()
@@ -179,3 +180,5 @@ export default function ShipmentsPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(ShipmentsPage, 'operaciones')

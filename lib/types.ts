@@ -121,7 +121,7 @@ export type NewIncome = {
   }[]
 }
 
-type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "superadmin";
 
 export type User = {
   id?: string
