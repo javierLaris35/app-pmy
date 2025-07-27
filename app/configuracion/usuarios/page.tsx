@@ -37,6 +37,7 @@ export default function UsuariosPage() {
         await updateUser(data)
         toast({ title: "Usuario actualizado correctamente" })
       } else {
+        console.log("🚀 ~ handleUserSubmit ~ data:", data)
         await register(data)
         toast({ title: "Usuario creado correctamente" })
       }

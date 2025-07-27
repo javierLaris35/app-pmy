@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon } from "lucide-react"
 
 export interface NavItem {
     title: string
@@ -52,6 +52,13 @@ export const sidebarMenu = {
           isActive: false
         },
         {
+          name: "Devoluciones",
+          url: "/operaciones/devoluciones",
+          icon: Undo2Icon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
           name: "Envios",
           url: "/operaciones/envios",
           icon: PackageIcon,
@@ -66,16 +73,16 @@ export const sidebarMenu = {
           isActive: false
         },
         {
-          name: "Recoleciones",
-          url: "/operaciones/recolecciones",
-          icon: PackagePlusIcon,
+          name: "Rutas",
+          url: "/operaciones/rutas",
+          icon: MapIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },
         {
-          name: "Rutas",
-          url: "/operaciones/rutas",
-          icon: MapIcon,
+          name: "Salidas a Rutas",
+          url: "/operaciones/salidas-a-ruta",
+          icon: ClipboardPasteIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },
@@ -145,3 +152,19 @@ export const sidebarMenu = {
     }
   ]
 }
+
+
+export const SHIPMENT_STATUS_MAP: Record<string, string> = {
+  "03": "DEX03",
+  "07": "DEX07",
+  "08": "DEX08",
+  "GF": "GUIA FRAUDE",
+  "12": "DEX12",
+};
+
+
+export const DEVOLUTION_REASON_MAP: Record<string, string> = {
+  "03": "Dirección incorrecta",
+  "07": "Rechazo del cliente",
+  "08": "Cliente no disponible o negocio cerrado"
+};

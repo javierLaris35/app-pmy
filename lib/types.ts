@@ -129,7 +129,9 @@ export type User = {
   name?: string
   lastName?: string
   role: UserRole
+  subsidiary?: Subsidiary
   subsidiaryId?: string
+  subsidiaryName?: string
   avatar?: string
   active: boolean
 }
@@ -334,4 +336,78 @@ interface FedexReport {
   dex08: number;
   total: number;
   totalIncome: string;
+}
+
+
+export interface Devolution {
+  id: string
+  trackingNumber: string
+  createdAt: string
+  status: string
+  reason: string
+  sucursalId: string
+}
+
+export type ReturnValidaton = {
+  id: string;
+  trackingNumber: string;
+  status: string;
+  subsidiaryId: string;    // Nuevo campo
+  subsidiaryName: string;  // Existente
+  hasIncome: boolean;
+  isCharge: boolean;
+  lastStatus: {
+    type: string | null;
+    exceptionCode: string | null;
+    notes: string | null;
+  } | null;
+}
+
+
+/************** CAMBIARAN son para Rutas a Salidas */
+export interface Repartidor {
+  id: string
+  name: string
+  employeeId: string
+  isActive: boolean
+}
+
+export interface Ruta {
+  id: string
+  name: string
+  description: string
+  zone: string
+  isActive: boolean
+}
+
+export interface Unidad {
+  id: string
+  name: string
+  plateNumber: string
+  type: "VAN" | "TRUCK" | "MOTORCYCLE"
+  capacity: number
+  isActive: boolean
+  isAvailable: boolean
+}
+
+export interface PackageDispatch {
+  id: string
+  trackingNumber: string
+  repartidorId: string
+  rutaId: string
+  unidadId: string
+  subsidiaryId: string
+  status: "PENDING" | "IN_TRANSIT" | "DELIVERED" | "RETURNED"
+  dispatchDate: string
+  estimatedDelivery?: string
+  actualDelivery?: string
+  notes?: string
+}
+
+export interface DispatchFormData {
+  repartidores: string[]
+  rutas: string[]
+  unidadId: string
+  trackingNumbers: string[]
+  notes?: string
 }

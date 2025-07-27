@@ -14,6 +14,8 @@ export function useLogin(email?: string, password?: string) {
     }
   )
 
+  console.log("🚀 ~ useLogin ~ data:", data)
+
   return {
     user: data,
     isLoading,

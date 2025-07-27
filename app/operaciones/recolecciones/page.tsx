@@ -119,7 +119,6 @@ export default function RecoleccionesPage() {
               <DataTable
                 columns={columns}
                 data={collections || []}
-                filterPlaceholder="Filtrar recolecciones..."
               />
             ) : (
               <div className="flex h-[200px] items-center justify-center">
