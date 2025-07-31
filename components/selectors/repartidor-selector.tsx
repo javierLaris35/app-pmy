@@ -7,22 +7,15 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
-import type { Repartidor } from "@/types/package-dispatch"
+import { getDriversBySucursalId } from "@/lib/services/drivers"
+import { useAuthStore } from '@/store/auth.store'
+import { Driver } from "@/lib/types"
 
 interface RepartidorSelectorProps {
-  selectedRepartidores: string[]
-  onSelectionChange: (repartidores: string[]) => void
+  selectedRepartidores: Driver[]
+  onSelectionChange: (repartidores: Driver[]) => void
   disabled?: boolean
 }
-
-// Mock data - replace with actual API call
-const mockRepartidores: Repartidor[] = [
-  { id: "1", name: "Juan Pérez", employeeId: "EMP001", isActive: true },
-  { id: "2", name: "María González", employeeId: "EMP002", isActive: true },
-  { id: "3", name: "Carlos Rodríguez", employeeId: "EMP003", isActive: true },
-  { id: "4", name: "Ana Martínez", employeeId: "EMP004", isActive: true },
-  { id: "5", name: "Luis Hernández", employeeId: "EMP005", isActive: true },
-]
 
 export function RepartidorSelector({
   selectedRepartidores,
@@ -30,29 +23,61 @@ export function RepartidorSelector({
   disabled = false,
 }: RepartidorSelectorProps) {
   const [open, setOpen] = useState(false)
-  const [repartidores, setRepartidores] = useState<Repartidor[]>([])
+  const [repartidores, setRepartidores] = useState<Driver[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
+  const user = useAuthStore((s) => s.user)
 
   useEffect(() => {
-    // Simulate API call
-    setIsLoading(true)
-    setTimeout(() => {
-      setRepartidores(mockRepartidores)
-      setIsLoading(false)
-    }, 500)
-  }, [])
+      if (user?.subsidiary) {
+        setSelectedSubsidirayId(user?.subsidiary.id || null)
+      }
+    }, [user, setSelectedSubsidirayId])
+
+  useEffect(() => {
+  if (!selectedSubsidiaryId) return;
+
+  const fetchDrivers = async () => {
+    try {
+      setIsLoading(true);
+      const drivers = await getDriversBySucursalId(selectedSubsidiaryId);
+      setRepartidores(drivers);
+    } catch (error) {
+      console.error("Error al obtener repartidores:", error);
+      // Aquí puedes mostrar un toast o mensaje de error si quieres
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchDrivers();
+}, [selectedSubsidiaryId]);
 
   const handleSelect = (repartidorId: string) => {
-    const newSelection = selectedRepartidores.includes(repartidorId)
-      ? selectedRepartidores.filter((id) => id !== repartidorId)
-      : [...selectedRepartidores, repartidorId]
+    // Find the full repartidor object by ID
+    const repartidor = repartidores.find((r) => r.id === repartidorId);
 
-    onSelectionChange(newSelection)
-  }
+    if (!repartidor) {
+      console.warn(`Repartidor with ID ${repartidorId} not found`);
+      return;
+    }
+
+    // Check if the repartidor is already selected (based on ID)
+    const isSelected = selectedRepartidores.some((r) => r.id === repartidorId);
+
+    // Create new selection: either remove the repartidor or add it
+    const newSelection = isSelected
+      ? selectedRepartidores.filter((r) => r.id !== repartidorId)
+      : [...selectedRepartidores, repartidor];
+
+    onSelectionChange(newSelection);
+  };
 
   const getSelectedNames = () => {
-    return repartidores.filter((r) => selectedRepartidores.includes(r.id)).map((r) => r.name)
-  }
+    return repartidores
+      .filter((r) => selectedRepartidores.some((selected) => selected.id === r.id))
+      .map((r) => r.name);
+  };
 
   return (
     <div className="space-y-2">
@@ -90,7 +115,7 @@ export function RepartidorSelector({
                     />
                     <div className="flex flex-col">
                       <span className="font-medium">{repartidor.name}</span>
-                      <span className="text-sm text-muted-foreground">{repartidor.employeeId}</span>
+                      {/*<span className="text-sm text-muted-foreground">{repartidor.employeeId}</span>*/}
                     </div>
                   </CommandItem>
                 ))}
@@ -103,7 +128,7 @@ export function RepartidorSelector({
       {selectedRepartidores.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {getSelectedNames().map((name) => (
-            <Badge key={name} variant="secondary" className="text-xs">
+            <Badge key={name} variant="default" className="text-xs">
               {name}
             </Badge>
           ))}

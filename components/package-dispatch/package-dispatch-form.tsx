@@ -10,19 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import classNames from "classnames"
-import { AlertCircle, Trash2, Send, Scan } from "lucide-react"
+import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon } from "lucide-react"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { RutaSelector } from "../selectors/ruta-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
-import type { DispatchFormData } from "@/lib/types"
-
-interface PackageInfo {
-  trackingNumber: string
-  isValid: boolean
-  destination?: string
-  weight?: number
-  priority?: "NORMAL" | "URGENT" | "EXPRESS"
-}
+import { Charge, Consolidated, DispatchFormData, Driver, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
+import { savePackageDispatch, validateTrackingNumber } from "@/lib/services/package-dispatchs"
+import { useAuthStore } from "@/store/auth.store"
 
 type Props = {
   selectedSubsidiaryId: string | null
@@ -33,27 +27,10 @@ type Props = {
 
 const VALIDATION_REGEX = /^\d{12}$/
 
-// Mock validation function - replace with actual API call
-const validatePackageForDispatch = async (trackingNumber: string): Promise<PackageInfo> => {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 200))
-
-  // Mock validation logic
-  const isValid = Math.random() > 0.1 // 90% success rate
-
-  return {
-    trackingNumber,
-    isValid,
-    destination: isValid ? `Destino ${Math.floor(Math.random() * 100)}` : undefined,
-    weight: isValid ? Math.floor(Math.random() * 10) + 1 : undefined,
-    priority: isValid ? (["NORMAL", "URGENT", "EXPRESS"][Math.floor(Math.random() * 3)] as any) : undefined,
-  }
-}
-
 // Mock dispatch function - replace with actual API call
 const dispatchPackages = async (dispatchData: DispatchFormData): Promise<void> => {
   // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  await savePackageDispatch(dispatchData)
 
   // Mock success/failure
   if (Math.random() > 0.05) {
@@ -64,28 +41,59 @@ const dispatchPackages = async (dispatchData: DispatchFormData): Promise<void> =
   }
 }
 
+const formatMexicanPhoneNumber = (phone: string): string => {
+  // Remove non-digits
+  const cleaned = phone.replace(/\D/g, '');
+
+  // Handle 10-digit numbers (e.g., 6441251245 -> +52 (644) 125-1245)
+  if (cleaned.length === 10) {
+    return `+52 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+  }
+
+  // Handle 12-digit numbers with '52' (e.g., +526441251245 -> +52 (644) 125-1245)
+  if (cleaned.length === 12 && cleaned.startsWith('52')) {
+    return `+52 (${cleaned.slice(2, 5)}) ${cleaned.slice(5, 8)}-${cleaned.slice(8)}`;
+  }
+
+  // Handle 13-digit numbers with '521' (e.g., +5216441251245 -> +52 (644) 125-1245)
+  if (cleaned.length === 13 && cleaned.startsWith('521')) {
+    return `+52 (${cleaned.slice(3, 6)}) ${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
+  }
+
+  // Return original if format is unknown
+  return phone;
+};
+
 const PackageDispatchForm: React.FC<Props> = ({
-  selectedSubsidiaryId,
-  subsidiaryName = "NAVOJOA",
   onClose,
   onSuccess,
 }) => {
   // Form states
-  const [selectedRepartidores, setSelectedRepartidores] = useState<string[]>([])
-  const [selectedRutas, setSelectedRutas] = useState<string[]>([])
-  const [selectedUnidad, setSelectedUnidad] = useState<string>("")
+  const [selectedRepartidores, setSelectedRepartidores] = useState<Driver[]>([])
+  const [selectedRutas, setSelectedRutas] = useState<Route[]>([])
+  const [selectedUnidad, setSelectedUnidad] = useState<Vehicles>("")
 
   // Package scanning states
   const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("")
   const [packages, setPackages] = useState<PackageInfo[]>([])
   const [invalidNumbers, setInvalidNumbers] = useState<string[]>([])
   const [hasValidated, setHasValidated] = useState(false)
+  const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
+  const [selectedSubsidiaryName, setSelectedSubsidirayName] = useState<string | null>(null)
 
   // Loading and progress states
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const user = useAuthStore((s) => s.user)
 
   const { toast } = useToast()
+
+  useEffect(() => {
+      if (user?.subsidiary) {
+        setSelectedSubsidirayId(user?.subsidiary.id || null)
+        setSelectedSubsidirayName(user?.subsidiary.name || null)
+      }
+    }, [user, setSelectedSubsidirayId])
 
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => {
@@ -103,6 +111,11 @@ const PackageDispatchForm: React.FC<Props> = ({
       window.removeEventListener("keydown", preventKeyZoom)
     }
   }, [])
+
+  const validatePackageForDispatch = async (trackingNumber: string): Promise<PackageInfo> => {
+    const shipment = await validateTrackingNumber(trackingNumber, selectedSubsidiaryId)
+    return shipment;
+  }
 
   const handleValidatePackages = async () => {
     if (!selectedSubsidiaryId) {
@@ -216,11 +229,16 @@ const PackageDispatchForm: React.FC<Props> = ({
 
     try {
       const dispatchData: DispatchFormData = {
-        repartidores: selectedRepartidores,
-        rutas: selectedRutas,
-        unidadId: selectedUnidad,
-        trackingNumbers: validPackages.map((p) => p.trackingNumber),
+        drivers: selectedRepartidores,
+        routes: selectedRutas,
+        vehicle: selectedUnidad,
+        shipments: validPackages.map((p) => p.id),
+        subsidiary: {
+          id: selectedSubsidiaryId,
+        }
       }
+
+      console.log("🚀 ~ handleDispatch ~ dispatchData:", dispatchData)
 
       await dispatchPackages(dispatchData)
 
@@ -258,14 +276,23 @@ const PackageDispatchForm: React.FC<Props> = ({
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Send className="h-5 w-5" />
-          Salida de Paquetes
-          {packages.length > 0 && (
-            <Badge variant="secondary" className="ml-2">
-              {validPackages.length} válidos / {packages.length} total
-            </Badge>
-          )}
+        <CardTitle className="flex items-center justify-between w-full">
+          {/* Lado izquierdo */}
+          <div className="flex items-center gap-2">
+            <ClipboardPasteIcon className="h-5 w-5" />
+            <span>Salida de Paquetes</span>
+            {packages.length > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {validPackages.length} válidos / {packages.length} total
+              </Badge>
+            )}
+          </div>
+
+          {/* Lado derecho */}
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <MapPinIcon className="h-5 w-5" />
+            <span>Sucursal: {selectedSubsidiaryName}</span>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -312,7 +339,7 @@ const PackageDispatchForm: React.FC<Props> = ({
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 items-end justify-end">
             <Button onClick={handleValidatePackages} disabled={isLoading} className="w-full sm:w-auto">
               <Scan className="mr-2 h-4 w-4" />
               {isLoading ? "Procesando..." : "Validar paquetes"}
@@ -350,7 +377,33 @@ const PackageDispatchForm: React.FC<Props> = ({
 
           {packages.length > 0 && (
             <div className="mt-6 space-y-4">
-              <h3 className="text-lg font-semibold">Paquetes validados</h3>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-x-4 gap-y-2">
+                {/* Left Side: Title */}
+                <h3 className="text-lg font-semibold text-gray-800">Paquetes validados</h3>
+
+                {/* Right Side: Inline Summary */}
+                {(selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad || packages.length > 0) && (
+                  <div className="flex items-center gap-x-3 text-sm text-gray-600">
+                    <Package className="w-4 h-4 text-gray-600" />
+                    <span className="font-medium">Resumen:</span>
+                    <span>
+                      Repartidores: <span className="font-bold">{selectedRepartidores.length}</span>
+                    </span>
+                    <span className="text-gray-300">|</span>
+                    <span>
+                      Rutas: <span className="font-bold">{selectedRutas.length}</span>
+                    </span>
+                    <span className="text-gray-300">|</span>
+                    <span>
+                      Paquetes válidos: <span className="font-bold">{validPackages.length}</span>
+                    </span>
+                    <span className="text-gray-300">|</span>
+                    <span>
+                      Paquetes inválidos: <span className="font-bold text-red-600">{invalidPackages.length}</span>
+                    </span>
+                  </div>
+                )}
+              </div>
               <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
                 <ul className="divide-y divide-gray-300">
                   {packages.map((pkg) => (
@@ -361,29 +414,66 @@ const PackageDispatchForm: React.FC<Props> = ({
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium font-mono">{pkg.trackingNumber}</span>
-                          <Badge variant={pkg.isValid ? "default" : "destructive"} className="text-xs">
+                          <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
                             {pkg.isValid ? "Válido" : "Inválido"}
                           </Badge>
                           {pkg.priority && (
                             <Badge
                               variant={
-                                pkg.priority === "EXPRESS"
+                                pkg.priority === Priority.ALTA
                                   ? "destructive"
-                                  : pkg.priority === "URGENT"
+                                  : pkg.priority === Priority.MEDIA
                                     ? "secondary"
                                     : "outline"
                               }
                               className="text-xs"
                             >
-                              {pkg.priority}
+                              {pkg.priority.toLocaleUpperCase()}
                             </Badge>
                           )}
+                          { pkg.isHighValue && (
+                            <Badge className="bg-green-600 :hover:bg-green-700 text-xs">
+                              <span className="h-4 text-white">ES CARGA</span>
+                            </Badge>
+                          )}
+                          { pkg.isHighValue && (
+                            <Badge className="bg-violet-600 :hover:bg-violet-700 text-xs">
+                              <DollarSignIcon className="h-4 w-4 text-white"/>
+                            </Badge>
+                          )}
+                          <Badge className="bg-blue-600 :hover:bg-blue-700 text-xs">
+                            <BanknoteIcon className="h-4 w-4 text-white"/>
+                            &nbsp; A COBRAR: $3500.00
+                          </Badge>
                         </div>
                         {pkg.isValid && (
-                          <div className="text-sm text-gray-600 mt-1">
-                            {pkg.destination && <span>Destino: {pkg.destination}</span>}
-                            {pkg.weight && <span className="ml-4">Peso: {pkg.weight}kg</span>}
+                          <div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                            {pkg.recipientAddress && (
+                              <span className="flex items-center">
+                                <MapPin className="w-4 h-4 mr-1 text-black" />
+                                Dirección: {pkg.recipientAddress}
+                              </span>
+                            )}
+                            {pkg.recipientName && (
+                              <span className="flex items-center">
+                                <User className="w-4 h-4 mr-1 text-black" />
+                                Recibe: {pkg.recipientName}
+                              </span>
+                            )}
+                            {pkg.recipientPhone && (
+                              <span className="flex items-center">
+                                <Phone className="w-4 h-4 mr-1 text-black" />
+                                Teléfono: {formatMexicanPhoneNumber(pkg.recipientPhone)}
+                              </span>
+                            )}
                           </div>
+                        )}
+                        { !pkg.isValid && (
+                          
+                              <span className="flex items-center text-sm">
+                                <AlertCircle className="w-4 h-4 mr-1 text-red-600" />
+                                {pkg.reason}
+                              </span>
                         )}
                       </div>
                       <button
@@ -401,31 +491,6 @@ const PackageDispatchForm: React.FC<Props> = ({
             </div>
           )}
         </div>
-
-        {/* Summary */}
-        {(selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad || packages.length > 0) && (
-          <div className="bg-muted p-4 rounded-lg">
-            <h4 className="font-semibold mb-2">Resumen de Salida</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Repartidores:</span>
-                <span className="ml-2 font-medium">{selectedRepartidores.length}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Rutas:</span>
-                <span className="ml-2 font-medium">{selectedRutas.length}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Paquetes válidos:</span>
-                <span className="ml-2 font-medium">{validPackages.length}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Paquetes inválidos:</span>
-                <span className="ml-2 font-medium text-red-600">{invalidPackages.length}</span>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Action buttons */}
         <div className="flex justify-end gap-2 pt-4 border-t">

@@ -7,47 +7,74 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
-import type { Ruta } from "@/types/package-dispatch"
+import { useAuthStore } from "@/store/auth.store"
+import { getRoutesBySucursalId } from "@/lib/services/routes"
+import { Route } from "@/lib/types"
 
 interface RutaSelectorProps {
-  selectedRutas: string[]
-  onSelectionChange: (rutas: string[]) => void
+  selectedRutas: Route[]
+  onSelectionChange: (rutas: Route[]) => void
   disabled?: boolean
 }
 
 // Mock data - replace with actual API call
-const mockRutas: Ruta[] = [
-  { id: "1", name: "Ruta Centro", description: "Centro de la ciudad", zone: "CENTRO", isActive: true },
-  { id: "2", name: "Ruta Norte", description: "Zona norte residencial", zone: "NORTE", isActive: true },
-  { id: "3", name: "Ruta Sur", description: "Zona sur industrial", zone: "SUR", isActive: true },
-  { id: "4", name: "Ruta Este", description: "Zona este comercial", zone: "ESTE", isActive: true },
-  { id: "5", name: "Ruta Oeste", description: "Zona oeste suburbana", zone: "OESTE", isActive: true },
-]
 
 export function RutaSelector({ selectedRutas, onSelectionChange, disabled = false }: RutaSelectorProps) {
   const [open, setOpen] = useState(false)
-  const [rutas, setRutas] = useState<Ruta[]>([])
+  const [rutas, setRutas] = useState<Route[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
+  const user = useAuthStore((s) => s.user)
+
 
   useEffect(() => {
-    // Simulate API call
-    setIsLoading(true)
-    setTimeout(() => {
-      setRutas(mockRutas)
-      setIsLoading(false)
-    }, 500)
-  }, [])
+      if (user?.subsidiary) {
+        setSelectedSubsidirayId(user?.subsidiary.id || null)
+      }
+    }, [user, setSelectedSubsidirayId])
+
+  useEffect(() => {
+  if (!selectedSubsidiaryId) return;
+
+  const fetchDrivers = async () => {
+    try {
+      setIsLoading(true);
+      const routes = await getRoutesBySucursalId(selectedSubsidiaryId);
+      setRutas(routes);
+    } catch (error) {
+      console.error("Error al obtener repartidores:", error);
+      // Aquí puedes mostrar un toast o mensaje de error si quieres
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchDrivers();
+}, [selectedSubsidiaryId]);
 
   const handleSelect = (rutaId: string) => {
-    const newSelection = selectedRutas.includes(rutaId)
-      ? selectedRutas.filter((id) => id !== rutaId)
-      : [...selectedRutas, rutaId]
+    const ruta = rutas.find((r) => r.id === rutaId);
+
+    if (!ruta) {
+      console.warn(`Repartidor with ID ${rutaId} not found`);
+      return;
+    }
+
+    // Check if the ruta is already selected (based on ID)
+    const isSelected = selectedRutas.some((r) => r.id === rutaId);
+
+    // Create new selection: either remove the ruta or add it
+    const newSelection = isSelected
+      ? selectedRutas.filter((r) => r.id !== rutaId)
+      : [...selectedRutas, ruta];
 
     onSelectionChange(newSelection)
   }
 
   const getSelectedNames = () => {
-    return rutas.filter((r) => selectedRutas.includes(r.id)).map((r) => r.name)
+    return rutas
+      .filter((r) => selectedRutas.some((selected) => selected.id === r.id))
+      .map((r) => r.name);
   }
 
   return (
@@ -81,10 +108,6 @@ export function RutaSelector({ selectedRutas, onSelectionChange, disabled = fals
                     />
                     <div className="flex flex-col">
                       <span className="font-medium">{ruta.name}</span>
-                      <span className="text-sm text-muted-foreground">{ruta.description}</span>
-                      <Badge variant="outline" className="text-xs w-fit mt-1">
-                        {ruta.zone}
-                      </Badge>
                     </div>
                   </CommandItem>
                 ))}

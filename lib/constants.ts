@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon } from "lucide-react"
 
 export interface NavItem {
     title: string
@@ -23,9 +23,30 @@ export const sidebarMenu = {
       isActive: false,
       items: [
         {
+          name: "Choferes",
+          url: "/administracion/choferes",
+          icon: CarFrontIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
+          name: "Rutas",
+          url: "/administracion/rutas",
+          icon: MilestoneIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
           name: "Sucursales",
           url: "/sucursales",
           icon: BuildingIcon,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
+          name: "Vehículos",
+          url: "/administracion/vehiculos",
+          icon: TruckIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         }
@@ -69,13 +90,6 @@ export const sidebarMenu = {
           name: "Monitoreo",
           url: "/operaciones/monitoreo",
           icon: MonitorCheckIcon,
-          roles: ["admin", "superadmin"],
-          isActive: false
-        },
-        {
-          name: "Rutas",
-          url: "/operaciones/rutas",
-          icon: MapIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },

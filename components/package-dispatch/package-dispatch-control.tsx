@@ -11,40 +11,16 @@ import { createSelectColumn, createSortableColumn } from "@/components/data-tabl
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import PackageDispatchForm from "./package-dispatch-form"
-import type { PackageDispatch } from "@/types/types"
+import type { PackageDispatch } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
-
-// Mock data for dispatches
-const mockDispatches: PackageDispatch[] = [
-  {
-    id: "1",
-    trackingNumber: "123456789012",
-    repartidorId: "1",
-    rutaId: "1",
-    unidadId: "1",
-    subsidiaryId: "1",
-    status: "IN_TRANSIT",
-    dispatchDate: "2025-01-19T10:00:00Z",
-    estimatedDelivery: "2025-01-19T16:00:00Z",
-  },
-  {
-    id: "2",
-    trackingNumber: "123456789013",
-    repartidorId: "2",
-    rutaId: "2",
-    unidadId: "2",
-    subsidiaryId: "1",
-    status: "DELIVERED",
-    dispatchDate: "2025-01-19T09:00:00Z",
-    actualDelivery: "2025-01-19T15:30:00Z",
-  },
-]
+import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
 
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false)
-  const [dispatches, setDispatches] = useState<PackageDispatch[]>(mockDispatches)
+
+  const { packageDispatchs, isError, isLoading, mutate } = usePackageDispatchs(selectedSucursalId)
   const user = useAuthStore((s) => s.user)
 
   useEffect(() => {
@@ -71,6 +47,22 @@ export default function PackageDispatchControl() {
       "Número de Seguimiento",
       (row) => row.trackingNumber,
       (value) => <span className="font-mono">{value}</span>,
+    ),
+    createSortableColumn(
+      "shipments",
+      "Paquetes",
+      (row) => row.shipments,
+      (shipments) => {
+        console.log("📦 Shipments:", shipments); // <-- aquí ves qué trae
+
+        if (!shipments || shipments.length === 0) return "Sin paquetes";
+
+        return (
+          <span className="font-mono">
+            {shipments.length} paquete{shipments.length > 1 ? "s" : ""}
+          </span>
+        );
+      }
     ),
     createSortableColumn<PackageDispatch>(
       "status",
@@ -123,13 +115,6 @@ export default function PackageDispatchControl() {
     ),
   ]
 
-  const stats = {
-    pending: dispatches.filter((d) => d.status === "PENDING").length,
-    inTransit: dispatches.filter((d) => d.status === "IN_TRANSIT").length,
-    delivered: dispatches.filter((d) => d.status === "DELIVERED").length,
-    returned: dispatches.filter((d) => d.status === "RETURNED").length,
-  }
-
   return (
     <AppLayout>
       <div className="space-y-4">
@@ -158,7 +143,7 @@ export default function PackageDispatchControl() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Pendientes</p>
-                  <p className="text-2xl font-bold">{stats.pending}</p>
+                  {/*<p className="text-2xl font-bold">{stats.pending}</p>*/}
                 </div>
               </div>
             </CardContent>
@@ -172,7 +157,7 @@ export default function PackageDispatchControl() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">En Tránsito</p>
-                  <p className="text-2xl font-bold">{stats.inTransit}</p>
+                  {/*<p className="text-2xl font-bold">{stats.inTransit}</p>*/}
                 </div>
               </div>
             </CardContent>
@@ -186,7 +171,7 @@ export default function PackageDispatchControl() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Entregados</p>
-                  <p className="text-2xl font-bold">{stats.delivered}</p>
+                  {/*<p className="text-2xl font-bold">{stats.delivered}</p>*/}
                 </div>
               </div>
             </CardContent>
@@ -200,7 +185,7 @@ export default function PackageDispatchControl() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Devueltos</p>
-                  <p className="text-2xl font-bold">{stats.returned}</p>
+                  {/*<p className="text-2xl font-bold">{stats.returned}</p>*/}
                 </div>
               </div>
             </CardContent>
@@ -231,7 +216,7 @@ export default function PackageDispatchControl() {
             </div>
 
             {selectedSucursalId ? (
-              <DataTable columns={dispatchColumns} data={dispatches} />
+              <DataTable columns={dispatchColumns} data={packageDispatchs} />
             ) : (
               <div className="flex h-[200px] items-center justify-center">
                 <p className="text-muted-foreground">Selecciona una sucursal para ver las salidas</p>
@@ -255,6 +240,7 @@ export default function PackageDispatchControl() {
             subsidiaryName={selectedSucursalName}
             onClose={() => setIsDispatchDialogOpen(false)}
             onSuccess={() => {
+              mutate
               setIsDispatchDialogOpen(false)
               // Refresh dispatches data here
             }}

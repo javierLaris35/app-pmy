@@ -179,16 +179,23 @@ export type Driver = {
   name: string
   licenseNumber: string
   phoneNumber: string
-  status: "active" | "inactive"
+  subsidiary: Subsidiary
+  status: StatusEnum
+}
+
+export enum PackageDispatchStatus {
+  PENDING = 'pendiente',
+  IN_PROGRESS = 'en_progreso',
+  COMPLETED = 'completada',
+  CANCELLED = 'cancelada'
 }
 
 export type Route = {
   id: string
   name: string
-  driver: string
-  vehicle: string
-  status: "En progreso" | "Completada" | "Pendiente" | "Cancelada"
+  status: StatusEnum
   startTime: string
+  subsidiary: Subsidiary
   estimatedArrival: string
 }
 
@@ -393,21 +400,79 @@ export interface Unidad {
 export interface PackageDispatch {
   id: string
   trackingNumber: string
-  repartidorId: string
-  rutaId: string
-  unidadId: string
-  subsidiaryId: string
-  status: "PENDING" | "IN_TRANSIT" | "DELIVERED" | "RETURNED"
-  dispatchDate: string
-  estimatedDelivery?: string
-  actualDelivery?: string
-  notes?: string
+  status: PackageDispatchStatus
+  routes: Route[]
+  drivers: Driver[]
+  vehicle: Vehicles
+  shipments: Shipment[]
+  estimatedArrival: string
+  startTime: string
+  subsidiary: Subsidiary
 }
 
 export interface DispatchFormData {
-  repartidores: string[]
-  rutas: string[]
-  unidadId: string
-  trackingNumbers: string[]
-  notes?: string
+  drivers: Driver[]
+  routes: Route[]
+  vehicle: Vehicles
+  shipments: string[]
+  subsidiary: Subsidiary
+}
+
+
+/*** Administration */
+export enum VehicleStatus {
+  ACTIVE = 'activo',
+  INACTIVE = 'inactivo',
+  MAINTENANCE = 'mantenimiento',
+  OUT_OF_SERVICE = 'fuera de servicio',
+}
+
+export enum StatusEnum {
+  ACTIVE = 'activo',
+  INACTIVE = 'inactivo',
+}
+
+export enum VehicleTypeEnum {
+  VAN = 'van',
+  CAMIONETA = 'camioneta',
+  RABON = 'rabon',
+  "3/4" = '3/4',
+  URBAN = 'urban',
+  CAJA_LARGA = 'caja larga'
+}
+
+export interface Vehicles {
+  id?: string
+  plateNumber: string
+  model: string
+  brand: string
+  code: string
+  capacity: number;
+  type: VehicleTypeEnum;
+  name: string;
+  status: VehicleStatus
+  subsidiary?: Subsidiary
+  kms?: number;
+  lastMaintenance?: string
+  nextMaintenance?: string
+}
+
+export interface PackageInfo {
+  trackingNumber: string
+  commitDateTime?: string,
+  consNumber?: string,
+  consolidated?: Consolidated,
+  isHighValue?: boolean,
+  priority: Priority,
+  recipientAddress?: string,
+  recipientCity?: string,
+  recipientName?: string,
+  recipientPhone?: string,
+  recipientZip?: string,
+  shipmentType?: string,
+  subsidiary?: Subsidiary,
+  isCharge?: boolean,
+  charge?: Charge
+  isValid: boolean
+  reason?: string
 }

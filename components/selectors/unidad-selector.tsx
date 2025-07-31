@@ -4,76 +4,79 @@ import { useState, useEffect } from "react"
 import { Check, ChevronsUpDown, Truck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
-import type { Unidad } from "@/types/package-dispatch"
+import {VehicleStatus, VehicleTypeEnum, type Vehicles } from "@/lib/types"
+import { useAuthStore } from "@/store/auth.store"
+import { getVehiclesBySucursalId } from "@/lib/services/vehicles" // Asegúrate de tener este import
 
 interface UnidadSelectorProps {
-  selectedUnidad: string
+  selectedUnidad: Vehicles
   onSelectionChange: (unidadId: string) => void
   disabled?: boolean
 }
 
-// Mock data - replace with actual API call
-const mockUnidades: Unidad[] = [
-  { id: "1", name: "Van 01", plateNumber: "ABC-123", type: "VAN", capacity: 50, isActive: true, isAvailable: true },
-  {
-    id: "2",
-    name: "Camión 01",
-    plateNumber: "DEF-456",
-    type: "TRUCK",
-    capacity: 100,
-    isActive: true,
-    isAvailable: true,
-  },
-  {
-    id: "3",
-    name: "Moto 01",
-    plateNumber: "GHI-789",
-    type: "MOTORCYCLE",
-    capacity: 10,
-    isActive: true,
-    isAvailable: false,
-  },
-  { id: "4", name: "Van 02", plateNumber: "JKL-012", type: "VAN", capacity: 50, isActive: true, isAvailable: true },
-  {
-    id: "5",
-    name: "Camión 02",
-    plateNumber: "MNO-345",
-    type: "TRUCK",
-    capacity: 100,
-    isActive: true,
-    isAvailable: false,
-  },
-]
-
-const getVehicleIcon = (type: Unidad["type"]) => {
+const getVehicleIcon = (type: Vehicles["type"]) => {
   switch (type) {
-    case "VAN":
+    case VehicleTypeEnum.VAN:
       return "🚐"
-    case "TRUCK":
+    case VehicleTypeEnum.RABON:
       return "🚛"
-    case "MOTORCYCLE":
-      return "🏍️"
+    case VehicleTypeEnum["3/4"]:
+      return "🚚"
+    case VehicleTypeEnum.CAJA_LARGA:
+      return "🛻"
     default:
-      return "🚐"
+      return "🚗"
   }
 }
 
-export function UnidadSelector({ selectedUnidad, onSelectionChange, disabled = false }: UnidadSelectorProps) {
+export function UnidadSelector({
+  selectedUnidad,
+  onSelectionChange,
+  disabled = false,
+}: UnidadSelectorProps) {
   const [open, setOpen] = useState(false)
-  const [unidades, setUnidades] = useState<Unidad[]>([])
+  const [unidades, setUnidades] = useState<Vehicles[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
+  const user = useAuthStore((s) => s.user)
 
   useEffect(() => {
-    // Simulate API call
-    setIsLoading(true)
-    setTimeout(() => {
-      setUnidades(mockUnidades)
-      setIsLoading(false)
-    }, 500)
-  }, [])
+    if (user?.subsidiary) {
+      setSelectedSubsidirayId(user.subsidiary.id)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!selectedSubsidiaryId) return
+
+    const fetchUnidades = async () => {
+      try {
+        setIsLoading(true)
+        const data = await getVehiclesBySucursalId(selectedSubsidiaryId)
+        setUnidades(data)
+      } catch (error) {
+        console.error("Error al obtener unidades:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchUnidades()
+  }, [selectedSubsidiaryId])
 
   const handleSelect = (unidadId: string) => {
     onSelectionChange(unidadId === selectedUnidad ? "" : unidadId)
@@ -95,7 +98,9 @@ export function UnidadSelector({ selectedUnidad, onSelectionChange, disabled = f
           >
             <div className="flex items-center gap-2">
               <Truck className="h-4 w-4" />
-              {selectedUnidad === "" ? "Seleccionar unidad..." : selectedUnidadData?.name || "Unidad seleccionada"}
+              {selectedUnidad === ""
+                ? "Seleccionar unidad..."
+                : selectedUnidadData?.name || "Unidad seleccionada"}
             </div>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -106,37 +111,52 @@ export function UnidadSelector({ selectedUnidad, onSelectionChange, disabled = f
             <CommandList>
               <CommandEmpty>No se encontraron unidades.</CommandEmpty>
               <CommandGroup>
-                {unidades.map((unidad) => (
-                  <CommandItem
-                    key={unidad.id}
-                    value={unidad.name}
-                    onSelect={() => handleSelect(unidad.id)}
-                    disabled={!unidad.isAvailable}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", selectedUnidad === unidad.id ? "opacity-100" : "opacity-0")} />
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{getVehicleIcon(unidad.type)}</span>
-                        <div className="flex flex-col">
-                          <span className={cn("font-medium", !unidad.isAvailable && "text-muted-foreground")}>
-                            {unidad.name}
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            {unidad.plateNumber} • Capacidad: {unidad.capacity} paquetes
-                          </span>
+                {unidades.map((unidad) => {
+                  // Validar que unidad no sea null/undefined
+                  if (!unidad) return null
+
+                  // Asegurar que value sea string no vacía para CommandItem
+                  const commandValue = unidad.name || unidad.id || ""
+
+                  const isDisponible = unidad.status !== VehicleStatus.INACTIVE
+                  
+                  return (
+                    <CommandItem
+                      key={unidad.id}
+                      value={commandValue}       // <-- cambio mínimo aquí
+                      onSelect={() => handleSelect(unidad.id)}
+                      disabled={!isDisponible}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedUnidad === unidad.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{getVehicleIcon(unidad.type)}</span>
+                          <div className="flex flex-col">
+                            <span className={cn("font-medium", !isDisponible && "text-muted-foreground")}>
+                              {unidad.name}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {unidad.plateNumber} • Capacidad: {unidad.capacity} paquetes
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant={isDisponible ? "default" : "secondary"} className="text-xs">
+                            {isDisponible ? "Disponible" : "No disponible"}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {unidad.type.toLocaleUpperCase()}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge variant={unidad.isAvailable ? "default" : "secondary"} className="text-xs">
-                          {unidad.isAvailable ? "Disponible" : "No disponible"}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {unidad.type}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CommandItem>
-                ))}
+                    </CommandItem>
+                  )
+                })}                
               </CommandGroup>
             </CommandList>
           </Command>
@@ -149,11 +169,12 @@ export function UnidadSelector({ selectedUnidad, onSelectionChange, disabled = f
             <span className="text-lg">{getVehicleIcon(selectedUnidadData.type)}</span>
             <span className="font-medium">{selectedUnidadData.name}</span>
             <Badge variant="outline" className="text-xs">
-              {selectedUnidadData.type}
+              {selectedUnidadData.type.toLocaleUpperCase()}
             </Badge>
           </div>
           <div className="text-sm text-muted-foreground">
             <div>Placa: {selectedUnidadData.plateNumber}</div>
+            <div>Kms: {selectedUnidadData.kms}</div>
             <div>Capacidad: {selectedUnidadData.capacity} paquetes</div>
           </div>
         </div>
