@@ -10,13 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import classNames from "classnames"
-import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon } from "lucide-react"
+import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText } from "lucide-react"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { RutaSelector } from "../selectors/ruta-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
-import { Charge, Consolidated, DispatchFormData, Driver, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
-import { savePackageDispatch, validateTrackingNumber } from "@/lib/services/package-dispatchs"
+import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
+import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib/services/package-dispatchs"
 import { useAuthStore } from "@/store/auth.store"
+import { generateEnhancedFedExPDFPackageDispatch } from "@/lib/services/pdf-generator-package-dispatch"
+import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch-pdf-generator"
+import { pdf } from '@react-pdf/renderer';
+import { Input } from "../ui/input"
 
 type Props = {
   selectedSubsidiaryId: string | null
@@ -28,17 +32,10 @@ type Props = {
 const VALIDATION_REGEX = /^\d{12}$/
 
 // Mock dispatch function - replace with actual API call
-const dispatchPackages = async (dispatchData: DispatchFormData): Promise<void> => {
-  // Simulate API delay
-  await savePackageDispatch(dispatchData)
-
-  // Mock success/failure
-  if (Math.random() > 0.05) {
-    // 95% success rate
-    console.log("Packages dispatched successfully:", dispatchData)
-  } else {
-    throw new Error("Error al procesar la salida de paquetes")
-  }
+const dispatchPackages = async (dispatchData: DispatchFormData): Promise<string> => {
+  const dispatchResponse = await savePackageDispatch(dispatchData);
+  const packageDispatchId = dispatchResponse.id; // Adjust based on API response
+  return packageDispatchId;
 }
 
 const formatMexicanPhoneNumber = (phone: string): string => {
@@ -71,7 +68,7 @@ const PackageDispatchForm: React.FC<Props> = ({
   // Form states
   const [selectedRepartidores, setSelectedRepartidores] = useState<Driver[]>([])
   const [selectedRutas, setSelectedRutas] = useState<Route[]>([])
-  const [selectedUnidad, setSelectedUnidad] = useState<Vehicles>("")
+  const [selectedUnidad, setSelectedUnidad] = useState<Vehicles>()
 
   // Package scanning states
   const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("")
@@ -80,6 +77,7 @@ const PackageDispatchForm: React.FC<Props> = ({
   const [hasValidated, setHasValidated] = useState(false)
   const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
   const [selectedSubsidiaryName, setSelectedSubsidirayName] = useState<string | null>(null)
+  const [selectedKms, setSelectedKms] = useState<string | null>("")
 
   // Loading and progress states
   const [isLoading, setIsLoading] = useState(false)
@@ -184,8 +182,8 @@ const PackageDispatchForm: React.FC<Props> = ({
         title: "Sucursal no seleccionada",
         description: "Por favor selecciona una sucursal antes de procesar.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     if (selectedRepartidores.length === 0) {
@@ -193,8 +191,8 @@ const PackageDispatchForm: React.FC<Props> = ({
         title: "Repartidores no seleccionados",
         description: "Por favor selecciona al menos un repartidor.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     if (selectedRutas.length === 0) {
@@ -202,8 +200,8 @@ const PackageDispatchForm: React.FC<Props> = ({
         title: "Rutas no seleccionadas",
         description: "Por favor selecciona al menos una ruta.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     if (!selectedUnidad) {
@@ -211,21 +209,27 @@ const PackageDispatchForm: React.FC<Props> = ({
         title: "Unidad no seleccionada",
         description: "Por favor selecciona una unidad de transporte.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    const validPackages = packages.filter((p) => p.isValid)
+    if(!selectedKms){
+      return;
+    }
+
+    const validPackages = packages.filter((p) => p.isValid === true);
+
     if (validPackages.length === 0) {
       toast({
         title: "No hay paquetes válidos",
         description: "No hay paquetes válidos para procesar la salida.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
+    setProgress(0); // Assuming you have a progress state for UI feedback
 
     try {
       const dispatchData: DispatchFormData = {
@@ -233,40 +237,143 @@ const PackageDispatchForm: React.FC<Props> = ({
         routes: selectedRutas,
         vehicle: selectedUnidad,
         shipments: validPackages.map((p) => p.id),
-        subsidiary: {
-          id: selectedSubsidiaryId,
-        }
-      }
+        subsidiary: { id: selectedSubsidiaryId },
+        kms: selectedKms
+      };
 
-      console.log("🚀 ~ handleDispatch ~ dispatchData:", dispatchData)
+      // Dispatch packages and get ID
+      const dispatchResponse = await dispatchPackages(dispatchData);
+      const packageDispatchId = dispatchResponse; // Adjust based on actual API response
 
-      await dispatchPackages(dispatchData)
+      // Upload PDF
+      await handleSendEmail(packageDispatchId, (percent) => {
+        setProgress(percent); // Update UI with upload progress
+      });
 
       toast({
         title: "Salida procesada exitosamente",
-        description: `Se procesaron ${validPackages.length} paquetes para salida.`,
-      })
+        description: `Se procesaron ${validPackages.length} paquetes para salida y se subió el PDF.`,
+      });
 
       // Reset form
-      setSelectedRepartidores([])
-      setSelectedRutas([])
-      setSelectedUnidad("")
-      setPackages([])
-      setInvalidNumbers([])
-      setHasValidated(false)
+      setSelectedRepartidores([]);
+      setSelectedRutas([]);
+      setSelectedUnidad("");
+      setPackages([]);
+      setInvalidNumbers([]);
+      setHasValidated(false);
+      setProgress(0);
 
-      onSuccess()
+      onSuccess();
+      return packageDispatchId; // Optional: Return for chaining or testing
     } catch (error) {
-      console.error(error)
+      console.error("Error in handleDispatch:", error);
       toast({
         title: "Error al procesar salida",
-        description: "Hubo un problema al procesar la salida de paquetes.",
+        description:
+          error instanceof Error && error.message.includes("upload")
+            ? "Error al subir el PDF."
+            : "Hubo un problema al procesar la salida de paquetes.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
+  };
+
+  const handlePdfCreate = async () => {
+    try {
+      setIsLoading(true)
+      console.log("🚀 ~ handlePdfCreate ~ selectedUnidad:", selectedUnidad)
+
+      /*const { blob, fileName } = await generateEnhancedFedExPDFPackageDispatch(
+        selectedRepartidores, 
+        selectedRutas, 
+        selectedUnidad, 
+        validPackages, user?.subsidiary?.name)
+        
+      
+      const pdfUrl = window.URL.createObjectURL(blob);
+      window.open(pdfUrl, "_blank");*/
+
+      /**** Nueva Libreria */
+       const blob = await pdf(
+          <FedExPackageDispatchPDF
+            key={Date.now()}
+            drivers={selectedRepartidores}
+            routes={selectedRutas}
+            vehicle={selectedUnidad}
+            packages={validPackages}
+            subsidiaryName={user?.subsidiary?.name}
+          />
+        ).toBlob();
+
+        const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+        window.open(blobUrl, '_blank');
+
+
+      //return fileName;
+      setIsLoading(false)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      //toast("No se pudo generar el PDF.")
+    }
+
   }
+
+  const handleSendEmail = async (packageDispatchId: string) => {
+    try {
+      console.log("🚀 ~ handleSendEmail ~ selectedUnidad:", selectedUnidad)
+
+      const blob = await pdf(
+          <FedExPackageDispatchPDF
+            key={Date.now()}
+            drivers={selectedRepartidores}
+            routes={selectedRutas}
+            vehicle={selectedUnidad}
+            packages={validPackages}
+            subsidiaryName={user?.subsidiary?.name}
+          />
+        ).toBlob();
+
+        const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+        window.open(blobUrl, '_blank');
+
+      const currentDate = new Date().toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+      });
+
+      const fileName = `PMY_Salida_a_Ruta_${user?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
+
+      // Convert Blob to File using the provided fileName
+      const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+
+      // Use selectedSubsidiaryName (already passed to PDF generator)
+      const subsidiaryName = selectedSubsidiaryName || 'Unknown';
+
+      // Optional: Track upload progress
+      const onProgress = (percent: number) => {
+        console.log(`Upload progress: ${percent}%`);
+        // Update UI, e.g., setProgress(percent);
+      };
+
+      await uploadPDFile(pdfFile, subsidiaryName, packageDispatchId, onProgress);
+
+      toast({
+        title: 'Éxito',
+        description: `El archivo ${fileName} se ha subido correctamente.`,
+      });
+    } catch (error) {
+      console.error('Error in handleSendEmail:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo subir el archivo PDF.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const validPackages = packages.filter((p) => p.isValid)
   const invalidPackages = packages.filter((p) => !p.isValid)
@@ -320,6 +427,10 @@ const PackageDispatchForm: React.FC<Props> = ({
               disabled={isLoading}
             />
           </div>
+          <div className="space-y-2">
+            <Label>Kilometraje Actual de la  Unidad</Label>
+            <Input type="text" onChange={(e) => setSelectedKms(e.target.value)} />
+          </div>
         </div>
 
         {/* Package Scanning Section */}
@@ -339,7 +450,7 @@ const PackageDispatchForm: React.FC<Props> = ({
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 items-end justify-end">
+          <div className="flex flex-col sm:flex-row gap-3 items-end justify-end">
             <Button onClick={handleValidatePackages} disabled={isLoading} className="w-full sm:w-auto">
               <Scan className="mr-2 h-4 w-4" />
               {isLoading ? "Procesando..." : "Validar paquetes"}
@@ -353,6 +464,11 @@ const PackageDispatchForm: React.FC<Props> = ({
             >
               <Send className="mr-2 h-4 w-4" />
               Procesar salida
+            </Button>
+
+            <Button onClick={handlePdfCreate} disabled={validPackages.length === 0} variant="outline" className="flex-1 bg-transparent">
+                <FileText className="mr-2 h-4 w-4" />
+                Solo generar PDF
             </Button>
           </div>
 
@@ -431,7 +547,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                               {pkg.priority.toLocaleUpperCase()}
                             </Badge>
                           )}
-                          { pkg.isHighValue && (
+                          { pkg.isCharge && (
                             <Badge className="bg-green-600 :hover:bg-green-700 text-xs">
                               <span className="h-4 text-white">ES CARGA</span>
                             </Badge>
@@ -441,10 +557,13 @@ const PackageDispatchForm: React.FC<Props> = ({
                               <DollarSignIcon className="h-4 w-4 text-white"/>
                             </Badge>
                           )}
-                          <Badge className="bg-blue-600 :hover:bg-blue-700 text-xs">
-                            <BanknoteIcon className="h-4 w-4 text-white"/>
-                            &nbsp; A COBRAR: $3500.00
-                          </Badge>
+                          { pkg.payment && (
+                            <Badge className="bg-blue-600 :hover:bg-blue-700 text-xs">
+                              <BanknoteIcon className="h-4 w-4 text-white"/>
+                              &nbsp; A COBRAR: ${pkg.payment.amount}
+                            </Badge>
+                          )}
+                          
                         </div>
                         {pkg.isValid && (
                           <div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-x-4 gap-y-1">

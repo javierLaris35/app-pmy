@@ -24,7 +24,7 @@ import { getVehiclesBySucursalId } from "@/lib/services/vehicles" // Asegúrate 
 
 interface UnidadSelectorProps {
   selectedUnidad: Vehicles
-  onSelectionChange: (unidadId: string) => void
+  onSelectionChange: (unidad: Vehicles) => void
   disabled?: boolean
 }
 
@@ -79,11 +79,20 @@ export function UnidadSelector({
   }, [selectedSubsidiaryId])
 
   const handleSelect = (unidadId: string) => {
-    onSelectionChange(unidadId === selectedUnidad ? "" : unidadId)
+    const unidad = unidades.find((u) => u.id === unidadId)
+
+    if(!unidad){
+      console.warn(`Unidad with ID ${unidadId} not found`);
+      return;
+    }
+
+    onSelectionChange(unidad)
     setOpen(false)
   }
 
-  const selectedUnidadData = unidades.find((u) => u.id === selectedUnidad)
+  const selectedUnidadData = selectedUnidad
+    ? unidades.find((u) => u.id === selectedUnidad.id)
+    : undefined;
 
   return (
     <div className="space-y-2">
@@ -98,9 +107,9 @@ export function UnidadSelector({
           >
             <div className="flex items-center gap-2">
               <Truck className="h-4 w-4" />
-              {selectedUnidad === ""
+              {!selectedUnidad || !selectedUnidad.name
                 ? "Seleccionar unidad..."
-                : selectedUnidadData?.name || "Unidad seleccionada"}
+                : selectedUnidadData?.name || selectedUnidad.name}
             </div>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>

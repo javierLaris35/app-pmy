@@ -53,8 +53,6 @@ export default function PackageDispatchControl() {
       "Paquetes",
       (row) => row.shipments,
       (shipments) => {
-        console.log("📦 Shipments:", shipments); // <-- aquí ves qué trae
-
         if (!shipments || shipments.length === 0) return "Sin paquetes";
 
         return (

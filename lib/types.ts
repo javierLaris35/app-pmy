@@ -416,6 +416,7 @@ export interface DispatchFormData {
   vehicle: Vehicles
   shipments: string[]
   subsidiary: Subsidiary
+  kms?: string
 }
 
 
@@ -475,4 +476,7 @@ export interface PackageInfo {
   charge?: Charge
   isValid: boolean
   reason?: string
+  payment?: {
+    amount: string
+  }
 }

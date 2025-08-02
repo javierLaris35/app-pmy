@@ -12,8 +12,6 @@ export function usePackageDispatchs(subsidiaryId: string) {
           : null,
         ([, subsidiaryId]: [string, string]) => getPackageDispatchs(subsidiaryId)
     );
-    
-    console.log("🚀 ~ usePackageDispatchs ~ data:", data)
 
     return {
         packageDispatchs: data || [],
