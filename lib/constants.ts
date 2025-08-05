@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon } from "lucide-react"
 
 export interface NavItem {
     title: string
@@ -69,6 +69,13 @@ export const sidebarMenu = {
           name: "Consolidados",
           url: "/operaciones/consolidados",
           icon: IconTruckLoading,
+          roles: ["admin", "superadmin"],
+          isActive: false
+        },
+        {
+          name: "Desembarques",
+          url: "/operaciones/desembarques",
+          icon: PackageCheckIcon,
           roles: ["admin", "superadmin"],
           isActive: false
         },

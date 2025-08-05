@@ -549,7 +549,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                           )}
                           { pkg.isCharge && (
                             <Badge className="bg-green-600 :hover:bg-green-700 text-xs">
-                              <span className="h-4 text-white">ES CARGA</span>
+                              <span className="h-4 text-white">CARGA/F2/31.5</span>
                             </Badge>
                           )}
                           { pkg.isHighValue && (

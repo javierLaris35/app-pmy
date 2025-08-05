@@ -44,9 +44,12 @@ const stringField = (message: string) =>
 
 export const vehicleSchema = z.object({
   plateNumber: stringField("Número de placa es requerido")
-    .regex(/^[A-Z0-9]{1,3}-[A-Z0-9]{1,3}$/, "Formato de placa inválido"),
+    .regex(/^[A-Z0-9]{1,3}-[A-Z0-9]{1,5}$/, "Formato de placa inválido"),
+  plateNumber2: stringField("Número de placa es requerido")
+    .regex(/^[A-Z0-9]{1,3}-[A-Z0-9]{1,5}$/, "Formato de placa inválido"),
   model: stringField("Modelo es requerido"),
   brand: stringField("Marca es requerida"),
+  policyNumber: stringField("Número de Poliza es requerida"),
   name: z
     .string()
     .transform((val) => val?.trim() || undefined)
@@ -70,6 +73,9 @@ export const vehicleSchema = z.object({
       invalid_type_error: "Kilometraje inválido",
     })
     .min(0, "Kilometraje debe ser mayor o igual a 0")
+    .optional(),
+  policyExpirationDate: z
+    .union([z.date(), z.string().datetime(), z.null()])
     .optional(),
   lastMaintenance: z
     .union([z.date(), z.string().datetime(), z.null()])
@@ -102,16 +108,16 @@ export function VehicleForm({ defaultValues, onSubmit }: VehicleFormProps) {
     resolver: zodResolver(vehicleSchema),
     defaultValues: {
       plateNumber: '',
+      plateNumber2: '',
       model: '',
+      policyNumber: '',
+      policyExpirationDate: '',
       brand: '',
       name: '',
       code: '',
       capacity: undefined,
       type: undefined,
       status: undefined,
-      kms: undefined,
-      lastMaintenance: undefined,
-      nextMaintenance: undefined,
       subsidiary: user?.subsidiary,
       subsidiaryId: user?.subsidiary?.id,
       ...defaultValues,
@@ -128,16 +134,16 @@ export function VehicleForm({ defaultValues, onSubmit }: VehicleFormProps) {
   useEffect(() => {
     form.reset({
       plateNumber: '',
+      plateNumber2: '',
       model: '',
+      policyNumber: '',
+      policyExpirationDate: '',
       brand: '',
       name: '',
       code: '',
       capacity: undefined,
       type: undefined,
       status: undefined,
-      kms: undefined,
-      lastMaintenance: undefined,
-      nextMaintenance: undefined,
       subsidiary: user?.subsidiary,
       subsidiaryId: user?.subsidiary?.id,
       ...defaultValues,
@@ -179,11 +185,35 @@ export function VehicleForm({ defaultValues, onSubmit }: VehicleFormProps) {
               <FormControl>
                 <Input
                   {...field}
-                  maxLength={7}
+                  maxLength={9}
                   onChange={(e) => {
                     let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
                     if (value.length > 3) {
-                      value = `${value.slice(0, 3)}-${value.slice(3, 6)}`
+                      value = `${value.slice(0, 3)}-${value.slice(3, 9)}`
+                    }
+                    field.onChange(value)
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="plateNumber2"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Número de Placa 2</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  maxLength={9}
+                  onChange={(e) => {
+                    let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                    if (value.length > 3) {
+                      value = `${value.slice(0, 3)}-${value.slice(3, 9)}`
                     }
                     field.onChange(value)
                   }}
@@ -352,6 +382,49 @@ export function VehicleForm({ defaultValues, onSubmit }: VehicleFormProps) {
                   placeholder="Ej: 120000"
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Número de Poliza */}
+        <FormField
+          control={form.control}
+          name="policyNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Número de Poliza</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  value={field.value ?? ''}
+                  placeholder="Ej: ABC1522CY"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {/* Fecha de Expiración de Poliza */}
+        <FormField
+          control={form.control}
+          name="policyExpirationDate"
+          render={({ field }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel>Fecha de Expiración de Poliza</FormLabel>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      {field.value ? format(field.value, 'dd/MM/yyyy') : 'Selecciona una fecha'}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Send, Package, Truck } from "lucide-react"
+import { Send, Package, Truck, Eye, Sheet } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { createSelectColumn, createSortableColumn } from "@/components/data-table/columns"
@@ -14,6 +14,9 @@ import PackageDispatchForm from "./package-dispatch-form"
 import type { PackageDispatch } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
+import { columns } from "./columns"
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
+import { generateDispatchExcelClient } from "@/lib/services/package-dispatch-excel-generator"
 
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
@@ -39,79 +42,42 @@ export default function PackageDispatchControl() {
     setSelectedSucursalName(name || "")
   }
 
-  // Columns for dispatches
-  const dispatchColumns = [
-    createSelectColumn<PackageDispatch>(),
-    createSortableColumn<PackageDispatch>(
-      "trackingNumber",
-      "Número de Seguimiento",
-      (row) => row.trackingNumber,
-      (value) => <span className="font-mono">{value}</span>,
-    ),
-    createSortableColumn(
-      "shipments",
-      "Paquetes",
-      (row) => row.shipments,
-      (shipments) => {
-        if (!shipments || shipments.length === 0) return "Sin paquetes";
+  const handleExcelFileCreation = async (packageDispatch: PackageDispatch) => {
+    return await generateDispatchExcelClient(packageDispatch);
+  }
 
-        return (
-          <span className="font-mono">
-            {shipments.length} paquete{shipments.length > 1 ? "s" : ""}
-          </span>
-        );
-      }
-    ),
-    createSortableColumn<PackageDispatch>(
-      "status",
-      "Estado",
-      (row) => row.status,
-      (value) => {
-        const statusMap = {
-          PENDING: { label: "Pendiente", variant: "secondary" as const },
-          IN_TRANSIT: { label: "En Tránsito", variant: "default" as const },
-          DELIVERED: { label: "Entregado", variant: "default" as const },
-          RETURNED: { label: "Devuelto", variant: "destructive" as const },
+  const updatedColumns = columns.map((col) =>
+    col.id === "actions"
+      ? {
+          ...col,
+          cell: ({ row }) => (
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                onClick={() => console.log("Edit vehicle", row.original)}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    className="h-8 w-8 p-0 text-white bg-green-900"
+                    onClick={() => handleExcelFileCreation(row.original)}
+                  >
+                    <Sheet className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Generar Excel
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          ),
         }
-        const status = statusMap[value as keyof typeof statusMap] || statusMap.PENDING
-        return <Badge variant={status.variant}>{status.label}</Badge>
-      },
-    ),
-    createSortableColumn<PackageDispatch>(
-      "dispatchDate",
-      "Fecha de Salida",
-      (row) => row.dispatchDate,
-      (value) => {
-        if (!value) return "Sin fecha"
-        const date = new Date(value)
-        return (
-          date.toLocaleDateString("es-ES") +
-          " " +
-          date.toLocaleTimeString("es-ES", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        )
-      },
-    ),
-    createSortableColumn<PackageDispatch>(
-      "estimatedDelivery",
-      "Entrega Estimada",
-      (row) => row.estimatedDelivery,
-      (value) => {
-        if (!value) return "No estimada"
-        const date = new Date(value)
-        return (
-          date.toLocaleDateString("es-ES") +
-          " " +
-          date.toLocaleTimeString("es-ES", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        )
-      },
-    ),
-  ]
+      : col
+  );
 
   return (
     <AppLayout>
@@ -214,7 +180,7 @@ export default function PackageDispatchControl() {
             </div>
 
             {selectedSucursalId ? (
-              <DataTable columns={dispatchColumns} data={packageDispatchs} />
+              <DataTable columns={updatedColumns} data={packageDispatchs} />
             ) : (
               <div className="flex h-[200px] items-center justify-center">
                 <p className="text-muted-foreground">Selecciona una sucursal para ver las salidas</p>
@@ -238,9 +204,8 @@ export default function PackageDispatchControl() {
             subsidiaryName={selectedSucursalName}
             onClose={() => setIsDispatchDialogOpen(false)}
             onSuccess={() => {
-              mutate
+              mutate()
               setIsDispatchDialogOpen(false)
-              // Refresh dispatches data here
             }}
           />
         </DialogContent>

@@ -21,10 +21,13 @@ import { useVehicles, useSaveVehicle } from "@/hooks/services/vehicles/use-vehic
 import { Vehicles, VehicleStatus } from "@/lib/types"
 import { VehicleForm } from "@/components/modals/vehicle-form"
 import { columns } from "./columns"
+import { deleteVehicle } from "@/lib/services/vehicles"
 
 export default function VehiclesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<Vehicles | null>(null)
+  const [open, setOpen] = useState(false);
+  const [vehicleIdToDelete, setVehicleIdToDelete] = useState<string | null>(null);
 
   const [plateNumber, setPlateNumber] = useState("")
   const [model, setModel] = useState("")
@@ -41,6 +44,11 @@ export default function VehiclesPage() {
     setIsDialogOpen(true)
   }
 
+  const openDeleteDialog = (vehicleId: string) => {
+    setVehicleIdToDelete(vehicleId);
+    setOpen(true);
+  };
+
   const openEditDialog = (vehicle: Vehicles) => {
     console.log("🚀 ~ openEditDialog ~ vehicle:", vehicle)
     setEditingVehicle(vehicle)
@@ -51,9 +59,14 @@ export default function VehiclesPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (vehicle: Vehicles) => { 
-
-  }
+  const handleConfirmDelete = async () => {
+    if (!vehicleIdToDelete) return;
+    await deleteVehicle(vehicleIdToDelete);
+    console.log("Vehículo eliminado:", vehicleIdToDelete);
+    setOpen(false);
+    setVehicleIdToDelete(null);
+    mutate()
+  };
 
   const handleSubmit = async (data: Vehicles) => {
     console.log("🚀 ~ handleSubmit ~ data:", data)
@@ -69,7 +82,7 @@ export default function VehiclesPage() {
     await save(payload)
     setIsDialogOpen(false)
     mutate()
-    }
+  }
 
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
@@ -87,7 +100,7 @@ export default function VehiclesPage() {
                 <Button
                 variant="default"
                 className="h-8 w-8 p-0"
-                onClick={() => handleDelete(row.original)}
+                onClick={() => openDeleteDialog(row.original.id)}
                 >
                 <Trash2Icon className="h-4 w-4" />
                 </Button>
@@ -132,6 +145,20 @@ export default function VehiclesPage() {
           <VehicleForm defaultValues={editingVehicle} onSubmit={handleSubmit}/>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Estás seguro?</DialogTitle>
+          </DialogHeader>
+          <p>Esta acción eliminará el vehículo de forma permanente.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>Sí, eliminar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </AppLayout>
   )
 }

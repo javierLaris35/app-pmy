@@ -44,7 +44,7 @@ export function useSavePackageDispatch(){
         trigger: save,
         isMutating: isSaving,
         error,
-    } = useSWRMutation("save-vehicle", async (_key, { arg }: { arg: PackageDispatch }) => {
+    } = useSWRMutation("save-package-dispatch", async (_key, { arg }: { arg: PackageDispatch }) => {
         return await savePackageDispatch(arg);
     });
 

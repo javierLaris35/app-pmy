@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 1,
     width: '100%',
   },
   logo: {
@@ -70,10 +70,9 @@ const styles = StyleSheet.create({
     minWidth: 40,
   },
   simbology: {
-    fontWeight: 700,
+    fontWeight: 400,
     paddingRight: 4,
     minWidth: 40,
-    paddingTop: 5
   },
   columns: {
     flexDirection: 'row',
@@ -87,15 +86,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#9d5137',
     padding: 4,
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: 'bold',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottom: '1px solid #ccc',
-    fontSize: 11,
+    fontSize: 9,
     padding: 4,
-  },
+  }
 });
 
 export const FedExPackageDispatchPDF = ({
@@ -114,6 +113,11 @@ export const FedExPackageDispatchPDF = ({
   const timeZone = 'America/Hermosillo';
   const currentDate = new Date();
   const formattedDate = format(currentDate, 'yyyy-MM-dd', { timeZone });
+
+  const truncate = (text: string, maxLength: number): string => {
+    if (!text) return '';
+    return text.length > maxLength ? text.slice(0, maxLength - 3) + '...' : text;
+  };
 
   return (
     <Document>
@@ -160,7 +164,7 @@ export const FedExPackageDispatchPDF = ({
           <View style={styles.columns}>
             <View style={styles.column}>
               <Text style={styles.simbology}>
-                Simbología: [C] Carga [$] Pago [H] Valor alto
+                Simbología: [C] Carga/F2/31.5 [$] Pago [H] Valor alto
               </Text>
             </View>
             <View>
@@ -175,14 +179,14 @@ export const FedExPackageDispatchPDF = ({
         </View>
 
         <View style={styles.tableHeader}>
-          <Text style={{ width: 40 }}>[#]</Text>
-          <Text style={{ width: 80 }}>No. Guia</Text>
-          <Text style={{ width: 105 }}>Nombre</Text>
-          <Text style={{ width: 105 }}>Dirección</Text>
-          <Text style={{ width: 60 }}>Cobro</Text>
-          <Text style={{ width: 65 }}>Fecha</Text>
-          <Text style={{ width: 55 }}>Hora</Text>
-          <Text style={{ width: 65 }}>Celular</Text>
+          <Text style={{ width: 25 }}>[#]</Text>
+          <Text style={{ width: 63 }}>No. Guia</Text>
+          <Text style={{ width: 145 }}>Nombre</Text>
+          <Text style={{ width: 155 }}>Dirección</Text>
+          <Text style={{ width: 45 }}>Cobro</Text>
+          <Text style={{ width: 55 }}>Fecha</Text>
+          <Text style={{ width: 45 }}>Hora</Text>
+          <Text style={{ width: 55 }}>Celular</Text>
           <Text style={{ width: 90 }}>Nombre y Firma</Text>
         </View>
 
@@ -197,16 +201,18 @@ export const FedExPackageDispatchPDF = ({
 
           return (
             <View style={styles.tableRow} key={i}>
-              <Text style={{ width: 40 }}>
+              <Text style={{ width: 25 }}>
                 {icons} {i + 1}
               </Text>
-              <Text style={{ width: 80 }}>{pkg.trackingNumber}</Text>
-              <Text style={{ width: 105 }}>{pkg.recipientName}</Text>
-              <Text style={{ width: 105 }}>{pkg.recipientAddress}</Text>
-              <Text style={{ width: 60 }}>{pkg.payment?.amount || ''}</Text>
-              <Text style={{ width: 65 }}>{commitDate}</Text>
-              <Text style={{ width: 55 }}>{commitTime}</Text>
-              <Text style={{ width: 65 }}>{pkg.recipientPhone}</Text>
+              <Text style={{ width: 63 }}>{pkg.trackingNumber}</Text>
+              <Text style={{ width: 145 }}>{truncate(pkg.recipientName, 26)}</Text>
+              <Text style={{ width: 155 }}>{truncate(pkg.recipientAddress, 28)}</Text>
+              <Text style={{ width: 45 }}>
+                {pkg.payment?.amount != null ? `$${pkg.payment.amount.toFixed(2)}` : ''}
+              </Text>
+              <Text style={{ width: 55 }}>{commitDate}</Text>
+              <Text style={{ width: 45 }}>{commitTime}</Text>
+              <Text style={{ width: 55 }}>{pkg.recipientPhone}</Text>
               <Text style={{ width: 90 }}></Text>
             </View>
           );

@@ -132,14 +132,14 @@ export function UnidadSelector({
                   return (
                     <CommandItem
                       key={unidad.id}
-                      value={commandValue}       // <-- cambio mínimo aquí
+                      value={commandValue}       
                       onSelect={() => handleSelect(unidad.id)}
                       disabled={!isDisponible}
                     >
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          selectedUnidad === unidad.id ? "opacity-100" : "opacity-0"
+                          selectedUnidad?.id === unidad.id ? "opacity-100" : "opacity-0"
                         )}
                       />
                       <div className="flex items-center justify-between w-full">

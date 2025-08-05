@@ -104,7 +104,7 @@ export function RutaSelector({ selectedRutas, onSelectionChange, disabled = fals
                 {rutas.map((ruta) => (
                   <CommandItem key={ruta.id} value={ruta.name} onSelect={() => handleSelect(ruta.id)}>
                     <Check
-                      className={cn("mr-2 h-4 w-4", selectedRutas.includes(ruta.id) ? "opacity-100" : "opacity-0")}
+                      className={cn("mr-2 h-4 w-4", selectedRutas.includes(ruta) ? "opacity-100" : "opacity-0")}
                     />
                     <div className="flex flex-col">
                       <span className="font-medium">{ruta.name}</span>

@@ -110,7 +110,7 @@ export function RepartidorSelector({
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        selectedRepartidores.includes(repartidor.id) ? "opacity-100" : "opacity-0",
+                        selectedRepartidores.includes(repartidor) ? "opacity-100" : "opacity-0",
                       )}
                     />
                     <div className="flex flex-col">

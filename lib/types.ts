@@ -408,6 +408,7 @@ export interface PackageDispatch {
   estimatedArrival: string
   startTime: string
   subsidiary: Subsidiary
+  createdAt?: string
 }
 
 export interface DispatchFormData {
@@ -418,7 +419,6 @@ export interface DispatchFormData {
   subsidiary: Subsidiary
   kms?: string
 }
-
 
 /*** Administration */
 export enum VehicleStatus {
@@ -445,8 +445,11 @@ export enum VehicleTypeEnum {
 export interface Vehicles {
   id?: string
   plateNumber: string
+  plateNumber2: string
   model: string
   brand: string
+  policyNumber: string
+  policyExpirationDate: string
   code: string
   capacity: number;
   type: VehicleTypeEnum;
@@ -479,4 +482,14 @@ export interface PackageInfo {
   payment?: {
     amount: string
   }
+}
+
+export interface Unloading {
+  id: string;
+  vehicle?: Vehicles;
+  subsidiary?: Subsidiary;
+  shipments?: Shipment[];
+  missingTrackings: string[];
+  unScannedTrackings: string[];
+  date: string;
 }
