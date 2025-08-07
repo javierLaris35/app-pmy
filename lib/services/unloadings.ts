@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { PackageInfo, Unloading } from "@/lib/types"
+import { PackageInfo, Unloading, UnloadingFormData } from "@/lib/types"
 
 const url = '/unloadings'
 
@@ -13,7 +13,7 @@ const getUnloadingById = async (id: string) => {
     return response.data;
 }
 
-const saveUnloading = async (unloading: Unloading) => {
+const saveUnloading = async (unloading: UnloadingFormData) => {
     const response = await axiosConfig.post<Unloading>(url, unloading);
     return response.data;
 }

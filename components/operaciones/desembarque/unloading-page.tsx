@@ -13,6 +13,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useUnLoadings } from "@/hooks/services/unloadings/use-unloading"
 import { Unloading } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
+import UnloadingForm from "./unloading-form"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export default function UnLoadingPageControl() {
     const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
@@ -88,7 +90,7 @@ export default function UnLoadingPageControl() {
                         <div className="w-[250px]">
                             <SucursalSelector
                                 value={selectedSucursalId ?? ""}
-                                onValueChange={(id, name) => handleSucursalChange(id, name)}
+                                onValueChange={(id) => handleSucursalChange(id)}
                             />
                         </div>
                     </div>
@@ -121,12 +123,32 @@ export default function UnLoadingPageControl() {
                             <DataTable columns={updatedColumns} data={unloadings} />
                         ) : (
                             <div className="flex h-[200px] items-center justify-center">
-                                <p className="text-muted-foreground">Selecciona una sucursal para ver las salidas</p>
+                                <p className="text-muted-foreground">Selecciona una sucursal para ver los desembarques</p>
                             </div>
                         )}
                     </CardContent>
                 </Card>
             </div>
+
+            <Dialog open={isUnloagingDialogOpen} onOpenChange={setIsUnloadingDialogOpen}>
+                <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Nuevo Desembarque de Paquetes</DialogTitle>
+                            <DialogDescription>
+                                Selecciona la unidad de transporte, luego escanea los paquetes para procesar el desembarque.
+                            </DialogDescription>
+                    </DialogHeader>
+                    <UnloadingForm
+                        selectedSubsidiaryId={selectedSucursalId}
+                        subsidiaryName={selectedSucursalName}
+                        onClose={() => setIsUnloadingDialogOpen(false)}
+                        onSuccess={() => {
+                        mutate()
+                        setIsUnloadingDialogOpen(false)
+                        }}
+                    />
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     )
 

@@ -31,6 +31,7 @@ import {
   uploadShipmentPayments,
   uploadHighValueShipments
 } from "@/lib/services/shipments"
+import { useAuthStore } from "@/store/auth.store"
 
 const steps = [
   {
@@ -88,6 +89,14 @@ export function ShipmentWizardModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const user = useAuthStore((s) => s.user);
+
+
+  useEffect(() => {
+      if (user?.subsidiary) {
+        setSucursalId(user.subsidiary.id);
+      }
+    }, [user]);
 
   // Efectos para persistencia en localStorage
   useEffect(() => {

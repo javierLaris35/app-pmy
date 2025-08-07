@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import classNames from "classnames"
-import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText } from "lucide-react"
+import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText, CircleAlertIcon } from "lucide-react"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { RutaSelector } from "../selectors/ruta-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
@@ -72,6 +72,7 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   // Package scanning states
   const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("")
+  const [currentScan, setCurrentScan] = useState("")
   const [packages, setPackages] = useState<PackageInfo[]>([])
   const [invalidNumbers, setInvalidNumbers] = useState<string[]>([])
   const [hasValidated, setHasValidated] = useState(false)
@@ -375,6 +376,26 @@ const PackageDispatchForm: React.FC<Props> = ({
     }
   };
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const lines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
+      const lastLine = lines[lines.length - 1] || "";
+      const newCode = lastLine.slice(-12);
+      if (newCode) {
+        setTrackingNumbersRaw((prev) => (prev ? `${prev}\n${newCode}` : newCode));
+        setCurrentScan((prev) => {
+          const prevLines = prev.split("\n").slice(0, -1);
+          return [...prevLines, newCode, ""].join("\n");
+        });
+      }
+    }
+  }, [currentScan]);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setCurrentScan(e.target.value);
+  }, []);
+  
   const validPackages = packages.filter((p) => p.isValid)
   const invalidPackages = packages.filter((p) => !p.isValid)
   const canDispatch =
@@ -435,12 +456,14 @@ const PackageDispatchForm: React.FC<Props> = ({
 
         {/* Package Scanning Section */}
         <div className="space-y-4">
+          {trackingNumbersRaw}
           <div className="space-y-2">
             <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
             <Textarea
               id="trackingNumbers"
-              value={trackingNumbersRaw}
-              onChange={(e) => setTrackingNumbersRaw(e.target.value)}
+              value={currentScan}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
               placeholder="Escanea los códigos de seguimiento aquí..."
               rows={6}
               disabled={isLoading}
@@ -492,34 +515,48 @@ const PackageDispatchForm: React.FC<Props> = ({
           )}
 
           {packages.length > 0 && (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-2">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-x-4 gap-y-2">
                 {/* Left Side: Title */}
                 <h3 className="text-lg font-semibold text-gray-800">Paquetes validados</h3>
-
-                {/* Right Side: Inline Summary */}
-                {(selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad || packages.length > 0) && (
-                  <div className="flex items-center gap-x-3 text-sm text-gray-600">
-                    <Package className="w-4 h-4 text-gray-600" />
-                    <span className="font-medium">Resumen:</span>
-                    <span>
-                      Repartidores: <span className="font-bold">{selectedRepartidores.length}</span>
-                    </span>
-                    <span className="text-gray-300">|</span>
-                    <span>
-                      Rutas: <span className="font-bold">{selectedRutas.length}</span>
-                    </span>
-                    <span className="text-gray-300">|</span>
-                    <span>
-                      Paquetes válidos: <span className="font-bold">{validPackages.length}</span>
-                    </span>
-                    <span className="text-gray-300">|</span>
-                    <span>
-                      Paquetes inválidos: <span className="font-bold text-red-600">{invalidPackages.length}</span>
-                    </span>
-                  </div>
-                )}
               </div>
+              <div className="flex items-center justify-end gap-x-3 text-xs text-gray-600 flex-wrap">
+                <span>Simbología:</span>
+
+                <div className="flex items-center gap-x-1">
+                  <CircleAlertIcon className="h-4 w-4 text-red-600" />
+                  <span>No Válido</span>
+                </div>
+
+                <span>/</span>
+
+                <div className="flex items-center gap-x-1">
+                  <span>Carga/F2/31.5:</span>
+                  <Badge className="text-white bg-green-600 whitespace-nowrap">
+                    Carga/F2/31.5
+                  </Badge>
+                </div>
+
+                <span>/</span>
+
+                <div className="flex items-center gap-x-1">
+                  <span>Alto Valor:</span>
+                  <Badge className="bg-violet-600 hover:bg-violet-700 flex items-center">
+                    <DollarSignIcon className="h-4 w-4 text-white" />
+                  </Badge>
+                </div>
+
+                <span>/</span>
+
+                <div className="flex items-center gap-x-1">
+                  <span>Cobros (FTC/ROD/COD):</span>
+                  <Badge className="bg-blue-600 hover:bg-blue-700 text-xs flex items-center whitespace-nowrap">
+                    <BanknoteIcon className="h-4 w-4 text-white" />
+                    <span className="ml-1">A COBRAR: FTC $1000.00</span>
+                  </Badge>
+                </div>
+              </div>
+
               <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
                 <ul className="divide-y divide-gray-300">
                   {packages.map((pkg) => (
@@ -607,6 +644,29 @@ const PackageDispatchForm: React.FC<Props> = ({
                   ))}
                 </ul>
               </div>
+              <div className="flex flex-col md:flex-row justify-end items-end md:items-center gap-x-4 gap-y-2">
+                {(selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad || packages.length > 0) && (
+                    <div className="flex items-center gap-x-3 text-sm text-gray-600">
+                      <Package className="w-4 h-4 text-gray-600" />
+                      <span className="font-medium">Resumen:</span>
+                      <span>
+                        Repartidores: <span className="font-bold">{selectedRepartidores.length}</span>
+                      </span>
+                      <span className="text-gray-300">|</span>
+                      <span>
+                        Rutas: <span className="font-bold">{selectedRutas.length}</span>
+                      </span>
+                      <span className="text-gray-300">|</span>
+                      <span>
+                        Paquetes válidos: <span className="font-bold">{validPackages.length}</span>
+                      </span>
+                      <span className="text-gray-300">|</span>
+                      <span>
+                        Paquetes inválidos: <span className="font-bold text-red-600">{invalidPackages.length}</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
             </div>
           )}
         </div>

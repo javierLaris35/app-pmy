@@ -36,7 +36,7 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
     if (selected) {
       setSelectedSucursal(selected)
     } else if (!value) {
-      const defaultSucursal = subsidiaries.find((s) => s.id === user?.subsidiaryId) || subsidiaries[0]
+      const defaultSucursal = subsidiaries.find((s) => s.id === user?.subsidiary?.id) || subsidiaries[0]
       setSelectedSucursal(defaultSucursal)
       onValueChange(defaultSucursal.id)
     }

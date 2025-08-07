@@ -493,3 +493,13 @@ export interface Unloading {
   unScannedTrackings: string[];
   date: string;
 }
+
+export interface UnloadingFormData {
+  id?: string;
+  vehicle?: Vehicles;
+  subsidiary?: Subsidiary;
+  shipments?: string[];
+  missingTrackings: string[];
+  unScannedTrackings: string[];
+  date: string;
+}

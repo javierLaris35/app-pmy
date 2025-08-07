@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { SucursalSelector } from "@/components/sucursal-selector"
-import type { User } from "@/lib/types"
+import type { Subsidiary, User } from "@/lib/types"
 
 export interface UserFormData {
   id?: string
@@ -21,7 +21,9 @@ export interface UserFormData {
   email: string
   password?: string
   role: "admin" | "user"
-  subsidiaryId: string
+  subsidiary: {
+    id: string
+  }
   active?: boolean
 }
 
@@ -39,7 +41,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
     email: "",
     password: "",
     role: "user",
-    subsidiaryId: "",
+    subsidiary:  null,
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -52,7 +54,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
         lastName: user.lastName || "",
         email: user.email,
         role: user.role,
-        subsidiaryId: user.subsidiaryId || "",
+        subsidiary: user.subsidiary || "",
         password: "",
       })
     } else {
@@ -62,7 +64,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
         email: "",
         password: "",
         role: "user",
-        subsidiaryId: "",
+        subsidiary: null,
       })
     }
   }, [user])
@@ -73,7 +75,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
   }
 
   const handleSubsidiaryChange = (value: string) => {
-    setForm((prev) => ({ ...prev, subsidiaryId: value }))
+    setForm((prev) => ({ ...prev, subsidiary: {id: value} }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,7 +127,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
           <div>
             <Label htmlFor="subsidiaryId">Sucursal</Label>
             <SucursalSelector
-              value={form.subsidiaryId}
+              value={form.subsidiary}
               onValueChange={handleSubsidiaryChange}
             />
           </div>
