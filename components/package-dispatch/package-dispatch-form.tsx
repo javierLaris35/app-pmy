@@ -21,6 +21,7 @@ import { generateEnhancedFedExPDFPackageDispatch } from "@/lib/services/pdf-gene
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch-pdf-generator"
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input"
+import { BarcodeScannerInput, TrackingNumberInput } from "../barcode-scanner-input"
 
 type Props = {
   selectedSubsidiaryId: string | null
@@ -79,6 +80,8 @@ const PackageDispatchForm: React.FC<Props> = ({
   const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
   const [selectedSubsidiaryName, setSelectedSubsidirayName] = useState<string | null>(null)
   const [selectedKms, setSelectedKms] = useState<string | null>("")
+
+  const [trackingNumbers, setTrackingNumbers] = useState<string[]>([]);
 
   // Loading and progress states
   const [isLoading, setIsLoading] = useState(false)
@@ -393,7 +396,9 @@ const PackageDispatchForm: React.FC<Props> = ({
   }, [currentScan]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    console.log(e)
     setCurrentScan(e.target.value);
+    console.log("🚀 ~ PackageDispatchForm ~ e.target.value:", e.target.value)
   }, []);
   
   const validPackages = packages.filter((p) => p.isValid)
@@ -471,6 +476,12 @@ const PackageDispatchForm: React.FC<Props> = ({
                 "border-red-500": invalidNumbers.length > 0,
               })}
             />
+            {/*<BarcodeScannerInput
+              id="trackingNumbers"
+              disabled={isLoading}
+              hasErrors={invalidNumbers.length > 0}
+              onTrackingNumbersChange={trackingNumbers}
+            />*/}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 items-end justify-end">
