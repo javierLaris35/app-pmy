@@ -18,6 +18,7 @@ import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { generateEnhancedFedExPDF } from "@/lib/services/pdf-generator"
 import { toast } from "sonner"
 import { ReturnValidaton } from "@/lib/types"
+import { BarcodeScannerInput } from "../barcode-scanner-input"
 
 // Types
 export type Collection = {
@@ -395,7 +396,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
           <TabsContent value="collections" className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="collectionNumbers">Números de recolección</Label>
-              <Textarea
+              <BarcodeScannerInput 
+                onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)} 
+              />
+              {/*<Textarea
                 id="collectionNumbers"
                 value={collectionTrackingRaw}
                 onChange={(e) => setCollectionTrackingRaw(e.target.value)}
@@ -405,7 +409,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
                 className={classNames("resize-none overflow-y-auto max-h-60", {
                   "border-red-500": invalidCollections.length > 0,
                 })}
-              />
+              />*/}
             </div>
 
             <Button onClick={handleValidateCollections} disabled={isLoading} className="w-full">
@@ -469,7 +473,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
           <TabsContent value="devolutions" className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="devolutionNumbers">Números de devolución</Label>
-              <Textarea
+              <BarcodeScannerInput 
+                onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)} 
+              />
+              {/*<Textarea
                 id="devolutionNumbers"
                 value={devolutionTrackingRaw}
                 onChange={(e) => setDevolutionTrackingRaw(e.target.value)}
@@ -479,7 +486,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
                 className={classNames("resize-none overflow-y-auto max-h-60", {
                   "border-red-500": invalidDevolutions.length > 0,
                 })}
-              />
+              />*/}
             </div>
 
             <Button onClick={handleValidateDevolutions} disabled={isLoading} className="w-full">

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import classNames from "classnames";
 
 interface BarcodeScannerInputProps {
@@ -6,10 +6,9 @@ interface BarcodeScannerInputProps {
   placeholder?: string;
   disabled?: boolean;
   hasErrors?: boolean;
-  onTrackingNumbersChange?: (trackingNumbers: string[]) => void;
+  onTrackingNumbersChange?: (trackingNumbers: string) => void;
 }
 
-const VALIDATION_REGEX = /^\d{12}$/;
 
 export function BarcodeScannerInput({
   id = "trackingNumbers",
@@ -18,100 +17,73 @@ export function BarcodeScannerInput({
   hasErrors = false,
   onTrackingNumbersChange,
 }: BarcodeScannerInputProps) {
-  const [textareaValue, setTextareaValue] = useState("");
-  const trackingNumbersRef = useRef<string[]>([]);
-  const lastKeyPressTime = useRef<number>(0);
-  const isScanning = useRef<boolean>(false);
+  const wasPastedRef = useRef(false);
+  const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("")
+  const [currentScan, setCurrentScan] = useState("")
 
-  const processTrackingNumbers = useCallback((value: string, isPaste: boolean) => {
-    // Split input by newlines, spaces, tabs, or commas
-    const lines = value
-      .split(/[\n\s,]+/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const newTrackingNumbers: string[] = [];
-    const processedLines: string[] = [];
-
-    lines.forEach((line) => {
-      // For scanned input, always take last 12 digits; for pasted input, validate as-is or trim
-      const code = isPaste && VALIDATION_REGEX.test(line) ? line : line.slice(-12);
-      if (VALIDATION_REGEX.test(code) && !trackingNumbersRef.current.includes(code)) {
-        newTrackingNumbers.push(code);
-        processedLines.push(code);
-      } else {
-        processedLines.push(line); // Keep invalid or duplicate lines as-is
-      }
-    });
-
-    if (newTrackingNumbers.length > 0) {
-      trackingNumbersRef.current = [...trackingNumbersRef.current, ...newTrackingNumbers];
-      if (typeof onTrackingNumbersChange === "function") {
-        onTrackingNumbersChange(trackingNumbersRef.current);
-      }
+  useEffect(() => {
+    if (onTrackingNumbersChange) {
+      onTrackingNumbersChange(trackingNumbersRaw);
     }
+  }, [trackingNumbersRaw, onTrackingNumbersChange]);
 
-    return processedLines.join("\n");
-  }, [onTrackingNumbersChange]);
-
+  const handlePaste = useCallback(() => {
+    wasPastedRef.current = true;
+  }, []);
+  
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+  
+        // Si fue pegado, permitimos procesar normalmente
+        if (wasPastedRef.current) {
+          wasPastedRef.current = false; // resetea el flag
+  
+          const pastedLines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
+  
+          const codes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
+          pastedLines.forEach(line => {
+            const code = line.slice(-12); // solo lo último si es necesario
+            if (code) codes.add(code);
+          });
+  
+          setTrackingNumbersRaw(Array.from(codes).join("\n"));
+          return;
+        }
+  
+        // Procesamiento normal para escaneo (ej. pistola)
+        const lines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
+        const lastLine = lines[lines.length - 1] || "";
+        const newCode = lastLine.slice(-12);
+  
+        if (newCode) {
+          const existingCodes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
+          existingCodes.add(newCode);
+          setTrackingNumbersRaw(Array.from(existingCodes).join("\n"));
+  
+          setCurrentScan((prev) => {
+            const prevLines = prev.split("\n").slice(0, -1);
+            return [...prevLines, newCode, ""].join("\n");
+          });
+        }
+      }
+    },
+    [currentScan, trackingNumbersRaw]
+  );
+  
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    setTextareaValue(newValue);
-
-    // Detect paste events (multi-line or multi-token input)
-    if (newValue.includes("\n") || newValue.split(/[\s,]+/).length > 1) {
-      isScanning.current = false;
-      const processedValue = processTrackingNumbers(newValue, true);
-      setTextareaValue(processedValue);
-    } else {
-      // Mark as potential scan input
-      isScanning.current = true;
-    }
-  }, [processTrackingNumbers]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault();
-      const currentTime = Date.now();
-      // Prevent rapid keypresses (e.g., scanner sending multiple Enter events)
-      if (currentTime - lastKeyPressTime.current < 100) {
-        return;
-      }
-      lastKeyPressTime.current = currentTime;
-
-      if (isScanning.current) {
-        setTextareaValue((prev) => {
-          const lines = prev.split("\n").map((line) => line.trim()).filter(Boolean);
-          const lastLine = lines[lines.length - 1] || "";
-          const newCode = lastLine.slice(-12);
-          if (newCode && VALIDATION_REGEX.test(newCode) && !trackingNumbersRef.current.includes(newCode)) {
-            trackingNumbersRef.current = [...trackingNumbersRef.current, newCode];
-            if (typeof onTrackingNumbersChange === "function") {
-              onTrackingNumbersChange(trackingNumbersRef.current);
-            }
-            return [...lines.slice(0, -1), newCode, ""].join("\n");
-          }
-          return [...lines, ""].join("\n");
-        });
-      }
-    }
-  }, [onTrackingNumbersChange]);
-
-  const handleClear = useCallback(() => {
-    setTextareaValue("");
-    trackingNumbersRef.current = [];
-    if (typeof onTrackingNumbersChange === "function") {
-      onTrackingNumbersChange([]);
-    }
-  }, [onTrackingNumbersChange]);
+    setCurrentScan(e.target.value);
+  }, []);
 
   return (
     <div className="relative">
       <textarea
         id={id}
-        value={textareaValue}
+        value={currentScan}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={placeholder}
         rows={6}
         disabled={disabled}

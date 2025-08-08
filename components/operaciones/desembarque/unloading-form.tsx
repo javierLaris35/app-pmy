@@ -13,7 +13,7 @@ import { AlertCircle, BanknoteIcon, CircleAlertIcon, ClipboardPasteIcon, DollarS
 import { useAuthStore } from "@/store/auth.store";
 import { validateTrackingNumber, saveUnloading } from "@/lib/services/unloadings";
 import { PackageInfo, UnloadingFormData } from "@/lib/types";
-import TrackingTextarea, { ScannerInput } from "@/components/barcode-scanner-input";
+import TrackingTextarea, { BarcodeScannerInput, ScannerInput } from "@/components/barcode-scanner-input";
 import BarcodeScanner from "@/components/barcode-scanner-input";
 
 // Types based on the Unloading interface
@@ -292,7 +292,10 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
-            <BarcodeScanner />
+            <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
+            <BarcodeScannerInput 
+                onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
+            />
 
             {/*<Label htmlFor="trackingNumbers">Números de seguimiento</Label>
             <Textarea

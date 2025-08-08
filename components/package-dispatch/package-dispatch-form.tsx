@@ -14,14 +14,13 @@ import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, Dolla
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { RutaSelector } from "../selectors/ruta-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
-import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
+import { DispatchFormData, Driver, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
 import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib/services/package-dispatchs"
 import { useAuthStore } from "@/store/auth.store"
-import { generateEnhancedFedExPDFPackageDispatch } from "@/lib/services/pdf-generator-package-dispatch"
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch-pdf-generator"
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input"
-import { BarcodeScannerInput, TrackingNumberInput } from "../barcode-scanner-input"
+import { BarcodeScannerInput } from "../barcode-scanner-input"
 
 type Props = {
   selectedSubsidiaryId: string | null
@@ -246,7 +245,7 @@ const PackageDispatchForm: React.FC<Props> = ({
       };
 
       // Dispatch packages and get ID
-      const dispatchResponse = await dispatchPackages(dispatchData);
+      const dispatchResponse = await savePackageDispatch(dispatchData);
       const packageDispatchId = dispatchResponse; // Adjust based on actual API response
 
       // Upload PDF
@@ -379,28 +378,57 @@ const PackageDispatchForm: React.FC<Props> = ({
     }
   };
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' || e.key === 'Tab') {
-      e.preventDefault();
-      const lines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
-      const lastLine = lines[lines.length - 1] || "";
-      const newCode = lastLine.slice(-12);
-      if (newCode) {
-        setTrackingNumbersRaw((prev) => (prev ? `${prev}\n${newCode}` : newCode));
-        setCurrentScan((prev) => {
-          const prevLines = prev.split("\n").slice(0, -1);
-          return [...prevLines, newCode, ""].join("\n");
-        });
+  const wasPastedRef = useRef(false);
+
+  const handlePaste = useCallback(() => {
+    wasPastedRef.current = true;
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+
+        // Si fue pegado, permitimos procesar normalmente
+        if (wasPastedRef.current) {
+          wasPastedRef.current = false; // resetea el flag
+
+          const pastedLines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
+
+          const codes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
+          pastedLines.forEach(line => {
+            const code = line.slice(-12); // solo lo último si es necesario
+            if (code) codes.add(code);
+          });
+
+          setTrackingNumbersRaw(Array.from(codes).join("\n"));
+          return;
+        }
+
+        // Procesamiento normal para escaneo (ej. pistola)
+        const lines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
+        const lastLine = lines[lines.length - 1] || "";
+        const newCode = lastLine.slice(-12);
+
+        if (newCode) {
+          const existingCodes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
+          existingCodes.add(newCode);
+          setTrackingNumbersRaw(Array.from(existingCodes).join("\n"));
+
+          setCurrentScan((prev) => {
+            const prevLines = prev.split("\n").slice(0, -1);
+            return [...prevLines, newCode, ""].join("\n");
+          });
+        }
       }
-    }
-  }, [currentScan]);
+    },
+    [currentScan, trackingNumbersRaw]
+  );
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    console.log(e)
     setCurrentScan(e.target.value);
-    console.log("🚀 ~ PackageDispatchForm ~ e.target.value:", e.target.value)
   }, []);
-  
+
   const validPackages = packages.filter((p) => p.isValid)
   const invalidPackages = packages.filter((p) => !p.isValid)
   const canDispatch =
@@ -464,7 +492,7 @@ const PackageDispatchForm: React.FC<Props> = ({
           {trackingNumbersRaw}
           <div className="space-y-2">
             <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
-            <Textarea
+            {/*<Textarea
               id="trackingNumbers"
               value={currentScan}
               onChange={handleChange}
@@ -472,16 +500,14 @@ const PackageDispatchForm: React.FC<Props> = ({
               placeholder="Escanea los códigos de seguimiento aquí..."
               rows={6}
               disabled={isLoading}
+              onPaste={handlePaste}
               className={classNames("resize-none overflow-y-auto max-h-60", {
                 "border-red-500": invalidNumbers.length > 0,
               })}
-            />
-            {/*<BarcodeScannerInput
-              id="trackingNumbers"
-              disabled={isLoading}
-              hasErrors={invalidNumbers.length > 0}
-              onTrackingNumbersChange={trackingNumbers}
             />*/}
+            <BarcodeScannerInput 
+              onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
+            />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 items-end justify-end">

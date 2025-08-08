@@ -135,12 +135,14 @@ import { Shipment } from "../types";
     subsidiaryId: string,
     consNumber: string = "",
     consDate?: string,
+    notRemoveCharge: boolean = false,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData()
     formData.append("file", file)
     formData.append("subsidiaryId", subsidiaryId)
     formData.append("consNumber", consNumber || "")
+    formData.append("notRemoveCharge", notRemoveCharge.toString() || "false")
 
     // Solo agrega consDate si existe
     if (consDate) {

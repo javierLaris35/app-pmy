@@ -50,8 +50,8 @@ const steps = [
     icon: Gem,
   },
   {
-    label: "Remover cargas",
-    description: "Sube el archivo con cargas a excluir.",
+    label: "Carga / F2 / 31.5",
+    description: "Sube el archivo para agregar carga / f2 / 31.5 o removerlas dependiendo de la sucursal.",
     icon: MinusCircle,
   },
   {

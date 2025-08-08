@@ -462,7 +462,8 @@ export interface Vehicles {
 }
 
 export interface PackageInfo {
-  trackingNumber: string
+  id?: string,
+  trackingNumber: string,
   commitDateTime?: string,
   consNumber?: string,
   consolidated?: Consolidated,
@@ -476,9 +477,9 @@ export interface PackageInfo {
   shipmentType?: string,
   subsidiary?: Subsidiary,
   isCharge?: boolean,
-  charge?: Charge
-  isValid: boolean
-  reason?: string
+  charge?: Charge,
+  isValid: boolean,
+  reason?: string,
   payment?: {
     amount: string
   }

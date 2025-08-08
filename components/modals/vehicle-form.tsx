@@ -45,8 +45,9 @@ const stringField = (message: string) =>
 export const vehicleSchema = z.object({
   plateNumber: stringField("Número de placa es requerido")
     .regex(/^[A-Z0-9]{1,3}-[A-Z0-9]{1,5}$/, "Formato de placa inválido"),
-  plateNumber2: stringField("Número de placa es requerido")
-    .regex(/^[A-Z0-9]{1,3}-[A-Z0-9]{1,5}$/, "Formato de placa inválido"),
+  plateNumber2: z.string()
+    .regex(/^[A-Z0-9]{1,3}-[A-Z0-9]{1,5}$/, "Formato de placa inválido")
+    .optional(),
   model: stringField("Modelo es requerido"),
   brand: stringField("Marca es requerida"),
   policyNumber: stringField("Número de Poliza es requerida"),
