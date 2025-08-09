@@ -193,6 +193,7 @@ export enum PackageDispatchStatus {
 export type Route = {
   id: string
   name: string
+  code?: string
   status: StatusEnum
   startTime: string
   subsidiary: Subsidiary
@@ -461,6 +462,38 @@ export interface Vehicles {
   nextMaintenance?: string
 }
 
+export enum PaymentTypeEnum {
+    FTC = "FTC",
+    COD = "COD",
+    ROD = "ROD"
+}
+
+export interface PackageInfoForUnloading {
+  id?: string,
+  trackingNumber: string,
+  commitDateTime?: string,
+  consNumber?: string,
+  consolidated?: Consolidated,
+  isHighValue?: boolean,
+  priority: Priority,
+  recipientAddress?: string,
+  recipientCity?: string,
+  recipientName?: string,
+  recipientPhone?: string,
+  recipientZip?: string,
+  shipmentType?: string,
+  subsidiary?: Subsidiary,
+  isCharge?: boolean,
+  charge?: Charge,
+  isValid: boolean,
+  reason?: string,
+  payment?: {
+    amount: string
+    type: PaymentTypeEnum
+  }
+}
+
+
 export interface PackageInfo {
   id?: string,
   trackingNumber: string,
@@ -482,6 +515,7 @@ export interface PackageInfo {
   reason?: string,
   payment?: {
     amount: string
+    type: PaymentTypeEnum
   }
 }
 

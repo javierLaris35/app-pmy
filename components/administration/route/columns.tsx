@@ -31,6 +31,11 @@ export const columns: ColumnDef<Route>[] = [
     header: "Nombre",
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
   },
+    {
+    accessorKey: "code",
+    header: "Código (Fedex)",
+    cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
+  },
   {
     accessorKey: "subdiary",
     header: "Sucursal",

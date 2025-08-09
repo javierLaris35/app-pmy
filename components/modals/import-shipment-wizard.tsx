@@ -7,11 +7,11 @@ import {
   X,
   Loader2,
   Truck,
-  MinusCircle,
   DollarSign,
   CheckSquare,
   Plane,
-  Gem
+  Gem,
+  CheckCheckIcon,
 } from "lucide-react"
 import {
   Dialog,
@@ -32,16 +32,18 @@ import {
   uploadHighValueShipments
 } from "@/lib/services/shipments"
 import { useAuthStore } from "@/store/auth.store"
+import { IconTruckLoading } from "@tabler/icons-react"
+import { Switch } from "../ui/switch"
 
 const steps = [
   {
-    label: "Archivo de envíos",
+    label: "Cons Master",
     description: "Sube el archivo maestro de todos los envíos.",
     icon: Truck,
   },
   {
     label: "Envíos Aéreos",
-    description: "Archivo específico para envíos por avión.",
+    description: "Sube el archivo específico para envíos aéreos.",
     icon: Plane,
   },
   {
@@ -51,8 +53,8 @@ const steps = [
   },
   {
     label: "Carga / F2 / 31.5",
-    description: "Sube el archivo para agregar carga / f2 / 31.5 o removerlas dependiendo de la sucursal.",
-    icon: MinusCircle,
+    description: "Sube el archivo para agregar carga / f2 / 31.5 (checke activo) o removerlas dependiendo de la sucursal (check inactivo).",
+    icon: IconTruckLoading,
   },
   {
     label: "Cobros y ajustes",
@@ -81,6 +83,7 @@ export function ShipmentWizardModal({
   const [step, setStep] = useState(0)
   const [sucursalId, setSucursalId] = useState("")
   const [date, setDate] = useState("")
+  const [notRemoveCharge, setNotRemoveCharge] = useState<boolean>(false)
   const [consNumber, setConsNumber] = useState("")
   const [files, setFiles] = useState<(File | null)[]>(() => {
     const saved = localStorage.getItem("shipmentWizardFiles")
@@ -129,6 +132,7 @@ export function ShipmentWizardModal({
     setSucursalId("")
     setDate("")
     setConsNumber("")
+    setNotRemoveCharge(false)
     setFiles(Array(steps.length - 1).fill(null))
     setError("")
     localStorage.removeItem("shipmentWizardFiles")
@@ -169,7 +173,7 @@ export function ShipmentWizardModal({
       if (step === 0 && files[0]) await uploadShipmentFile(files[0], sucursalId, consNumber, date || "")
       if (step === 1 && files[1]) await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true)
       if (step === 2 && files[2]) await uploadHighValueShipments(files[2], sucursalId, consNumber, date || "")
-      if (step === 3 && files[3]) await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "")
+      if (step === 3 && files[3]) await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge)
       if (step === 4 && files[4]) await uploadShipmentPayments(files[4])
     } catch (e: any) {
       return setError(e.message || `Error al subir el archivo del paso ${step + 1}.`)
@@ -199,7 +203,7 @@ export function ShipmentWizardModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="w-full overflow-x-auto mb-6">
+        <div className="w-full overflow-x-auto mb-1 p-1">
           <div className="flex items-center justify-between gap-4 min-w-[650px]">
             {steps.map(({ label, icon: Icon }, i) => {
               const isActive = i === step
@@ -221,7 +225,7 @@ export function ShipmentWizardModal({
                           : "border-gray-300 bg-white text-gray-400"
                       )}
                     >
-                      {isComplete ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                      {isComplete ? <CheckCheckIcon className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                     </div>
                     <p
                       className={clsx(
@@ -242,9 +246,20 @@ export function ShipmentWizardModal({
               style={{ width: `${((step + 1) / steps.length) * 100}%` }}
             ></div>
           </div>
+          <span className="text-gray-600 text-xs">
+            <b>Instrucciones: </b>
+            {steps[step].description}
+          </span>
         </div>
 
-        <div className="space-y-6 transition-all duration-300">
+        { step === 3 &&  (
+           <div className="flex flex-row items-center space-x-3 justify-end w-full">
+              <Switch checked={notRemoveCharge} onCheckedChange={(value) => setNotRemoveCharge(value)}/>
+              <Label className="text-sm text-gray-600">Solo subir Carga/F2/31.5 ?</Label>
+            </div>
+        )}   
+
+        <div className="space-y-2 transition-all duration-300">
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <Label>Sucursal</Label>

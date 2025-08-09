@@ -10,15 +10,18 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import classNames from "classnames"
-import { AlertCircle, Trash2, Package, RotateCcw, FileText, Download } from "lucide-react"
+import { AlertCircle, Trash2, Package, RotateCcw, FileText, Download, Undo2Icon } from "lucide-react"
 import { saveCollections, validateCollection } from "@/lib/services/collections"
 import { saveDevolutions, validateDevolution } from "@/lib/services/devolutions"
 import { DevolutionCard } from "../devoluciones/devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { generateEnhancedFedExPDF } from "@/lib/services/pdf-generator"
 import { toast } from "sonner"
-import { ReturnValidaton } from "@/lib/types"
+import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
 import { BarcodeScannerInput } from "../barcode-scanner-input"
+import { RepartidorSelector } from "../selectors/repartidor-selector"
+import { UnidadSelector } from "../selectors/unidad-selector"
+import { IconTruckReturn } from "@tabler/icons-react"
 
 // Types
 export type Collection = {
@@ -77,6 +80,9 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   const [devolutions, setDevolutions] = useState<ReturnValidaton[]>([])
   const [invalidDevolutions, setInvalidDevolutions] = useState<string[]>([])
   const [hasValidatedDevolutions, setHasValidatedDevolutions] = useState(false)
+
+  const [selectedDrivers, setSelectedDrivers] = useState<Driver[]>([])
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicles>()
 
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => {
@@ -371,8 +377,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Control Unificado de Paquetes FedEx
+          <Undo2Icon className="h-5 w-5" />
+          Control Unificado de Paquetes para Devoluciones y Recolecciones.
           {totalItems > 0 && (
             <Badge variant="secondary" className="ml-2">
               {totalItems} elementos
@@ -381,6 +387,25 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="flex flex-row  justify-end space-x-2">
+          <div className="space-y-2">
+            <Label>Repartidores</Label>
+            <RepartidorSelector
+              selectedRepartidores={selectedDrivers}
+              onSelectionChange={setSelectedDrivers}
+              disabled={isLoading}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Unidad de Transporte</Label>
+            <UnidadSelector
+              selectedUnidad={selectedVehicle}
+              onSelectionChange={setSelectedVehicle}
+              disabled={isLoading}
+            />
+          </div>
+        </div> 
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="collections" className="flex items-center gap-2">

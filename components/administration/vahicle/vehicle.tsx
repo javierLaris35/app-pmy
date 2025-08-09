@@ -15,7 +15,7 @@ import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Trash2Icon, PencilIcon } from "lucide-react"
+import { Plus, Trash2Icon, PencilIcon, CircleAlertIcon } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useVehicles, useSaveVehicle } from "@/hooks/services/vehicles/use-vehicles"
 import { Vehicles, VehicleStatus } from "@/lib/types"
@@ -152,6 +152,10 @@ export default function VehiclesPage() {
             <DialogTitle>¿Estás seguro?</DialogTitle>
           </DialogHeader>
           <p>Esta acción eliminará el vehículo de forma permanente.</p>
+          <span>
+            <CircleAlertIcon className="text-red-700 h-4 w-4"/>
+            Eliminar un vehículo/unidad podría eliminar trazabilidad con Salidas a Ruta, Desembarques, etc.
+          </span>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={handleConfirmDelete}>Sí, eliminar</Button>

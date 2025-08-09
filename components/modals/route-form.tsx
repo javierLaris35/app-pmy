@@ -33,7 +33,8 @@ const stringField = (message: string) =>
 
 export const routeSchema = z.object({
   name: stringField("Nombre es requerido"),
-
+  code: z.string()
+      .optional(),
   status: z.nativeEnum(StatusEnum, {
     errorMap: () => ({ message: "Estado inválido" }),
   }),
@@ -46,7 +47,7 @@ export const routeSchema = z.object({
 
     name: z.string({
       invalid_type_error: "Nombre de sucursal inválido",
-    }).optional(),
+    }).optional()
   }),
 });
 
@@ -93,6 +94,22 @@ export function RouteForm({ defaultValues, onSubmit }: RouteFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Nombre</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="code"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Código (Fedex)</FormLabel>
               <FormControl>
                 <Input
                   {...field}

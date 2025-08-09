@@ -7,14 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { AlertCircle, BanknoteIcon, CircleAlertIcon, ClipboardPasteIcon, DollarSignIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User } from "lucide-react";
+import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { validateTrackingNumber, saveUnloading } from "@/lib/services/unloadings";
-import { PackageInfo, UnloadingFormData } from "@/lib/types";
-import TrackingTextarea, { BarcodeScannerInput, ScannerInput } from "@/components/barcode-scanner-input";
-import BarcodeScanner from "@/components/barcode-scanner-input";
+import { PackageInfo, PackageInfoForUnloading, UnloadingFormData } from "@/lib/types";
+import{ BarcodeScannerInput } from "@/components/barcode-scanner-input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { IconPdf } from "@tabler/icons-react";
+import { UnloadingPDFReport } from "@/lib/services/unloading/unloading-pdf-generator";
+import { pdf } from "@react-pdf/renderer";
 
 // Types based on the Unloading interface
 interface Vehicles {
@@ -61,6 +65,12 @@ enum Priority {
   BAJA = "baja",
 }
 
+enum TrackingNotFoundEnum {
+  NOT_SCANNED = "Guia sin escaneo",
+  NOT_TRACKING = "Guia faltante",
+  NOT_IN_CHARGE = "No Llego en la Carga"
+}
+
 
 interface Props {
   onClose: () => void;
@@ -70,7 +80,7 @@ interface Props {
 export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [selectedUnidad, setSelectedUnidad] = useState<Vehicles | null>(null);
   const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("");
-  const [shipments, setShipments] = useState<PackageInfo[]>([]);
+  const [shipments, setShipments] = useState<PackageInfoForUnloading[]>([]);
   const [missingTrackings, setMissingTrackings] = useState<string[]>([]);
   const [unScannedTrackings, setUnScannedTrackings] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,6 +89,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [selectedSubsidiaryName, setSelectedSubsidiaryName] = useState<string | null>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  const [selectedReasons, setSelectedReasons] = useState<Record<string, string>>({});
+  const [openPopover, setOpenPopover] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.subsidiary) {
@@ -104,6 +117,34 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     };
   }, []);
 
+  const options = Object.entries(TrackingNotFoundEnum).map(([key, value]) => ({
+    key,
+    label: value
+  }));
+
+  const handleSelectMissingTracking = (id: string, value: string) => {
+    // Actualizar el estado de selectedReasons primero
+    setSelectedReasons(prev => ({
+      ...prev,
+      [id]: value
+    }));
+
+    // Manejar las listas de trackings
+    if(value === TrackingNotFoundEnum.NOT_TRACKING) {
+      setMissingTrackings(prev => [...prev, id]);
+      setUnScannedTrackings(prev => prev.filter(item => item !== id));
+    } else if(value === TrackingNotFoundEnum.NOT_SCANNED) {
+      setUnScannedTrackings(prev => [...prev, id]);
+      setMissingTrackings(prev => prev.filter(item => item !== id));
+    } else if(value === TrackingNotFoundEnum.NOT_IN_CHARGE) {
+      // Manejar este caso si es necesario
+      setMissingTrackings(prev => prev.filter(item => item !== id));
+      setUnScannedTrackings(prev => prev.filter(item => item !== id));
+    }
+
+    // Cerrar el popover después de actualizar los estados
+    setOpenPopover(null);
+  };
   const validatePackageForUnloading = async (trackingNumber: string): Promise<PackageInfo> => {
     return await validateTrackingNumber(trackingNumber, selectedSubsidiaryId);
   };
@@ -165,13 +206,40 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     });
   };
 
-  const handleScannedTrackingNumber = (trackingNumber: string) => {
-    set
-  }
-
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
   }, []);
+
+  const handleSendEmail = async (id: string) => {
+    const blob = await pdf(
+      <UnloadingPDFReport
+        key={Date.now()}
+        vehicle={selectedUnidad}
+        packages={validShipments}
+        subsidiaryName={user?.subsidiary?.name}
+        unloadingTrackigNumber="1254639874598"
+      />
+    ).toBlob();
+
+    const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+    window.open(blobUrl, '_blank');
+
+    const currentDate = new Date().toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+      });
+
+    const fileName = `PMY_Desembarque_${user?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
+
+    const onProgress = (percent: number) => {
+      console.log(`Upload progress: ${percent}%`);
+      // Update UI, e.g., setProgress(percent);
+    };
+
+    await uploadPDFile(pdfFile, subsidiaryName, packageDispatchId, onProgress);
+
+  }
 
   const handleUnloading = async () => {
     if (!selectedSubsidiaryId) {
@@ -242,6 +310,26 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   };
 
+
+  const handlePdfCreate = async() => {
+    setIsLoading(true)
+
+    const blob = await pdf(
+      <UnloadingPDFReport
+        key={Date.now()}
+        vehicle={selectedUnidad}
+        packages={validShipments}
+        subsidiaryName={user?.subsidiary?.name}
+        unloadingTrackigNumber="1254639874598"
+      />
+    ).toBlob();
+
+    const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+    window.open(blobUrl, '_blank');
+
+    setIsLoading(false)
+  }
+
   const formatMexicanPhoneNumber = (phone: string): string => {
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length === 10) {
@@ -257,7 +345,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   };
 
   const validShipments = shipments.filter((p) => p.isValid);
-  const invalidShipments = shipments.filter((p) => !p.isValid);
   const canUnload = selectedUnidad && validShipments.length > 0;
 
   return (
@@ -296,17 +383,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
             <BarcodeScannerInput 
                 onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
             />
-
-            {/*<Label htmlFor="trackingNumbers">Números de seguimiento</Label>
-            <Textarea
-              id="trackingNumbers"
-              value={trackingNumbersRaw}
-              onChange={(e) => setTrackingNumbersRaw(e.target.value)}
-              placeholder="Escanea los códigos de seguimiento aquí..."
-              rows={6}
-              disabled={isLoading}
-              className={missingTrackings.length > 0 ? "border-red-500" : ""}
-            />*/}
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-end">
             <Button onClick={handleValidatePackages} disabled={isLoading} className="w-full sm:w-auto">
@@ -322,6 +398,15 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
               <Send className="mr-2 h-4 w-4" />
               Procesar descarga
             </Button>
+            <Button
+              onClick={handlePdfCreate}
+              disabled={isLoading || !canUnload}
+              variant="default"
+              className="w-full sm:w-auto"
+            >
+              <IconPdf className="mr-2 h-4 w-4" />
+              Solo generar PDF
+            </Button>
           </div>
           {isLoading && (
             <div className="space-y-2">
@@ -329,19 +414,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
               <Progress value={progress} className="h-3" />
             </div>
           )}
-          {missingTrackings.length > 0 && (
-            <div className="mt-4 text-red-600 font-semibold">
-              <AlertCircle className="inline-block mr-2" />
-              Números inválidos (no se agregaron):
-              <ul className="list-disc ml-6 mt-1">
-                {missingTrackings.map((tn) => (
-                  <li key={tn}>{tn}</li>
-                ))}
-              </ul>
-            </div>
-          )}
           {shipments.length > 0 && (
-            <div className="mt-6 space-y-2 border border-dotted border-blue-600">
+            <div className="mt-6 space-y-2">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-x-4 gap-y-2">
                 <h3 className="text-lg font-semibold text-gray-800">Paquetes validados</h3>
               </div>
@@ -368,7 +442,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                     <div className="flex items-center gap-x-1">
                         <span>Alto Valor:</span>
                         <Badge className="h-4 bg-violet-600 hover:bg-violet-700 flex items-center justify-center p-1">
-                        <DollarSignIcon className="h-4 w-4 text-white" />
+                        <GemIcon className="h-4 w-4 text-white" />
                         </Badge>
                     </div>
 
@@ -377,7 +451,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                     <div className="flex items-center gap-x-1">
                         <span>Cobros (FTC/ROD/COD):</span>
                         <Badge className="h-4 bg-blue-600 hover:bg-blue-700 text-xs flex items-center gap-x-1 p-1">
-                        <BanknoteIcon className="h-4 w-4 text-white" />
+                        <DollarSignIcon className="h-4 w-4 text-white" />
                         <span className="text-white whitespace-nowrap">A COBRAR: FTC $1000.00</span>
                         </Badge>
                     </div>
@@ -414,13 +488,13 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                             )}
                             { pkg.isHighValue && (
                                 <Badge className="bg-violet-600 :hover:bg-violet-700 text-xs">
-                                <DollarSignIcon className="h-4 w-4 text-white"/>
+                                <GemIcon className="h-4 w-4 text-white"/>
                                 </Badge>
                             )}
                             { pkg.payment && (
                                 <Badge className="bg-blue-600 :hover:bg-blue-700 text-xs">
-                                <BanknoteIcon className="h-4 w-4 text-white"/>
-                                &nbsp; A COBRAR: ${pkg.payment.amount}
+                                <DollarSignIcon className="h-4 w-4 text-white"/>
+                                &nbsp; A COBRAR: ${pkg.payment.type} ${pkg.payment.amount}
                                 </Badge>
                             )}
                                                     
@@ -454,6 +528,54 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                           </span>
                         )}
                       </div>
+
+                      { !pkg.isValid && <div className="space-y-2 mr-2">
+                          <Popover
+                              open={openPopover === pkg.trackingNumber}
+                              onOpenChange={(open) => setOpenPopover(open ? pkg.trackingNumber : null)}
+                            >
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={openPopover === pkg.trackingNumber}
+                                  className="w-56 justify-between bg-transparent"
+                                  disabled={isLoading}
+                                >
+                                  {selectedReasons[pkg.trackingNumber] || "Seleccionar motivo..."}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-56 p-0">
+                                <Command>
+                                  <CommandInput placeholder="Buscar motivo..." />
+                                  <CommandList>
+                                    <CommandEmpty>No se encontraron motivos.</CommandEmpty>
+                                    <CommandGroup>
+                                      {options.map((opt) => (
+                                        <CommandItem
+                                          key={opt.key}
+                                          value={opt.label}
+                                          onSelect={() => handleSelectMissingTracking(pkg.trackingNumber, opt.label)}
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              selectedReasons[pkg.trackingNumber] === opt.label
+                                                ? "opacity-100"
+                                                : "opacity-0"
+                                            )}
+                                          />
+                                          {opt.label}
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                          </Popover>
+                        </div>  
+                      }
                       <button
                         onClick={() => handleRemovePackage(pkg.trackingNumber)}
                         title="Eliminar"
@@ -475,7 +597,12 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                     </span>
                     <span className="text-gray-300">|</span>
                     <span>
-                        Paquetes inválidos: <span className="font-bold text-red-600">{invalidShipments.length}</span>
+                        Guias sin escaneo: 
+                        <span className="font-bold text-red-600">{unScannedTrackings.length}</span>
+                    </span>
+                    <span>
+                        Guias faltantes: 
+                        <span className="font-bold text-red-600">{missingTrackings.length}</span>
                     </span>
                 </div>
                </div>

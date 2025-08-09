@@ -3,13 +3,11 @@
 import type React from "react"
 import { useEffect, useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import classNames from "classnames"
 import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText, CircleAlertIcon } from "lucide-react"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { RutaSelector } from "../selectors/ruta-selector"
@@ -30,13 +28,6 @@ type Props = {
 }
 
 const VALIDATION_REGEX = /^\d{12}$/
-
-// Mock dispatch function - replace with actual API call
-const dispatchPackages = async (dispatchData: DispatchFormData): Promise<string> => {
-  const dispatchResponse = await savePackageDispatch(dispatchData);
-  const packageDispatchId = dispatchResponse.id; // Adjust based on API response
-  return packageDispatchId;
-}
 
 const formatMexicanPhoneNumber = (phone: string): string => {
   // Remove non-digits
@@ -326,8 +317,6 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   const handleSendEmail = async (packageDispatchId: string) => {
     try {
-      console.log("🚀 ~ handleSendEmail ~ selectedUnidad:", selectedUnidad)
-
       const blob = await pdf(
           <FedExPackageDispatchPDF
             key={Date.now()}
