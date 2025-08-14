@@ -208,7 +208,7 @@ export const FedExPackageDispatchPDF = ({
               <Text style={{ width: 145 }}>{truncate(pkg.recipientName, 26)}</Text>
               <Text style={{ width: 155 }}>{truncate(pkg.recipientAddress, 28)}</Text>
               <Text style={{ width: 45 }}>
-                {pkg.payment?.amount != null ? `$${pkg.payment.amount.toFixed(2)}` : ''}
+                {pkg.payment?.amount != null ? `$${pkg.payment.amount}` : ''}
               </Text>
               <Text style={{ width: 55 }}>{commitDate}</Text>
               <Text style={{ width: 45 }}>{commitTime}</Text>

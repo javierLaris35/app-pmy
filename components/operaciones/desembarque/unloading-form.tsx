@@ -10,8 +10,8 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
-import { validateTrackingNumber, saveUnloading } from "@/lib/services/unloadings";
-import { PackageInfo, PackageInfoForUnloading, UnloadingFormData } from "@/lib/types";
+import { validateTrackingNumber, saveUnloading, uploadPDFile } from "@/lib/services/unloadings";
+import { PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData } from "@/lib/types";
 import{ BarcodeScannerInput } from "@/components/barcode-scanner-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -41,16 +41,6 @@ interface Shipment {
   recipientPhone?: string | null;
   priority?: Priority | null;
   status?: ShipmentStatusType | null;
-}
-
-interface Unloading {
-  id?: string;
-  vehicle?: Vehicles;
-  subsidiary?: Subsidiary;
-  shipments?: Shipment[];
-  missingTrackings: string[];
-  unScannedTrackings: string[];
-  date: string;
 }
 
 enum ShipmentStatusType {
@@ -87,6 +77,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [progress, setProgress] = useState(0);
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null);
   const [selectedSubsidiaryName, setSelectedSubsidiaryName] = useState<string | null>(null);
+  const [savedUnload, setSavedUnloading] = useState<Unloading | null>(null)
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
@@ -210,14 +201,14 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
   }, []);
 
-  const handleSendEmail = async (id: string) => {
+  const handleSendEmail = async () => {
     const blob = await pdf(
       <UnloadingPDFReport
         key={Date.now()}
         vehicle={selectedUnidad}
         packages={validShipments}
-        subsidiaryName={user?.subsidiary?.name}
-        unloadingTrackigNumber="1254639874598"
+        subsidiaryName={savedUnload?.subsidiary?.name ?? ""}
+        unloadingTrackigNumber={savedUnload?.trackingNumber ?? ""}
       />
     ).toBlob();
 
@@ -230,14 +221,17 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
           year: "numeric",
       });
 
-    const fileName = `PMY_Desembarque_${user?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
+    const fileName = `PMY_Desembarque_${savedUnload?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
+
+    const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+
+    const subsidiaryName = selectedSubsidiaryName || 'Unknown';
 
     const onProgress = (percent: number) => {
       console.log(`Upload progress: ${percent}%`);
-      // Update UI, e.g., setProgress(percent);
     };
 
-    await uploadPDFile(pdfFile, subsidiaryName, packageDispatchId, onProgress);
+    await uploadPDFile(pdfFile, savedUnload?.subsidiary?.name, savedUnload?.id, onProgress);
 
   }
 
@@ -284,7 +278,10 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         date: new Date().toISOString(),
       };
 
-      await saveUnloading(unloadingData);
+      const newUnloading = await saveUnloading(unloadingData);
+      setSavedUnloading(newUnloading);
+
+      await handleSendEmail()
 
       toast({
         title: "Descarga procesada exitosamente",
@@ -307,6 +304,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       });
     } finally {
       setIsLoading(false);
+      setSavedUnloading(null);
     }
   };
 
@@ -379,7 +377,10 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
+            <div className="flex flex-row justify-between">
+              <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
+              <Label htmlFor="trackingNumbers">Guías Agregadas: {trackingNumbersRaw.split('\n').length}</Label>
+            </div>
             <BarcodeScannerInput 
                 onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
             />
@@ -494,7 +495,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                             { pkg.payment && (
                                 <Badge className="bg-blue-600 :hover:bg-blue-700 text-xs">
                                 <DollarSignIcon className="h-4 w-4 text-white"/>
-                                &nbsp; A COBRAR: ${pkg.payment.type} ${pkg.payment.amount}
+                                &nbsp; A COBRAR: {pkg.payment.type} ${pkg.payment.amount}
                                 </Badge>
                             )}
                                                     

@@ -29,6 +29,12 @@ export const columns: ColumnDef<Unloading>[] = [
   },
 
   {
+    accessorKey: "trackingNumber",
+    header: "Número de Seguimiento",
+    cell: ({ row }) => <span className="font-medium">{row.original.trackingNumber}</span>,
+  },
+
+  {
     accessorKey: "vehicle",
     header: "Unidad",
     cell: ({ row }) => <span className="font-medium">{row.original?.vehicle?.name}</span>,
@@ -39,8 +45,13 @@ export const columns: ColumnDef<Unloading>[] = [
     header: "Paquetes",
     cell: ({ row }) => {
         const shipments = row.original.shipments;
+        console.log("🚀 ~ row.original:", row.original)
         
-        if (!shipments || shipments.length === 0) return "Sin paquetes";
+        if (!shipments || shipments.length === 0) return (
+          <span className="font-mono">
+            0 Paquetes 
+          </span>
+        );
 
         return (
           <span className="font-mono">
@@ -57,7 +68,11 @@ export const columns: ColumnDef<Unloading>[] = [
     cell: ({ row }) => {
         const missingTrackings = row.original.missingTrackings;
         
-        if (!missingTrackings || missingTrackings.length === 0) return "Sin paquetes";
+        if (!missingTrackings || missingTrackings.length === 0) return (
+          <span className="font-mono">
+            0 Guias 
+          </span>
+        );
 
         return (
           <span className="font-mono">
@@ -74,7 +89,11 @@ export const columns: ColumnDef<Unloading>[] = [
     cell: ({ row }) => {
         const unScannedTrackings = row.original.unScannedTrackings;
         
-        if (!unScannedTrackings || unScannedTrackings.length === 0) return "Sin paquetes";
+        if (!unScannedTrackings || unScannedTrackings.length === 0) return (
+          <span className="font-mono">
+            0 Guias 
+          </span>
+        );
 
         return (
           <span className="font-mono">

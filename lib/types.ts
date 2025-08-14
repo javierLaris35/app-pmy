@@ -521,6 +521,7 @@ export interface PackageInfo {
 
 export interface Unloading {
   id: string;
+  trackingNumber: string;
   vehicle?: Vehicles;
   subsidiary?: Subsidiary;
   shipments?: Shipment[];

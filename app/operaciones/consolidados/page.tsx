@@ -70,6 +70,10 @@ export default function ConsolidatedWithKpis() {
   const completedConsolidateds = consolidateds.filter(c => c.status === "completo").length;
 
   const columns: ColumnDef<Consolidated>[] = [
+    /*{
+      accessorKey: "id",
+      header: "id",
+    },*/
     {
       accessorKey: "date",
       header: "Fecha",

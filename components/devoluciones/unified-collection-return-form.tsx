@@ -3,7 +3,6 @@
 import type React from "react"
 import { useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -21,13 +20,14 @@ import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
 import { BarcodeScannerInput } from "../barcode-scanner-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
-import { IconTruckReturn } from "@tabler/icons-react"
+import { Input } from "../ui/input"
 
 // Types
 export type Collection = {
   trackingNumber: string
   subsidiary: { id: string }
   status: string | null
+  date: string
   isPickUp: boolean
 }
 
@@ -40,14 +40,12 @@ export type Devolution = {
   id: string
   trackingNumber: string
   subsidiaryName: string
+  date: string
   hasIncome: boolean
   status: string
   lastStatus: LastStatus | null
   reason: string
 }
-
-
-
 
 type Props = {
   selectedSubsidiaryId: string | null
@@ -83,6 +81,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
   const [selectedDrivers, setSelectedDrivers] = useState<Driver[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicles>()
+  const [selectedDate, setSelectedDate] = useState<string>("");
 
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => {
@@ -143,6 +142,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         trackingNumber: tn,
         subsidiary: { id: selectedSubsidiaryId },
         status: info.status,
+        date: selectedDate ?? "",
         isPickUp: info.isPickUp,
       })
       setProgress(Math.round(((i + 1) / validNumbers.length) * 100))
@@ -222,7 +222,11 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     for (let i = 0; i < validNumbers.length; i++) {
       const tn = validNumbers[i]
       const info = await checkDevolutionInfo(tn)
-      results.push(info)
+      results.push(
+        { ...info,
+          date: selectedDate ?? ""
+        }
+      )
       setProgress(Math.round(((i + 1) / validNumbers.length) * 100))
     }
 
@@ -389,6 +393,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       <CardContent className="space-y-6">
         <div className="flex flex-row  justify-end space-x-2">
           <div className="space-y-2">
+            <Label>Fecha (opcional)</Label>
+            <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+          </div>
+          <div className="space-y-2">
             <Label>Repartidores</Label>
             <RepartidorSelector
               selectedRepartidores={selectedDrivers}
@@ -424,17 +432,6 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
               <BarcodeScannerInput 
                 onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)} 
               />
-              {/*<Textarea
-                id="collectionNumbers"
-                value={collectionTrackingRaw}
-                onChange={(e) => setCollectionTrackingRaw(e.target.value)}
-                placeholder="Escanea los códigos de recolección aquí..."
-                rows={6}
-                disabled={isLoading}
-                className={classNames("resize-none overflow-y-auto max-h-60", {
-                  "border-red-500": invalidCollections.length > 0,
-                })}
-              />*/}
             </div>
 
             <Button onClick={handleValidateCollections} disabled={isLoading} className="w-full">
@@ -501,17 +498,6 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
               <BarcodeScannerInput 
                 onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)} 
               />
-              {/*<Textarea
-                id="devolutionNumbers"
-                value={devolutionTrackingRaw}
-                onChange={(e) => setDevolutionTrackingRaw(e.target.value)}
-                placeholder="Escanea los códigos de devolución aquí..."
-                rows={6}
-                disabled={isLoading}
-                className={classNames("resize-none overflow-y-auto max-h-60", {
-                  "border-red-500": invalidDevolutions.length > 0,
-                })}
-              />*/}
             </div>
 
             <Button onClick={handleValidateDevolutions} disabled={isLoading} className="w-full">
