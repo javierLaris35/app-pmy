@@ -93,13 +93,13 @@ export const sidebarMenu = {
           roles: ["admin", "superadmin"],
           isActive: false
         },
-        {
+        /*{
           name: "Monitoreo",
           url: "/operaciones/monitoreo",
           icon: MonitorCheckIcon,
           roles: ["admin", "superadmin"],
           isActive: false
-        },
+        },*/
         {
           name: "Salidas a Rutas",
           url: "/operaciones/salidas-a-ruta",

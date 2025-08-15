@@ -125,9 +125,9 @@ export default function DashboardPage() {
 
           <InteractiveMap branches={data || []} />
 
-          <FinantialOperationKpis />
+          {/*<FinantialOperationKpis />*/}
 
-          <KPIGrid
+          {/*<KPIGrid
             financialKPIs={{
               revenue: summary?.finantial.income || 0,
               revenueChange: 0,
@@ -152,7 +152,7 @@ export default function DashboardPage() {
               returnRate: 0,
               returnChange: 0,
             }}
-          />
+          />*/}
 
           {/*<ChartsSection ingresos={ingresosData} gastos={gastosData} />
 
