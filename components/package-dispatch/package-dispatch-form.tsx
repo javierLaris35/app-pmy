@@ -237,7 +237,8 @@ const PackageDispatchForm: React.FC<Props> = ({
 
       // Dispatch packages and get ID
       const dispatchResponse = await savePackageDispatch(dispatchData);
-      const packageDispatchId = dispatchResponse; // Adjust based on actual API response
+      console.log("🚀 ~ handleDispatch ~ dispatchResponse:", dispatchResponse)
+      const packageDispatchId = dispatchResponse.id; // Adjust based on actual API response
 
       // Upload PDF
       await handleSendEmail(packageDispatchId, (percent) => {
