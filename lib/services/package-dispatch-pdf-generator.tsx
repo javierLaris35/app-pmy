@@ -103,12 +103,14 @@ export const FedExPackageDispatchPDF = ({
   vehicle,
   packages,
   subsidiaryName,
+  trackingNumber,
 }: {
   drivers: Driver[];
   routes: Route[];
   vehicle: Vehicles;
   packages: PackageInfo[];
   subsidiaryName: string;
+  trackingNumber: string;
 }) => {
   const timeZone = 'America/Hermosillo';
   const currentDate = new Date();
@@ -171,7 +173,7 @@ export const FedExPackageDispatchPDF = ({
             <View style={styles.column}>
               <View style={styles.row}>
                 <Text style={styles.cell}>Número de seguimiento:</Text>
-                <Text>730249391125</Text>
+                <Text>{trackingNumber}</Text>
               </View>
             </View>
           </View>

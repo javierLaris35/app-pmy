@@ -241,9 +241,7 @@ const PackageDispatchForm: React.FC<Props> = ({
       const packageDispatchId = dispatchResponse.id; // Adjust based on actual API response
 
       // Upload PDF
-      await handleSendEmail(packageDispatchId, (percent) => {
-        setProgress(percent); // Update UI with upload progress
-      });
+      await handleSendEmail(packageDispatchId, dispatchResponse.trackingNumber);
 
       toast({
         title: "Salida procesada exitosamente",
@@ -300,6 +298,7 @@ const PackageDispatchForm: React.FC<Props> = ({
             vehicle={selectedUnidad}
             packages={validPackages}
             subsidiaryName={user?.subsidiary?.name}
+            trackingNumber="123456789"
           />
         ).toBlob();
 
@@ -316,7 +315,7 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   }
 
-  const handleSendEmail = async (packageDispatchId: string) => {
+  const handleSendEmail = async (packageDispatchId: string, trackingNumber: string) => {
     try {
       const blob = await pdf(
           <FedExPackageDispatchPDF
@@ -326,6 +325,7 @@ const PackageDispatchForm: React.FC<Props> = ({
             vehicle={selectedUnidad}
             packages={validPackages}
             subsidiaryName={user?.subsidiary?.name}
+            trackingNumber={trackingNumber}
           />
         ).toBlob();
 
