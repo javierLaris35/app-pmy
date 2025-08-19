@@ -53,7 +53,24 @@ export const columns: ColumnDef<PackageDispatch>[] = [
 
     },
   },
+  {
+    accessorKey: "createdAt",
+    header: "Fecha",
+    cell: ({ row }) => {
+      const rawValue = row.getValue("createdAt");
+      const date = rawValue ? new Date(rawValue as string) : null;
 
+      const formatted = date
+        ? date.toLocaleString("es-MX", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
+        : "N/A";
+
+      return <div className="font-medium">{formatted}</div>;
+    },
+  },
   {
   accessorKey: "status",
   header: "Estatus",

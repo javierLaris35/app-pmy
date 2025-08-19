@@ -26,13 +26,15 @@ const validateTrackingNumber = async (trackingNumber: string, subsidiaryId: stri
 
 
 export async function uploadPDFile(
-    file: File,
+    pdfFile: File,
+    excelFile: File,
     subsidiaryName: string,
     packageDispatchId: string,
     onProgress?: (progress: number) => void
 ): Promise<any> { 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('files', pdfFile);
+    formData.append('files', excelFile);
     formData.append('subsidiaryName', subsidiaryName);
     formData.append('packageDispatchId', packageDispatchId);
 

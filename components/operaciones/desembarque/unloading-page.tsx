@@ -15,11 +15,15 @@ import { Unloading } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import UnloadingForm from "./unloading-form"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { generateUnloadingExcelClient } from "@/lib/services/unloading/unloading-excel-generator"
+import UnloadingDetails from "./unloading-details"
 
 export default function UnLoadingPageControl() {
     const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
     const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
     const [isUnloagingDialogOpen, setIsUnloadingDialogOpen] = useState(false)
+    const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+    const [selectedUnloading, setSelectedUnloading] = useState<Unloading | null>(null);
 
     const { unloadings, isError, isLoading, mutate } = useUnLoadings(selectedSucursalId);
     const user = useAuthStore((s) => s.user)
@@ -40,8 +44,13 @@ export default function UnLoadingPageControl() {
         setIsUnloadingDialogOpen(true)
     }
 
-    const handleExcelFileCreation = (unLoading: Unloading) => {
+    const openDetailsDialog = (unloading: Unloading) => {
+        setSelectedUnloading(unloading);
+        setIsDetailsDialogOpen(true);
+    };
 
+    const handleExcelFileCreation = async (unLoading: Unloading) => {
+        return await generateUnloadingExcelClient(unLoading, true);
     }
 
     const updatedColumns = columns.map((col) =>
@@ -53,7 +62,7 @@ export default function UnLoadingPageControl() {
                   <Button
                     variant="ghost"
                     className="h-8 w-8 p-0"
-                    onClick={() => console.log("Edit vehicle", row.original)}
+                    onClick={() => openDetailsDialog(row.original)}
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -147,6 +156,24 @@ export default function UnLoadingPageControl() {
                         setIsUnloadingDialogOpen(false)
                         }}
                     />
+                </DialogContent>
+            </Dialog>
+
+            {/* Unloading Details Dialog */}
+            <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+                <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Detalles de Desembarque</DialogTitle>
+                    <DialogDescription>
+                    Visualiza los detalles del desembarque, incluyendo paquetes validados y guías no procesadas.
+                    </DialogDescription>
+                </DialogHeader>
+                {selectedUnloading && (
+                    <UnloadingDetails
+                    unloading={selectedUnloading}
+                    onClose={() => setIsDetailsDialogOpen(false)}
+                    />
+                )}
                 </DialogContent>
             </Dialog>
         </AppLayout>

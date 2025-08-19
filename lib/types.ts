@@ -159,6 +159,7 @@ export type Shipment = {
   recipientPhone: string
   status: "recoleccion" | "en_ruta" | "entregado" | "no_entregado" | "desconocido"
   payment?: {
+    type: string
     amount: number
     status: "paid" | "pending" | "failed"
   } | null
@@ -410,6 +411,7 @@ export interface PackageDispatch {
   startTime: string
   subsidiary: Subsidiary
   createdAt?: string
+  kms: string
 }
 
 export interface DispatchFormData {
@@ -528,6 +530,7 @@ export interface Unloading {
   missingTrackings: string[];
   unScannedTrackings: string[];
   date: string;
+  createdAt: string;
 }
 
 export interface UnloadingFormData {

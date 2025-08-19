@@ -8,17 +8,18 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText, CircleAlertIcon } from "lucide-react"
+import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText, CircleAlertIcon, GemIcon } from "lucide-react"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { RutaSelector } from "../selectors/ruta-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
-import { DispatchFormData, Driver, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
+import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
 import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib/services/package-dispatchs"
 import { useAuthStore } from "@/store/auth.store"
-import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch-pdf-generator"
+import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator"
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input"
 import { BarcodeScannerInput } from "../barcode-scanner-input"
+import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator"
 
 type Props = {
   selectedSubsidiaryId: string | null
@@ -231,7 +232,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         routes: selectedRutas,
         vehicle: selectedUnidad,
         shipments: validPackages.map((p) => p.id),
-        subsidiary: { id: selectedSubsidiaryId },
+        subsidiary: { id: selectedSubsidiaryId, name: selectedSubsidiaryName || "Unknown" },
         kms: selectedKms
       };
 
@@ -241,7 +242,7 @@ const PackageDispatchForm: React.FC<Props> = ({
       const packageDispatchId = dispatchResponse.id; // Adjust based on actual API response
 
       // Upload PDF
-      await handleSendEmail(packageDispatchId, dispatchResponse.trackingNumber);
+      await handleSendEmail(dispatchResponse);
 
       toast({
         title: "Salida procesada exitosamente",
@@ -315,7 +316,7 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   }
 
-  const handleSendEmail = async (packageDispatchId: string, trackingNumber: string) => {
+  const handleSendEmail = async (packageDispatch: PackageDispatch) => {
     try {
       const blob = await pdf(
           <FedExPackageDispatchPDF
@@ -324,8 +325,8 @@ const PackageDispatchForm: React.FC<Props> = ({
             routes={selectedRutas}
             vehicle={selectedUnidad}
             packages={validPackages}
-            subsidiaryName={user?.subsidiary?.name}
-            trackingNumber={trackingNumber}
+            subsidiaryName={packageDispatch.subsidiary?.name}
+            trackingNumber={packageDispatch.trackingNumber}
           />
         ).toBlob();
 
@@ -338,13 +339,21 @@ const PackageDispatchForm: React.FC<Props> = ({
           year: "numeric",
       });
 
-      const fileName = `PMY_Salida_a_Ruta_${user?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
+      packageDispatch.shipments = validPackages;
+
+      const fileName = `${packageDispatch.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.pdf`;
 
       // Convert Blob to File using the provided fileName
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
-      // Use selectedSubsidiaryName (already passed to PDF generator)
-      const subsidiaryName = selectedSubsidiaryName || 'Unknown';
+      const excelBuffer = await generateDispatchExcelClient(packageDispatch, false);
+      const excelBlob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const excelFileName = `${packageDispatch?.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.xlsx`;
+      const excelFile = new File([excelBlob], excelFileName, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
 
       // Optional: Track upload progress
       const onProgress = (percent: number) => {
@@ -352,7 +361,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         // Update UI, e.g., setProgress(percent);
       };
 
-      await uploadPDFile(pdfFile, subsidiaryName, packageDispatchId, onProgress);
+      await uploadPDFile(pdfFile, excelFile, packageDispatch.subsidiary?.name, packageDispatch.id, onProgress);
 
       toast({
         title: 'Éxito',
@@ -479,22 +488,11 @@ const PackageDispatchForm: React.FC<Props> = ({
 
         {/* Package Scanning Section */}
         <div className="space-y-4">
-          {trackingNumbersRaw}
           <div className="space-y-2">
-            <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
-            {/*<Textarea
-              id="trackingNumbers"
-              value={currentScan}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Escanea los códigos de seguimiento aquí..."
-              rows={6}
-              disabled={isLoading}
-              onPaste={handlePaste}
-              className={classNames("resize-none overflow-y-auto max-h-60", {
-                "border-red-500": invalidNumbers.length > 0,
-              })}
-            />*/}
+            <div className="flex flex-row justify-between">
+              <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
+              <Label htmlFor="trackingNumbers">Guías Agregadas: {trackingNumbersRaw.split('\n').length}</Label>
+            </div>
             <BarcodeScannerInput 
               onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
             />
@@ -547,40 +545,42 @@ const PackageDispatchForm: React.FC<Props> = ({
                 {/* Left Side: Title */}
                 <h3 className="text-lg font-semibold text-gray-800">Paquetes validados</h3>
               </div>
-              <div className="flex items-center justify-end gap-x-3 text-xs text-gray-600 flex-wrap">
-                <span>Simbología:</span>
+              <div className="flex flex-row items-end justify-end">
+                <div className="flex items-center gap-x-3 text-xs text-gray-600 flex-wrap">
+                    <span>Simbología:</span>
 
-                <div className="flex items-center gap-x-1">
-                  <CircleAlertIcon className="h-4 w-4 text-red-600" />
-                  <span>No Válido</span>
-                </div>
+                    <div className="flex items-center gap-x-1">
+                        <CircleAlertIcon className="h-4 w-4 text-red-600" />
+                        <span>No Válido</span>
+                    </div>
 
-                <span>/</span>
+                    <span className="text-gray-400">•</span>
 
-                <div className="flex items-center gap-x-1">
-                  <span>Carga/F2/31.5:</span>
-                  <Badge className="text-white bg-green-600 whitespace-nowrap">
-                    Carga/F2/31.5
-                  </Badge>
-                </div>
+                    <div className="flex items-center gap-x-1">
+                        <span>Carga/F2/31.5:</span>
+                        <Badge className="h-4 text-white bg-green-600 whitespace-nowrap">
+                        Carga/F2/31.5
+                        </Badge>
+                    </div>
 
-                <span>/</span>
+                    <span className="text-gray-400">•</span>
 
-                <div className="flex items-center gap-x-1">
-                  <span>Alto Valor:</span>
-                  <Badge className="bg-violet-600 hover:bg-violet-700 flex items-center">
-                    <DollarSignIcon className="h-4 w-4 text-white" />
-                  </Badge>
-                </div>
+                    <div className="flex items-center gap-x-1">
+                        <span>Alto Valor:</span>
+                        <Badge className="h-4 bg-violet-600 hover:bg-violet-700 flex items-center justify-center p-1">
+                        <GemIcon className="h-4 w-4 text-white" />
+                        </Badge>
+                    </div>
 
-                <span>/</span>
+                    <span className="text-gray-400">•</span>
 
-                <div className="flex items-center gap-x-1">
-                  <span>Cobros (FTC/ROD/COD):</span>
-                  <Badge className="bg-blue-600 hover:bg-blue-700 text-xs flex items-center whitespace-nowrap">
-                    <BanknoteIcon className="h-4 w-4 text-white" />
-                    <span className="ml-1">A COBRAR: FTC $1000.00</span>
-                  </Badge>
+                    <div className="flex items-center gap-x-1">
+                        <span>Cobros (FTC/ROD/COD):</span>
+                        <Badge className="h-4 bg-blue-600 hover:bg-blue-700 text-xs flex items-center gap-x-1 p-1">
+                        <DollarSignIcon className="h-4 w-4 text-white" />
+                        <span className="text-white whitespace-nowrap">A COBRAR: FTC $1000.00</span>
+                        </Badge>
+                    </div>
                 </div>
               </div>
 
@@ -618,7 +618,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                           )}
                           { pkg.isHighValue && (
                             <Badge className="bg-violet-600 :hover:bg-violet-700 text-xs">
-                              <DollarSignIcon className="h-4 w-4 text-white"/>
+                              <GemIcon className="h-4 w-4 text-white"/>
                             </Badge>
                           )}
                           { pkg.payment && (
@@ -679,15 +679,15 @@ const PackageDispatchForm: React.FC<Props> = ({
                       <span>
                         Repartidores: <span className="font-bold">{selectedRepartidores.length}</span>
                       </span>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-400">•</span>
                       <span>
                         Rutas: <span className="font-bold">{selectedRutas.length}</span>
                       </span>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-400">•</span>
                       <span>
                         Paquetes válidos: <span className="font-bold">{validPackages.length}</span>
                       </span>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-400">•</span>
                       <span>
                         Paquetes inválidos: <span className="font-bold text-red-600">{invalidPackages.length}</span>
                       </span>

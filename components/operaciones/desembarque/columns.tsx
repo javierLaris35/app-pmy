@@ -45,7 +45,6 @@ export const columns: ColumnDef<Unloading>[] = [
     header: "Paquetes",
     cell: ({ row }) => {
         const shipments = row.original.shipments;
-        console.log("🚀 ~ row.original:", row.original)
         
         if (!shipments || shipments.length === 0) return (
           <span className="font-mono">

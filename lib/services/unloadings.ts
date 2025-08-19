@@ -26,17 +26,19 @@ const validateTrackingNumber = async (trackingNumber: string, subsidiaryId: stri
 
 export async function uploadPDFile(
     file: File,
+    excelFile: File,
     subsidiaryName: string,
     unloadingId: string,
     onProgress?: (progress: number) => void
 ): Promise<any> { 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('files', file);
+    formData.append('files', excelFile)
     formData.append('subsidiaryName', subsidiaryName);
     formData.append('unloadingId', unloadingId);
 
     try {
-        const response = await axiosConfig.post('/unloading/upload', formData, {
+        const response = await axiosConfig.post(`${url}/upload`, formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },

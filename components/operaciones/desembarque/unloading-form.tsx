@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { IconPdf } from "@tabler/icons-react";
 import { UnloadingPDFReport } from "@/lib/services/unloading/unloading-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
+import { generateUnloadingExcelClient } from "@/lib/services/unloading/unloading-excel-generator";
 
 // Types based on the Unloading interface
 interface Vehicles {
@@ -135,7 +136,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
     // Cerrar el popover después de actualizar los estados
     setOpenPopover(null);
-  };
+  }
+
   const validatePackageForUnloading = async (trackingNumber: string): Promise<PackageInfo> => {
     return await validateTrackingNumber(trackingNumber, selectedSubsidiaryId);
   };
@@ -201,14 +203,18 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
   }, []);
 
-  const handleSendEmail = async () => {
+  const handleSendEmail = async (unloadingSaved: Unloading) => {
+    console.log("🚀 ~ handleSendEmail ~ unloadingSaved:", unloadingSaved)
+
     const blob = await pdf(
       <UnloadingPDFReport
         key={Date.now()}
         vehicle={selectedUnidad}
         packages={validShipments}
-        subsidiaryName={savedUnload?.subsidiary?.name ?? ""}
-        unloadingTrackigNumber={savedUnload?.trackingNumber ?? ""}
+        missingPackages={missingTrackings}
+        unScannedPackages={unScannedTrackings}
+        subsidiaryName={unloadingSaved?.subsidiary?.name ?? ""}
+        unloadingTrackigNumber={unloadingSaved?.trackingNumber ?? ""}
       />
     ).toBlob();
 
@@ -221,17 +227,26 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
           year: "numeric",
       });
 
-    const fileName = `PMY_Desembarque_${savedUnload?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
+    unloadingSaved.shipments = validShipments;
+
+    const fileName = `${unloadingSaved?.subsidiary?.name}--Desembarque--${unloadingSaved?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
 
     const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
-    const subsidiaryName = selectedSubsidiaryName || 'Unknown';
+    const excelBuffer = await generateUnloadingExcelClient(unloadingSaved, false);
+    const excelBlob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const excelFileName = `${unloadingSaved?.subsidiary?.name}--Desembarque--${currentDate.replace(/\//g, "-")}.xlsx`;
+    const excelFile = new File([excelBlob], excelFileName, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
 
     const onProgress = (percent: number) => {
       console.log(`Upload progress: ${percent}%`);
     };
 
-    await uploadPDFile(pdfFile, savedUnload?.subsidiary?.name, savedUnload?.id, onProgress);
+    await uploadPDFile(pdfFile, excelFile, unloadingSaved?.subsidiary?.name, unloadingSaved?.id, onProgress);
 
   }
 
@@ -281,7 +296,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       const newUnloading = await saveUnloading(unloadingData);
       setSavedUnloading(newUnloading);
 
-      await handleSendEmail()
+      await handleSendEmail(newUnloading);
 
       toast({
         title: "Descarga procesada exitosamente",
@@ -308,7 +323,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   };
 
-
   const handlePdfCreate = async() => {
     setIsLoading(true)
 
@@ -317,6 +331,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         key={Date.now()}
         vehicle={selectedUnidad}
         packages={validShipments}
+        missingPackages={missingTrackings}
+        unScannedPackages={unScannedTrackings}
         subsidiaryName={user?.subsidiary?.name}
         unloadingTrackigNumber="1254639874598"
       />
@@ -596,14 +612,13 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                     <span>
                         Paquetes válidos: <span className="font-bold">{validShipments.length}</span>
                     </span>
-                    <span className="text-gray-300">|</span>
+                    <span className="text-gray-300">•</span>
                     <span>
-                        Guias sin escaneo: 
-                        <span className="font-bold text-red-600">{unScannedTrackings.length}</span>
+                        Guias sin escaneo: <span className="font-bold text-red-600">{unScannedTrackings.length}</span>
                     </span>
+                    <span className="text-gray-300">•</span>
                     <span>
-                        Guias faltantes: 
-                        <span className="font-bold text-red-600">{missingTrackings.length}</span>
+                        Guias faltantes: <span className="font-bold text-red-600">{missingTrackings.length}</span>
                     </span>
                 </div>
                </div>

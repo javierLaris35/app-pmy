@@ -16,12 +16,15 @@ import { useAuthStore } from "@/store/auth.store"
 import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
 import { columns } from "./columns"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
-import { generateDispatchExcelClient } from "@/lib/services/package-dispatch-excel-generator"
+import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator"
+import PackageDispatchDetails from "./package-dispatch-details"
 
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<PackageDispatch | null>(null);
 
   const { packageDispatchs, isError, isLoading, mutate } = usePackageDispatchs(selectedSucursalId)
   const user = useAuthStore((s) => s.user)
@@ -36,6 +39,11 @@ export default function PackageDispatchControl() {
   const openDispatchDialog = () => {
     setIsDispatchDialogOpen(true)
   }
+
+  const openDetailsDialog = (packageDispatch: PackageDispatch) => {
+      setSelectedPackageDispatch(packageDispatch);
+      setIsDetailsDialogOpen(true);
+  };
 
   const handleSucursalChange = (id: string, name?: string) => {
     setSelectedSucursalId(id || null)
@@ -55,7 +63,7 @@ export default function PackageDispatchControl() {
               <Button
                 variant="ghost"
                 className="h-8 w-8 p-0"
-                onClick={() => console.log("Edit vehicle", row.original)}
+                onClick={() => openDetailsDialog(row.original)}
               >
                 <Eye className="h-4 w-4" />
               </Button>
@@ -209,6 +217,24 @@ export default function PackageDispatchControl() {
             }}
           />
         </DialogContent>
+      </Dialog>
+
+      {/* Package Dispatch Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+          <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+              <DialogTitle>Detalles de Salida a Ruta</DialogTitle>
+              <DialogDescription>
+              Visualiza los detalles de la Salida a Ruta, incluyendo paquetes validados y guías no procesadas.
+              </DialogDescription>
+          </DialogHeader>
+          {selectedPackageDispatch && (
+              <PackageDispatchDetails
+              dispatch={selectedPackageDispatch}
+              onClose={() => setIsDetailsDialogOpen(false)}
+              />
+          )}
+          </DialogContent>
       </Dialog>
     </AppLayout>
   )

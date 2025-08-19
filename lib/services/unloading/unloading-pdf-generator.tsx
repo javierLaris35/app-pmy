@@ -94,7 +94,17 @@ const styles = StyleSheet.create({
     borderBottom: '1px solid #ccc',
     fontSize: 9,
     padding: 4,
-  }
+  },
+  trackingSection: {
+    marginTop: 12, // Increased spacing to separate from packages table
+    borderTop: '1px solid #ccc', // Adds a top border to visually separate sections
+  },
+  trackingRow: {
+    fontSize: 9, // Matches tableRow font size
+    padding: 4, // Matches tableRow padding
+    borderBottom: '1px solid #ccc', // Matches tableRow border
+    flexDirection: 'row',
+  },
 });
 
 export const UnloadingPDFReport = ({
@@ -107,11 +117,14 @@ export const UnloadingPDFReport = ({
 }: {
   vehicle: Vehicles;
   packages: PackageInfo[];
-  missingPackages?: any[];
-  unScannedPackages?: any[];
+  missingPackages?: string[];
+  unScannedPackages?: string[];
   subsidiaryName: string;
   unloadingTrackigNumber: string;
 }) => {
+  console.log("🚀 ~ UnloadingPDFReport ~ unScannedPackages:", unScannedPackages)
+  console.log("🚀 ~ UnloadingPDFReport ~ missingPackages:", missingPackages)
+  
   const timeZone = 'America/Hermosillo';
   const currentDate = new Date();
   const formattedDate = format(currentDate, 'yyyy-MM-dd', { timeZone });
@@ -212,6 +225,28 @@ export const UnloadingPDFReport = ({
             </View>
           );
         })}
+
+        {missingPackages.length > 0 && (
+          <View style={styles.trackingSection}>
+            <Text style={styles.subTitle}>* Guías Faltantes</Text>
+            {missingPackages.map((tracking, i) => (
+              <View style={styles.trackingRow} key={`missing-${i}`}>
+                <Text>{tracking}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {unScannedPackages.length > 0 && (
+          <View style={styles.trackingSection}>
+            <Text style={styles.subTitle}>** Guías Sin Escaneo</Text>
+            {unScannedPackages.map((tracking, i) => (
+              <View style={styles.trackingRow} key={`unscanned-${i}`}>
+                <Text>{tracking}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </Page>
     </Document>
   );
