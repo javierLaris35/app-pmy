@@ -341,7 +341,7 @@ const PackageDispatchForm: React.FC<Props> = ({
 
       packageDispatch.shipments = validPackages;
 
-      const fileName = `${packageDispatch.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.pdf`;
+      const fileName = `${packageDispatch?.drivers[0]?.name.toUpperCase()}--${packageDispatch.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.pdf`;
 
       // Convert Blob to File using the provided fileName
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
@@ -350,7 +350,7 @@ const PackageDispatchForm: React.FC<Props> = ({
       const excelBlob = new Blob([excelBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
-      const excelFileName = `${packageDispatch?.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.xlsx`;
+      const excelFileName = `${packageDispatch?.drivers[0]?.name.toUpperCase()}--${packageDispatch?.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.xlsx`;
       const excelFile = new File([excelBlob], excelFileName, {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });

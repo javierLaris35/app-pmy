@@ -88,13 +88,16 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
     const [commitDateRaw, commitTimeRaw] = pkg.commitDateTime.split('T');
     const commitDate = commitDateRaw; // '2025-08-05'
     const commitTime = commitTimeRaw?.split('.')[0];
+    const hasPayment = pkg.payment?.amount != null;
+
+    console.log("🚀 ~ generateDispatchExcelClient ~ hasPayment:", hasPayment)
 
     const row = sheet.addRow([
       index + 1,
       pkg.trackingNumber,
       pkg.recipientName || '',
       pkg.recipientAddress || '',
-      pkg.payment?.amount != null ? `$${pkg.payment.amount.toFixed(2)}` : '',
+      hasPayment ? `${pkg.payment?.type} $ ${pkg.payment?.amount}` : '',
       commitDate || '',
       commitTime || '',
       pkg.recipientPhone || '',
@@ -109,6 +112,17 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
         };
       }
     }
+
+    // Color para filas con pago (amarillo suave)
+    if (hasPayment) {
+      for (let col = 1; col <= 8; col++) {
+        sheet.getCell(row.number, col).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'fff2cc' }, // Amarillo claro
+        };
+      }
+    } 
 
     // bordes y centrado
     row.eachCell((cell) => {
@@ -156,7 +170,7 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    saveAs(blob, `${data?.subsidiary?.name}--Salida a Ruta--${createdAt.replace(/\//g, "-")}.xlsx`);
+    saveAs(blob, `${data?.drivers[0]?.name.toUpperCase()}--${data?.subsidiary?.name}--Salida a Ruta--${createdAt.replace(/\//g, "-")}.xlsx`);
   }
 
   return buffer;

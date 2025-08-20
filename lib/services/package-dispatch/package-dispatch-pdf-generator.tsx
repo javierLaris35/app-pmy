@@ -29,7 +29,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 120,
     height: 120,
-    //marginRight: 10,
   },
   leftHeader: {
     flex: 1,
@@ -88,12 +87,23 @@ const styles = StyleSheet.create({
     padding: 4,
     fontSize: 9,
     fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottom: '1px solid #ccc',
     fontSize: 9,
     padding: 4,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    borderBottom: '1px solid #d4ac0d',
+    fontSize: 9,
+    padding: 4,
+    backgroundColor: '#fff2cc', // Amarillo claro para toda la fila
+  },
+  textBold: {
+    fontWeight: 'bold',
   }
 });
 
@@ -155,7 +165,7 @@ export const FedExPackageDispatchPDF = ({
           </View>
           
           <View style={styles.centerHeader}>
-            
+            {/* Espacio para contenido central si lo necesitas */}
           </View>
           <View style={styles.rightHeader}>
             <Image src="/logo-no-fondo.png" style={styles.logo} />
@@ -200,22 +210,38 @@ export const FedExPackageDispatchPDF = ({
           const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
           const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
           const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
+          const hasPayment = pkg.payment?.amount != null;
+          const rowStyle = hasPayment ? styles.paymentRow : styles.tableRow;
 
           return (
-            <View style={styles.tableRow} key={i}>
-              <Text style={{ width: 25 }}>
+            <View style={rowStyle} key={i}>
+              <Text style={[{ width: 25 }, hasPayment && styles.textBold]}>
                 {icons} {i + 1}
               </Text>
-              <Text style={{ width: 63 }}>{pkg.trackingNumber}</Text>
-              <Text style={{ width: 145 }}>{truncate(pkg.recipientName, 26)}</Text>
-              <Text style={{ width: 155 }}>{truncate(pkg.recipientAddress, 28)}</Text>
-              <Text style={{ width: 45 }}>
-                {pkg.payment?.amount != null ? `$${pkg.payment.amount}` : ''}
+              <Text style={[{ width: 63 }, hasPayment && styles.textBold]}>
+                {pkg.trackingNumber}
               </Text>
-              <Text style={{ width: 55 }}>{commitDate}</Text>
-              <Text style={{ width: 45 }}>{commitTime}</Text>
-              <Text style={{ width: 55 }}>{pkg.recipientPhone}</Text>
-              <Text style={{ width: 90 }}></Text>
+              <Text style={[{ width: 145 }, hasPayment && styles.textBold]}>
+                {truncate(pkg.recipientName, 24)}
+              </Text>
+              <Text style={[{ width: 155 }, hasPayment && styles.textBold]}>
+                {truncate(pkg.recipientAddress, 28)}
+              </Text>
+              <Text style={[{ width: 45 }, hasPayment && styles.textBold]}>
+                {hasPayment ? `${pkg.payment?.type} $${pkg.payment?.amount}` : ''}
+              </Text>
+              <Text style={[{ width: 55 }, hasPayment && styles.textBold]}>
+                {commitDate}
+              </Text>
+              <Text style={[{ width: 45 }, hasPayment && styles.textBold]}>
+                {commitTime}
+              </Text>
+              <Text style={[{ width: 55 }, hasPayment && styles.textBold]}>
+                {pkg.recipientPhone}
+              </Text>
+              <Text style={[{ width: 90 }, hasPayment && styles.textBold]}>
+                {}
+              </Text>
             </View>
           );
         })}
