@@ -142,7 +142,7 @@ import { Shipment } from "../types";
     formData.append("file", file)
     formData.append("subsidiaryId", subsidiaryId)
     formData.append("consNumber", consNumber || "")
-    formData.append("notRemoveCharge", notRemoveCharge.toString() || "false")
+    formData.append("notRemoveCharge", notRemoveCharge ? "true" : "false")
 
     // Solo agrega consDate si existe
     if (consDate) {
