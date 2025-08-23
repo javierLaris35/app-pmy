@@ -83,7 +83,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
       pkg.trackingNumber,
       pkg.recipientAddress || '',
       pkg.payment?.amount != null
-        ? `${pkg.payment?.type} $${pkg.payment.amount.toFixed(2)}`
+        ? `${pkg.payment?.type} $${pkg.payment.amount}`
         : '',
       commitDate || '',
       commitTime || '',
