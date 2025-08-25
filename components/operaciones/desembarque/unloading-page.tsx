@@ -139,22 +139,27 @@ export default function UnLoadingPageControl() {
                 </Card>
             </div>
 
-            <Dialog open={isUnloagingDialogOpen} onOpenChange={setIsUnloadingDialogOpen}>
-                <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+            <Dialog
+                open={isUnloagingDialogOpen}
+                onOpenChange={(open) => setIsUnloadingDialogOpen(open)} // solo maneja el estado
+                >
+                <DialogContent
+                    className="max-w-6xl max-h-[95vh] overflow-y-auto"
+                    onInteractOutside={(event) => event.preventDefault()} // bloquea click fuera
+                    onEscapeKeyDown={(event) => event.preventDefault()}   // bloquea ESC
+                >
                     <DialogHeader>
-                        <DialogTitle>Nuevo Desembarque de Paquetes</DialogTitle>
-                            <DialogDescription>
-                                Selecciona la unidad de transporte, luego escanea los paquetes para procesar el desembarque.
-                            </DialogDescription>
+                    <DialogTitle>Nuevo Desembarque</DialogTitle>
                     </DialogHeader>
+
                     <UnloadingForm
-                        selectedSubsidiaryId={selectedSucursalId}
-                        subsidiaryName={selectedSucursalName}
-                        onClose={() => setIsUnloadingDialogOpen(false)}
-                        onSuccess={() => {
+                    selectedSubsidiaryId={selectedSucursalId}
+                    subsidiaryName={selectedSucursalName}
+                    onClose={() => setIsUnloadingDialogOpen(false)} // esto cierra correctamente
+                    onSuccess={() => {
                         mutate()
                         setIsUnloadingDialogOpen(false)
-                        }}
+                    }}
                     />
                 </DialogContent>
             </Dialog>

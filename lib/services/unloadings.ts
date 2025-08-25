@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { PackageInfo, Unloading, UnloadingFormData } from "@/lib/types"
+import { ConsolidatedDetails, Consolidateds, PackageInfo, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types"
 
 const url = '/unloadings'
 
@@ -18,10 +18,18 @@ const saveUnloading = async (unloading: UnloadingFormData) => {
     return response.data;
 }
 
-const validateTrackingNumber = async (trackingNumber: string, subsidiaryId: string) => {
-    const response = await axiosConfig.get<PackageInfo>(`${url}/validate-tracking-number/${trackingNumber}/${subsidiaryId}`);
+const validateTrackingNumbers = async (trackingNumbers: string[], subsidiaryId: string) => {
+  const response = await axiosConfig.post<ValidTrackingAndConsolidateds>(
+    `${url}/validate-tracking-numbers`,
+    { trackingNumbers, subsidiaryId }
+  );
+  return response.data;
+};
+
+const getConsolidatedsToStartUnloading = async(subsidiaryId: string) => {
+    const response = await axiosConfig.get<Consolidateds>(`${url}/consolidateds/${subsidiaryId}`);
     return response.data;
-}   
+}
 
 
 export async function uploadPDFile(
@@ -63,5 +71,6 @@ export {
     getUnloadings,
     saveUnloading,
     getUnloadingById,
-    validateTrackingNumber
+    validateTrackingNumbers,
+    getConsolidatedsToStartUnloading
 }

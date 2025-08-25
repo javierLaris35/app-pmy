@@ -10,12 +10,12 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
 
   // === ENCABEZADO GENERAL (A:G) ===
   const titleRow = sheet.addRow([`📦 Desembarque`]);
-  sheet.mergeCells(`A${titleRow.number}:G${titleRow.number}`);
+  sheet.mergeCells(`A${titleRow.number}:H${titleRow.number}`);
   titleRow.font = { size: 16, bold: true, color: { argb: 'FFFFFF' } };
   titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
-  // color institucional (A:G)
-  for (let col = 1; col <= 7; col++) {
+  // color institucional (A:H)
+  for (let col = 1; col <= 8; col++) {
     sheet.getCell(titleRow.number, col).fill = {
       type: 'pattern',
       pattern: 'solid',
@@ -27,7 +27,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
 
   // Unidad
   const row1 = sheet.addRow([`Unidad: ${data?.vehicle?.name ?? ''}`]);
-  sheet.mergeCells(`A${row1.number}:G${row1.number}`);
+  sheet.mergeCells(`A${row1.number}:H${row1.number}`);
 
   // Fecha formateada
   const createdAt = format(
@@ -35,11 +35,11 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
     'yyyy-MM-dd HH:mm'
   );
   const row2 = sheet.addRow([`Fecha: ${createdAt}`]);
-  sheet.mergeCells(`A${row2.number}:G${row2.number}`);
+  sheet.mergeCells(`A${row2.number}:H${row2.number}`);
 
   // Paquetes
   const row3 = sheet.addRow([`Paquetes: ${data.shipments.length}`]);
-  sheet.mergeCells(`A${row3.number}:G${row3.number}`);
+  sheet.mergeCells(`A${row3.number}:H${row3.number}`);
 
   sheet.addRow([]); // espacio en blanco
 
@@ -47,6 +47,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
   const headerRow = sheet.addRow([
     'No.',
     'Guía',
+    'Nombre',
     'Dirección',
     'Cobro',
     'Fecha',
@@ -58,7 +59,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
   headerRow.height = 20;
 
   // color institucional medio (A:G)
-  for (let col = 1; col <= 7; col++) {
+  for (let col = 1; col <= 8; col++) {
     sheet.getCell(headerRow.number, col).fill = {
       type: 'pattern',
       pattern: 'solid',
@@ -81,6 +82,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
     const row = sheet.addRow([
       index + 1,
       pkg.trackingNumber,
+      pkg.recipientName,
       pkg.recipientAddress || '',
       pkg.payment?.amount != null
         ? `${pkg.payment?.type} $${pkg.payment.amount}`
@@ -92,7 +94,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
 
     // filas alternadas en gris (A:G)
     if (index % 2 === 0) {
-      for (let col = 1; col <= 7; col++) {
+      for (let col = 1; col <= 8; col++) {
         sheet.getCell(row.number, col).fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -121,7 +123,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
   if (data.missingTrackings.length > 0) {
     sheet.addRow([]);
     const title = sheet.addRow(['❌ Missing Trackings']);
-    sheet.mergeCells(`A${title.number}:G${title.number}`);
+    sheet.mergeCells(`A${title.number}:H${title.number}`);
     title.font = { bold: true, color: { argb: 'FFFFFF' } };
     title.alignment = { vertical: 'middle', horizontal: 'left' };
 
@@ -135,7 +137,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
 
     data.missingTrackings.forEach((trk) => {
       const row = sheet.addRow([trk]);
-      sheet.mergeCells(`A${row.number}:G${row.number}`);
+      sheet.mergeCells(`A${row.number}:H${row.number}`);
       row.alignment = { vertical: 'middle', horizontal: 'left' };
     });
   }
@@ -144,7 +146,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
   if (data.unScannedTrackings.length > 0) {
     sheet.addRow([]);
     const title = sheet.addRow(['📍 UnScanned Trackings']);
-    sheet.mergeCells(`A${title.number}:G${title.number}`);
+    sheet.mergeCells(`A${title.number}:H${title.number}`);
     title.font = { bold: true, color: { argb: 'FFFFFF' } };
     title.alignment = { vertical: 'middle', horizontal: 'left' };
 
@@ -158,7 +160,7 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
 
     data.unScannedTrackings.forEach((trk) => {
       const row = sheet.addRow([trk]);
-      sheet.mergeCells(`A${row.number}:G${row.number}`);
+      sheet.mergeCells(`A${row.number}:H${row.number}`);
       row.alignment = { vertical: 'middle', horizontal: 'left' };
     });
   }
@@ -176,11 +178,12 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
   // ajustes manuales
   sheet.getColumn(1).width = 5;   // No.
   sheet.getColumn(2).width = 18;  // Guía
-  sheet.getColumn(3).width = 45;  // Dirección
-  sheet.getColumn(4).width = 20;  // Cobro
-  sheet.getColumn(5).width = 12;  // Fecha
-  sheet.getColumn(6).width = 12;  // Hora
-  sheet.getColumn(7).width = 18;  // Celular
+  sheet.getColumn(3).width = 45;  // Nombre
+  sheet.getColumn(4).width = 45;  // Dirección
+  sheet.getColumn(5).width = 20;  // Cobro
+  sheet.getColumn(6).width = 12;  // Fecha
+  sheet.getColumn(7).width = 12;  // Hora
+  sheet.getColumn(8).width = 18;  // Celular
 
   // Generar el buffer
   const buffer = await workbook.xlsx.writeBuffer();

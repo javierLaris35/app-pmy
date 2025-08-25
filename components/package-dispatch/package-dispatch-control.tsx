@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Send, Package, Truck, Eye, Sheet } from "lucide-react"
+import { Send, Package, Truck, Eye, Sheet, StampIcon } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { createSelectColumn, createSortableColumn } from "@/components/data-table/columns"
@@ -18,12 +18,14 @@ import { columns } from "./columns"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator"
 import PackageDispatchDetails from "./package-dispatch-details"
+import ClosePackageDisptach from "./close-package-dispatch-form"
 
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isRouteClouserDialogOpen, setIsRouteClouserDialogOpen] = useState(false);
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<PackageDispatch | null>(null);
 
   const { packageDispatchs, isError, isLoading, mutate } = usePackageDispatchs(selectedSucursalId)
@@ -42,7 +44,12 @@ export default function PackageDispatchControl() {
 
   const openDetailsDialog = (packageDispatch: PackageDispatch) => {
       setSelectedPackageDispatch(packageDispatch);
-      setIsDetailsDialogOpen(true);
+      setIsRouteClouserDialogOpen(true);
+  };
+
+  const openRouteClouserDialog = (packageDispatch: PackageDispatch) => {
+      setSelectedPackageDispatch(packageDispatch);
+      setIsRouteClouserDialogOpen(true);
   };
 
   const handleSucursalChange = (id: string, name?: string) => {
@@ -59,7 +66,7 @@ export default function PackageDispatchControl() {
       ? {
           ...col,
           cell: ({ row }) => (
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Button
                 variant="ghost"
                 className="h-8 w-8 p-0"
@@ -79,6 +86,20 @@ export default function PackageDispatchControl() {
                 </TooltipTrigger>
                 <TooltipContent>
                   Generar Excel
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    className="h-8 w-8 p-0 text-white bg-red-900"
+                    onClick={() => openRouteClouserDialog(row.original)}
+                  >
+                    <StampIcon className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Cierre de Ruta
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -236,6 +257,25 @@ export default function PackageDispatchControl() {
           )}
           </DialogContent>
       </Dialog>
+
+      {/* Cierre de Ruta Dialog */}
+      <Dialog open={isRouteClouserDialogOpen} onOpenChange={setIsRouteClouserDialogOpen}>
+          <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+              <DialogTitle>Cierre de Salida a Ruta</DialogTitle>
+              <DialogDescription>
+                Visualiza los detalles de la salida a ruta, para generar su cierre.
+              </DialogDescription>
+          </DialogHeader>
+          {selectedPackageDispatch && (
+              <ClosePackageDisptach
+              dispatch={selectedPackageDispatch}
+              onClose={() => setIsRouteClouserDialogOpen(false)}
+              />
+          )}
+          </DialogContent>
+      </Dialog>
+
     </AppLayout>
   )
 }

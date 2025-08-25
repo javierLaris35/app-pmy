@@ -542,3 +542,25 @@ export interface UnloadingFormData {
   unScannedTrackings: string[];
   date: string;
 }
+
+export interface ConsolidatedDetails {
+  id: string;
+  type: string;
+  typeCode: string;
+  numberOfPackages: number;
+  added: string[];
+  notFound: string[];
+  icon: any;
+  color: string;
+}
+
+export interface Consolidateds {
+  airConsolidated: ConsolidatedDetails[],
+  groundConsolidated: ConsolidatedDetails[],
+  f2Consolidated: ConsolidatedDetails[]
+}
+
+export interface ValidTrackingAndConsolidateds {
+  validatedShipments: PackageInfo[],
+  consolidateds: Consolidateds
+}

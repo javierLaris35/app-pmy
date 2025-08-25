@@ -1,9 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import classNames from "classnames";
+import { Label } from "./ui/label";
+import { Scan } from "lucide-react";
 
 interface BarcodeScannerInputProps {
   id?: string;
   placeholder?: string;
+  label?: string;
   disabled?: boolean;
   hasErrors?: boolean;
   onTrackingNumbersChange?: (trackingNumbers: string) => void;
@@ -13,6 +16,7 @@ interface BarcodeScannerInputProps {
 export function BarcodeScannerInput({
   id = "trackingNumbers",
   placeholder = "Escanea o pega los códigos de seguimiento aquí...",
+  label= "Números de Seguimiento",
   disabled = false,
   hasErrors = false,
   onTrackingNumbersChange,
@@ -77,24 +81,32 @@ export function BarcodeScannerInput({
   }, []);
 
   return (
-    <div className="relative">
-      <textarea
-        id={id}
-        value={currentScan}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        placeholder={placeholder}
-        rows={6}
-        disabled={disabled}
-        className={classNames(
-          "resize-none overflow-y-auto max-h-60 w-full p-2 border rounded-md",
-          {
-            "border-red-500": hasErrors,
-            "bg-gray-100 cursor-not-allowed": disabled,
-          }
-        )}
-      />
-    </div>
+    <>
+      <div className="flex flex-row justify-between">
+        <Label className="text-base font-medium flex items-center gap-2">
+          <Scan className="h-4 w-4" />
+          Escaneo de Paquetes
+        </Label>
+        <Label htmlFor="trackingNumbers">Guías Agregadas: {trackingNumbersRaw.split('\n').length}</Label>
+      </div>
+      <div className="relative">
+        <textarea
+          id={id}
+          value={currentScan}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={classNames(
+            "w-full p-2 border rounded-md resize-none h-auto min-h-[225px] max-h-[400px] overflow-y-auto",
+            {
+              "border-red-500": hasErrors,
+              "bg-gray-100 cursor-not-allowed": disabled,
+            }
+          )}
+        />
+      </div>
+    </>
   );
 }
