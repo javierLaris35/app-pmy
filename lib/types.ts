@@ -465,9 +465,9 @@ export interface Vehicles {
 }
 
 export enum PaymentTypeEnum {
-    FTC = "FTC",
-    COD = "COD",
-    ROD = "ROD"
+  FTC = "FTC",
+  COD = "COD",
+  ROD = "ROD"
 }
 
 export interface PackageInfoForUnloading {
@@ -543,13 +543,21 @@ export interface UnloadingFormData {
   date: string;
 }
 
+export interface ShortShipment {
+  id?: string;
+  trackingNumber: string;
+  recipientName?: string;
+  recipientAddress?: string;
+  recipientPhone?: string;
+}
+
 export interface ConsolidatedDetails {
   id: string;
   type: string;
   typeCode: string;
   numberOfPackages: number;
-  added: string[];
-  notFound: string[];
+  added: ShortShipment[];
+  notFound: ShortShipment[];
   icon: any;
   color: string;
 }

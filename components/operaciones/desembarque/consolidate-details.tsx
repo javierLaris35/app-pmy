@@ -6,6 +6,7 @@ import { getConsolidatedsToStartUnloading } from "@/lib/services/unloadings";
 import { Consolidateds } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/store/auth.store";
+import { NotFoundShipmentDetails } from "./not-found-details";
 
 interface ConsolidateDetailsProps {
   consolidatedData?: Consolidateds;
@@ -229,14 +230,20 @@ export default function ConsolidateDetails({
 
               {/* Solo el botón de eye */}
               <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                  title={`Ver detalles de ${item.type}`}
-                >
-                  <Eye className="h-3 w-3" />
-                </Button>
+                {/* Botón para abrir modal de faltantes */}
+                  <NotFoundShipmentDetails
+                    shipments={item.notFound || []}
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                        title={`Ver detalles de ${item.type}`}
+                      >
+                        <Eye className="h-3 w-3" />
+                      </Button>
+                    }
+                  />
               </div>
             </div>
           );

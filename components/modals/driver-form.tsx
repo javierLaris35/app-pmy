@@ -24,6 +24,10 @@ import {
 import * as z from 'zod'
 
 import { useAuthStore } from '@/store/auth.store'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
+import { CalendarIcon } from 'lucide-react'
+import { Calendar } from '@/components/ui/calendar'
+import { format } from 'date-fns'
 
 const stringField = (message: string) =>
   z.string({
@@ -39,6 +43,9 @@ export const driverSchema = z.object({
   status: z.nativeEnum(StatusEnum, {
     errorMap: () => ({ message: "Estado inválido" }),
   }),
+
+  licenseExpiration: z
+      .union([z.date(), z.string().datetime(), z.null()]),
 
   subsidiary: z.object({
     id: z.string({
@@ -111,6 +118,30 @@ export function DriverForm({ defaultValues, onSubmit }: DriverFormProps) {
               <FormControl>
                 <Input {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="licenseExpiration"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Expiración de Licencia</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        {field.value ? format(field.value, 'dd/MM/yyyy') : 'Selecciona una fecha'}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
+                  </PopoverContent>
+                </Popover>
               <FormMessage />
             </FormItem>
           )}

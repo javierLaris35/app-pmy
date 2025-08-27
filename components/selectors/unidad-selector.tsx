@@ -18,9 +18,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
-import {VehicleStatus, VehicleTypeEnum, type Vehicles } from "@/lib/types"
+import { VehicleStatus, VehicleTypeEnum, type Vehicles } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
-import { getVehiclesBySucursalId } from "@/lib/services/vehicles" // Asegúrate de tener este import
+import { getVehiclesBySucursalId } from "@/lib/services/vehicles"
 
 interface UnidadSelectorProps {
   selectedUnidad: Vehicles
@@ -80,19 +80,17 @@ export function UnidadSelector({
 
   const handleSelect = (unidadId: string) => {
     const unidad = unidades.find((u) => u.id === unidadId)
-
-    if(!unidad){
-      console.warn(`Unidad with ID ${unidadId} not found`);
-      return;
+    if (!unidad) {
+      console.warn(`Unidad with ID ${unidadId} not found`)
+      return
     }
-
     onSelectionChange(unidad)
     setOpen(false)
   }
 
   const selectedUnidadData = selectedUnidad
     ? unidades.find((u) => u.id === selectedUnidad.id)
-    : undefined;
+    : undefined
 
   return (
     <div className="space-y-2">
@@ -109,11 +107,12 @@ export function UnidadSelector({
               <Truck className="h-4 w-4" />
               {!selectedUnidad || !selectedUnidad.name
                 ? "Seleccionar unidad..."
-                : selectedUnidadData?.name || selectedUnidad.name}
+                : `${selectedUnidadData?.name || selectedUnidad.name} • ${selectedUnidadData?.code || selectedUnidad.code}`}
             </div>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
+
         <PopoverContent className="w-full p-0">
           <Command>
             <CommandInput placeholder="Buscar unidad..." />
@@ -121,18 +120,14 @@ export function UnidadSelector({
               <CommandEmpty>No se encontraron unidades.</CommandEmpty>
               <CommandGroup>
                 {unidades.map((unidad) => {
-                  // Validar que unidad no sea null/undefined
                   if (!unidad) return null
-
-                  // Asegurar que value sea string no vacía para CommandItem
                   const commandValue = unidad.name || unidad.id || ""
-
                   const isDisponible = unidad.status !== VehicleStatus.INACTIVE
-                  
+
                   return (
                     <CommandItem
                       key={unidad.id}
-                      value={commandValue}       
+                      value={commandValue}
                       onSelect={() => handleSelect(unidad.id)}
                       disabled={!isDisponible}
                     >
@@ -147,7 +142,7 @@ export function UnidadSelector({
                           <span className="text-lg">{getVehicleIcon(unidad.type)}</span>
                           <div className="flex flex-col">
                             <span className={cn("font-medium", !isDisponible && "text-muted-foreground")}>
-                              {unidad.name}
+                              {unidad.name} • {unidad.code}
                             </span>
                             <span className="text-sm text-muted-foreground">
                               {unidad.plateNumber} • Capacidad: {unidad.capacity} paquetes
@@ -165,7 +160,7 @@ export function UnidadSelector({
                       </div>
                     </CommandItem>
                   )
-                })}                
+                })}
               </CommandGroup>
             </CommandList>
           </Command>
@@ -176,7 +171,9 @@ export function UnidadSelector({
         <div className="bg-muted p-3 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-lg">{getVehicleIcon(selectedUnidadData.type)}</span>
-            <span className="font-medium">{selectedUnidadData.name}</span>
+            <span className="font-medium">
+              {selectedUnidadData.name} • {selectedUnidadData.code}
+            </span>
             <Badge variant="outline" className="text-xs">
               {selectedUnidadData.type.toLocaleUpperCase()}
             </Badge>

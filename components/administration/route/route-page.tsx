@@ -18,7 +18,6 @@ import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
 import { Plus, Trash2Icon, PencilIcon } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useSaveVehicle } from "@/hooks/services/vehicles/use-vehicles"
 import { Route } from "@/lib/types"
 import { columns } from "./columns"
 import { RouteForm } from "@/components/modals/route-form"
@@ -117,8 +116,8 @@ export default function RoutesPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingRoute ? "Editar Vehículo" : "Nuevo Vehículo"}</DialogTitle>
-            <DialogDescription>Completa la información del vehículo</DialogDescription>
+            <DialogTitle>{editingRoute ? "Editar Ruta" : "Nuevo Ruta"}</DialogTitle>
+            <DialogDescription>Completa la información de la ruta</DialogDescription>
           </DialogHeader>
           <RouteForm defaultValues={editingRoute} onSubmit={handleSubmit}/>
         </DialogContent>

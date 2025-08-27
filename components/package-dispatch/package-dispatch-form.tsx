@@ -489,10 +489,6 @@ const PackageDispatchForm: React.FC<Props> = ({
         {/* Package Scanning Section */}
         <div className="space-y-4">
           <div className="space-y-2">
-            <div className="flex flex-row justify-between">
-              <Label htmlFor="trackingNumbers">Números de seguimiento</Label>
-              <Label htmlFor="trackingNumbers">Guías Agregadas: {trackingNumbersRaw.split('\n').length}</Label>
-            </div>
             <BarcodeScannerInput 
               onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
             />

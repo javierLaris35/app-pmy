@@ -37,6 +37,24 @@ export const columns: ColumnDef<Driver>[] = [
     cell: ({ row }) => row.original.licenseNumber || "-",
   },
   {
+    accessorKey: "licenseExpiration",
+    header: "Expiración de Licencia",
+    cell: ({ row }) => {
+      const rawValue = row.getValue("licenseExpiration");
+      const date = rawValue ? new Date(rawValue as string) : null;
+
+      const formatted = date
+        ? date.toLocaleString("es-MX", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
+        : "N/A";
+
+      return <div className="font-medium">{formatted}</div>;
+    },
+  },
+  {
     accessorKey: "phoneNumber",
     header: "Número de Teléfono",
     cell: ({ row }) => row.original.phoneNumber || "-",

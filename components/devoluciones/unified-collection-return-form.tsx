@@ -135,6 +135,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     setProgress(0)
 
     const results: Collection[] = []
+    
     for (let i = 0; i < validNumbers.length; i++) {
       const tn = validNumbers[i]
       const info = await checkCollectionInfo(tn)
@@ -179,6 +180,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         status,
         subsidiaryName: res.subsidiaryName,
         hasIncome: res.hasIncome,
+        date: selectedDate,
         lastStatus: res.lastStatus || null,
         reason,
       }
@@ -426,9 +428,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="collections" className="space-y-4">
+          <TabsContent value="collections" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="collectionNumbers">Números de recolección</Label>
               <BarcodeScannerInput 
                 onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)} 
               />
@@ -492,9 +493,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
             )}
           </TabsContent>
 
-          <TabsContent value="devolutions" className="space-y-4">
+          <TabsContent value="devolutions" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="devolutionNumbers">Números de devolución</Label>
               <BarcodeScannerInput 
                 onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)} 
               />
