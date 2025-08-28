@@ -75,9 +75,9 @@ export async function generateUnloadingExcelClient(data: Unloading, forDownload 
 
   // === DATOS (Shipments) ===
   data.shipments.forEach((pkg, index) => {
-    const [commitDateRaw, commitTimeRaw] = pkg.commitDateTime.split('T');
-    const commitDate = commitDateRaw;
-    const commitTime = commitTimeRaw?.split('.')[0];
+    const zonedDate = toZonedTime(new Date(pkg.commitDateTime), timeZone);
+    const commitDate = format(zonedDate, "yyyy-MM-dd"); // Ej: "2025/08/05"
+    const commitTime = format(zonedDate, "HH:mm:ss");
 
     const row = sheet.addRow([
       index + 1,

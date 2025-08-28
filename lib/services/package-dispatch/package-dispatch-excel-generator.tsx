@@ -85,9 +85,9 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
 
   // Datos
   data.shipments.forEach((pkg, index) => {
-    const [commitDateRaw, commitTimeRaw] = pkg.commitDateTime.split('T');
-    const commitDate = commitDateRaw; // '2025-08-05'
-    const commitTime = commitTimeRaw?.split('.')[0];
+    const zonedDate = toZonedTime(new Date(pkg.commitDateTime), timeZone);
+    const commitDate = format(zonedDate, "yyyy-MM-dd"); // Ej: "2025/08/05"
+    const commitTime = format(zonedDate, "HH:mm:ss");
     const hasPayment = pkg.payment?.amount != null;
 
     console.log("🚀 ~ generateDispatchExcelClient ~ hasPayment:", hasPayment)
