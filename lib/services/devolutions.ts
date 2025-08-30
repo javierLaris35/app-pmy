@@ -18,6 +18,38 @@ const validateDevolution = async(trackingNumber: string) => {
     return response.data;
 }
 
+export async function uploadFiles(
+    pdfFile: File,
+    excelFile: File,
+    subsidiaryName: string,
+    onProgress?: (progress: number) => void
+): Promise<any> { 
+    const formData = new FormData();
+    formData.append('files', pdfFile);
+    formData.append('files', excelFile);
+    formData.append('subsidiaryName', subsidiaryName);
+
+    try {
+        const response = await axiosConfig.post('devolutions/upload', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+            if (onProgress && progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log('Upload Progress:', percent);
+            onProgress(percent);
+            }
+        },
+        });
+
+        return response.data;
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        throw error; // Rethrow to let the caller handle it
+    }
+}
+
 
 export {
     getDevolutions,

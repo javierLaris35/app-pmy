@@ -85,7 +85,7 @@ export function BarcodeScannerInput({
       <div className="flex flex-row justify-between">
         <Label className="text-base font-medium flex items-center gap-2">
           <Scan className="h-4 w-4" />
-          Escaneo de Paquetes
+          {label}
         </Label>
         <Label htmlFor="trackingNumbers">Guías Agregadas: {trackingNumbersRaw.split('\n').length}</Label>
       </div>

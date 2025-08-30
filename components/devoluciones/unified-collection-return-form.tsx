@@ -11,16 +11,18 @@ import { Badge } from "@/components/ui/badge"
 import classNames from "classnames"
 import { AlertCircle, Trash2, Package, RotateCcw, FileText, Download, Undo2Icon } from "lucide-react"
 import { saveCollections, validateCollection } from "@/lib/services/collections"
-import { saveDevolutions, validateDevolution } from "@/lib/services/devolutions"
+import { saveDevolutions, validateDevolution, uploadFiles } from "@/lib/services/devolutions"
 import { DevolutionCard } from "../devoluciones/devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
-import { generateEnhancedFedExPDF } from "@/lib/services/pdf-generator"
 import { toast } from "sonner"
 import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
 import { BarcodeScannerInput } from "../barcode-scanner-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
 import { Input } from "../ui/input"
+import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator"
+import { EnhancedFedExPDF } from "@/lib/services/pdf-generator"
+import { pdf } from "@react-pdf/renderer"
 
 // Types
 export type Collection = {
@@ -282,8 +284,18 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   const generatePDF = async () => {
     try {
       setIsLoading(true)
-      console.log("🚀 ~ generatePDF ~ subsidiaryName:", subsidiaryName)
-      await generateEnhancedFedExPDF(collections, devolutions, subsidiaryName)
+
+      const blob= await pdf(<EnhancedFedExPDF 
+        key={Date.now()}
+        collections={collections}
+        devolutions={devolutions}
+        subsidiaryName={subsidiaryName}
+        />).toBlob()
+
+      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+      window.open(blobUrl, '_blank');
+
+      await generateFedExExcel(collections, devolutions, subsidiaryName)
 
       toast("El documento ha sido descargado exitosamente.")
     } catch (error) {
@@ -293,6 +305,40 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       setIsLoading(false)
     }
       
+  }
+
+  const handleSendEmail = async () => {
+    //CREAMOS el PDF
+    const blob= await pdf(<EnhancedFedExPDF 
+      key={Date.now()}
+      collections={collections}
+      devolutions={devolutions}
+      subsidiaryName={subsidiaryName}
+      />).toBlob()
+
+    const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+    window.open(blobUrl, '_blank');
+
+    const currentDate = new Date().toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    });
+
+    const fileName = `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`;
+    const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+
+    const excelBuffer = await generateFedExExcel(collections, devolutions, subsidiaryName, false)
+    const excelBlob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const excelFileName = `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.xlsx`;
+    const excelFile = new File([excelBlob], excelFileName, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    await uploadFiles(pdfFile, excelFile, subsidiaryName)
+
   }
 
   // Unified save
@@ -357,8 +403,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       toast(`Se guardaron ${collections.length} recolecciones y ${devolutions.length} devoluciones.`)
 
       // Generate PDF after successful save
-      await generateEnhancedFedExPDF(collections, devolutions, subsidiaryName)
-
+      //TODO agregar al email la unidad y el chofer que lleba los paquetes
+      await handleSendEmail()
       // Reset form
       setCollections([])
       setDevolutions([])

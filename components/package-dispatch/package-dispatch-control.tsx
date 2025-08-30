@@ -44,7 +44,7 @@ export default function PackageDispatchControl() {
 
   const openDetailsDialog = (packageDispatch: PackageDispatch) => {
       setSelectedPackageDispatch(packageDispatch);
-      setIsRouteClouserDialogOpen(true);
+      setIsDetailsDialogOpen(true);
   };
 
   const openRouteClouserDialog = (packageDispatch: PackageDispatch) => {
@@ -262,10 +262,6 @@ export default function PackageDispatchControl() {
       <Dialog open={isRouteClouserDialogOpen} onOpenChange={setIsRouteClouserDialogOpen}>
           <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-              <DialogTitle>Cierre de Salida a Ruta</DialogTitle>
-              <DialogDescription>
-                Visualiza los detalles de la salida a ruta, para generar su cierre.
-              </DialogDescription>
           </DialogHeader>
           {selectedPackageDispatch && (
               <ClosePackageDisptach
