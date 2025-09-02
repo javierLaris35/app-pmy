@@ -281,7 +281,8 @@ export enum ShipmentStatusType {
   EN_RUTA = 'en_ruta',
   ENTREGADO = 'entregado',
   NO_ENTREGADO = 'no_entregado',
-  DESCONOCIDO = 'desconocido'
+  DESCONOCIDO = 'desconocido',
+  RECHAZADO = 'rechazado'
 }
 
 export enum Priority {
@@ -346,7 +347,6 @@ interface FedexReport {
   total: number;
   totalIncome: string;
 }
-
 
 export interface Devolution {
   id: string
@@ -519,6 +519,8 @@ export interface PackageInfo {
     amount: string
     type: PaymentTypeEnum
   }
+  lastHistory?: StatusHistory
+  status?: ShipmentStatusType
 }
 
 export interface Unloading {
@@ -571,4 +573,21 @@ export interface Consolidateds {
 export interface ValidTrackingAndConsolidateds {
   validatedShipments: PackageInfo[],
   consolidateds: Consolidateds
+}
+
+export interface RouteClosure {
+  id?: string;
+  closeDate: string;
+  returnedPackages: Shipment[];
+  podPackages: Shipment[];
+  subsidiary: Subsidiary;
+  createdBy: User;
+  packageDipatch: PackageDispatch;
+  actualKms: string;
+  collections: string[];
+}
+
+export interface ValidatedPackagesForClousere {
+  validatedPackages: PackageInfo[],
+  podPackages: PackageInfo[]
 }

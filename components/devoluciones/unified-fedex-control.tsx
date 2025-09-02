@@ -219,8 +219,11 @@ export default function UpdatedFedExControl() {
       </div>
 
       {/* Unified Dialog */}
-      <Dialog open={isUnifiedDialogOpen} onOpenChange={setIsUnifiedDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+      <Dialog open={isUnifiedDialogOpen} onOpenChange={(open) => setIsUnifiedDialogOpen(open)}>
+        <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto"
+          onInteractOutside={(event) => event.preventDefault()} // bloquea click fuera
+          onEscapeKeyDown={(event) => event.preventDefault()}   // bloquea ESC
+        >
           <DialogHeader>
             <DialogTitle>Proceso Unificado de Recolecciones y Devoluciones</DialogTitle>
             <DialogDescription>

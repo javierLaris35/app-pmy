@@ -10,7 +10,7 @@ import {
   Image,
 } from '@react-pdf/renderer';
 import { format, toZonedTime } from 'date-fns-tz';
-import { Driver, PackageInfo, Route, Vehicles } from '@/lib/types';
+import { PackageInfo, Vehicles } from '@/lib/types';
 
 Font.register({ family: 'Helvetica', src: undefined }); // Uses built-in Helvetica
 

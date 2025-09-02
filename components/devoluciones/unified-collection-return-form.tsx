@@ -20,7 +20,7 @@ import { BarcodeScannerInput } from "../barcode-scanner-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
 import { Input } from "../ui/input"
-import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator"
+import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator-con-cobros"
 import { EnhancedFedExPDF } from "@/lib/services/pdf-generator"
 import { pdf } from "@react-pdf/renderer"
 
@@ -345,6 +345,16 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   const handleUnifiedSave = async () => {
     if (!selectedSubsidiaryId) {
       toast("Por favor selecciona una sucursal antes de guardar.")
+      return
+    }
+
+    if(selectedDrivers.length === 0) {
+      toast("No hay choferes seleccionados, es necesario seleccionar almenos uno para continuar.")
+      return
+    }
+
+    if(!selectedVehicle) {
+      toast("No ha seccionado el vehículoe, es necesario seleccionar uno para continuar.")
       return
     }
 

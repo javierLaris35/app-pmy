@@ -1,114 +1,192 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useEffect, useState, useCallback, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText, CircleAlertIcon, GemIcon } from "lucide-react"
-import { RepartidorSelector } from "../selectors/repartidor-selector"
-import { RutaSelector } from "../selectors/ruta-selector"
-import { UnidadSelector } from "../selectors/unidad-selector"
-import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, ShipmentStatusType, Subsidiary, Vehicles } from "@/lib/types"
-import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib/services/package-dispatchs"
-import { useAuthStore } from "@/store/auth.store"
-import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator"
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, DollarSignIcon, BanknoteIcon, Package, ClipboardPasteIcon, FileText, CircleAlertIcon, GemIcon, Loader2, Search, Filter, ChevronDown, ChevronUp, X, Download } from "lucide-react";
+import { RepartidorSelector } from "../selectors/repartidor-selector";
+import { RutaSelector } from "../selectors/ruta-selector";
+import { UnidadSelector } from "../selectors/unidad-selector";
+import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, Vehicles } from "@/lib/types";
+import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib/services/package-dispatchs";
+import { useAuthStore } from "@/store/auth.store";
+import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
 import { pdf } from '@react-pdf/renderer';
-import { Input } from "../ui/input"
-import { BarcodeScannerInput } from "../barcode-scanner-input"
-import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator"
+import { Input } from "../ui/input";
+import { BarcodeScannerInput } from "../barcode-scanner-input";
+import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Props = {
-  selectedSubsidiaryId: string | null
-  subsidiaryName?: string
-  onClose: () => void
-  onSuccess: () => void
+  selectedSubsidiaryId: string | null;
+  subsidiaryName?: string;
+  onClose: () => void;
+  onSuccess: () => void;
 }
 
-const VALIDATION_REGEX = /^\d{12}$/
+const VALIDATION_REGEX = /^\d{12}$/;
 
 const formatMexicanPhoneNumber = (phone: string): string => {
-  // Remove non-digits
   const cleaned = phone.replace(/\D/g, '');
-
-  // Handle 10-digit numbers (e.g., 6441251245 -> +52 (644) 125-1245)
   if (cleaned.length === 10) {
     return `+52 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
   }
-
-  // Handle 12-digit numbers with '52' (e.g., +526441251245 -> +52 (644) 125-1245)
   if (cleaned.length === 12 && cleaned.startsWith('52')) {
     return `+52 (${cleaned.slice(2, 5)}) ${cleaned.slice(5, 8)}-${cleaned.slice(8)}`;
   }
-
-  // Handle 13-digit numbers with '521' (e.g., +5216441251245 -> +52 (644) 125-1245)
   if (cleaned.length === 13 && cleaned.startsWith('521')) {
     return `+52 (${cleaned.slice(3, 6)}) ${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
   }
-
-  // Return original if format is unknown
   return phone;
+};
+
+// Componente auxiliar para mostrar cada paquete
+const PackageItem = ({ 
+  pkg, 
+  onRemove, 
+  isLoading 
+}: {
+  pkg: PackageInfo;
+  onRemove: (trackingNumber: string) => void;
+  isLoading: boolean;
+}) => {
+  return (
+    <div className="p-3 hover:bg-muted/20 transition-colors border-b">
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono font-medium text-sm">{pkg.trackingNumber}</span>
+            
+            <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
+              {pkg.isValid ? "Válido" : "Inválido"}
+            </Badge>
+            
+            {pkg.priority && (
+              <Badge
+                variant={
+                  pkg.priority === Priority.ALTA
+                    ? "destructive"
+                    : pkg.priority === Priority.MEDIA
+                    ? "secondary"
+                    : "outline"
+                }
+                className="text-xs"
+              >
+                {pkg.priority.toUpperCase()}
+              </Badge>
+            )}
+            
+            {pkg.isCharge && (
+              <Badge className="bg-green-600 text-xs">
+                CARGA/F2/31.5
+              </Badge>
+            )}
+            
+            {pkg.isHighValue && (
+              <Badge className="bg-violet-600 text-xs">
+                <GemIcon className="h-3 w-3 mr-1" />
+              </Badge>
+            )}
+            
+            {pkg.payment && (
+              <Badge className="bg-blue-600 text-xs">
+                <BanknoteIcon className="h-3 w-3 mr-1" />
+                A COBRAR: {pkg.payment.type} ${pkg.payment.amount}
+              </Badge>
+            )}
+          </div>
+          
+          {pkg.isValid && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
+              {pkg.recipientAddress && (
+                <div className="flex items-start gap-1">
+                  <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span className="line-clamp-1 text-xs">{pkg.recipientAddress}</span>
+                </div>
+              )}
+              {pkg.recipientName && (
+                <div className="flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  <span className="text-xs">{pkg.recipientName}</span>
+                </div>
+              )}
+              {pkg.recipientPhone && (
+                <div className="flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  <span className="text-xs">{formatMexicanPhoneNumber(pkg.recipientPhone)}</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {!pkg.isValid && (
+            <div className="flex items-center gap-1 text-sm text-destructive">
+              <AlertCircle className="w-3 h-3" />
+              <span className="text-xs">{pkg.reason}</span>
+            </div>
+          )}
+        </div>
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onRemove(pkg.trackingNumber)}
+          disabled={isLoading}
+          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 size={12} />
+        </Button>
+      </div>
+    </div>
+  );
 };
 
 const PackageDispatchForm: React.FC<Props> = ({
   onClose,
   onSuccess,
 }) => {
-  // Form states
-  const [selectedRepartidores, setSelectedRepartidores] = useState<Driver[]>([])
-  const [selectedRutas, setSelectedRutas] = useState<Route[]>([])
-  const [selectedUnidad, setSelectedUnidad] = useState<Vehicles>()
+  // Estados del formulario
+  const [selectedRepartidores, setSelectedRepartidores] = useState<Driver[]>([]);
+  const [selectedRutas, setSelectedRutas] = useState<Route[]>([]);
+  const [selectedUnidad, setSelectedUnidad] = useState<Vehicles>();
+  const [selectedKms, setSelectedKms] = useState<string>("");
 
-  // Package scanning states
-  const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("")
-  const [currentScan, setCurrentScan] = useState("")
-  const [packages, setPackages] = useState<PackageInfo[]>([])
-  const [invalidNumbers, setInvalidNumbers] = useState<string[]>([])
-  const [hasValidated, setHasValidated] = useState(false)
-  const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
-  const [selectedSubsidiaryName, setSelectedSubsidirayName] = useState<string | null>(null)
-  const [selectedKms, setSelectedKms] = useState<string | null>("")
+  // Estados de escaneo
+  const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("");
+  const [packages, setPackages] = useState<PackageInfo[]>([]);
+  const [invalidNumbers, setInvalidNumbers] = useState<string[]>([]);
+  const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null);
+  const [selectedSubsidiaryName, setSelectedSubsidiaryName] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterPriority, setFilterPriority] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const [trackingNumbers, setTrackingNumbers] = useState<string[]>([]);
-
-  // Loading and progress states
-  const [isLoading, setIsLoading] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const user = useAuthStore((s) => s.user)
-
-  const { toast } = useToast()
-
-  useEffect(() => {
-      if (user?.subsidiary) {
-        setSelectedSubsidirayId(user?.subsidiary.id || null)
-        setSelectedSubsidirayName(user?.subsidiary.name || null)
-      }
-    }, [user, setSelectedSubsidirayId])
+  // Estados de carga
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const user = useAuthStore((s) => s.user);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const preventZoom = (e: WheelEvent) => {
-      if (e.ctrlKey) e.preventDefault()
+    if (user?.subsidiary) {
+      setSelectedSubsidiaryId(user.subsidiary.id || null);
+      setSelectedSubsidiaryName(user.subsidiary.name || null);
     }
-    const preventKeyZoom = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "0"].includes(e.key)) {
-        e.preventDefault()
-      }
-    }
-    window.addEventListener("wheel", preventZoom, { passive: false })
-    window.addEventListener("keydown", preventKeyZoom)
-    return () => {
-      window.removeEventListener("wheel", preventZoom)
-      window.removeEventListener("keydown", preventKeyZoom)
-    }
-  }, [])
+  }, [user]);
 
   const validatePackageForDispatch = async (trackingNumber: string): Promise<PackageInfo> => {
-    const shipment = await validateTrackingNumber(trackingNumber, selectedSubsidiaryId)
+    const shipment = await validateTrackingNumber(trackingNumber, selectedSubsidiaryId);
     return shipment;
-  }
+  };
 
   const handleValidatePackages = async () => {
     if (!selectedSubsidiaryId) {
@@ -116,60 +194,59 @@ const PackageDispatchForm: React.FC<Props> = ({
         title: "Error",
         description: "Selecciona una sucursal antes de validar.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     const lines = trackingNumbersRaw
       .split("\n")
       .map((line) => line.trim())
-      .filter(Boolean)
+      .filter(Boolean);
 
-    const uniqueLines = Array.from(new Set(lines))
-    const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn))
-    const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn))
+    const uniqueLines = Array.from(new Set(lines));
+    const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn));
+    const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn));
 
     if (validNumbers.length === 0) {
       toast({
         title: "Error",
         description: "No se ingresaron números válidos.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    setIsLoading(true)
-    setProgress(0)
+    setIsLoading(true);
+    setProgress(0);
 
-    const results: PackageInfo[] = []
+    const results: PackageInfo[] = [];
     for (let i = 0; i < validNumbers.length; i++) {
-      const tn = validNumbers[i]
-      const info = await validatePackageForDispatch(tn)
-      results.push(info)
-      setProgress(Math.round(((i + 1) / validNumbers.length) * 100))
+      const tn = validNumbers[i];
+      const info = await validatePackageForDispatch(tn);
+      results.push(info);
+      setProgress(Math.round(((i + 1) / validNumbers.length) * 100));
     }
 
-    const newPackages = results.filter((r) => !packages.some((p) => p.trackingNumber === r.trackingNumber))
+    const newPackages = results.filter((r) => !packages.some((p) => p.trackingNumber === r.trackingNumber));
 
-    setPackages((prev) => [...prev, ...newPackages])
-    setInvalidNumbers(invalids)
-    setHasValidated(true)
-    setTrackingNumbersRaw("")
-    setProgress(0)
-    setIsLoading(false)
+    setPackages((prev) => [...prev, ...newPackages]);
+    setInvalidNumbers(invalids);
+    setTrackingNumbersRaw("");
+    setProgress(0);
+    setIsLoading(false);
 
-    const validCount = newPackages.filter((p) => p.isValid).length
-    const invalidCount = newPackages.filter((p) => !p.isValid).length
+    const validCount = newPackages.filter((p) => p.isValid).length;
+    const invalidCount = newPackages.filter((p) => !p.isValid).length;
 
     toast({
       title: "Validación completada",
       description: `Se agregaron ${validCount} paquetes válidos. Paquetes inválidos: ${invalidCount + invalids.length}`,
-    })
-  }
+    });
+  };
 
   const handleRemovePackage = useCallback((trackingNumber: string) => {
-    setPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber))
-  }, [])
+    setPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
+  }, []);
 
   const handleDispatch = async () => {
     if (!selectedSubsidiaryId) {
@@ -208,7 +285,12 @@ const PackageDispatchForm: React.FC<Props> = ({
       return;
     }
 
-    if(!selectedKms){
+    if (!selectedKms) {
+      toast({
+        title: "Kilometraje requerido",
+        description: "Por favor ingresa el kilometraje actual de la unidad.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -224,7 +306,7 @@ const PackageDispatchForm: React.FC<Props> = ({
     }
 
     setIsLoading(true);
-    setProgress(0); // Assuming you have a progress state for UI feedback
+    setProgress(0);
 
     try {
       const dispatchData: DispatchFormData = {
@@ -236,12 +318,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         kms: selectedKms
       };
 
-      // Dispatch packages and get ID
       const dispatchResponse = await savePackageDispatch(dispatchData);
-      console.log("🚀 ~ handleDispatch ~ dispatchResponse:", dispatchResponse)
-      const packageDispatchId = dispatchResponse.id; // Adjust based on actual API response
-
-      // Upload PDF
       await handleSendEmail(dispatchResponse);
 
       toast({
@@ -249,25 +326,20 @@ const PackageDispatchForm: React.FC<Props> = ({
         description: `Se procesaron ${validPackages.length} paquetes para salida y se subió el PDF.`,
       });
 
-      // Reset form
       setSelectedRepartidores([]);
       setSelectedRutas([]);
-      setSelectedUnidad("");
+      setSelectedUnidad(undefined);
       setPackages([]);
       setInvalidNumbers([]);
-      setHasValidated(false);
+      setSelectedKms("");
       setProgress(0);
 
       onSuccess();
-      return packageDispatchId; // Optional: Return for chaining or testing
     } catch (error) {
       console.error("Error in handleDispatch:", error);
       toast({
         title: "Error al procesar salida",
-        description:
-          error instanceof Error && error.message.includes("upload")
-            ? "Error al subir el PDF."
-            : "Hubo un problema al procesar la salida de paquetes.",
+        description: "Hubo un problema al procesar la salida de paquetes.",
         variant: "destructive",
       });
     } finally {
@@ -277,73 +349,59 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   const handlePdfCreate = async () => {
     try {
-      setIsLoading(true)
-      console.log("🚀 ~ handlePdfCreate ~ selectedUnidad:", selectedUnidad)
+      setIsLoading(true);
+      const validPackages = packages.filter((p) => p.isValid);
+      console.log("Star generating PDF", user?.subsidiary?.name);
+      const blob = await pdf(
+        <FedExPackageDispatchPDF
+          key={Date.now()}
+          drivers={selectedRepartidores}
+          routes={selectedRutas}
+          vehicle={selectedUnidad}
+          packages={validPackages}
+          subsidiaryName={user?.subsidiary?.name}
+          trackingNumber="123456789"
+        />
+      ).toBlob();
 
-      /*const { blob, fileName } = await generateEnhancedFedExPDFPackageDispatch(
-        selectedRepartidores, 
-        selectedRutas, 
-        selectedUnidad, 
-        validPackages, user?.subsidiary?.name)
-        
-      
-      const pdfUrl = window.URL.createObjectURL(blob);
-      window.open(pdfUrl, "_blank");*/
-
-      /**** Nueva Libreria */
-       const blob = await pdf(
-          <FedExPackageDispatchPDF
-            key={Date.now()}
-            drivers={selectedRepartidores}
-            routes={selectedRutas}
-            vehicle={selectedUnidad}
-            packages={validPackages}
-            subsidiaryName={user?.subsidiary?.name}
-            trackingNumber="123456789"
-          />
-        ).toBlob();
-
-        const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-        window.open(blobUrl, '_blank');
-
-
-      //return fileName;
-      setIsLoading(false)
+      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+      window.open(blobUrl, '_blank');
     } catch (error) {
-      console.error("Error generating PDF:", error)
-      //toast("No se pudo generar el PDF.")
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar el PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-  }
+  };
 
   const handleSendEmail = async (packageDispatch: PackageDispatch) => {
     try {
+      const validPackages = packages.filter((p) => p.isValid);
       const blob = await pdf(
-          <FedExPackageDispatchPDF
-            key={Date.now()}
-            drivers={selectedRepartidores}
-            routes={selectedRutas}
-            vehicle={selectedUnidad}
-            packages={validPackages}
-            subsidiaryName={packageDispatch.subsidiary?.name}
-            trackingNumber={packageDispatch.trackingNumber}
-          />
-        ).toBlob();
-
-        const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-        window.open(blobUrl, '_blank');
+        <FedExPackageDispatchPDF
+          key={Date.now()}
+          drivers={selectedRepartidores}
+          routes={selectedRutas}
+          vehicle={selectedUnidad}
+          packages={validPackages}
+          subsidiaryName={packageDispatch.subsidiary?.name}
+          trackingNumber={packageDispatch.trackingNumber}
+        />
+      ).toBlob();
 
       const currentDate = new Date().toLocaleDateString("es-ES", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       });
 
       packageDispatch.shipments = validPackages;
 
       const fileName = `${packageDispatch?.drivers[0]?.name.toUpperCase()}--${packageDispatch.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.pdf`;
-
-      // Convert Blob to File using the provided fileName
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
       const excelBuffer = await generateDispatchExcelClient(packageDispatch, false);
@@ -355,10 +413,8 @@ const PackageDispatchForm: React.FC<Props> = ({
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
 
-      // Optional: Track upload progress
       const onProgress = (percent: number) => {
         console.log(`Upload progress: ${percent}%`);
-        // Update UI, e.g., setProgress(percent);
       };
 
       await uploadPDFile(pdfFile, excelFile, packageDispatch.subsidiary?.name, packageDispatch.id, onProgress);
@@ -377,332 +433,391 @@ const PackageDispatchForm: React.FC<Props> = ({
     }
   };
 
-  const wasPastedRef = useRef(false);
+  const validPackages = packages.filter((p) => p.isValid);
+  const invalidPackages = packages.filter((p) => !p.isValid);
+  const canDispatch = selectedRepartidores.length > 0 && selectedRutas.length > 0 && selectedUnidad && validPackages.length > 0 && selectedKms;
 
-  const handlePaste = useCallback(() => {
-    wasPastedRef.current = true;
-  }, []);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-
-        // Si fue pegado, permitimos procesar normalmente
-        if (wasPastedRef.current) {
-          wasPastedRef.current = false; // resetea el flag
-
-          const pastedLines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
-
-          const codes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
-          pastedLines.forEach(line => {
-            const code = line.slice(-12); // solo lo último si es necesario
-            if (code) codes.add(code);
-          });
-
-          setTrackingNumbersRaw(Array.from(codes).join("\n"));
-          return;
-        }
-
-        // Procesamiento normal para escaneo (ej. pistola)
-        const lines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
-        const lastLine = lines[lines.length - 1] || "";
-        const newCode = lastLine.slice(-12);
-
-        if (newCode) {
-          const existingCodes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
-          existingCodes.add(newCode);
-          setTrackingNumbersRaw(Array.from(existingCodes).join("\n"));
-
-          setCurrentScan((prev) => {
-            const prevLines = prev.split("\n").slice(0, -1);
-            return [...prevLines, newCode, ""].join("\n");
-          });
-        }
-      }
-    },
-    [currentScan, trackingNumbersRaw]
-  );
-
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setCurrentScan(e.target.value);
-  }, []);
-
-  const validPackages = packages.filter((p) => p.isValid)
-  const invalidPackages = packages.filter((p) => !p.isValid)
-  const canDispatch =
-    selectedRepartidores.length > 0 && selectedRutas.length > 0 && selectedUnidad && validPackages.length > 0
+  // Filtrado de paquetes
+  const filteredValidPackages = useMemo(() => {
+    return validPackages.filter(pkg => {
+      const matchesSearch = pkg.trackingNumber.includes(searchTerm) || 
+                           (pkg.recipientName && pkg.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                           (pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
+      const matchesStatus = filterStatus === "all" || 
+                           (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
+                           (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
+      
+      return matchesSearch && matchesPriority && matchesStatus;
+    });
+  }, [validPackages, searchTerm, filterPriority, filterStatus]);
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between w-full">
-          {/* Lado izquierdo */}
-          <div className="flex items-center gap-2">
-            <ClipboardPasteIcon className="h-5 w-5" />
-            <span>Salida de Paquetes</span>
+    <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-muted rounded-lg border">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+              <ClipboardPasteIcon className="h-6 w-6" />
+            </div>
+            Salida de Paquetes
             {packages.length > 0 && (
               <Badge variant="secondary" className="ml-2">
                 {validPackages.length} válidos / {packages.length} total
               </Badge>
             )}
-          </div>
+          </h1>
+          <p className="text-muted-foreground">Procesa la salida de paquetes para reparto en ruta</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
+          <MapPinIcon className="h-4 w-4" />
+          <span>Sucursal: {selectedSubsidiaryName}</span>
+        </div>
+      </div>
 
-          {/* Lado derecho */}
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPinIcon className="h-5 w-5" />
-            <span>Sucursal: {selectedSubsidiaryName}</span>
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Selection Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label>Repartidores</Label>
-            <RepartidorSelector
-              selectedRepartidores={selectedRepartidores}
-              onSelectionChange={setSelectedRepartidores}
-              disabled={isLoading}
-            />
-          </div>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left Column - Configuration */}
+        <div className="xl:col-span-1 space-y-6">
+          {/* Team Configuration Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Repartidores y Rutas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <Label>Repartidores</Label>
+                <RepartidorSelector
+                  selectedRepartidores={selectedRepartidores}
+                  onSelectionChange={setSelectedRepartidores}
+                  disabled={isLoading}
+                />
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-3">
+                <Label>Rutas</Label>
+                <RutaSelector selectedRutas={selectedRutas} onSelectionChange={setSelectedRutas} disabled={isLoading} />
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="space-y-2">
-            <Label>Rutas</Label>
-            <RutaSelector selectedRutas={selectedRutas} onSelectionChange={setSelectedRutas} disabled={isLoading} />
-          </div>
+          {/* Vehicle Configuration Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Unidad y Kilometraje
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <Label>Unidad de Transporte</Label>
+                <UnidadSelector
+                  selectedUnidad={selectedUnidad}
+                  onSelectionChange={setSelectedUnidad}
+                  disabled={isLoading}
+                />
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-3">
+                <Label>Kilometraje Actual</Label>
+                <Input 
+                  type="text" 
+                  value={selectedKms}
+                  onChange={(e) => setSelectedKms(e.target.value)}
+                  placeholder="Ingresa el kilometraje"
+                  disabled={isLoading}
+                  className="w-full"
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="space-y-2">
-            <Label>Unidad de Transporte</Label>
-            <UnidadSelector
-              selectedUnidad={selectedUnidad}
-              onSelectionChange={setSelectedUnidad}
-              disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Kilometraje Actual de la  Unidad</Label>
-            <Input type="text" onChange={(e) => setSelectedKms(e.target.value)} />
-          </div>
+          {/* Package Scanning Card */}
+          <Card>
+            <CardHeader className="">
+              <CardTitle className="flex items-center gap-2">
+                <Scan className="h-5 w-5" />
+                Escaneo de Paquetes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <BarcodeScannerInput
+                  label="" 
+                  onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
+                  disabled={isLoading || !selectedSubsidiaryId}
+                  placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escribe o escanea números de tracking"}
+                />
+              </div>
+              
+              {isLoading && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Label>Progreso de validación</Label>
+                    <span className="text-sm text-muted-foreground">{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
+                </div>
+              )}
+
+              <Button 
+                onClick={handleValidatePackages} 
+                disabled={isLoading || !selectedSubsidiaryId || !trackingNumbersRaw} 
+                className="w-full gap-2"
+                variant="outline"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Scan className="h-4 w-4" />
+                )}
+                {isLoading ? "Validando..." : "Validar Paquetes"}
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Package Scanning Section */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <BarcodeScannerInput 
-              onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
-            />
-          </div>
+        {/* Right Column - Packages List */}
+        <div className="xl:col-span-2 space-y-2">
+          {/* Packages Summary Card */}
+          <Card>
+            <CardHeader className="">
+              <div className="flex flex-col gap-4">
+                {/* Título */}
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Paquetes Validados
+                </CardTitle>
 
-          <div className="flex flex-col sm:flex-row gap-3 items-end justify-end">
-            <Button onClick={handleValidatePackages} disabled={isLoading} className="w-full sm:w-auto">
-              <Scan className="mr-2 h-4 w-4" />
-              {isLoading ? "Procesando..." : "Validar paquetes"}
-            </Button>
+                {/* Simbología */}
+                <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium">Simbología:</span>
 
-            <Button
-              onClick={handleDispatch}
-              disabled={isLoading || !canDispatch}
-              variant="default"
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
-            >
-              <Send className="mr-2 h-4 w-4" />
-              Procesar salida
-            </Button>
-
-            <Button onClick={handlePdfCreate} disabled={validPackages.length === 0} variant="outline" className="flex-1 bg-transparent">
-                <FileText className="mr-2 h-4 w-4" />
-                Solo generar PDF
-            </Button>
-          </div>
-
-          {isLoading && (
-            <div className="space-y-2">
-              <Label>Progreso de validación</Label>
-              <Progress value={progress} className="h-3" />
-            </div>
-          )}
-
-          {invalidNumbers.length > 0 && (
-            <div className="mt-4 text-red-600 font-semibold">
-              <AlertCircle className="inline-block mr-2" />
-              Números inválidos (no se agregaron):
-              <ul className="list-disc ml-6 mt-1">
-                {invalidNumbers.map((tn) => (
-                  <li key={tn}>{tn}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {packages.length > 0 && (
-            <div className="mt-6 space-y-2">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-x-4 gap-y-2">
-                {/* Left Side: Title */}
-                <h3 className="text-lg font-semibold text-gray-800">Paquetes validados</h3>
-              </div>
-              <div className="flex flex-row items-end justify-end">
-                <div className="flex items-center gap-x-3 text-xs text-gray-600 flex-wrap">
-                    <span>Simbología:</span>
-
-                    <div className="flex items-center gap-x-1">
-                        <CircleAlertIcon className="h-4 w-4 text-red-600" />
-                        <span>No Válido</span>
+                  <div className="flex flex-row flex-wrap justify-end gap-3">
+                    <div className="flex items-center gap-1">
+                      <CircleAlertIcon className="h-3 w-3 text-destructive" />
+                      <span>No Válido</span>
                     </div>
 
-                    <span className="text-gray-400">•</span>
-
-                    <div className="flex items-center gap-x-1">
-                        <span>Carga/F2/31.5:</span>
-                        <Badge className="h-4 text-white bg-green-600 whitespace-nowrap">
-                        Carga/F2/31.5
-                        </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge className="h-4 text-white bg-green-600">CARGA/F2/31.5</Badge>
                     </div>
 
-                    <span className="text-gray-400">•</span>
-
-                    <div className="flex items-center gap-x-1">
-                        <span>Alto Valor:</span>
-                        <Badge className="h-4 bg-violet-600 hover:bg-violet-700 flex items-center justify-center p-1">
-                        <GemIcon className="h-4 w-4 text-white" />
-                        </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge className="h-4 bg-violet-600">
+                        <GemIcon className="h-3 w-3" />
+                      </Badge>
+                      <span>Alto Valor</span>
                     </div>
 
-                    <span className="text-gray-400">•</span>
-
-                    <div className="flex items-center gap-x-1">
-                        <span>Cobros (FTC/ROD/COD):</span>
-                        <Badge className="h-4 bg-blue-600 hover:bg-blue-700 text-xs flex items-center gap-x-1 p-1">
-                        <DollarSignIcon className="h-4 w-4 text-white" />
-                        <span className="text-white whitespace-nowrap">A COBRAR: FTC $1000.00</span>
-                        </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge className="h-4 bg-blue-600">
+                        <BanknoteIcon className="h-3 w-3" />
+                        <span className="text-white">A COBRAR</span>
+                      </Badge>
                     </div>
+                  </div>
                 </div>
               </div>
+            </CardHeader>
 
-              <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
-                <ul className="divide-y divide-gray-300">
-                  {packages.map((pkg) => (
-                    <li
-                      key={pkg.trackingNumber}
-                      className="flex justify-between items-center px-4 py-2 hover:bg-gray-50"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium font-mono">{pkg.trackingNumber}</span>
-                          <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
-                            {pkg.isValid ? "Válido" : "Inválido"}
-                          </Badge>
-                          {pkg.priority && (
-                            <Badge
-                              variant={
-                                pkg.priority === Priority.ALTA
-                                  ? "destructive"
-                                  : pkg.priority === Priority.MEDIA
-                                    ? "secondary"
-                                    : "outline"
-                              }
-                              className="text-xs"
-                            >
-                              {pkg.priority.toLocaleUpperCase()}
-                            </Badge>
-                          )}
-                          { pkg.isCharge && (
-                            <Badge className="bg-green-600 :hover:bg-green-700 text-xs">
-                              <span className="h-4 text-white">CARGA/F2/31.5</span>
-                            </Badge>
-                          )}
-                          { pkg.isHighValue && (
-                            <Badge className="bg-violet-600 :hover:bg-violet-700 text-xs">
-                              <GemIcon className="h-4 w-4 text-white"/>
-                            </Badge>
-                          )}
-                          { pkg.payment && (
-                            <Badge className="bg-blue-600 :hover:bg-blue-700 text-xs">
-                              <BanknoteIcon className="h-4 w-4 text-white"/>
-                              &nbsp; A COBRAR: ${pkg.payment.amount}
-                            </Badge>
-                          )}
-                          
-                        </div>
-                        {pkg.isValid && (
-                          <div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-x-4 gap-y-1">
-                            {pkg.recipientAddress && (
-                              <span className="flex items-center">
-                                <MapPin className="w-4 h-4 mr-1 text-black" />
-                                Dirección: {pkg.recipientAddress}
-                              </span>
-                            )}
-                            {pkg.recipientName && (
-                              <span className="flex items-center">
-                                <User className="w-4 h-4 mr-1 text-black" />
-                                Recibe: {pkg.recipientName}
-                              </span>
-                            )}
-                            {pkg.recipientPhone && (
-                              <span className="flex items-center">
-                                <Phone className="w-4 h-4 mr-1 text-black" />
-                                Teléfono: {formatMexicanPhoneNumber(pkg.recipientPhone)}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        { !pkg.isValid && (
-                          
-                              <span className="flex items-center text-sm">
-                                <AlertCircle className="w-4 h-4 mr-1 text-red-600" />
-                                {pkg.reason}
-                              </span>
-                        )}
+            <CardContent className="space-y-2">
+              {/* Search and Filters */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por tracking, destinatario o dirección..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                <Collapsible className="w-full sm:w-auto">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1">
+                      <Filter className="h-4 w-4" />
+                      Filtros
+                      {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-3 mt-3 p-4 bg-muted rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Prioridad</Label>
+                        <select 
+                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={filterPriority}
+                          onChange={(e) => setFilterPriority(e.target.value)}
+                        >
+                          <option value="all">Todas las prioridades</option>
+                          <option value="alta">Alta</option>
+                          <option value="media">Media</option>
+                          <option value="baja">Baja</option>
+                        </select>
                       </div>
-                      <button
-                        onClick={() => handleRemovePackage(pkg.trackingNumber)}
-                        title="Eliminar"
-                        className="text-red-600 hover:text-red-800"
-                        disabled={isLoading}
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="flex flex-col md:flex-row justify-end items-end md:items-center gap-x-4 gap-y-2">
-                {(selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad || packages.length > 0) && (
-                    <div className="flex items-center gap-x-3 text-sm text-gray-600">
-                      <Package className="w-4 h-4 text-gray-600" />
-                      <span className="font-medium">Resumen:</span>
-                      <span>
-                        Repartidores: <span className="font-bold">{selectedRepartidores.length}</span>
-                      </span>
-                      <span className="text-gray-400">•</span>
-                      <span>
-                        Rutas: <span className="font-bold">{selectedRutas.length}</span>
-                      </span>
-                      <span className="text-gray-400">•</span>
-                      <span>
-                        Paquetes válidos: <span className="font-bold">{validPackages.length}</span>
-                      </span>
-                      <span className="text-gray-400">•</span>
-                      <span>
-                        Paquetes inválidos: <span className="font-bold text-red-600">{invalidPackages.length}</span>
-                      </span>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-sm">Tipo de paquete</Label>
+                        <select 
+                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                        >
+                          <option value="all">Todos los tipos</option>
+                          <option value="special">Especial (carga, alto valor, cobro)</option>
+                          <option value="normal">Paquetes normales</option>
+                        </select>
+                      </div>
                     </div>
-                  )}
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+
+              {/* Packages Tabs */}
+              {packages.length > 0 && (
+                <Tabs defaultValue="validos" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="validos" className="flex items-center gap-2">
+                      <span className="h-2 w-2 bg-green-500 rounded-full"></span>
+                      Válidos ({validPackages.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="invalidos" className="flex items-center gap-2">
+                      <span className="h-2 w-2 bg-destructive rounded-full"></span>
+                      Inválidos ({invalidPackages.length})
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="validos" className="space-y-3 mt-4">
+                    {filteredValidPackages.length > 0 ? (
+                      <ScrollArea className="h-[400px] rounded-md border">
+                        <div className="grid grid-cols-1 divide-y">
+                          {filteredValidPackages.map((pkg) => (
+                            <PackageItem 
+                              key={pkg.trackingNumber} 
+                              pkg={pkg} 
+                              onRemove={handleRemovePackage}
+                              isLoading={isLoading}
+                            />
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground border rounded-md">
+                        <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                        <p>No se encontraron paquetes con los filtros aplicados</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="invalidos" className="mt-4">
+                    {invalidPackages.length > 0 ? (
+                      <ScrollArea className="h-[300px] rounded-md border">
+                        <div className="grid grid-cols-1 divide-y">
+                          {invalidPackages.map((pkg) => (
+                            <PackageItem 
+                              key={pkg.trackingNumber} 
+                              pkg={pkg} 
+                              onRemove={handleRemovePackage}
+                              isLoading={isLoading}
+                            />
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground border rounded-md">
+                        <p>No hay paquetes inválidos</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              )}
+
+              {/* Empty State */}
+              {packages.length === 0 && (
+                <div className="text-center py-16 border-2 border-dashed border-muted rounded-lg">
+                  <Package className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="text-lg font-medium text-muted-foreground mb-2">Sin paquetes escaneados</h3>
+                  <p className="text-muted-foreground">Escanea algunos paquetes para comenzar</p>
                 </div>
+              )}
+
+              {/* Summary Stats */}
+              {packages.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{validPackages.length}</div>
+                    <div className="text-sm text-muted-foreground">Válidos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-destructive">{invalidPackages.length}</div>
+                    <div className="text-sm text-muted-foreground">Inválidos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{selectedRepartidores.length}</div>
+                    <div className="text-sm text-muted-foreground">Repartidores</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{selectedRutas.length}</div>
+                    <div className="text-sm text-muted-foreground">Rutas</div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-between items-center p-6 bg-muted rounded-lg border">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose}
+              className="gap-2"
+            >
+              <X className="h-4 w-4" />
+              Cancelar
+            </Button>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                onClick={handlePdfCreate} 
+                disabled={isLoading || validPackages.length === 0} 
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Solo generar PDF
+              </Button>
+              
+              <Button
+                onClick={handleDispatch}
+                disabled={isLoading || !canDispatch}
+                className="gap-2"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Procesar salida
+              </Button>
             </div>
-          )}
+          </div>
         </div>
+      </div>
+    </div>
+  );
+};
 
-        {/* Action buttons */}
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-export default PackageDispatchForm
+export default PackageDispatchForm;

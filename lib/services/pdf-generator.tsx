@@ -104,26 +104,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
+    gap: 8,
   },
   summaryBox: {
-    width: 80,
+    flex: 1,
+    minWidth: 120,
     border: '1px solid #c8c8c8',
     borderRadius: 4,
-    padding: 5,
+    padding: 8,
   },
   summaryHeader: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: 'bold',
     color: '#464646',
-    marginBottom: 2,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
     backgroundColor: '#fff',
-    padding: 3,
+    padding: 6,
     border: '1px solid #eee',
+    borderRadius: 3,
   },
   sectionHeader: {
     backgroundColor: '#662d91',
@@ -172,6 +176,27 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#505050',
   },
+  // Nuevos estilos para la línea y firma
+  signatureSection: {
+    marginTop: 30,
+    width: '100%',
+    alignItems: 'center',
+  },
+  signatureLine: {
+    borderTop: '1px solid #000',
+    width: '60%',
+    paddingTop: 5,
+    marginBottom: 5,
+  },
+  signatureText: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#505050',
+  },
+  // Estilos para el espacio entre columnas
+  columnGap: {
+    width: '4%',
+  },
 });
 
 const getStatusCode = (status: string): string => {
@@ -207,17 +232,7 @@ export const EnhancedFedExPDF = ({
     year: "numeric",
   });
 
-  // Calcular totales
-  const normalPackages = collections.filter(c => 
-    !c.isPickUp && c.status !== "PICK UP" && c.status !== "Pick Up" && 
-    c.status !== "pick up" && c.status !== 'PU'
-  ).length;
-
-  const pickupPackages = collections.filter(c => 
-    c.isPickUp || c.status === "PICK UP" || c.status === "Pick Up" || 
-    c.status === "pick up"
-  ).length;
-
+  // Calcular totales - SOLO RECOLECCIONES TOTALES (eliminado paquetes normales)
   const totalCollectionPackages = collections.length;
   const totalDevolutionPackages = devolutions.length;
   const totalPackages = totalDevolutionPackages + totalCollectionPackages;
@@ -249,24 +264,24 @@ export const EnhancedFedExPDF = ({
           <Text style={styles.subtitle}>DEVOLUCIONES Y RECOLECCIONES</Text>
         </View>
 
-        {/* Package Summary */}
+        {/* Package Summary - MEJORADO con solo 3 totales más anchos */}
         <View style={styles.summarySection}>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryHeader}>PAQUETES NORMALES</Text>
+          <View style={[styles.summaryBox, { minWidth: 140 }]}>
+            <Text style={styles.summaryHeader}>TOTAL RECOLECCIONES</Text>
             <View style={styles.summaryValue}>
-              <Text>{normalPackages}</Text>
+              <Text>{totalCollectionPackages}</Text>
             </View>
           </View>
           
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryHeader}>PAQUETES CON COBRO</Text>
+          <View style={[styles.summaryBox, { minWidth: 140 }]}>
+            <Text style={styles.summaryHeader}>TOTAL DEVOLUCIONES</Text>
             <View style={styles.summaryValue}>
-              <Text>{pickupPackages}</Text>
+              <Text>{totalDevolutionPackages}</Text>
             </View>
           </View>
           
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryHeader}>TOTAL DE PAQUETES</Text>
+          <View style={[styles.summaryBox, { minWidth: 140 }]}>
+            <Text style={styles.summaryHeader}>TOTAL GENERAL</Text>
             <View style={styles.summaryValue}>
               <Text>{totalPackages}</Text>
             </View>
@@ -328,6 +343,9 @@ export const EnhancedFedExPDF = ({
             </View>
           </View>
 
+          {/* Espacio entre columnas */}
+          <View style={styles.columnGap}></View>
+
           {/* Right Column - Recolecciones y Cobros */}
           <View style={{ width: '48%' }}>
             {/* Recolecciones */}
@@ -374,8 +392,8 @@ export const EnhancedFedExPDF = ({
               ))}
             </View>
 
-            {/* Cobros */}
-            <View style={[styles.sectionHeader, styles.sectionHeaderGreen, { marginTop: 20 }]}>
+            {/* Cobros - Sección comentada */}
+            {/* <View style={[styles.sectionHeader, styles.sectionHeaderGreen, { marginTop: 20 }]}>
               <Text>COBROS</Text>
             </View>
             
@@ -404,7 +422,6 @@ export const EnhancedFedExPDF = ({
                 </View>
               ))}
               
-              {/* Fill empty rows or show message */}
               {charges.length === 0 && (
                 <View style={[styles.tableRow, { backgroundColor: '#f2f2f2' }]}>
                   <Text style={[styles.tableCell, { width: '100%', textAlign: 'center', fontStyle: 'italic' }]}>
@@ -426,8 +443,14 @@ export const EnhancedFedExPDF = ({
                   <Text style={[styles.tableCell, { width: '20%' }]}></Text>
                 </View>
               ))}
-            </View>
+            </View> */}
           </View>
+        </View>
+
+        {/* Sección de firma - POSICIONADA MÁS ABAJO */}
+        <View style={styles.signatureSection}>
+          <View style={styles.signatureLine}></View>
+          <Text style={styles.signatureText}>Nombre y Firma</Text>
         </View>
 
         {/* Footer */}

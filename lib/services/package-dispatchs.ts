@@ -59,11 +59,9 @@ export async function uploadPDFile(
     }
 }
 
-
-
 export {
     getPackageDispatchs,
     savePackageDispatch,
     getPackageDispatchById,
-    validateTrackingNumber
+    validateTrackingNumber,
 }

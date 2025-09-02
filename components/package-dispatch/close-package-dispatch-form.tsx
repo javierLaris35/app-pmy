@@ -18,9 +18,13 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { PackageDispatch, PackageInfo } from "@/lib/types";
-import { closePackageDispatch, validateTrackingNumber } from "@/lib/services/package-dispatchs";
+import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
+import { save, uploadFiles, validateTrackingNumbers } from "@/lib/services/route-closure";
 import InfoField from "./info-field";
+import { useAuthStore } from "@/store/auth.store";
+import { RouteClosurePDF } from "@/lib/services/route-closure/route-closure-pdf-generator";
+import { pdf } from "@react-pdf/renderer";
+import { generateRouteClosureExcel } from "@/lib/services/route-closure/route-closure-excel-generator";
 
 interface ClosePackageDispatchProps {
   dispatch: PackageDispatch;
@@ -80,6 +84,18 @@ const PackageItem = ({
               </Badge>
             )}
             
+            {pkg.status && (
+              <Badge className="bg-orange-600 text-xs">
+                {pkg.status.toLocaleUpperCase()}
+              </Badge>
+            )}
+
+            {pkg.lastHistory && (
+              <Badge className="bg-red-600 text-xs">
+                DEX{pkg.lastHistory.exceptionCode}
+              </Badge>
+            )}
+
             {pkg.isCharge && (
               <Badge className="bg-green-600 text-xs">
                 CARGA/F2/31.5
@@ -149,6 +165,7 @@ const PackageItem = ({
 // Componente principal
 export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: ClosePackageDispatchProps) {
   const [returnedPackages, setReturnedPackages] = useState<PackageInfo[]>([]);
+  const [podPackages, setPodPackages] = useState<PackageInfo[]>([])
   const [invalidNumbers, setInvalidNumbers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -157,66 +174,67 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  
+  const [selectedKms, setSelectedKms] = useState<string>("");
+  const [collections, setCollections] = useState("");
+
   const { toast } = useToast();
+  const user = useAuthStore((s) => s.user);
 
   // Validar paquetes escaneados
   const validateReturnedPackages = async () => {
     const lines = trackingNumbersRaw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
 
     const uniqueLines = Array.from(new Set(lines));
     const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn));
     const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn));
 
     if (validNumbers.length === 0) {
-      toast({
+        toast({
         title: "Error",
         description: "No se ingresaron números válidos.",
         variant: "destructive",
-      });
-      return;
+        });
+        return;
     }
 
     setIsLoading(true);
     setProgress(0);
 
-    const results: PackageInfo[] = [];
-    for (let i = 0; i < validNumbers.length; i++) {
-      const tn = validNumbers[i];
-      try {
-        const info = await validateTrackingNumber(tn, dispatch.subsidiary.id);
-        // Verificar que el paquete pertenece a esta salida
-        const isFromThisDispatch = dispatch.shipments?.some(s => s.trackingNumber === tn);
-        if (!isFromThisDispatch) {
-          info.isValid = false;
-          info.reason = "No pertenece a esta salida";
-        }
-        results.push(info);
-      } catch (error) {
-        results.push({
-          trackingNumber: tn,
-          isValid: false,
-          reason: "Error en validación"
-        } as PackageInfo);
-      }
-      setProgress(Math.round(((i + 1) / validNumbers.length) * 100));
+    let validatedPackages: PackageInfo[] = [];
+    let podPackagesRes: PackageInfo[] = [];
+
+    try {
+        const validatedPackagesResult = await validateTrackingNumbers(validNumbers, dispatch.id)
+        validatedPackages = validatedPackagesResult.validatedPackages;
+        podPackagesRes = validatedPackagesResult.podPackages;
+        console.log("🚀 ~ validateReturnedPackages ~ results:", validatedPackagesResult)
+
+    } catch (error) {
+        console.log("🚀 ~ validateReturnedPackages ~ error:", error)
+        // En caso de error general
+        validatedPackages = validNumbers.map((tn) => ({
+            trackingNumber: tn,
+            isValid: false,
+            reason: "Error en validación",
+        }));
     }
 
-    setReturnedPackages(results);
+    setReturnedPackages(validatedPackages);
+    setPodPackages(podPackagesRes);
     setInvalidNumbers(invalids);
     setTrackingNumbersRaw("");
-    setProgress(0);
+    setProgress(100);
     setIsLoading(false);
 
-    const validCount = results.filter((p) => p.isValid).length;
-    const invalidCount = results.filter((p) => !p.isValid).length + invalids.length;
+    const validCount = validatedPackages.filter((p) => p.isValid).length;
+    const invalidCount = validatedPackages.filter((p) => !p.isValid).length + invalids.length;
 
     toast({
-      title: "Validación completada",
-      description: `Se validaron ${validCount} paquetes correctamente. Errores: ${invalidCount}`,
+        title: "Validación completada",
+        description: `Se validaron ${validCount} paquetes correctamente. Errores: ${invalidCount}`,
     });
   };
 
@@ -236,15 +254,40 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
       const returnedShipmentIds = returnedPackages
         .filter(p => p.isValid)
         .map(p => p.id);
+      console.log("🚀 ~ handleCloseDispatch ~ returnedShipmentIds:", returnedShipmentIds)
+     
+      const podsShipmentsIds = podPackages
+        .map(p => p.id)
+      console.log("🚀 ~ handleCloseDispatch ~ podsShipmentsIds:", podsShipmentsIds)
 
-      await closePackageDispatch(dispatch.id, returnedShipmentIds);
+
+      const closurePackageDispatch: RouteClosure = {
+        packageDispatch: { id: dispatch.id},
+        closeDate: new Date(),
+        returnedPackages: returnedShipmentIds,
+        actualKms: selectedKms,
+        podPackages: podsShipmentsIds,
+        subsidiary: user?.subsidiary,
+        createdBy: user,
+        collections: collections.split("\n")
+            .map(item => item.trim())
+            .filter(item => item.length > 0)
+      }
+
+      const savedClosure = await save(closurePackageDispatch);
+
+      console.log("🚀 ~ handleCloseDispatch ~ savedClosure:", savedClosure)
       
       toast({
         title: "Cierre exitoso",
         description: "La ruta se ha cerrado correctamente.",
       });
       
-      onSuccess();
+      handleSendEmail(savedClosure);
+
+      if (typeof onSuccess === 'function') {
+        onSuccess();
+      }
     } catch (error) {
       console.error("Error al cerrar la ruta:", error);
       toast({
@@ -260,6 +303,72 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
   const handleRemovePackage = (trackingNumber: string) => {
     setReturnedPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
   };
+
+  const handlePdf = async () => {
+    setIsLoading(true);
+
+    const collectionsForPdf = collections.split("\n")
+            .map(item => item.trim())
+            .filter(item => item.length > 0);
+
+    const blob = await pdf(<RouteClosurePDF 
+        key={Date.now()}
+        returnedPackages={returnedPackages}
+        packageDispatch={dispatch}
+        actualKms={selectedKms }
+        collections={collectionsForPdf}
+        podPackages={podPackages}
+    />).toBlob();
+
+    const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+    window.open(blobUrl, '_blank');
+    
+    await generateRouteClosureExcel(returnedPackages, dispatch, selectedKms, collectionsForPdf, podPackages)
+
+    setIsLoading(false);
+
+  }
+
+  const handleSendEmail = async (routeClosure: RouteClosure) => {
+    setIsLoading(true);
+
+    const collectionsForPdf = collections.split("\n")
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+
+    const blob = await pdf(<RouteClosurePDF 
+        key={Date.now()}
+        returnedPackages={returnedPackages}
+        packageDispatch={dispatch}
+        actualKms={selectedKms }
+        collections={collectionsForPdf}
+        podPackages={podPackages}
+    />).toBlob();
+
+    const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+    window.open(blobUrl, '_blank');
+
+    const currentDate = new Date().toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    });
+    
+    const fileName = `CIERRE--${dispatch.drivers[0]?.name.toUpperCase()}--${dispatch.subsidiary.name}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`;
+    const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+
+    const excelBuffer = await generateRouteClosureExcel(returnedPackages, dispatch, selectedKms, collectionsForPdf, podPackages, false)
+    const excelBlob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const excelFileName = `CIERRE--${dispatch.drivers[0]?.name.toUpperCase()}--${dispatch.subsidiary.name}--Devoluciones--${currentDate.replace(/\//g, "-")}.xlsx`;
+    const excelFile = new File([excelBlob], excelFileName, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    await uploadFiles(pdfFile, excelFile, routeClosure.id)
+
+  }
 
   // Calcular estadísticas
   const validReturns = returnedPackages.filter(p => p.isValid);
@@ -285,7 +394,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
 
   return (
     <Card className="w-full max-w-6xl mx-auto border-0 shadow-none">
-      <CardHeader className="pb-3">
+      <CardHeader className="">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
             <CardTitle className="text-2xl font-bold flex items-center gap-2">
@@ -310,7 +419,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
         </div>
       </CardHeader>
       
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="space-y-6">
         {/* Información de la salida */}
         <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
           <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -337,18 +446,40 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
             />
           </div>
         </div>
+    
+        <div className="pl-6 space-y-3 w-1/3">
+            <Label>Kilometraje Actual</Label>
+            <Input 
+                type="text" 
+                value={selectedKms}
+                onChange={(e) => setSelectedKms(e.target.value)}
+                placeholder="Ingresa el kilometraje"
+                disabled={isLoading}
+                className="w-full"
+            />
+        </div>
 
         {/* Sección de escaneo */}
         <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
-          <div className="space-y-2">
-            <BarcodeScannerInput 
-              label="Guías Regresadas (Escaneo)"
-              onTrackingNumbersChange={setTrackingNumbersRaw}
-              disabled={isLoading}
-              placeholder="Escribe o escanea números de tracking de paquetes devueltos"
-            />
-          </div>
-          
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <BarcodeScannerInput 
+                        label="Guías Regresadas"
+                        onTrackingNumbersChange={setTrackingNumbersRaw}
+                        disabled={isLoading}
+                        placeholder="Escribe o escanea números de tracking de paquetes devueltos"
+                    />
+                </div>
+                <div>
+                    <BarcodeScannerInput 
+                        label="Recolecciones"
+                        onTrackingNumbersChange={setCollections}
+                        disabled={isLoading}
+                        placeholder="Escribe o escanea números de tracking de las recolecciones"
+                    />
+                </div>
+            </div>
+            
           {isLoading && (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -363,6 +494,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
         {returnedPackages.length > 0 && (
           <div className="mt-6 space-y-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              {/*Título */}
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Package className="h-5 w-5" />
                 Paquetes Devueltos
@@ -371,6 +503,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
                 </Badge>
               </h3>
               
+              {/* Simbología */}
               <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                 <span className="font-medium">Simbología:</span>
                 
@@ -559,6 +692,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
               </TabsContent>
             </Tabs>
             
+            {/* Resumen */}
             <div className="flex items-center gap-4 text-sm pt-4 border-t">
               <div className="flex items-center gap-1">
                 <Package className="w-4 h-4" />
@@ -625,6 +759,25 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
               )}
               Procesar cierre
             </Button>
+
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                        onClick={handlePdf}
+                        disabled={isLoading || returnedPackages.length === 0}
+                        variant="outline"
+                        className="gap-2"
+                        >
+                        <Download className="h-4 w-4" />
+                        Exportar PDF
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Generar reporte PDF de los paquetes actuales</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </CardContent>

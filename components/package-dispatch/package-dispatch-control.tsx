@@ -220,13 +220,13 @@ export default function PackageDispatchControl() {
       </div>
 
       {/* Dispatch Dialog */}
-      <Dialog open={isDispatchDialogOpen} onOpenChange={setIsDispatchDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+      <Dialog open={isDispatchDialogOpen} onOpenChange={(open) => setIsDispatchDialogOpen(open)}>
+        <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto"
+          onInteractOutside={(event) => event.preventDefault()} // bloquea click fuera
+          onEscapeKeyDown={(event) => event.preventDefault()}   // bloquea ESC
+        >
+          <DialogTitle className="hidden"></DialogTitle>
           <DialogHeader>
-            <DialogTitle>Nueva Salida de Paquetes</DialogTitle>
-            <DialogDescription>
-              Selecciona repartidores, rutas y unidad de transporte, luego escanea los paquetes para procesar la salida.
-            </DialogDescription>
           </DialogHeader>
           <PackageDispatchForm
             selectedSubsidiaryId={selectedSucursalId}
@@ -241,13 +241,13 @@ export default function PackageDispatchControl() {
       </Dialog>
 
       {/* Package Dispatch Details Dialog */}
-      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-          <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+      <Dialog open={isDetailsDialogOpen} onOpenChange={(open) => setIsDetailsDialogOpen(open)}>
+          <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto"
+            onInteractOutside={(event) => event.preventDefault()} // bloquea click fuera
+            onEscapeKeyDown={(event) => event.preventDefault()}   // bloquea ESC
+          >
+            <DialogTitle className="hidden"></DialogTitle>
           <DialogHeader>
-              <DialogTitle>Detalles de Salida a Ruta</DialogTitle>
-              <DialogDescription>
-              Visualiza los detalles de la Salida a Ruta, incluyendo paquetes validados y guías no procesadas.
-              </DialogDescription>
           </DialogHeader>
           {selectedPackageDispatch && (
               <PackageDispatchDetails
@@ -259,8 +259,12 @@ export default function PackageDispatchControl() {
       </Dialog>
 
       {/* Cierre de Ruta Dialog */}
-      <Dialog open={isRouteClouserDialogOpen} onOpenChange={setIsRouteClouserDialogOpen}>
-          <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+      <Dialog open={isRouteClouserDialogOpen} onOpenChange={ (open) => setIsRouteClouserDialogOpen(open)}>
+          <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto"
+            onInteractOutside={(event) => event.preventDefault()} // bloquea click fuera
+            onEscapeKeyDown={(event) => event.preventDefault()}   // bloquea ESC
+          >
+            <DialogTitle className="hidden"></DialogTitle>
           <DialogHeader>
           </DialogHeader>
           {selectedPackageDispatch && (
