@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 type Props = {
   selectedSubsidiaryId: string | null;
@@ -153,28 +154,65 @@ const PackageDispatchForm: React.FC<Props> = ({
   onClose,
   onSuccess,
 }) => {
-  // Estados del formulario
-  const [selectedRepartidores, setSelectedRepartidores] = useState<Driver[]>([]);
-  const [selectedRutas, setSelectedRutas] = useState<Route[]>([]);
-  const [selectedUnidad, setSelectedUnidad] = useState<Vehicles>();
-  const [selectedKms, setSelectedKms] = useState<string>("");
+  // Estados del formulario con persistencia
+  const [selectedRepartidores, setSelectedRepartidores] = useLocalStorage<Driver[]>(
+    'dispatch_repartidores', 
+    []
+  );
+  const [selectedRutas, setSelectedRutas] = useLocalStorage<Route[]>(
+    'dispatch_rutas', 
+    []
+  );
+  const [selectedUnidad, setSelectedUnidad] = useLocalStorage<Vehicles | undefined>(
+    'dispatch_unidad', 
+    undefined
+  );
+  const [selectedKms, setSelectedKms] = useLocalStorage<string>(
+    'dispatch_kms', 
+    ""
+  );
+  const [packages, setPackages] = useLocalStorage<PackageInfo[]>(
+    'dispatch_packages', 
+    []
+  );
+  const [invalidNumbers, setInvalidNumbers] = useLocalStorage<string[]>(
+    'dispatch_invalid_numbers', 
+    []
+  );
+  const [trackingNumbersRaw, setTrackingNumbersRaw] = useLocalStorage<string>(
+    'dispatch_tracking_raw', 
+    ""
+  );
 
-  // Estados de escaneo
-  const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("");
-  const [packages, setPackages] = useState<PackageInfo[]>([]);
-  const [invalidNumbers, setInvalidNumbers] = useState<string[]>([]);
+  // Estados de UI
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null);
   const [selectedSubsidiaryName, setSelectedSubsidiaryName] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-
-  // Estados de carga
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
+
   const user = useAuthStore((s) => s.user);
   const { toast } = useToast();
+
+  // Detectar estado de conexión
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    setIsOnline(navigator.onLine);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (user?.subsidiary) {
@@ -184,8 +222,20 @@ const PackageDispatchForm: React.FC<Props> = ({
   }, [user]);
 
   const validatePackageForDispatch = async (trackingNumber: string): Promise<PackageInfo> => {
-    const shipment = await validateTrackingNumber(trackingNumber, selectedSubsidiaryId);
-    return shipment;
+    try {
+      const shipment = await validateTrackingNumber(trackingNumber, selectedSubsidiaryId);
+      return shipment;
+    } catch (error) {
+      console.warn("Error validando paquete, modo offline:", error);
+      return {
+        id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        trackingNumber,
+        isValid: false,
+        reason: "Sin conexión - validar cuando se restablezca internet",
+        isOffline: true,
+        createdAt: new Date(),
+      } as PackageInfo;
+    }
   };
 
   const handleValidatePackages = async () => {
@@ -246,7 +296,50 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
-  }, []);
+  }, [setPackages]);
+
+  // Función para limpiar TODO el almacenamiento
+  const clearAllStorage = useCallback(() => {
+    const keys = [
+      'dispatch_repartidores',
+      'dispatch_rutas',
+      'dispatch_unidad',
+      'dispatch_kms',
+      'dispatch_packages',
+      'dispatch_invalid_numbers',
+      'dispatch_tracking_raw'
+    ];
+
+    keys.forEach(key => {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Error clearing ${key}:`, error);
+      }
+    });
+
+    // Resetear estados
+    setSelectedRepartidores([]);
+    setSelectedRutas([]);
+    setSelectedUnidad(undefined);
+    setSelectedKms("");
+    setPackages([]);
+    setInvalidNumbers([]);
+    setTrackingNumbersRaw("");
+
+    toast({
+      title: "Datos limpiados",
+      description: "Todos los datos locales han sido eliminados.",
+    });
+  }, [
+    setSelectedRepartidores,
+    setSelectedRutas,
+    setSelectedUnidad,
+    setSelectedKms,
+    setPackages,
+    setInvalidNumbers,
+    setTrackingNumbersRaw
+  ]);
 
   const handleDispatch = async () => {
     if (!selectedSubsidiaryId) {
@@ -321,18 +414,13 @@ const PackageDispatchForm: React.FC<Props> = ({
       const dispatchResponse = await savePackageDispatch(dispatchData);
       await handleSendEmail(dispatchResponse);
 
+      // Limpiar storage después de éxito
+      clearAllStorage();
+
       toast({
         title: "Salida procesada exitosamente",
         description: `Se procesaron ${validPackages.length} paquetes para salida y se subió el PDF.`,
       });
-
-      setSelectedRepartidores([]);
-      setSelectedRutas([]);
-      setSelectedUnidad(undefined);
-      setPackages([]);
-      setInvalidNumbers([]);
-      setSelectedKms("");
-      setProgress(0);
 
       onSuccess();
     } catch (error) {
@@ -351,7 +439,6 @@ const PackageDispatchForm: React.FC<Props> = ({
     try {
       setIsLoading(true);
       const validPackages = packages.filter((p) => p.isValid);
-      console.log("Star generating PDF", user?.subsidiary?.name);
       const blob = await pdf(
         <FedExPackageDispatchPDF
           key={Date.now()}
@@ -436,6 +523,30 @@ const PackageDispatchForm: React.FC<Props> = ({
     }
   };
 
+  // Revalidar paquetes offline cuando se recupera conexión
+  useEffect(() => {
+    if (isOnline) {
+      const offlinePackages = packages.filter(pkg => pkg.isOffline);
+      if (offlinePackages.length > 0 && selectedSubsidiaryId) {
+        toast({
+          title: "Revalidando paquetes",
+          description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
+        });
+        
+        offlinePackages.forEach(async (pkg) => {
+          try {
+            const validated = await validateTrackingNumber(pkg.trackingNumber, selectedSubsidiaryId);
+            setPackages(prev => prev.map(prevPkg => 
+              prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
+            ));
+          } catch (error) {
+            console.error("Error revalidando paquete offline:", error);
+          }
+        });
+      }
+    }
+  }, [isOnline, packages, selectedSubsidiaryId, setPackages, toast]);
+
   const validPackages = packages.filter((p) => p.isValid);
   const invalidPackages = packages.filter((p) => !p.isValid);
   const canDispatch = selectedRepartidores.length > 0 && selectedRutas.length > 0 && selectedUnidad && validPackages.length > 0 && selectedKms;
@@ -466,19 +577,79 @@ const PackageDispatchForm: React.FC<Props> = ({
               <ClipboardPasteIcon className="h-6 w-6" />
             </div>
             Salida de Paquetes
+            {!isOnline && (
+              <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800">
+                ⚡ Modo offline
+              </Badge>
+            )}
             {packages.length > 0 && (
               <Badge variant="secondary" className="ml-2">
                 {validPackages.length} válidos / {packages.length} total
               </Badge>
             )}
           </h1>
-          <p className="text-muted-foreground">Procesa la salida de paquetes para reparto en ruta</p>
+          <p className="text-muted-foreground">
+            {isOnline 
+              ? "Procesa la salida de paquetes para reparto en ruta" 
+              : "Trabajando en modo offline - los datos se guardan localmente"
+            }
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
-          <MapPinIcon className="h-4 w-4" />
-          <span>Sucursal: {selectedSubsidiaryName}</span>
+        
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
+            <MapPinIcon className="h-4 w-4" />
+            <span>Sucursal: {selectedSubsidiaryName}</span>
+          </div>
+          
+          {(packages.length > 0 || selectedRepartidores.length > 0) && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllStorage}
+                className="gap-2"
+                disabled={isLoading}
+              >
+                <Trash2 className="h-4 w-4" />
+                Limpiar todo
+              </Button>
+              
+              {!isOnline && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="bg-blue-100 text-blue-800 cursor-help">
+                        💾 Datos locales
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Los datos se guardan en tu navegador</p>
+                      <p>Se mantendrán aunque cierres la página</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Mensaje de advertencia cuando está offline */}
+      {!isOnline && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600" />
+            <div>
+              <h3 className="font-medium text-yellow-800">Modo offline</h3>
+              <p className="text-yellow-700 text-sm">
+                Estás trabajando sin conexión. Los datos se guardan localmente y 
+                se sincronizarán cuando recuperes la conexión.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
