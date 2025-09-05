@@ -102,21 +102,22 @@
     "typescript": "^5"
   },
   "build": {
-    "appId": "com.pmy.pmyapp",
+    "appId": "com.pmy.app",
     "productName": "PMY App",
     "files": [
-      "electron.js",
-      ".next",
-      "public",
-      "next.config.js",
+      "dist/**/*",
+      "assets/**/*",
+      "main/**/*",
+      "node_modules/**/*",
       "package.json"
     ],
     "directories": {
+      "output": "dist-electron",
       "buildResources": "assets"
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icons/icon.ico"
     }
   }
 }

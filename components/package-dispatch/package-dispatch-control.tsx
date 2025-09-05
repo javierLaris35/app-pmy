@@ -271,6 +271,10 @@ export default function PackageDispatchControl() {
               <ClosePackageDisptach
               dispatch={selectedPackageDispatch}
               onClose={() => setIsRouteClouserDialogOpen(false)}
+              onSuccess={() => {
+                mutate()
+                setIsRouteClouserDialogOpen(false)
+              }}
               />
           )}
           </DialogContent>

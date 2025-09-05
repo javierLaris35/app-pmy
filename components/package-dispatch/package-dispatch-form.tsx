@@ -393,6 +393,9 @@ const PackageDispatchForm: React.FC<Props> = ({
         />
       ).toBlob();
 
+      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+      window.open(blobUrl, '_blank');
+
       const currentDate = new Date().toLocaleDateString("es-ES", {
         day: "2-digit",
         month: "2-digit",
