@@ -20,9 +20,9 @@ import { BarcodeScannerInput } from "../barcode-scanner-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
 import { Input } from "../ui/input"
-import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator-con-cobros"
 import { EnhancedFedExPDF } from "@/lib/services/pdf-generator"
 import { pdf } from "@react-pdf/renderer"
+import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator"
 
 // Types
 export type Collection = {

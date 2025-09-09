@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useState, useEffect } from "react"
 import { Check, ChevronsUpDown, User } from "lucide-react"
@@ -44,7 +44,6 @@ export function RepartidorSelector({
       setRepartidores(drivers);
     } catch (error) {
       console.error("Error al obtener repartidores:", error);
-      // Aquí puedes mostrar un toast o mensaje de error si quieres
     } finally {
       setIsLoading(false);
     }
@@ -54,7 +53,6 @@ export function RepartidorSelector({
 }, [selectedSubsidiaryId]);
 
   const handleSelect = (repartidorId: string) => {
-    // Find the full repartidor object by ID
     const repartidor = repartidores.find((r) => r.id === repartidorId);
 
     if (!repartidor) {
@@ -62,10 +60,8 @@ export function RepartidorSelector({
       return;
     }
 
-    // Check if the repartidor is already selected (based on ID)
     const isSelected = selectedRepartidores.some((r) => r.id === repartidorId);
 
-    // Create new selection: either remove the repartidor or add it
     const newSelection = isSelected
       ? selectedRepartidores.filter((r) => r.id !== repartidorId)
       : [...selectedRepartidores, repartidor];
@@ -87,35 +83,56 @@ export function RepartidorSelector({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between bg-transparent"
+            className="w-full justify-between bg-transparent relative pr-8 min-h-9"
             disabled={disabled || isLoading}
           >
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              {selectedRepartidores.length === 0
-                ? "Seleccionar repartidores..."
-                : `${selectedRepartidores.length} repartidor(es) seleccionado(s)`}
+            <div className="flex items-center gap-2 truncate">
+              <User className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate">
+                {selectedRepartidores.length === 0
+                  ? "Seleccionar repartidores..."
+                  : `${selectedRepartidores.length} repartidor(es) seleccionado(s)`}
+              </span>
             </div>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 absolute right-2 top-1/2 -translate-y-1/2" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full p-0">
+        <PopoverContent 
+          className="w-full p-0 z-[100]"
+          align="start"
+          style={{ 
+            width: "var(--radix-popover-trigger-width)",
+            maxHeight: "var(--radix-popover-content-available-height)"
+          }}
+          avoidCollisions={true}
+          collisionPadding={16}
+          sideOffset={4}
+        >
           <Command>
             <CommandInput placeholder="Buscar repartidor..." />
             <CommandList>
               <CommandEmpty>No se encontraron repartidores.</CommandEmpty>
-              <CommandGroup>
+              <CommandGroup className="max-h-64 overflow-y-auto">
                 {repartidores.map((repartidor) => (
-                  <CommandItem key={repartidor.id} value={repartidor.name} onSelect={() => handleSelect(repartidor.id)}>
+                  <CommandItem 
+                    key={repartidor.id} 
+                    value={repartidor.name} 
+                    onSelect={() => handleSelect(repartidor.id)}
+                    className="flex items-center py-2"
+                  >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedRepartidores.includes(repartidor) ? "opacity-100" : "opacity-0",
+                        "mr-2 h-4 w-4 flex-shrink-0",
+                        selectedRepartidores.some(r => r.id === repartidor.id) ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    <div className="flex flex-col">
-                      <span className="font-medium">{repartidor.name}</span>
-                      {/*<span className="text-sm text-muted-foreground">{repartidor.employeeId}</span>*/}
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium truncate">{repartidor.name}</span>
+                      {repartidor.employeeId && (
+                        <span className="text-sm text-muted-foreground truncate">
+                          ID: {repartidor.employeeId}
+                        </span>
+                      )}
                     </div>
                   </CommandItem>
                 ))}
@@ -126,9 +143,9 @@ export function RepartidorSelector({
       </Popover>
 
       {selectedRepartidores.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 max-w-full">
           {getSelectedNames().map((name) => (
-            <Badge key={name} variant="default" className="text-xs">
+            <Badge key={name} variant="default" className="text-xs truncate max-w-[120px]">
               {name}
             </Badge>
           ))}

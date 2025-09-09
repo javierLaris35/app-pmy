@@ -92,3 +92,39 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .radix-popover-content {
+    transform-origin: var(--radix-popover-content-transform-origin);
+    animation: scaleIn 0.1s ease-out;
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .command-list {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .command-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .command-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .command-list::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+}

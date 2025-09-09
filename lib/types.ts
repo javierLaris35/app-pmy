@@ -591,3 +591,73 @@ export interface ValidatedPackagesForClousere {
   validatedPackages: PackageInfo[],
   podPackages: PackageInfo[]
 }
+
+export interface PackageInfoForInventory {
+  trackingNumber: string;
+  isValid: boolean;
+  reason?: string; // en caso de inválido
+  priority?: "alta" | "media" | "baja";
+  recipientName?: string;
+  recipientPhone?: string;
+  recipientAddress?: string;
+  // Si quieres seguir manejando símbolos igual que desembarque:
+  isCharge?: boolean; // Carga/F2/31.5
+  isHighValue?: boolean; // Alto valor
+  payment?: {
+    type: string;
+    amount: number;
+  };
+}
+export interface Inventory {
+  id: string;
+  date: string; // ISO string
+  trackingNumber: string; // número de folio de inventario
+  subsidiary?: {
+    id: string;
+    name: string;
+  };
+
+  // Paquetes validados (escaneados en inventario)
+  packages: PackageInfoForInventory[];
+
+  // Listas especiales
+  missingTrackings: string[];   // deberían estar pero no se escanearon
+  unScannedTrackings: string[]; // aparecieron extra, no registrados en sistema
+}
+
+
+export type InventoryReport = {
+  reportId: string; // id o tracking del reporte (ej. unloadingTrackingNumber)
+  createdAt: string; // fecha/hora del reporte en UTC
+
+  subsidiary: {
+    id: string;
+    name: string;
+  };
+
+  vehicle?: {
+    id: string;
+    name: string;
+    plate?: string;
+  };
+
+  packages: InventoryPackage[];
+
+  missingTrackings: string[];
+  unScannedTrackings: string[];
+};
+
+export type InventoryPackage = {
+  trackingNumber: string;
+  recipientName: string;
+  recipientAddress: string;
+  recipientPhone?: string;
+
+  commitDateTime: string; // fecha/hora de compromiso
+  isCharge: boolean;      // [C]
+  isHighValue: boolean;   // [H]
+  payment?: {
+    type: string;
+    amount: number;
+  };
+};
