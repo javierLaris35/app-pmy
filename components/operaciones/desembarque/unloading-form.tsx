@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LoaderWithOverlay } from "@/components/loader";
+import {ExpirationAlertModal, ExpiringPackage} from "@/components/ExpirationAlertModal";
 
 // Types
 interface Vehicles {
@@ -44,6 +46,7 @@ interface Shipment {
   isValid: boolean;
   reason?: string | null;
   recipientName?: string | null;
+  commitDateTime?: string | null;
   recipientAddress?: string | null;
   recipientPhone?: string | null;
   priority?: Priority | null;
@@ -147,7 +150,19 @@ const PackageItem = ({
                 CARGA/F2/31.5
               </Badge>
             )}
-            
+
+            {pkg.commitDateTime && (
+                <Badge variant="outline" className="text-xs">
+                  {new Date(pkg.commitDateTime).toLocaleDateString("es-MX", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Badge>
+            )}
+
             {pkg.isHighValue && (
               <Badge className="bg-violet-600 text-xs">
                 <GemIcon className="h-3 w-3 mr-1" />
@@ -276,9 +291,39 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [consolidatedValidation, setConsolidatedValidation] = useState<Consolidateds>()
+  const [lastValidated, setLastValidated] = useState(""); // almacena el último string validado
+
+  const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
+  const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
+  const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
+
+
+
+  const [isValidationPackages, setIsValidationPackages] = useState(false);
+
+  // Definir el tipo del ref
+  type BarcodeScannerInputHandle = React.ElementRef<typeof BarcodeScannerInput>;
+
+// Dentro de tu componente:
+  const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
+
 
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (!trackingNumbersRaw || isLoading || !selectedSubsidiaryId) return;
+
+    // Si ya validamos este input, no hacer nada
+    if (trackingNumbersRaw === lastValidated) return;
+
+    const handler = setTimeout(() => {
+      handleValidatePackages();
+      setLastValidated(trackingNumbersRaw); // marcamos que ya validamos
+    }, 500);
+
+    return () => clearTimeout(handler);
+  }, [trackingNumbersRaw, selectedSubsidiaryId, isLoading, lastValidated]);
 
   useEffect(() => {
     if (user?.subsidiary) {
@@ -303,6 +348,39 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       window.removeEventListener("keydown", preventKeyZoom);
     };
   }, []);
+
+  // Función para simular el ENTER que envía un escáner real
+  const simulateScannerEnter = (inputElement: HTMLTextAreaElement | null) => {
+    if (!inputElement) return;
+
+    // Crear y disparar un evento keydown de ENTER
+    const enterKeyEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    });
+
+    inputElement.dispatchEvent(enterKeyEvent);
+
+    // También disparar un evento keyup
+    const enterKeyUpEvent = new KeyboardEvent('keyup', {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    });
+
+    inputElement.dispatchEvent(enterKeyUpEvent);
+
+    // Y un evento input para asegurar que se procese
+    const inputEvent = new Event('input', { bubbles: true });
+    inputElement.dispatchEvent(inputEvent);
+  };
 
   const options = Object.entries(TrackingNotFoundEnum).map(([key, value]) => ({
     key,
@@ -329,20 +407,95 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setOpenPopover(null);
   }
 
+// Función para verificar si un paquete está próximo a vencer (HOY)
+  const checkPackageExpiration = useCallback((pkg: PackageInfoForUnloading) => {
+    if (!pkg.commitDateTime) return false;
+
+    const commitDate = new Date(pkg.commitDateTime);
+    const today = new Date();
+    // Reset hours for accurate day comparison
+    today.setHours(0, 0, 0, 0);
+    commitDate.setHours(0, 0, 0, 0);
+
+    const timeDiff = commitDate.getTime() - today.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+    // Mostrar alerta solo si el paquete vence hoy (días restantes = 0)
+    return daysDiff === 0;
+  }, []);
+
+// Función para calcular días hasta vencimiento
+  const getDaysUntilExpiration = useCallback((commitDateTime: string) => {
+    const commitDate = new Date(commitDateTime);
+    const today = new Date();
+    // Reset hours for accurate day comparison
+    today.setHours(0, 0, 0, 0);
+    commitDate.setHours(0, 0, 0, 0);
+
+    const timeDiff = commitDate.getTime() - today.getTime();
+    return Math.ceil(timeDiff / (1000 * 3600 * 24));
+  }, []);
+
+// Función para manejar el siguiente paquete en la alerta
+  const handleNextExpiring = useCallback(() => {
+    const packagesDueToday = expiringPackages.filter(pkg => pkg.daysUntilExpiration === 0);
+    if (currentExpiringIndex < packagesDueToday.length - 1) {
+      setCurrentExpiringIndex(prev => prev + 1);
+    } else {
+      setExpirationAlertOpen(false);
+      setCurrentExpiringIndex(0);
+
+      // Recuperar el foco en el input de texto después de cerrar la modal
+      setTimeout(() => {
+        if (barScannerInputRef.current) {
+          barScannerInputRef.current.focus();
+
+          // Simular ENTER para preparar el escáner para la siguiente lectura
+          try {
+            const inputElement = barScannerInputRef.current.getInputElement();
+            if (inputElement) {
+              inputElement.setSelectionRange(
+                  inputElement.value.length,
+                  inputElement.value.length
+              );
+              // Simular el ENTER completo
+              simulateScannerEnter(inputElement);
+            }
+          } catch (e) {
+            console.log("No se pudo ajustar el campo de entrada:", e);
+          }
+        }
+      }, 100);
+    }
+  }, [currentExpiringIndex, expiringPackages]);
+
+  // Función para manejar el paquete anterior en la alerta
+  const handlePreviousExpiring = useCallback(() => {
+    if (currentExpiringIndex > 0) {
+      setCurrentExpiringIndex(prev => prev - 1);
+    }
+  }, [currentExpiringIndex]);
+
   const handleValidatePackages = async () => {
+    // Verificar si ya estamos validando para evitar duplicados
+    if (isLoading || isValidationPackages) return;
+
+    // Check Focus
+    setIsValidationPackages(true);
     if (!selectedSubsidiaryId) {
       toast({
         title: "Error",
         description: "Selecciona una sucursal antes de validar.",
         variant: "destructive",
       });
+      setIsValidationPackages(false);
       return;
     }
 
     const lines = trackingNumbersRaw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
 
     const uniqueLines = Array.from(new Set(lines));
     const validNumbers = uniqueLines.filter((tn) => /^\d{12}$/.test(tn));
@@ -354,6 +507,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         description: "No se ingresaron números válidos.",
         variant: "destructive",
       });
+      setIsValidationPackages(false);
       return;
     }
 
@@ -361,18 +515,36 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setProgress(0);
 
     try {
-      // 🔹 Cambia aquí: en vez de llamar uno por uno, mandamos TODO el arreglo
       const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(validNumbers, selectedSubsidiaryId);
 
       const newShipments = result.validatedShipments.filter(
-        (r) => !shipments.some((p) => p.trackingNumber === r.trackingNumber)
+          (r) => !shipments.some((p) => p.trackingNumber === r.trackingNumber)
       );
 
       setShipments((prev) => [...prev, ...newShipments]);
       setMissingTrackings(invalidNumbers);
       setUnScannedTrackings([]);
-      setTrackingNumbersRaw("");
+      // Mantenemos el historial: NO limpiamos trackingNumbersRaw
       setConsolidatedValidation(result.consolidateds);
+
+      // VERIFICAR PAQUETES QUE VENCEN HOY - ESTA ES LA PARTE QUE FALTA
+      const todayExpiringPackages: ExpiringPackage[] = newShipments
+          .filter(pkg => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
+          .map(pkg => ({
+            trackingNumber: pkg.trackingNumber,
+            recipientName: pkg.recipientName || undefined,
+            recipientAddress: pkg.recipientAddress || undefined,
+            commitDateTime: pkg.commitDateTime || undefined,
+            daysUntilExpiration: pkg.commitDateTime ? getDaysUntilExpiration(pkg.commitDateTime) : 0,
+            priority: pkg.priority || undefined
+          }));
+
+      // ACTUALIZAR ESTADO Y MOSTRAR MODAL SI HAY PAQUETES QUE VENCEN HOY
+      if (todayExpiringPackages.length > 0) {
+        setExpiringPackages(todayExpiringPackages);
+        setCurrentExpiringIndex(0);
+        setExpirationAlertOpen(true);
+      }
 
       const validCount = newShipments.filter((p) => p.isValid).length;
       const invalidCount = newShipments.filter((p) => !p.isValid).length;
@@ -380,21 +552,46 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       toast({
         title: "Validación completada",
         description: `Se agregaron ${validCount} paquetes válidos. Paquetes inválidos: ${
-          invalidCount + invalidNumbers.length
+            invalidCount + invalidNumbers.length
         }`,
       });
     } catch (error) {
+      console.error("Error validating packages:", error);
       toast({
         title: "Error",
         description: "Hubo un problema al validar los paquetes.",
         variant: "destructive",
       });
     } finally {
+      setIsValidationPackages(false);
       setProgress(0);
       setIsLoading(false);
+
+      // Restaurar el focus pero mantener el contenido
+      setTimeout(() => {
+        if (barScannerInputRef.current) {
+          barScannerInputRef.current.focus();
+
+          // Para simular el ENTER que enviaría un escáner real:
+          try {
+            const inputElement = barScannerInputRef.current.getInputElement();
+            if (inputElement) {
+              // Mantener el valor actual pero colocar el cursor al final
+              inputElement.setSelectionRange(
+                  inputElement.value.length,
+                  inputElement.value.length
+              );
+
+              // Algunos escáneres envían un Enter después del código
+              inputElement.value += '\n';
+            }
+          } catch (e) {
+            console.log("No se pudo ajustar el campo de entrada:", e);
+          }
+        }
+      }, 150);
     }
   };
-
 
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
@@ -572,387 +769,410 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   }, [validShipments, searchTerm, filterPriority, filterStatus]);
 
   return (
-    <Card className="w-full max-w-6xl mx-auto border-0 shadow-none">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="space-y-1">
-            <CardTitle className="text-2xl font-bold flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-primary text-primary-foreground">
-                <PackageCheckIcon className="h-6 w-6" />
+      <>
+        <Card className="w-full max-w-6xl mx-auto border-0 shadow-none">
+          {isValidationPackages && (
+              <LoaderWithOverlay
+                  overlay
+                  transparent
+                  text="Validando paquetes..."
+                  className="rounded-lg"
+              />
+          )}
+          <CardHeader className="pb-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+                    <PackageCheckIcon className="h-6 w-6"/>
+                  </div>
+                  <span>Descarga de Paquetes</span>
+                  {shipments.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-sm">
+                        {validShipments.length} válidos / {shipments.length} total
+                      </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Procesa la descarga de paquetes de unidades de transporte
+                </CardDescription>
               </div>
-              <span>Descarga de Paquetes</span>
-              {shipments.length > 0 && (
-                <Badge variant="secondary" className="ml-2 text-sm">
-                  {validShipments.length} válidos / {shipments.length} total
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>
-              Procesa la descarga de paquetes de unidades de transporte
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
-            <MapPinIcon className="h-4 w-4" />
-            <span>Sucursal: {selectedSubsidiaryName}</span>
-          </div>
-        </div>
-      </CardHeader>
-      
-      <CardContent className="p-6 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Sección de transporte */}
-          <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
-            <div className="space-y-2">
-              <Label className="text-base font-medium flex items-center gap-2">
-                <PackageCheckIcon className="h-4 w-4" />
-                Unidad de Transporte
-              </Label>
-              <UnidadSelector
-                selectedUnidad={selectedUnidad}
-                onSelectionChange={setSelectedUnidad}
-                disabled={isLoading}
-              />
+              <div
+                  className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
+                <MapPinIcon className="h-4 w-4"/>
+                <span>Sucursal: {selectedSubsidiaryName}</span>
+              </div>
             </div>
-            
-            <Separator />
-            
-            <div>
-              <ConsolidateDetails consolidatedData={consolidatedValidation} />
-            </div>
-          </div>
-          
-          {/* Sección de escaneo */}
-          <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
-            <div className="space-y-2">
-              <BarcodeScannerInput 
-                onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
-                disabled={isLoading || !selectedSubsidiaryId}
-                placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escribe o escanea números de tracking"}
-              />
-            </div>
-            
-            {isLoading && (
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label>Progreso de validación</Label>
-                  <span className="text-sm text-muted-foreground">{progress}%</span>
+          </CardHeader>
+
+          <CardContent className="p-6 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Sección de transporte */}
+              <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
+                <div className="space-y-2">
+                  <Label className="text-base font-medium flex items-center gap-2">
+                    <PackageCheckIcon className="h-4 w-4"/>
+                    Unidad de Transporte
+                  </Label>
+                  <UnidadSelector
+                      selectedUnidad={selectedUnidad}
+                      onSelectionChange={setSelectedUnidad}
+                      disabled={isLoading}
+                  />
                 </div>
-                <Progress value={progress} className="h-2" />
+
+                <Separator/>
+
+                <div>
+                  <ConsolidateDetails consolidatedData={consolidatedValidation}/>
+                </div>
               </div>
+
+              {/* Sección de escaneo */}
+              <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
+                <div className="space-y-2">
+                  <BarcodeScannerInput
+                      ref={barScannerInputRef}
+                      onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)}
+                      disabled={isLoading || !selectedSubsidiaryId}
+                      placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escribe o escanea números de tracking"}
+                  />
+                </div>
+
+                {isLoading && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label>Progreso de validación</Label>
+                        <span className="text-sm text-muted-foreground">{progress}%</span>
+                      </div>
+                      <Progress value={progress} className="h-2"/>
+                    </div>
+                )}
+              </div>
+            </div>
+
+            {shipments.length > 0 && (
+                <div className="mt-6 space-y-4">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Package className="h-5 w-5"/>
+                      Paquetes validados
+                      <Badge variant="outline" className="ml-2">
+                        {filteredValidShipments.length} de {validShipments.length}
+                      </Badge>
+                    </h3>
+
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                      <span className="font-medium">Simbología:</span>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 cursor-help">
+                            <CircleAlertIcon className="h-3 w-3 text-destructive"/>
+                            <span>Inválido</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Paquete no válido para descarga</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 cursor-help">
+                            <Badge className="h-4 px-1 text-xs bg-green-600">CARGA/F2/31.5</Badge>
+                            <span>Carga especial</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Paquete de carga especial</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 cursor-help">
+                            <Badge className="h-4 px-1 text-xs bg-violet-600">
+                              <GemIcon className="h-3 w-3"/>
+                            </Badge>
+                            <span>Alto Valor</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Paquete de alto valor</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 cursor-help">
+                            <Badge className="h-4 px-1 text-xs bg-blue-600">
+                              <DollarSignIcon className="h-3 w-3"/>
+                            </Badge>
+                            <span>Cobro</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Paquete con cobro asociado</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </div>
+
+                  {/* Buscador y Filtros */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search
+                          className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground"/>
+                      <Input
+                          placeholder="Buscar por tracking, destinatario o dirección..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Filtrar</h4>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="h-8 gap-1"
+                        >
+                          <Filter className="h-4 w-4"/>
+                          {showFilters ? <ChevronUp className="h-4 w-4"/> : <ChevronDown className="h-4 w-4"/>}
+                        </Button>
+                      </div>
+
+                      <Collapsible open={showFilters}>
+                        <CollapsibleContent className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label className="text-sm">Prioridad</Label>
+                              <select
+                                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  value={filterPriority}
+                                  onChange={(e) => setFilterPriority(e.target.value)}
+                              >
+                                <option value="all">Todas las prioridades</option>
+                                <option value={Priority.ALTA}>Alta</option>
+                                <option value={Priority.MEDIA}>Media</option>
+                                <option value={Priority.BAJA}>Baja</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-sm">Tipo de paquete</Label>
+                              <select
+                                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  value={filterStatus}
+                                  onChange={(e) => setFilterStatus(e.target.value)}
+                              >
+                                <option value="all">Todos los tipos</option>
+                                <option value="special">Especial (carga, alto valor, cobro)</option>
+                                <option value="normal">Paquetes normales</option>
+                              </select>
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </div>
+                  </div>
+
+                  <Tabs defaultValue="validos" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="validos" className="flex items-center gap-1">
+                        <Check className="h-4 w-4"/>
+                        Válidos ({validShipments.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="sin-escaneo" className="flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4"/>
+                        Sin escaneo ({unScannedTrackings.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="faltantes" className="flex items-center gap-1">
+                        <CircleAlertIcon className="h-4 w-4"/>
+                        Faltantes ({missingTrackings.length})
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="validos" className="space-y-3 mt-4">
+                      {filteredValidShipments.length > 0 ? (
+                          <ScrollArea className="h-[400px] rounded-md border">
+                            <div className="grid grid-cols-1 divide-y">
+                              {filteredValidShipments.map((pkg) => (
+                                  <PackageItem
+                                      key={pkg.trackingNumber}
+                                      pkg={pkg}
+                                      onRemove={handleRemovePackage}
+                                      isLoading={isLoading}
+                                      selectedReasons={selectedReasons}
+                                      onSelectReason={handleSelectMissingTracking}
+                                      openPopover={openPopover}
+                                      setOpenPopover={setOpenPopover}
+                                  />
+                              ))}
+                            </div>
+                          </ScrollArea>
+                      ) : (
+                          <div className="text-center py-12 text-muted-foreground border rounded-md">
+                            <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3"/>
+                            <p>No se encontraron paquetes con los filtros aplicados</p>
+                            {(searchTerm || filterPriority !== "all" || filterStatus !== "all") && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="mt-3"
+                                    onClick={() => {
+                                      setSearchTerm("");
+                                      setFilterPriority("all");
+                                      setFilterStatus("all");
+                                    }}
+                                >
+                                  Limpiar filtros
+                                </Button>
+                            )}
+                          </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="sin-escaneo" className="mt-4">
+                      {unScannedTrackings.length > 0 ? (
+                          <ScrollArea className="h-[300px] rounded-md border p-4">
+                            <ul className="space-y-2">
+                              {unScannedTrackings.map(tracking => (
+                                  <li key={tracking}
+                                      className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50">
+                                    <span className="font-mono text-sm">{tracking}</span>
+                                    <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">
+                                      Sin escaneo
+                                    </Badge>
+                                  </li>
+                              ))}
+                            </ul>
+                          </ScrollArea>
+                      ) : (
+                          <div className="text-center py-8 text-muted-foreground border rounded-md">
+                            <p>No hay guías sin escaneo</p>
+                          </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="faltantes" className="mt-4">
+                      {missingTrackings.length > 0 ? (
+                          <ScrollArea className="h-[300px] rounded-md border p-4">
+                            <ul className="space-y-2">
+                              {missingTrackings.map(tracking => (
+                                  <li key={tracking}
+                                      className="flex justify-between items-center py-2 px-3 rounded-md bg-red-50">
+                                    <span className="font-mono text-sm">{tracking}</span>
+                                    <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">
+                                      Faltante
+                                    </Badge>
+                                  </li>
+                              ))}
+                            </ul>
+                          </ScrollArea>
+                      ) : (
+                          <div className="text-center py-8 text-muted-foreground border rounded-md">
+                            <p>No hay guías faltantes</p>
+                          </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+
+                  <div className="flex items-center gap-4 text-sm pt-4 border-t">
+                    <div className="flex items-center gap-1">
+                      <Package className="w-4 h-4"/>
+                      <span className="font-medium">Resumen:</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-green-600 font-semibold">{validShipments.length}</span>
+                      <span>válidos</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-amber-600 font-semibold">{unScannedTrackings.length}</span>
+                      <span>sin escaneo</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-red-600 font-semibold">{missingTrackings.length}</span>
+                      <span>faltantes</span>
+                    </div>
+                  </div>
+                </div>
             )}
-          </div>
-        </div>
 
-        {shipments.length > 0 && (
-          <div className="mt-6 space-y-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Paquetes validados
-                <Badge variant="outline" className="ml-2">
-                  {filteredValidShipments.length} de {validShipments.length}
-                </Badge>
-              </h3>
-              
-              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                <span className="font-medium">Simbología:</span>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 cursor-help">
-                      <CircleAlertIcon className="h-3 w-3 text-destructive" />
-                      <span>Inválido</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Paquete no válido para descarga</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 cursor-help">
-                      <Badge className="h-4 px-1 text-xs bg-green-600">CARGA/F2/31.5</Badge>
-                      <span>Carga especial</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Paquete de carga especial</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 cursor-help">
-                      <Badge className="h-4 px-1 text-xs bg-violet-600">
-                        <GemIcon className="h-3 w-3" />
-                      </Badge>
-                      <span>Alto Valor</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Paquete de alto valor</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 cursor-help">
-                      <Badge className="h-4 px-1 text-xs bg-blue-600">
-                        <DollarSignIcon className="h-3 w-3" />
-                      </Badge>
-                      <span>Cobro</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Paquete con cobro asociado</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            </div>
-            
-            {/* Buscador y Filtros */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por tracking, destinatario o dirección..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-sm">Filtrar</h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="h-8 gap-1"
-                  >
-                    <Filter className="h-4 w-4" />
-                    {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </div>
-                
-                <Collapsible open={showFilters}>
-                  <CollapsibleContent className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-sm">Prioridad</Label>
-                        <select 
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          value={filterPriority}
-                          onChange={(e) => setFilterPriority(e.target.value)}
-                        >
-                          <option value="all">Todas las prioridades</option>
-                          <option value={Priority.ALTA}>Alta</option>
-                          <option value={Priority.MEDIA}>Media</option>
-                          <option value={Priority.BAJA}>Baja</option>
-                        </select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label className="text-sm">Tipo de paquete</Label>
-                        <select 
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          value={filterStatus}
-                          onChange={(e) => setFilterStatus(e.target.value)}
-                        >
-                          <option value="all">Todos los tipos</option>
-                          <option value="special">Especial (carga, alto valor, cobro)</option>
-                          <option value="normal">Paquetes normales</option>
-                        </select>
-                      </div>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </div>
-            </div>
-            
-            <Tabs defaultValue="validos" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="validos" className="flex items-center gap-1">
-                  <Check className="h-4 w-4" />
-                  Válidos ({validShipments.length})
-                </TabsTrigger>
-                <TabsTrigger value="sin-escaneo" className="flex items-center gap-1">
-                  <AlertCircle className="h-4 w-4" />
-                  Sin escaneo ({unScannedTrackings.length})
-                </TabsTrigger>
-                <TabsTrigger value="faltantes" className="flex items-center gap-1">
-                  <CircleAlertIcon className="h-4 w-4" />
-                  Faltantes ({missingTrackings.length})
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="validos" className="space-y-3 mt-4">
-                {filteredValidShipments.length > 0 ? (
-                  <ScrollArea className="h-[400px] rounded-md border">
-                    <div className="grid grid-cols-1 divide-y">
-                      {filteredValidShipments.map((pkg) => (
-                        <PackageItem 
-                          key={pkg.trackingNumber} 
-                          pkg={pkg} 
-                          onRemove={handleRemovePackage}
-                          isLoading={isLoading}
-                          selectedReasons={selectedReasons}
-                          onSelectReason={handleSelectMissingTracking}
-                          openPopover={openPopover}
-                          setOpenPopover={setOpenPopover}
-                        />
-                      ))}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center py-12 text-muted-foreground border rounded-md">
-                    <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                    <p>No se encontraron paquetes con los filtros aplicados</p>
-                    {(searchTerm || filterPriority !== "all" || filterStatus !== "all") && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="mt-3"
-                        onClick={() => {
-                          setSearchTerm("");
-                          setFilterPriority("all");
-                          setFilterStatus("all");
-                        }}
-                      >
-                        Limpiar filtros
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="sin-escaneo" className="mt-4">
-                {unScannedTrackings.length > 0 ? (
-                  <ScrollArea className="h-[300px] rounded-md border p-4">
-                    <ul className="space-y-2">
-                      {unScannedTrackings.map(tracking => (
-                        <li key={tracking} className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50">
-                          <span className="font-mono text-sm">{tracking}</span>
-                          <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">
-                            Sin escaneo
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground border rounded-md">
-                    <p>No hay guías sin escaneo</p>
-                  </div>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="faltantes" className="mt-4">
-                {missingTrackings.length > 0 ? (
-                  <ScrollArea className="h-[300px] rounded-md border p-4">
-                    <ul className="space-y-2">
-                      {missingTrackings.map(tracking => (
-                        <li key={tracking} className="flex justify-between items-center py-2 px-3 rounded-md bg-red-50">
-                          <span className="font-mono text-sm">{tracking}</span>
-                          <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">
-                            Faltante
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground border rounded-md">
-                    <p>No hay guías faltantes</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-            
-            <div className="flex items-center gap-4 text-sm pt-4 border-t">
-              <div className="flex items-center gap-1">
-                <Package className="w-4 h-4" />
-                <span className="font-medium">Resumen:</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-green-600 font-semibold">{validShipments.length}</span>
-                <span>válidos</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-amber-600 font-semibold">{unScannedTrackings.length}</span>
-                <span>sin escaneo</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-red-600 font-semibold">{missingTrackings.length}</span>
-                <span>faltantes</span>
-              </div>
-            </div>
-          </div>
-        )}
+            {/* Toolbar unificada de botones */}
+            <div className="flex flex-col sm:flex-row gap-2 justify-between items-center p-4 bg-muted/20 rounded-lg">
+              <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="gap-2"
+              >
+                <X className="h-4 w-4"/>
+                Cancelar
+              </Button>
 
-        {/* Toolbar unificada de botones */}
-        <div className="flex flex-col sm:flex-row gap-2 justify-between items-center p-4 bg-muted/20 rounded-lg">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={onClose}
-            className="gap-2"
-          >
-            <X className="h-4 w-4" />
-            Cancelar
-          </Button>
-          
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button 
-              onClick={handleValidatePackages} 
-              disabled={isLoading || !selectedSubsidiaryId} 
-              className="gap-2"
-              variant="outline"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Scan className="h-4 w-4" />
-              )}
-              {isLoading ? "Procesando..." : "Validar paquetes"}
-            </Button>
-            
-            <Button
-              onClick={handleUnloading}
-              disabled={isLoading || !canUnload}
-              className="gap-2"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              Procesar descarga
-            </Button>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleExport}
-                    disabled={isLoading || shipments.length === 0}
-                    variant="outline"
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                    onClick={handleValidatePackages}
+                    disabled={isLoading || !selectedSubsidiaryId}
                     className="gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Exportar PDF
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Generar reporte PDF de los paquetes actuales</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+                    variant="outline"
+                >
+                  {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin"/>
+                  ) : (
+                      <Scan className="h-4 w-4"/>
+                  )}
+                  {isLoading ? "Procesando..." : "Validar paquetes"}
+                </Button>
+
+                <Button
+                    onClick={handleUnloading}
+                    disabled={isLoading || !canUnload}
+                    className="gap-2"
+                >
+                  {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin"/>
+                  ) : (
+                      <Send className="h-4 w-4"/>
+                  )}
+                  Procesar descarga
+                </Button>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                          onClick={handleExport}
+                          disabled={isLoading || shipments.length === 0}
+                          variant="outline"
+                          className="gap-2"
+                      >
+                        <Download className="h-4 w-4"/>
+                        Exportar PDF
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Generar reporte PDF de los paquetes actuales</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <ExpirationAlertModal
+            isOpen={expirationAlertOpen}
+            onClose={handleNextExpiring}
+            packages={expiringPackages}
+            currentIndex={currentExpiringIndex}
+            onNext={handleNextExpiring}
+            onPrevious={handlePreviousExpiring}
+        />
+      </>
   );
 }

@@ -1,7 +1,11 @@
 "use client"
 
 import UnLoadingPageControl from "@/components/operaciones/desembarque/unloading-page"
+import { withAuth } from "@/hoc/withAuth";
 
-export default function UnLoading() {
+function UnLoading() {
     return <UnLoadingPageControl />
 }
+
+export default withAuth(UnLoading, "operaciones.desembarques");
+

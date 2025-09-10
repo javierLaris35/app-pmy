@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { ShipmentType, ShipmentStatusType, Priority } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
+import { withAuth } from '@/hoc/withAuth';
 
 interface Shipment {
   id: string
@@ -87,7 +88,7 @@ export const getStatusVariant = (status: ShipmentStatusType) => {
   }
 
 
-export default function ShipmentMonitoringDashboard() {
+function ShipmentMonitoringDashboard() {
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<ShipmentStatusType | 'all'>('all')
@@ -377,3 +378,5 @@ export default function ShipmentMonitoringDashboard() {
     </AppLayout>
   )
 }
+
+export default withAuth(ShipmentMonitoringDashboard, 'operaciones.monitoreo')
