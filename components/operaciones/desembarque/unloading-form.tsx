@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoaderWithOverlay } from "@/components/loader";
+import {ExpirationAlertModal, ExpiringPackage} from "@/components/ExpirationAlertModal";
 
 // Types
 interface Vehicles {
@@ -292,6 +293,12 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [consolidatedValidation, setConsolidatedValidation] = useState<Consolidateds>()
   const [lastValidated, setLastValidated] = useState(""); // almacena el último string validado
 
+  const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
+  const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
+  const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
+
+
+
   const [isValidationPackages, setIsValidationPackages] = useState(false);
 
   // Definir el tipo del ref
@@ -342,6 +349,39 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     };
   }, []);
 
+  // Función para simular el ENTER que envía un escáner real
+  const simulateScannerEnter = (inputElement: HTMLTextAreaElement | null) => {
+    if (!inputElement) return;
+
+    // Crear y disparar un evento keydown de ENTER
+    const enterKeyEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    });
+
+    inputElement.dispatchEvent(enterKeyEvent);
+
+    // También disparar un evento keyup
+    const enterKeyUpEvent = new KeyboardEvent('keyup', {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    });
+
+    inputElement.dispatchEvent(enterKeyUpEvent);
+
+    // Y un evento input para asegurar que se procese
+    const inputEvent = new Event('input', { bubbles: true });
+    inputElement.dispatchEvent(inputEvent);
+  };
+
   const options = Object.entries(TrackingNotFoundEnum).map(([key, value]) => ({
     key,
     label: value
@@ -366,6 +406,75 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
     setOpenPopover(null);
   }
+
+// Función para verificar si un paquete está próximo a vencer (HOY)
+  const checkPackageExpiration = useCallback((pkg: PackageInfoForUnloading) => {
+    if (!pkg.commitDateTime) return false;
+
+    const commitDate = new Date(pkg.commitDateTime);
+    const today = new Date();
+    // Reset hours for accurate day comparison
+    today.setHours(0, 0, 0, 0);
+    commitDate.setHours(0, 0, 0, 0);
+
+    const timeDiff = commitDate.getTime() - today.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+    // Mostrar alerta solo si el paquete vence hoy (días restantes = 0)
+    return daysDiff === 0;
+  }, []);
+
+// Función para calcular días hasta vencimiento
+  const getDaysUntilExpiration = useCallback((commitDateTime: string) => {
+    const commitDate = new Date(commitDateTime);
+    const today = new Date();
+    // Reset hours for accurate day comparison
+    today.setHours(0, 0, 0, 0);
+    commitDate.setHours(0, 0, 0, 0);
+
+    const timeDiff = commitDate.getTime() - today.getTime();
+    return Math.ceil(timeDiff / (1000 * 3600 * 24));
+  }, []);
+
+// Función para manejar el siguiente paquete en la alerta
+  const handleNextExpiring = useCallback(() => {
+    const packagesDueToday = expiringPackages.filter(pkg => pkg.daysUntilExpiration === 0);
+    if (currentExpiringIndex < packagesDueToday.length - 1) {
+      setCurrentExpiringIndex(prev => prev + 1);
+    } else {
+      setExpirationAlertOpen(false);
+      setCurrentExpiringIndex(0);
+
+      // Recuperar el foco en el input de texto después de cerrar la modal
+      setTimeout(() => {
+        if (barScannerInputRef.current) {
+          barScannerInputRef.current.focus();
+
+          // Simular ENTER para preparar el escáner para la siguiente lectura
+          try {
+            const inputElement = barScannerInputRef.current.getInputElement();
+            if (inputElement) {
+              inputElement.setSelectionRange(
+                  inputElement.value.length,
+                  inputElement.value.length
+              );
+              // Simular el ENTER completo
+              simulateScannerEnter(inputElement);
+            }
+          } catch (e) {
+            console.log("No se pudo ajustar el campo de entrada:", e);
+          }
+        }
+      }, 100);
+    }
+  }, [currentExpiringIndex, expiringPackages]);
+
+  // Función para manejar el paquete anterior en la alerta
+  const handlePreviousExpiring = useCallback(() => {
+    if (currentExpiringIndex > 0) {
+      setCurrentExpiringIndex(prev => prev - 1);
+    }
+  }, [currentExpiringIndex]);
 
   const handleValidatePackages = async () => {
     // Verificar si ya estamos validando para evitar duplicados
@@ -418,6 +527,25 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       // Mantenemos el historial: NO limpiamos trackingNumbersRaw
       setConsolidatedValidation(result.consolidateds);
 
+      // VERIFICAR PAQUETES QUE VENCEN HOY - ESTA ES LA PARTE QUE FALTA
+      const todayExpiringPackages: ExpiringPackage[] = newShipments
+          .filter(pkg => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
+          .map(pkg => ({
+            trackingNumber: pkg.trackingNumber,
+            recipientName: pkg.recipientName || undefined,
+            recipientAddress: pkg.recipientAddress || undefined,
+            commitDateTime: pkg.commitDateTime || undefined,
+            daysUntilExpiration: pkg.commitDateTime ? getDaysUntilExpiration(pkg.commitDateTime) : 0,
+            priority: pkg.priority || undefined
+          }));
+
+      // ACTUALIZAR ESTADO Y MOSTRAR MODAL SI HAY PAQUETES QUE VENCEN HOY
+      if (todayExpiringPackages.length > 0) {
+        setExpiringPackages(todayExpiringPackages);
+        setCurrentExpiringIndex(0);
+        setExpirationAlertOpen(true);
+      }
+
       const validCount = newShipments.filter((p) => p.isValid).length;
       const invalidCount = newShipments.filter((p) => !p.isValid).length;
 
@@ -440,13 +568,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setIsLoading(false);
 
       // Restaurar el focus pero mantener el contenido
-      // Usamos un timeout ligeramente mayor para asegurar que el loader haya desaparecido
       setTimeout(() => {
         if (barScannerInputRef.current) {
           barScannerInputRef.current.focus();
 
           // Para simular el ENTER que enviaría un escáner real:
-          // Esto es opcional dependiendo de cómo funcione tu escáner
           try {
             const inputElement = barScannerInputRef.current.getInputElement();
             if (inputElement) {
@@ -457,16 +583,16 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
               );
 
               // Algunos escáneres envían un Enter después del código
-              // Si necesitas simular esto, descomenta la línea siguiente:
               inputElement.value += '\n';
             }
           } catch (e) {
             console.log("No se pudo ajustar el campo de entrada:", e);
           }
         }
-      }, 150); // Aumentamos ligeramente el timeout
+      }, 150);
     }
   };
+
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
   }, []);
@@ -1039,6 +1165,14 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
             </div>
           </CardContent>
         </Card>
+        <ExpirationAlertModal
+            isOpen={expirationAlertOpen}
+            onClose={handleNextExpiring}
+            packages={expiringPackages}
+            currentIndex={currentExpiringIndex}
+            onNext={handleNextExpiring}
+            onPrevious={handlePreviousExpiring}
+        />
       </>
   );
 }
