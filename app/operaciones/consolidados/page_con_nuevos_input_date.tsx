@@ -20,8 +20,9 @@ import { getFedexStatus } from "@/lib/services/consolidated";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import {withAuth} from "@/hoc/withAuth";
 
-export default function ConsolidatedWithKpis() {
+function ConsolidatedWithKpis() {
   const today = new Date();
   const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd");
   const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd");
@@ -356,3 +357,5 @@ export default function ConsolidatedWithKpis() {
     </AppLayout>
   );
 }
+
+export default withAuth(ConsolidatedWithKpis, "operaciones.consolidados")

@@ -1,8 +1,11 @@
 "use client"
 
 import UnifiedFedexControl from "@/components/devoluciones/unified-fedex-control"
+import {withAuth} from "@/hoc/withAuth";
 
 
-export default function FedExControlPage() {
+function FedExControlPage() {
   return <UnifiedFedexControl />
 }
+
+export default withAuth(FedExControlPage, "operaciones.devoluciones")

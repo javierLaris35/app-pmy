@@ -1,10 +1,12 @@
 import { IconTruckLoading } from "@tabler/icons-react"
 import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse } from "lucide-react"
+import { ElementType } from "react";
+import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
 export interface NavItem {
     title: string
     href: string
-    icon: React.ElementType,
+    icon: ElementType,
     roles?: string[]
 }
 
@@ -15,8 +17,9 @@ export const sidebarMenu = {
       url: "/dashboard",
       icon: HomeIcon,
       isActive: false,
+      roles: allowedPageRoles.dashboard,
     },
-    { 
+    {
       title: "Administración",
       url:"#",
       icon: BuildingIcon,
@@ -26,28 +29,28 @@ export const sidebarMenu = {
           name: "Choferes",
           url: "/administracion/choferes",
           icon: CarFrontIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.administracion.choferes,
           isActive: false
         },
         {
           name: "Rutas",
           url: "/administracion/rutas",
           icon: MilestoneIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.administracion.rutas,
           isActive: false
         },
         {
           name: "Sucursales",
           url: "/sucursales",
           icon: BuildingIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.administracion.sucursales,
           isActive: false
         },
         {
           name: "Vehículos",
           url: "/administracion/vehiculos",
           icon: TruckIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.administracion.vehiculos,
           isActive: false
         }
       ]
@@ -62,56 +65,56 @@ export const sidebarMenu = {
           name: "Cargas",
           url: "/operaciones/cargas",
           icon: TruckIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.cargas,
           isActive: false
         },
         {
           name: "Consolidados",
           url: "/operaciones/consolidados",
           icon: IconTruckLoading,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.consolidados,
           isActive: false
         },
         {
           name: "Desembarques",
           url: "/operaciones/desembarques",
           icon: PackageCheckIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.desembarques,
           isActive: false
         },
         {
           name: "Devoluciones",
           url: "/operaciones/devoluciones",
           icon: Undo2Icon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.devoluciones,
           isActive: false
         },
         {
           name: "Envios",
           url: "/operaciones/envios",
           icon: PackageIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.envios,
           isActive: false
         },
         {
           name: "Inventarios",
           url: "/operaciones/inventarios",
           icon: Warehouse,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.inventarios,
           isActive: false
         },
         /*{
           name: "Monitoreo",
           url: "/operaciones/monitoreo",
           icon: MonitorCheckIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.monitoreo
           isActive: false
         },*/
         {
           name: "Salidas a Rutas",
           url: "/operaciones/salidas-a-ruta",
           icon: ClipboardPasteIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.operaciones.salidasARutas,
           isActive: false
         },
       ]
@@ -126,14 +129,14 @@ export const sidebarMenu = {
           name: "Programación",
           url: "/programacion-mtto",
           icon: PenToolIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.mttoVehiculos.programacion,
           isActive: false
         },
         {
           name: "Historial",
           url: "/historial-mtto",
           icon: HistoryIcon,
-          roles: ["admin", "superadmin"],
+          roles: allowedPageRoles.mttoVehiculos.historial,
           isActive: false
         },
       ]
@@ -148,12 +151,14 @@ export const sidebarMenu = {
           name: "Ingresos",
           url: "/ingresos",
           icon: BarChart3,
+          roles: allowedPageRoles.finanzas.ingresos,
           permission: "ingresos:view",
         },
         {
           name: "Gastos",
           url: "/gastos",
           icon: PieChart,
+          roles: allowedPageRoles.finanzas.gastos,
           permission: "gastos:view",
         },
       ]
@@ -162,6 +167,7 @@ export const sidebarMenu = {
       title: "Reportes",
       url: "/reportes",
       icon: ChartNoAxesCombinedIcon,
+      roles: allowedPageRoles.reportes,
       isActive: false,
     },
     {
@@ -169,6 +175,7 @@ export const sidebarMenu = {
       url: "/nomina",
       icon: DollarSignIcon,
       isActive: false,
+      roles: allowedPageRoles.finanzas.nominas,
     },
   ],
   secondary: [
@@ -177,6 +184,7 @@ export const sidebarMenu = {
       url: "/configuracion",
       icon: SettingsIcon,
       isActive: false,
+      roles: allowedPageRoles.configuracion,
     }
   ]
 }

@@ -41,8 +41,9 @@ import {
 } from "@/components/ui/card"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useSaveSubsidiary, useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
+import {withAuth} from "@/hoc/withAuth";
 
-export default function SucursalesPage() {
+function SucursalesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSucursal, setEditingSucursal] = useState<Subsidiary | null>(null)
   const { subsidiaries, isLoading, isError, mutate } = useSubsidiaries()
@@ -367,3 +368,5 @@ export default function SucursalesPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(SucursalesPage, "administracion.sucursales")

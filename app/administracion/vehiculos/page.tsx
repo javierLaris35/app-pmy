@@ -1,7 +1,10 @@
 "use client"
 
 import VehiclesPage from "@/components/administration/vahicle/vehicle"
+import {withAuth} from "@/hoc/withAuth";
 
-export default function FedExControlPage() {
+function FedExControlPage() {
   return <VehiclesPage />
 }
+
+export default withAuth(FedExControlPage, "administracion.vehiculos")

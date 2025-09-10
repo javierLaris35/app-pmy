@@ -19,8 +19,9 @@ import { columns } from "./columns"
 import { useDrivers, useSaveDriver } from "@/hooks/services/drivers/use-drivers"
 import { Driver } from "@/lib/types"
 import { DriverForm } from "@/components/modals/driver-form"
+import {withAuth} from "@/hoc/withAuth";
 
-export default function VehiclesPage() {
+function VehiclesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
 
@@ -122,3 +123,7 @@ export default function VehiclesPage() {
     </AppLayout>
   )
 }
+
+export default withAuth(VehiclesPage, "administracion.vehiculos")
+
+
