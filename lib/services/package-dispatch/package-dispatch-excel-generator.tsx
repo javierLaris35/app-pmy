@@ -1,12 +1,15 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { PackageDispatch } from '@/lib/types';
+import { PackageDispatch, PackageInfo } from '@/lib/types';
 import { format, toZonedTime } from 'date-fns-tz';
+import { mapToPackageInfo } from '@/lib/utils';
 
 export async function generateDispatchExcelClient(data: PackageDispatch, forDownload = true) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Despacho');
   const timeZone = 'America/Hermosillo';
+  const packages: PackageInfo[] = mapToPackageInfo(data.shipments, data.chargeShipments);
+
 
  // === ENCABEZADO GENERAL (A:G) ===
   const titleRow = sheet.addRow([`🚚 Salida a Ruta`]);
@@ -47,7 +50,7 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
   sheet.mergeCells(`A${row4.number}:E${row4.number}`);
 
   // Paquetes
-  const row5 = sheet.addRow([`Paquetes: ${data.shipments.length}`]);
+  const row5 = sheet.addRow([`Paquetes: ${packages.length}`]);
   sheet.mergeCells(`A${row5.number}:E${row5.number}`);
 
   // Espacio en blanco
@@ -84,7 +87,7 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
   }
 
   // Datos
-  data.shipments.forEach((pkg, index) => {
+  packages.forEach((pkg, index) => {
     const zonedDate = toZonedTime(new Date(pkg.commitDateTime), timeZone);
     const commitDate = format(zonedDate, "yyyy-MM-dd"); // Ej: "2025/08/05"
     const commitTime = format(zonedDate, "HH:mm:ss");

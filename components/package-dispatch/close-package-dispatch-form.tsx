@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn, mapToPackageInfo } from "@/lib/utils";
 import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
 import { save, uploadFiles, validateTrackingNumbers } from "@/lib/services/route-closure";
 import InfoField from "./info-field";
@@ -179,6 +179,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
 
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(dispatch.shipments, dispatch.chargeShipments);
 
   // Validar paquetes escaneados
   const validateReturnedPackages = async () => {
@@ -190,7 +191,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
     const uniqueLines = Array.from(new Set(lines));
     const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn));
     const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn));
-
+    
     if (validNumbers.length === 0) {
         toast({
         title: "Error",
@@ -372,7 +373,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
 
   // Calcular estadísticas
   const validReturns = returnedPackages.filter(p => p.isValid);
-  const originalCount = dispatch.shipments?.length || 0;
+  const originalCount = packageDispatchShipments?.length || 0;
   const deliveredCount = originalCount - validReturns.length;
   const returnRate = originalCount > 0 ? (validReturns.length / originalCount) * 100 : 0;
 

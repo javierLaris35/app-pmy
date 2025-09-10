@@ -1,11 +1,12 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { PackageDispatch} from "@/lib/types" // Ajusta según tu modelo real
+import { PackageDispatch, PackageInfo} from "@/lib/types" // Ajusta según tu modelo real
 import { Button } from "@/components/ui/button"
 import { Eye, Sheet } from "lucide-react"
 import { Badge } from "../ui/badge"
 import { Tooltip, TooltipContent } from "../ui/tooltip"
 import { TooltipTrigger } from "@radix-ui/react-tooltip"
+import { mapToPackageInfo } from "@/lib/utils"
 
 export const columns: ColumnDef<PackageDispatch>[] = [
   // Columna de selección
@@ -42,12 +43,14 @@ export const columns: ColumnDef<PackageDispatch>[] = [
     header: "Paquetes",
     cell: ({ row }) => {
         const shipments = row.original.shipments;
+        const chargeShipments = row.original.chargeShipments
+        const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(shipments, chargeShipments)
         
-        if (!shipments || shipments.length === 0) return "Sin paquetes";
+        if (!packageDispatchShipments || packageDispatchShipments.length === 0) return "Sin paquetes";
 
         return (
           <span className="font-mono">
-            {shipments.length} paquete{shipments.length > 1 ? "s" : ""}
+            {packageDispatchShipments.length} paquete{packageDispatchShipments.length > 1 ? "s" : ""}
           </span>
         );
 

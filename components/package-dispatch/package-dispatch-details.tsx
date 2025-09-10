@@ -10,6 +10,7 @@ import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package
 import { pdf } from "@react-pdf/renderer";
 import { IconPdf } from "@tabler/icons-react";
 import { useToast } from "@/components/ui/use-toast";
+import { mapToPackageInfo } from "@/lib/utils";
 
 interface Props {
   dispatch: PackageDispatch;
@@ -34,6 +35,7 @@ const formatMexicanPhoneNumber = (phone: string | null | undefined): string => {
 export default function PackageDispatchDetails({ dispatch, onClose }: Props) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(dispatch.shipments, dispatch.chargeShipments)
 
   const handlePdfCreate = async () => {
     setIsLoading(true);
@@ -44,7 +46,7 @@ export default function PackageDispatchDetails({ dispatch, onClose }: Props) {
           drivers={dispatch.drivers ?? []}
           routes={dispatch.routes ?? []}
           vehicle={dispatch.vehicle ?? { id: "", name: "N/A" }}
-          packages={dispatch.shipments ?? []}
+          packages={packageDispatchShipments ?? []}
           subsidiaryName={dispatch.subsidiary?.name ?? "N/A"}
           trackingNumber={dispatch.trackingNumber ?? "N/A"}
         />
@@ -115,8 +117,8 @@ export default function PackageDispatchDetails({ dispatch, onClose }: Props) {
           </div>
         </div>
 
-        {/* Validated Packages */}
-        {dispatch.shipments?.length > 0 && (
+        {/* Paquetes valido */}
+        {packageDispatchShipments?.length > 0 && (
           <div className="mt-6 space-y-2">
             <h3 className="text-lg font-semibold text-gray-800">Paquetes Validados</h3>
             <div className="flex flex-row items-end justify-end">
@@ -145,14 +147,14 @@ export default function PackageDispatchDetails({ dispatch, onClose }: Props) {
             </div>
             <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
               <ul className="divide-y divide-gray-300">
-                {dispatch.shipments.map((pkg, index) => (
+                {packageDispatchShipments.map((pkg, index) => (
                   <li key={`${pkg.trackingNumber}-${index}`} className="flex justify-between items-center px-4 py-2 hover:bg-gray-50">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium font-mono">{pkg.trackingNumber}</span>
-                        <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
+                        {/*<Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
                           {pkg.isValid ? "Válido" : "Inválido"}
-                        </Badge>
+                        </Badge>*/}
                         {pkg.priority && (
                           <Badge
                             variant={

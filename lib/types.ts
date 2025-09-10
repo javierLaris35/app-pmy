@@ -407,6 +407,7 @@ export interface PackageDispatch {
   drivers: Driver[]
   vehicle: Vehicles
   shipments: Shipment[]
+  chargeShipments: ChargeShipment[]
   estimatedArrival: string
   startTime: string
   subsidiary: Subsidiary
