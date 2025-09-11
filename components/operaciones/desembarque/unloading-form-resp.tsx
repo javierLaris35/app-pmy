@@ -12,7 +12,7 @@ import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, Ge
 import { useAuthStore } from "@/store/auth.store";
 import { validateTrackingNumbers, saveUnloading, uploadPDFile } from "@/lib/services/unloadings";
 import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types";
-import { BarcodeScannerInput, BarcodeScannerInputHandle } from "@/components/barcode-input/barcode-scanner-input-list";
+import { BarcodeScannerInput } from "@/components/barcode-scanner-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -188,13 +188,13 @@ const PackageItem = ({
               )}
               {pkg.recipientName && (
                 <div className="flex items-center gap-1">
-                  <User className="w-4 w-4" />
+                  <User className="w-4 h-4" />
                   <span className="text-xs">{pkg.recipientName}</span>
                 </div>
               )}
               {pkg.recipientPhone && (
                 <div className="flex items-center gap-1">
-                  <Phone className="w-4 w-4" />
+                  <Phone className="w-4 h-4" />
                   <span className="text-xs">{formatMexicanPhoneNumber(pkg.recipientPhone)}</span>
                 </div>
               )}
@@ -203,7 +203,7 @@ const PackageItem = ({
           
           {!pkg.isValid && (
             <div className="flex items-center gap-1 text-sm text-destructive">
-              <AlertCircle className="w-4 w-4" />
+              <AlertCircle className="w-4 h-4" />
               <span className="text-xs">{pkg.reason}</span>
             </div>
           )}
@@ -275,7 +275,7 @@ const PackageItem = ({
 // Componente principal
 export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [selectedUnidad, setSelectedUnidad] = useState<Vehicles | null>(null);
-  const [scannedPackages, setScannedPackages] = useState<PackageInfo[]>([]);
+  const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("");
   const [shipments, setShipments] = useState<PackageInfoForUnloading[]>([]);
   const [missingTrackings, setMissingTrackings] = useState<string[]>([]);
   const [unScannedTrackings, setUnScannedTrackings] = useState<string[]>([]);
@@ -291,34 +291,39 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [consolidatedValidation, setConsolidatedValidation] = useState<Consolidateds>()
-  const [lastValidated, setLastValidated] = useState("");
+  const [lastValidated, setLastValidated] = useState(""); // almacena el último string validado
 
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
   const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
 
+
+
   const [isValidationPackages, setIsValidationPackages] = useState(false);
 
+  // Definir el tipo del ref
+  type BarcodeScannerInputHandle = React.ElementRef<typeof BarcodeScannerInput>;
+
+// Dentro de tu componente:
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
+
 
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
-    if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
-    
-    // Obtener tracking numbers de los paquetes escaneados
-    const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber).join("\n");
-    
-    if (trackingNumbers === lastValidated) return;
+    if (!trackingNumbersRaw || isLoading || !selectedSubsidiaryId) return;
+
+    // Si ya validamos este input, no hacer nada
+    if (trackingNumbersRaw === lastValidated) return;
 
     const handler = setTimeout(() => {
       handleValidatePackages();
-      setLastValidated(trackingNumbers);
+      setLastValidated(trackingNumbersRaw); // marcamos que ya validamos
     }, 500);
 
     return () => clearTimeout(handler);
-  }, [scannedPackages, selectedSubsidiaryId, isLoading, lastValidated]);
+  }, [trackingNumbersRaw, selectedSubsidiaryId, isLoading, lastValidated]);
 
   useEffect(() => {
     if (user?.subsidiary) {
@@ -344,9 +349,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     };
   }, []);
 
+  // Función para simular el ENTER que envía un escáner real
   const simulateScannerEnter = (inputElement: HTMLTextAreaElement | null) => {
     if (!inputElement) return;
 
+    // Crear y disparar un evento keydown de ENTER
     const enterKeyEvent = new KeyboardEvent('keydown', {
       key: 'Enter',
       code: 'Enter',
@@ -358,6 +365,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
     inputElement.dispatchEvent(enterKeyEvent);
 
+    // También disparar un evento keyup
     const enterKeyUpEvent = new KeyboardEvent('keyup', {
       key: 'Enter',
       code: 'Enter',
@@ -369,6 +377,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
     inputElement.dispatchEvent(enterKeyUpEvent);
 
+    // Y un evento input para asegurar que se procese
     const inputEvent = new Event('input', { bubbles: true });
     inputElement.dispatchEvent(inputEvent);
   };
@@ -390,7 +399,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     } else if(value === TrackingNotFoundEnum.NOT_SCANNED) {
       setUnScannedTrackings(prev => [...prev, id]);
       setMissingTrackings(prev => prev.filter(item => item !== id));
-    } else if(value === TrackingNotFoundEnum.NET_IN_CHARGE) {
+    } else if(value === TrackingNotFoundEnum.NOT_IN_CHARGE) {
       setMissingTrackings(prev => prev.filter(item => item !== id));
       setUnScannedTrackings(prev => prev.filter(item => item !== id));
     }
@@ -398,23 +407,28 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setOpenPopover(null);
   }
 
+// Función para verificar si un paquete está próximo a vencer (HOY)
   const checkPackageExpiration = useCallback((pkg: PackageInfoForUnloading) => {
     if (!pkg.commitDateTime) return false;
 
     const commitDate = new Date(pkg.commitDateTime);
     const today = new Date();
+    // Reset hours for accurate day comparison
     today.setHours(0, 0, 0, 0);
     commitDate.setHours(0, 0, 0, 0);
 
     const timeDiff = commitDate.getTime() - today.getTime();
     const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
 
+    // Mostrar alerta solo si el paquete vence hoy (días restantes = 0)
     return daysDiff === 0;
   }, []);
 
+// Función para calcular días hasta vencimiento
   const getDaysUntilExpiration = useCallback((commitDateTime: string) => {
     const commitDate = new Date(commitDateTime);
     const today = new Date();
+    // Reset hours for accurate day comparison
     today.setHours(0, 0, 0, 0);
     commitDate.setHours(0, 0, 0, 0);
 
@@ -422,6 +436,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     return Math.ceil(timeDiff / (1000 * 3600 * 24));
   }, []);
 
+// Función para manejar el siguiente paquete en la alerta
   const handleNextExpiring = useCallback(() => {
     const packagesDueToday = expiringPackages.filter(pkg => pkg.daysUntilExpiration === 0);
     if (currentExpiringIndex < packagesDueToday.length - 1) {
@@ -430,9 +445,12 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setExpirationAlertOpen(false);
       setCurrentExpiringIndex(0);
 
+      // Recuperar el foco en el input de texto después de cerrar la modal
       setTimeout(() => {
         if (barScannerInputRef.current) {
           barScannerInputRef.current.focus();
+
+          // Simular ENTER para preparar el escáner para la siguiente lectura
           try {
             const inputElement = barScannerInputRef.current.getInputElement();
             if (inputElement) {
@@ -440,6 +458,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   inputElement.value.length,
                   inputElement.value.length
               );
+              // Simular el ENTER completo
               simulateScannerEnter(inputElement);
             }
           } catch (e) {
@@ -450,6 +469,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   }, [currentExpiringIndex, expiringPackages]);
 
+  // Función para manejar el paquete anterior en la alerta
   const handlePreviousExpiring = useCallback(() => {
     if (currentExpiringIndex > 0) {
       setCurrentExpiringIndex(prev => prev - 1);
@@ -457,8 +477,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   }, [currentExpiringIndex]);
 
   const handleValidatePackages = async () => {
+    // Verificar si ya estamos validando para evitar duplicados
     if (isLoading || isValidationPackages) return;
 
+    // Check Focus
+    setIsValidationPackages(true);
     if (!selectedSubsidiaryId) {
       toast({
         title: "Error",
@@ -469,10 +492,14 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       return;
     }
 
-    // Obtener tracking numbers de los paquetes escaneados
-    const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber);
-    const validNumbers = trackingNumbers.filter((tn) => /^\d{12}$/.test(tn));
-    const invalidNumbers = trackingNumbers.filter((tn) => !/^\d{12}$/.test(tn));
+    const lines = trackingNumbersRaw
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    const uniqueLines = Array.from(new Set(lines));
+    const validNumbers = uniqueLines.filter((tn) => /^\d{12}$/.test(tn));
+    const invalidNumbers = uniqueLines.filter((tn) => !/^\d{12}$/.test(tn));
 
     if (validNumbers.length === 0) {
       toast({
@@ -490,21 +517,18 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     try {
       const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(validNumbers, selectedSubsidiaryId);
 
-      // Actualizar los paquetes escaneados con la información validada
-      if (barScannerInputRef.current && barScannerInputRef.current.updateValidatedPackages) {
-        barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
-      }
-
-      const newValidShipments = result.validatedShipments.filter(
+      const newShipments = result.validatedShipments.filter(
           (r) => !shipments.some((p) => p.trackingNumber === r.trackingNumber)
       );
 
-      setShipments((prev) => [...prev, ...newValidShipments]);
+      setShipments((prev) => [...prev, ...newShipments]);
       setMissingTrackings(invalidNumbers);
       setUnScannedTrackings([]);
+      // Mantenemos el historial: NO limpiamos trackingNumbersRaw
       setConsolidatedValidation(result.consolidateds);
 
-      const todayExpiringPackages: ExpiringPackage[] = newValidShipments
+      // VERIFICAR PAQUETES QUE VENCEN HOY - ESTA ES LA PARTE QUE FALTA
+      const todayExpiringPackages: ExpiringPackage[] = newShipments
           .filter(pkg => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
           .map(pkg => ({
             trackingNumber: pkg.trackingNumber,
@@ -515,14 +539,15 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
             priority: pkg.priority || undefined
           }));
 
+      // ACTUALIZAR ESTADO Y MOSTRAR MODAL SI HAY PAQUETES QUE VENCEN HOY
       if (todayExpiringPackages.length > 0) {
         setExpiringPackages(todayExpiringPackages);
         setCurrentExpiringIndex(0);
         setExpirationAlertOpen(true);
       }
 
-      const validCount = newValidShipments.filter((p) => p.isValid).length;
-      const invalidCount = newValidShipments.filter((p) => !p.isValid).length;
+      const validCount = newShipments.filter((p) => p.isValid).length;
+      const invalidCount = newShipments.filter((p) => !p.isValid).length;
 
       toast({
         title: "Validación completada",
@@ -542,16 +567,22 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setProgress(0);
       setIsLoading(false);
 
+      // Restaurar el focus pero mantener el contenido
       setTimeout(() => {
         if (barScannerInputRef.current) {
           barScannerInputRef.current.focus();
+
+          // Para simular el ENTER que enviaría un escáner real:
           try {
             const inputElement = barScannerInputRef.current.getInputElement();
             if (inputElement) {
+              // Mantener el valor actual pero colocar el cursor al final
               inputElement.setSelectionRange(
                   inputElement.value.length,
                   inputElement.value.length
               );
+
+              // Algunos escáneres envían un Enter después del código
               inputElement.value += '\n';
             }
           } catch (e) {
@@ -564,7 +595,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
-    setScannedPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
   }, []);
 
   const handleSendEmail = async (unloadingSaved: Unloading) => {
@@ -666,9 +696,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
       setSelectedUnidad(null);
       setShipments([]);
-      setScannedPackages([]);
       setMissingTrackings([]);
       setUnScannedTrackings([]);
+      setTrackingNumbersRaw("");
       setProgress(0);
       onSuccess();
     } catch (error) {
@@ -722,6 +752,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const validShipments = shipments.filter((p) => p.isValid);
   const canUnload = selectedUnidad && validShipments.length > 0;
 
+  // Filtrado de paquetes
   const filteredValidShipments = useMemo(() => {
     return validShipments.filter(pkg => {
       const matchesSearch = pkg.trackingNumber.includes(searchTerm) || 
@@ -802,7 +833,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                 <div className="space-y-2">
                   <BarcodeScannerInput
                       ref={barScannerInputRef}
-                      onPackagesChange={setScannedPackages}
+                      onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)}
                       disabled={isLoading || !selectedSubsidiaryId}
                       placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escribe o escanea números de tracking"}
                   />
@@ -1084,10 +1115,10 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                 Cancelar
               </Button>
 
-              <div className="flex flex-col sm:flexRow gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button
                     onClick={handleValidatePackages}
-                    disabled={isLoading || !selectedSubsidiaryId || scannedPackages.length === 0}
+                    disabled={isLoading || !selectedSubsidiaryId}
                     className="gap-2"
                     variant="outline"
                 >

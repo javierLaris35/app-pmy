@@ -36,7 +36,7 @@ export default function PackageDispatchDetails({ dispatch, onClose }: Props) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(dispatch.shipments, dispatch.chargeShipments)
-
+ 
   const handlePdfCreate = async () => {
     setIsLoading(true);
     try {

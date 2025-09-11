@@ -180,6 +180,13 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
   const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(dispatch.shipments, dispatch.chargeShipments);
+  const charges = packageDispatchShipments
+    .filter(pkg => pkg.payment) // solo los que tienen pago
+    .map(pkg => ({
+      trackingNumber: pkg.trackingNumber,
+      amount: pkg.payment.amount,
+      type: pkg.payment.type,
+    }));
 
   // Validar paquetes escaneados
   const validateReturnedPackages = async () => {
