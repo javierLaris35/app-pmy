@@ -668,3 +668,20 @@ export type InventoryPackage = {
     amount: number;
   };
 };
+
+export type ShipmentsResponse = {
+  data: Shipment[]
+  meta: {
+    itemsPerPage: number
+    totalItems: number
+    currentPage: number
+    totalPages: number
+    sortBy: [string, "ASC" | "DESC"][]
+  }
+  links: {
+    current: string
+    next?: string
+    last: string
+    prev?: string
+  }
+}

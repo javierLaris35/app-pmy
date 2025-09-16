@@ -6,78 +6,100 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
+  manualPagination?: boolean
+  meta?: {
+    totalPages: number
+    currentPage: number
+    totalItems: number
+  }
+  onPageChange?: (page: number) => void
+  onPageSizeChange?: (size: number) => void
 }
 
-export function DataTablePagination<TData>({ table }: DataTablePaginationProps<TData>) {
+export function DataTablePagination<TData>({
+                                             table,
+                                             manualPagination,
+                                             meta,
+                                             onPageChange,
+                                             onPageSizeChange,
+                                           }: DataTablePaginationProps<TData>) {
   return (
-    <div className="flex items-center justify-between px-2">
-      <div className="flex-1 text-sm text-muted-foreground">
-        {table.getFilteredSelectedRowModel().rows.length} de {table.getFilteredRowModel().rows.length} fila(s) seleccionada(s).
-      </div>
-      <div className="flex items-center space-x-6 lg:space-x-8">
+      <div className="flex items-center justify-between px-2">
+        {/* 🔹 Conteo de filas seleccionadas */}
+        <div className="flex-1 text-sm text-muted-foreground">
+          {table.getFilteredSelectedRowModel().rows.length} de {table.getFilteredRowModel().rows.length} fila(s) seleccionada(s).
+        </div>
+
+        {/* 🔹 Selector de tamaño de página */}
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Filas por página</p>
           <Select
-            value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => {
-              table.setPageSize(Number(value))
-            }}
+              value={`${table.getState().pagination.pageSize}`}
+              onValueChange={(value) => {
+                if (manualPagination) {
+                  onPageSizeChange?.(Number(value))
+                } else {
+                  table.setPageSize(Number(value))
+                }
+              }}
           >
             <SelectTrigger className="h-8 w-[70px]">
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
               {[10, 20, 30, 40, 50].map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`}>
-                  {pageSize}
-                </SelectItem>
+                  <SelectItem key={pageSize} value={`${pageSize}`}>
+                    {pageSize}
+                  </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
+        {/* 🔹 Información de página */}
         <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-          Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+          Página {manualPagination ? meta?.currentPage : table.getState().pagination.pageIndex + 1} de {manualPagination ? meta?.totalPages : table.getPageCount()}
         </div>
+
+        {/* 🔹 Botones de navegación */}
         <div className="flex items-center space-x-2">
           <Button
-            variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => manualPagination ? onPageChange?.(1) : table.setPageIndex(0)}
+              disabled={manualPagination ? meta?.currentPage === 1 : !table.getCanPreviousPage()}
           >
             <span className="sr-only">Ir a la primer página</span>
             <DoubleArrowLeftIcon className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => manualPagination ? onPageChange?.((meta?.currentPage ?? 1) - 1) : table.previousPage()}
+              disabled={manualPagination ? meta?.currentPage === 1 : !table.getCanPreviousPage()}
           >
             <span className="sr-only">Ir a la página anterior</span>
             <ChevronLeftIcon className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => manualPagination ? onPageChange?.((meta?.currentPage ?? 1) + 1) : table.nextPage()}
+              disabled={manualPagination ? meta?.currentPage === meta?.totalPages : !table.getCanNextPage()}
           >
             <span className="sr-only">Ir a la siguiente página</span>
             <ChevronRightIcon className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => manualPagination ? onPageChange?.(meta?.totalPages ?? 1) : table.setPageIndex(table.getPageCount() - 1)}
+              disabled={manualPagination ? meta?.currentPage === meta?.totalPages : !table.getCanNextPage()}
           >
             <span className="sr-only">Ir a la última página</span>
             <DoubleArrowRightIcon className="h-4 w-4" />
           </Button>
         </div>
       </div>
-    </div>
   )
 }
-

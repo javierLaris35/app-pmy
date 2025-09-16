@@ -1,18 +1,37 @@
 import { generateDashboardKpis, generateKpis, getCharges, getShipments } from '@/lib/services/shipments';
-import { KpiData } from '@/lib/types';
+import { KpiData, ShipmentsResponse } from '@/lib/types'
 import useSWR from 'swr';
 import qs from "query-string";
 
-export function useShipments() {
-    const { data, error, isLoading, mutate } = useSWR('/shipments', getShipments);
+export function useShipments(
+    page = 1,
+    limit = 10,
+    search?: string,
+    sortBy?: string
+) {
+    const key: [string, number, number, string?, string?] = [
+        "/shipments",
+        page,
+        limit,
+        search,
+        sortBy,
+    ];
+
+    const fetcher = ([, page, limit, search, sortBy]: typeof key) =>
+        getShipments(page, limit, search, sortBy);
+
+    const { data, error, isLoading, mutate } = useSWR<ShipmentsResponse>(key, fetcher);
 
     return {
-        shipments: data,
+        shipments: data?.data ?? [],
+        meta: data?.meta,
+        links: data?.links,
         isLoading,
         isError: !!error,
         mutate,
     };
 }
+
 
 export function useCharges() {
     const { data, error, isLoading, mutate } = useSWR('/shipments/charges', getCharges);
