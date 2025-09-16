@@ -33,6 +33,8 @@ function ShipmentsPage() {
     const [sortBy, setSortBy] = useState<string>()
     const [page, setPage] = useState(1)
     const [limit, setLimit] = useState(10)
+    const [remoteFilters, setRemoteFilters] = useState<Record<string, any>>({});
+
 
     // Cambia a "remote" para paginación remota
     const paginationMode: "local" | "remote" = "remote"
@@ -41,7 +43,8 @@ function ShipmentsPage() {
         page,
         limit,
         search,
-        sortBy
+        sortBy,
+        remoteFilters
     )
 
     const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
@@ -167,6 +170,8 @@ function ShipmentsPage() {
                             totalItems: meta?.totalItems ?? 0,
                             pageSize: limit, // ahora sí
                         }}
+                        remoteFilters={remoteFilters} // 👈 se lo pasas a la tabla
+                        setRemoteFilters={setRemoteFilters}
                         onPageChange={setPage}
                         onPageSizeChange={(newLimit) => {
                             setLimit(newLimit)

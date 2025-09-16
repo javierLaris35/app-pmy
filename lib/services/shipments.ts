@@ -8,11 +8,34 @@ const getShipments = async (
     limit: number,
     search?: string,
     sortBy?: string,
+    filters?: Record<string, string | string[] | boolean>
 ): Promise<ShipmentsResponse> => {
-    const url = `/shipments?page=${page}&limit=${limit}`
-        + (search ? `&search=${search}` : '')
-        + (sortBy ? `&sortBy=${sortBy}` : '')
+    const params = new URLSearchParams()
 
+    params.set("page", page.toString())
+    params.set("limit", limit.toString())
+
+    if (search) params.set("search", search)
+    if (sortBy) params.set("sortBy", sortBy)
+
+    console.log('filters')
+
+    if (filters) {
+        Object.entries(filters).forEach(([field, value]) => {
+            if (Array.isArray(value)) {
+                const vals = value.map(v => (v && typeof v === "object" && "value" in v ? v.value : v))
+                params.set(`filter.${field}`, `$in:${vals.join(",")}`)
+            } else if (typeof value === "object" && "value" in value) {
+                params.set(`filter.${field}`, `$eq:${value.value}`)
+            } else if (typeof value === "boolean") {
+                params.set(`filter.${field}`, `$eq:${value ? 1 : 0}`)
+            } else {
+                params.set(`filter.${field}`, `$eq:${value}`)
+            }
+        })
+    }
+
+    const url = `/shipments?${params.toString()}`
     const response = await axiosConfig.get<ShipmentsResponse>(url)
     return response.data
 }

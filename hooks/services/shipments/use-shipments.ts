@@ -7,18 +7,24 @@ export function useShipments(
     page = 1,
     limit = 10,
     search?: string,
-    sortBy?: string
+    sortBy?: string,
+    filters?: Record<string, any>
 ) {
-    const key: [string, number, number, string?, string?] = [
-        "/shipments",
-        page,
-        limit,
-        search,
-        sortBy,
-    ];
+    // --- Solo enviar filtros con valor ---
+    const cleanFilters = filters
+        ? Object.fromEntries(
+            Object.entries(filters).filter(([_, value]) => {
+                if (Array.isArray(value)) return value.length > 0
+                if (typeof value === "string") return value.trim() !== ""
+                return value !== undefined && value !== null
+            })
+        )
+        : {}
 
-    const fetcher = ([, page, limit, search, sortBy]: typeof key) =>
-        getShipments(page, limit, search, sortBy);
+    const key = ["/shipments", page, limit, search ?? "", sortBy ?? "", JSON.stringify(cleanFilters)]
+
+    const fetcher = ([, page, limit, search, sortBy, serializedFilters]: typeof key) =>
+        getShipments(page, limit, search, sortBy, cleanFilters)
 
     const { data, error, isLoading, mutate } = useSWR<ShipmentsResponse>(key, fetcher);
 

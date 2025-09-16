@@ -20,59 +20,34 @@ import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
     data: TData[]
-    searchKey?: string
-    filters?: {
-        columnId: string
-        title: string
-        options: { label: string; value: string }[]
-    }[]
-    onTableReady?: (table: Table<TData>) => void
-
-    // Props para paginación remota
     manualPagination?: boolean
-    meta?: {
-        totalPages: number
-        currentPage: number
-        totalItems: number
-        pageSize: number
-    }
+    meta?: { totalPages: number; currentPage: number; pageSize: number; totalItems: number }
     onPageChange?: (page: number) => void
     onPageSizeChange?: (size: number) => void
+    remoteFilters: Record<string, any>
+    setRemoteFilters: React.Dispatch<React.SetStateAction<Record<string, any>>>
 }
 
 export function DataTable<TData, TValue>({
                                              columns,
                                              data,
-                                             searchKey,
-                                             filters,
-                                             onTableReady,
                                              manualPagination = false,
                                              meta,
                                              onPageChange,
                                              onPageSizeChange,
+                                             remoteFilters,
+                                             setRemoteFilters,
                                          }: DataTableProps<TData, TValue>) {
-    // Estados base
     const [rowSelection, setRowSelection] = React.useState({})
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [globalFilter, setGlobalFilter] = React.useState<string>("")
 
-    // Configuración react-table
     const table = useReactTable({
         data,
         columns,
-        state: {
-            sorting,
-            columnVisibility,
-            rowSelection,
-            columnFilters,
-            globalFilter,
-            pagination: {
-                pageIndex: manualPagination ? (meta?.currentPage ?? 1) - 1 : 0,
-                pageSize: manualPagination ? meta?.pageSize ?? 10 : 10,
-            },
-        },
+        state: { sorting, columnVisibility, rowSelection, columnFilters, globalFilter, pagination: { pageIndex: manualPagination ? (meta?.currentPage ?? 1) - 1 : 0, pageSize: manualPagination ? meta?.pageSize ?? 10 : 10 } },
         manualPagination,
         pageCount: manualPagination ? meta?.totalPages ?? -1 : undefined,
         enableRowSelection: true,
@@ -88,23 +63,22 @@ export function DataTable<TData, TValue>({
         globalFilterFn: (row, columnId, filterValue) => {
             const search = filterValue.toLowerCase()
             const targetCols = ["recipientName", "recipientAddress", "recipientCity", "recipientZip", "trackingNumber"]
-            const availableCols = row.getAllCells().map((cell) => cell.column.id)
-            return targetCols
-                .filter((col) => availableCols.includes(col))
-                .some((col) => {
-                    const val = row.getValue(col)
-                    return val?.toString().toLowerCase().includes(search)
-                })
+            const availableCols = row.getAllCells().map((c) => c.column.id)
+            return targetCols.filter((col) => availableCols.includes(col)).some((col) => {
+                const val = row.getValue(col)
+                return val?.toString().toLowerCase().includes(search)
+            })
         },
     })
 
-    React.useEffect(() => {
-        if (onTableReady) onTableReady(table)
-    }, [table, onTableReady])
-
     return (
         <div className="space-y-4">
-            <DataTableToolbar table={table} filters={filters} setGlobalFilter={setGlobalFilter} />
+            <DataTableToolbar
+                table={table}
+                setGlobalFilter={setGlobalFilter}
+                remoteFilters={remoteFilters}
+                setRemoteFilters={setRemoteFilters}
+            />
 
             <div className="rounded-md border">
                 <UiTable>
@@ -113,8 +87,7 @@ export function DataTable<TData, TValue>({
                             <TableRow key={headerGroup.id}>
                                 {headerGroup.headers.map((header) => (
                                     <TableHead key={header.id}>
-                                        {!header.isPlaceholder &&
-                                            flexRender(header.column.columnDef.header, header.getContext())}
+                                        {!header.isPlaceholder && flexRender(header.column.columnDef.header, header.getContext())}
                                     </TableHead>
                                 ))}
                             </TableRow>
@@ -122,21 +95,15 @@ export function DataTable<TData, TValue>({
                     </TableHeader>
 
                     <TableBody>
-                        {table.getRowModel().rows.length ? (
-                            table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id}>
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))
-                        ) : (
+                        {table.getRowModel().rows.length ? table.getRowModel().rows.map((row) => (
+                            <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                                {row.getVisibleCells().map((cell) => (
+                                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                                ))}
+                            </TableRow>
+                        )) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center">
-                                    No hay resultados.
-                                </TableCell>
+                                <TableCell colSpan={columns.length} className="h-24 text-center">No hay resultados.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
@@ -146,7 +113,7 @@ export function DataTable<TData, TValue>({
             <DataTablePagination
                 table={table}
                 manualPagination={manualPagination}
-                meta={meta} // Aquí viene meta con pageSize
+                meta={meta}
                 onPageChange={onPageChange}
                 onPageSizeChange={onPageSizeChange}
             />
