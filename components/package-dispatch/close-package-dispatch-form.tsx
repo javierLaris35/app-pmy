@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { MapPinIcon, StampIcon, Check, ChevronsUpDown, Trash2, Search, Filter, ChevronDown, ChevronUp, Download, X, AlertCircle, CheckCircle, XCircle, Package, Loader2, Send, Scan, CircleAlertIcon, GemIcon, DollarSignIcon, User, Phone } from "lucide-react";
+import { useState, useMemo } from "react";
+import { MapPinIcon, StampIcon, Check, Trash2, Search, Filter, ChevronDown, ChevronUp, Download, X, AlertCircle, CheckCircle, XCircle, Package, Loader2, Send, Scan, CircleAlertIcon, GemIcon, DollarSignIcon, User, Phone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { BarcodeScannerInput } from "@/components/barcode-scanner-input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, mapToPackageInfo } from "@/lib/utils";
 import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
@@ -180,6 +177,7 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
   const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(dispatch.shipments, dispatch.chargeShipments);
+
   const charges = packageDispatchShipments
     .filter(pkg => pkg.payment) // solo los que tienen pago
     .map(pkg => ({

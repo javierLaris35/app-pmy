@@ -284,13 +284,16 @@ export const RouteClosurePDF = ({
 
   // Cobros
   const charges =
-    shipments
+    podPackages
       ?.filter((pkg) => pkg.payment)
       .map((pkg) => ({
         trackingNumber: pkg.trackingNumber,
         amount: pkg.payment?.amount || 0,
         type: pkg.payment?.type || "N/A",
       })) || [];
+
+
+  console.log("🚀 ~ RouteClosurePDF ~ charges:", charges)
 
   const splitCollectionsIntoColumns = (collections: string[], columns: number) => {
     const result = [];
@@ -324,7 +327,7 @@ export const RouteClosurePDF = ({
           </View>
           <View style={styles.compactItem}>
             <Text style={styles.compactLabel}>Vehículo</Text>
-            <Text style={styles.compactValue}>{vehicle?.plate || "N/A"}</Text>
+            <Text style={styles.compactValue}>{vehicle?.name || "N/A"}</Text>
           </View>
           <View style={styles.compactItem}>
             <Text style={styles.compactLabel}>Chofer</Text>
@@ -443,6 +446,62 @@ export const RouteClosurePDF = ({
               </Text>
             )}
 
+            {/* Cobros */}
+            <Text style={[styles.sectionTitle, { marginTop: 6 }]}>
+              COBROS ({charges.length})
+            </Text>
+            {charges.length > 0 ? (
+              <View style={styles.tableContainer}>
+                <View style={styles.tableHeader}>
+                  <Text style={{ width: "50%" }}>GUÍA</Text>
+                  <Text style={{ width: "25%" }}>TIPO</Text>
+                  <Text style={{ width: "25%" }}>MONTO</Text>
+                </View>
+                {charges.map((c, i) => (
+                  <View
+                    style={[
+                      styles.tableRow,
+                      i % 2 === 0 && styles.tableRowEven,
+                    ]}
+                    key={i}
+                  >
+                    <Text style={{ width: "50%" }}>{c.trackingNumber}</Text>
+                    <Text style={{ width: "25%" }}>{c.type}</Text>
+                    <Text style={{ width: "25%" }}>
+                      ${c.amount}
+                    </Text>
+                  </View>
+                ))}
+                {/* Total */}
+                <View
+                  style={[
+                    styles.tableRow,
+                    { fontWeight: "bold", backgroundColor: colors.light },
+                  ]}
+                >
+                  <Text style={{ width: "50%" }}>TOTAL</Text>
+                  <Text style={{ width: "25%" }}></Text>
+                  <Text style={{ width: "25%" }}>
+                    $
+                    {charges
+                      .reduce((sum, c) => sum + (+c.amount), 0)
+                      .toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <Text
+                style={{
+                  textAlign: "center",
+                  fontSize: 7,
+                  padding: 8,
+                  color: colors.dark,
+                }}
+              >
+                No hay cobros
+              </Text>
+            )}
+
             {/* Estadísticas */}
             <View style={[styles.statsContainer, { marginTop: 6 }]}>
               <View style={styles.statBox}>
@@ -468,62 +527,6 @@ export const RouteClosurePDF = ({
                 {returnRate.toFixed(1)}%
               </Text>
             </View>
-
-            {/* Cobros */}
-            <Text style={[styles.sectionTitle, { marginTop: 6 }]}>
-              COBROS ({charges.length})
-            </Text>
-            {charges.length > 0 ? (
-              <View style={styles.tableContainer}>
-                <View style={styles.tableHeader}>
-                  <Text style={{ width: "50%" }}>GUÍA</Text>
-                  <Text style={{ width: "25%" }}>TIPO</Text>
-                  <Text style={{ width: "25%" }}>MONTO</Text>
-                </View>
-                {charges.map((c, i) => (
-                  <View
-                    style={[
-                      styles.tableRow,
-                      i % 2 === 0 && styles.tableRowEven,
-                    ]}
-                    key={i}
-                  >
-                    <Text style={{ width: "50%" }}>{c.trackingNumber}</Text>
-                    <Text style={{ width: "25%" }}>{c.type}</Text>
-                    <Text style={{ width: "25%" }}>
-                      ${c.amount.toFixed(2)}
-                    </Text>
-                  </View>
-                ))}
-                {/* Total */}
-                <View
-                  style={[
-                    styles.tableRow,
-                    { fontWeight: "bold", backgroundColor: colors.light },
-                  ]}
-                >
-                  <Text style={{ width: "50%" }}>TOTAL</Text>
-                  <Text style={{ width: "25%" }}></Text>
-                  <Text style={{ width: "25%" }}>
-                    $
-                    {charges
-                      .reduce((sum, c) => sum + c.amount, 0)
-                      .toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <Text
-                style={{
-                  textAlign: "center",
-                  fontSize: 7,
-                  padding: 8,
-                  color: colors.dark,
-                }}
-              >
-                No hay cobros
-              </Text>
-            )}
           </View>
         </View>
 
@@ -547,7 +550,7 @@ export const RouteClosurePDF = ({
 
         {/* Footer */}
         <Text style={styles.footer}>
-          Documento generado automáticamente - CIUDAD EXPRESS - {formattedDate}{" "}
+          Documento generado automáticamente - PMY App v.1.0 - {formattedDate}{" "}
           {formattedTime}
         </Text>
       </Page>
