@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { Inventory } from "../types"
+import { Inventory, InventoryRequest } from "../types"
 
 const url = '/inventories'
 
@@ -8,8 +8,8 @@ const getInventories = async (subsidiaryId: string) => {
     return response.data;
 }
 
-const saveInventory = async (inventories: Inventory[]) => {
-    const response = await axiosConfig.post<Inventory[]>(url, inventories);
+const saveInventory = async (inventory: InventoryRequest) => {
+    const response = await axiosConfig.post<Inventory>(url, inventory);
     return response.data;
 }
 
@@ -17,6 +17,15 @@ const validateInventory = async(trackingNumber: string) => {
     const response = await axiosConfig.get(`${url}/validate/${trackingNumber}`);
     return response.data;
 }
+
+const validateTrackingNumbers = async(trackingNumbers: string[], subsidiaryId: string) => {
+    const response = await axiosConfig.post(
+        `${url}/validate-tracking-numbers`,
+        { trackingNumbers, subsidiaryId }
+    );
+    return response.data;
+}
+
 
 export async function uploadFiles(
     pdfFile: File,
@@ -54,5 +63,6 @@ export async function uploadFiles(
 export {
     getInventories,
     validateInventory,
+    validateTrackingNumbers,
     saveInventory
 }

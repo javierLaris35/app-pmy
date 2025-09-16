@@ -171,12 +171,12 @@ export type Shipment = {
   } | null
   priority?: "alta" | "media" | "baja"
   statusHistory?: Array<StatusHistory>
-  createdAt: string
+  createdAt?: string
   shipmentType?: "fedex" | "dhl"
   subsidiary?: Subsidiary
   charge?: Charge
   isChargePackage?: boolean
-  receivedByName: string,
+  receivedByName?: string,
   daysInRoute?: number;
   isHighValue?: boolean
 }
@@ -213,7 +213,7 @@ export interface ChargeShipment {
     status: string;
     commitDateTime: string;
     recipientName: string;
-    chargeId: string;
+    chargeId?: string;
     statusHistory?: Array<StatusHistory>
 }
 
@@ -536,6 +536,7 @@ export interface Unloading {
   vehicle?: Vehicles;
   subsidiary?: Subsidiary;
   shipments?: Shipment[];
+  chargeShipments?: ChargeShipment[];
   missingTrackings: string[];
   unScannedTrackings: string[];
   date: string;
@@ -615,18 +616,33 @@ export interface PackageInfoForInventory {
     amount: number;
   };
 }
-export interface Inventory {
-  id: string;
-  date: string; // ISO string
-  trackingNumber: string; // número de folio de inventario
+export interface InventoryRequest {
+  id?: string;
+  trackingNumber?: string;
+  inventoryDate?: string;
   subsidiary?: {
     id: string;
     name: string;
   };
 
-  // Paquetes validados (escaneados en inventario)
-  packages: PackageInfoForInventory[];
+  shipments: string[],
+  chargeShipments: string[],
+  // Listas especiales
+  missingTrackings: string[];   // deberían estar pero no se escanearon
+  unScannedTrackings: string[]; // aparecieron extra, no registrados en sistema
+}
 
+export interface Inventory {
+  id: string;
+  trackingNumber: string;
+  inventoryDate: string;
+  subsidiary?: {
+    id: string;
+    name: string;
+  };
+
+  shipments: Shipment[];
+  chargeShipments: ChargeShipment[];
   // Listas especiales
   missingTrackings: string[];   // deberían estar pero no se escanearon
   unScannedTrackings: string[]; // aparecieron extra, no registrados en sistema
@@ -634,20 +650,13 @@ export interface Inventory {
 
 
 export type InventoryReport = {
-  reportId: string; // id o tracking del reporte (ej. unloadingTrackingNumber)
+  id: string; // id o tracking del reporte (ej. unloadingTrackingNumber)
   createdAt: string; // fecha/hora del reporte en UTC
 
   subsidiary: {
     id: string;
     name: string;
   };
-
-  vehicle?: {
-    id: string;
-    name: string;
-    plate?: string;
-  };
-
   packages: InventoryPackage[];
 
   missingTrackings: string[];

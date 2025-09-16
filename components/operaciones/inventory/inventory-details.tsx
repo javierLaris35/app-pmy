@@ -14,11 +14,12 @@ import {
   Phone,
   User,
 } from "lucide-react";
-import { Inventory, PackageInfoForInventory } from "@/lib/types";
+import { Inventory, PackageInfo, PackageInfoForInventory } from "@/lib/types";
 import { InventoryPDFReport } from "@/lib/services/inventory/inventory-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
 import { IconPdf } from "@tabler/icons-react";
 import { useToast } from "@/components/ui/use-toast";
+import { mapToPackageInfo } from "@/lib/utils";
 
 interface Props {
   inventory: Inventory;
@@ -28,6 +29,7 @@ interface Props {
 export default function InventoryDetails({ inventory, onClose }: Props) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(inventory.shipments, inventory.chargeShipments)
 
   const formatMexicanPhoneNumber = (phone: string | null | undefined): string => {
     if (!phone) return "N/A";
@@ -50,7 +52,7 @@ export default function InventoryDetails({ inventory, onClose }: Props) {
       const blob = await pdf(
         <InventoryPDFReport
           key={Date.now()}
-          packages={inventory.packages ?? []}
+          packages={packageDispatchShipments ?? []}
           missingPackages={inventory.missingTrackings ?? []}
           unScannedPackages={inventory.unScannedTrackings ?? []}
           subsidiaryName={inventory.subsidiary?.name ?? "N/A"}
@@ -106,7 +108,7 @@ export default function InventoryDetails({ inventory, onClose }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <strong>Fecha:</strong>{" "}
-              {inventory.date ? new Date(inventory.date).toLocaleDateString("es-ES") : "N/A"}
+              {inventory.inventoryDate ? new Date(inventory.inventoryDate).toLocaleDateString("es-ES") : "N/A"}
             </div>
             <div>
               <strong>No. Seguimiento:</strong> {inventory.trackingNumber ?? "N/A"}
@@ -115,13 +117,13 @@ export default function InventoryDetails({ inventory, onClose }: Props) {
         </div>
 
         {/* Paquetes Validados */}
-        {inventory.packages?.length > 0 && (
+        {packageDispatchShipments.length > 0 && (
           <div className="mt-6 space-y-2">
             <h3 className="text-lg font-semibold text-gray-800">Paquetes Validados</h3>
 
             <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
               <ul className="divide-y divide-gray-300">
-                {inventory.packages.map((pkg, index) => (
+                {packageDispatchShipments.map((pkg, index) => (
                   <li
                     key={`${pkg.trackingNumber}-${index}`}
                     className="flex justify-between items-center px-4 py-2 hover:bg-gray-50"
@@ -135,6 +137,22 @@ export default function InventoryDetails({ inventory, onClose }: Props) {
                         >
                           {pkg.isValid ? "Válido" : "Inválido"}
                         </Badge>
+                        {pkg.isCharge && (
+                          <Badge className="bg-green-600 hover:bg-green-700 text-xs">
+                            <span className="h-4 text-white">CARGA/F2/31.5</span>
+                          </Badge>
+                        )}
+                        {pkg.isHighValue && (
+                          <Badge className="bg-violet-600 hover:bg-violet-700 text-xs">
+                            <GemIcon className="h-4 w-4 text-white" />
+                          </Badge>
+                        )}
+                        {pkg.payment && (
+                          <Badge className="bg-blue-600 hover:bg-blue-700 text-xs">
+                            <DollarSignIcon className="h-4 w-4 text-white" />
+                            &nbsp; A COBRAR: {pkg.payment.type} ${pkg.payment.amount}
+                          </Badge>
+                        )}
                       </div>
                       {pkg.isValid && (
                         <div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-x-4 gap-y-1">

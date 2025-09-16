@@ -23,14 +23,14 @@ interface BarcodeScannerInputProps {
 
 const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, BarcodeScannerInputProps>(
     function BarcodeScannerInput({
-                                   id = "trackingNumbers",
-                                   placeholder = "Escanea o pega los códigos de seguimiento aquí...",
-                                   label = "Números de Seguimiento",
-                                   disabled = false,
-                                   hasErrors = false,
-                                   onPackagesChange,
-                                   onTrackingNumbersChange,
-                                 }: BarcodeScannerInputProps, ref) {
+      id = "trackingNumbers",
+      placeholder = "Escanea o pega los códigos de seguimiento aquí...",
+      label = "Números de Seguimiento",
+      disabled = false,
+      hasErrors = false,
+      onPackagesChange,
+      onTrackingNumbersChange,
+    }: BarcodeScannerInputProps, ref) {
       const textareaRef = useRef<HTMLTextAreaElement>(null);
       const packagesListRef = useRef<HTMLUListElement>(null);
       const wasPastedRef = useRef(false);
@@ -84,30 +84,49 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
         }
       }, [packages, onTrackingNumbersChange]);
 
-      const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        wasPastedRef.current = true;
-        
-        // Procesar el pegado manualmente
-        setTimeout(() => {
-          const pastedText = e.clipboardData.getData('text');
-          const pastedLines = pastedText.split("\n").map((line) => line.trim()).filter(Boolean);
-          
-          if (pastedLines.length > 0) {
-            const newPackages: PackageInfo[] = pastedLines.map(line => {
-              const code = line.slice(-12);
-              return {
+      // Función para procesar líneas de texto (común para paste y keydown)
+      const processTrackingLines = useCallback((text: string, source: 'paste' | 'scan') => {
+        const lines = text.split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map(line => line.slice(-12)); // Extraer últimos 12 dígitos
+
+        if (lines.length === 0) return;
+
+        setPackages(prev => {
+          const newPackages: PackageInfo[] = [];
+          const existingTrackings = prev.map(p => p.trackingNumber);
+
+          lines.forEach(line => {
+            // Verificar si ya existe este tracking number
+            const alreadyExists = existingTrackings.includes(line);
+            
+            if (!alreadyExists) {
+              newPackages.push({
                 id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                trackingNumber: code,
+                trackingNumber: line,
                 isValid: false,
                 isPendingValidation: true
-              };
-            });
-            
-            setPackages(prev => [...prev, ...newPackages]);
-            setCurrentScan(""); // Limpiar el área de entrada después de pegar
-          }
-        }, 0);
+              });
+            }
+          });
+
+          return newPackages.length > 0 ? [...prev, ...newPackages] : prev;
+        });
+
+        // Limpiar el área de entrada después de procesar
+        if (source === 'paste') {
+          setCurrentScan("");
+        }
       }, []);
+
+      const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        e.preventDefault(); // Prevenir el comportamiento por defecto
+        wasPastedRef.current = true;
+        
+        const pastedText = e.clipboardData.getData('text');
+        processTrackingLines(pastedText, 'paste');
+      }, [processTrackingLines]);
 
       // Función para verificar si un paquete vence hoy
       const isDueToday = (commitDateTime?: string | null): boolean => {
@@ -155,26 +174,12 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
                 return;
               }
 
-              // Procesamiento normal para escaneo (ej. pistola)
-              const lines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
-              
-              if (lines.length > 0) {
-                const newPackages: PackageInfo[] = lines.map(line => {
-                  const code = line.slice(-12);
-                  return {
-                    id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    trackingNumber: code,
-                    isValid: false,
-                    isPendingValidation: true
-                  };
-                });
-                
-                setPackages(prev => [...prev, ...newPackages]);
-                setCurrentScan(""); // Limpiar después de procesar
-              }
+              // Procesar el texto actual
+              processTrackingLines(currentScan, 'scan');
+              setCurrentScan(""); // Limpiar después de procesar
             }
           },
-          [currentScan]
+          [currentScan, processTrackingLines]
       );
 
       const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {

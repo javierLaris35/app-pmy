@@ -13,7 +13,7 @@ import { useInventories } from "@/hooks/services/inventory/use-inventories"
 import { Inventory } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import InventoryForm from "./inventory-form"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateInventoryExcel } from "@/lib/services/inventory/inventory-excel-generator"
 import InventoryDetails from "./inventory-details"
 
@@ -149,7 +149,7 @@ export default function InventoryPageControl() {
           onEscapeKeyDown={(event) => event.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Nuevo Inventario</DialogTitle>
+            <DialogTitle></DialogTitle>
           </DialogHeader>
 
           <InventoryForm
@@ -168,10 +168,7 @@ export default function InventoryPageControl() {
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalles de Inventario</DialogTitle>
-            <DialogDescription>
-              Visualiza los detalles del inventario, incluyendo paquetes validados y no procesados.
-            </DialogDescription>
+            <DialogTitle></DialogTitle>
           </DialogHeader>
           {selectedInventory && (
             <InventoryDetails

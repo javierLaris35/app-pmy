@@ -1,10 +1,10 @@
 // lib/utils/excel/generateInventoryExcel.ts
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import { InventoryReport } from "@/lib/types";
+import { InventoryRequest } from "@/lib/types";
 import { format, toZonedTime } from "date-fns-tz";
 
-export async function generateInventoryExcel(report: InventoryReport, forDownload = true): Promise<ArrayBuffer> {
+export async function generateInventoryExcel(report: InventoryRequest, forDownload = true): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Inventario");
   const timeZone = "America/Hermosillo";
@@ -20,8 +20,7 @@ export async function generateInventoryExcel(report: InventoryReport, forDownloa
 
   sheet.addRow([]);
   sheet.addRow([`Sucursal: ${report.subsidiary.name}`]);
-  if (report.vehicle) sheet.addRow([`Unidad: ${report.vehicle.name}`]);
-  const createdAt = format(toZonedTime(new Date(report.createdAt), timeZone), "yyyy-MM-dd HH:mm");
+  const createdAt = format(toZonedTime(new Date(report.date), timeZone), "yyyy-MM-dd HH:mm");
   sheet.addRow([`Fecha: ${createdAt}`]);
   sheet.addRow([`Paquetes: ${report.packages.length}`]);
   sheet.addRow([]);

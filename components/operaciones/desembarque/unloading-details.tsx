@@ -5,11 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, DollarSignIcon, GemIcon, MapPin, Package, PackageCheckIcon, Phone, User } from "lucide-react";
-import { Unloading, PackageInfoForUnloading } from "@/lib/types";
+import { Unloading, PackageInfoForUnloading, PackageInfo } from "@/lib/types";
 import { UnloadingPDFReport } from "@/lib/services/unloading/unloading-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
 import { IconPdf } from "@tabler/icons-react";
 import { useToast } from "@/components/ui/use-toast";
+import { mapToPackageInfo } from "@/lib/utils";
 
 interface Props {
   unloading: Unloading;
@@ -19,6 +20,7 @@ interface Props {
 export default function UnloadingDetails({ unloading, onClose }: Props) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(unloading.shipments, unloading.chargeShipments)
 
   // Format phone numbers for display
   const formatMexicanPhoneNumber = (phone: string | null | undefined): string => {
@@ -107,7 +109,7 @@ export default function UnloadingDetails({ unloading, onClose }: Props) {
         </div>
 
         {/* Validated Packages */}
-        {unloading.shipments?.length > 0 && (
+        {packageDispatchShipments.length > 0 && (
           <div className="mt-6 space-y-2">
             <h3 className="text-lg font-semibold text-gray-800">Paquetes Validados</h3>
             <div className="flex flex-row items-end justify-end">
@@ -136,7 +138,7 @@ export default function UnloadingDetails({ unloading, onClose }: Props) {
             </div>
             <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
               <ul className="divide-y divide-gray-300">
-                {unloading.shipments.map((pkg, index) => (
+                {packageDispatchShipments.map((pkg, index) => (
                   <li key={`${pkg.trackingNumber}-${index}`} className="flex justify-between items-center px-4 py-2 hover:bg-gray-50">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">

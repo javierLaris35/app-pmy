@@ -5,7 +5,7 @@ import useSWR from "swr";
 
 export function useInventories(subsidiaryId: string) {
   const { data, error, isLoading, mutate } = useSWR<Inventory[]>(
-    subsidiaryId ? ['devolutions', subsidiaryId] : null,
+    subsidiaryId ? ['inventories', subsidiaryId] : null,
     () => getInventories(subsidiaryId)
   )
 
