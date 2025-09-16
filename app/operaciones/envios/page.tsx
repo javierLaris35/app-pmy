@@ -160,18 +160,17 @@ function ShipmentsPage() {
                     <DataTable
                         columns={updatedColumns}
                         data={shipments || []}
-                        searchKey="trackingNumber"
-                        filters={filters}
                         manualPagination={paginationMode === "remote"}
                         meta={{
                             currentPage: page,
                             totalPages: meta?.totalPages ?? 1,
                             totalItems: meta?.totalItems ?? 0,
+                            pageSize: limit, // ahora sí
                         }}
-                        onPageChange={(newPage) => setPage(newPage)}
+                        onPageChange={setPage}
                         onPageSizeChange={(newLimit) => {
                             setLimit(newLimit)
-                            setPage(1) // reset al cambiar tamaño
+                            setPage(1)
                         }}
                     />
                 )}

@@ -10,19 +10,20 @@ interface DataTablePaginationProps<TData> {
   meta?: {
     totalPages: number
     currentPage: number
-    totalItems: number
+    totalItems: number,
+    pageSize: number,
   }
   onPageChange?: (page: number) => void
   onPageSizeChange?: (size: number) => void
 }
 
 export function DataTablePagination<TData>({
-                                             table,
-                                             manualPagination,
-                                             meta,
-                                             onPageChange,
-                                             onPageSizeChange,
-                                           }: DataTablePaginationProps<TData>) {
+ table,
+ manualPagination,
+ meta,
+ onPageChange,
+ onPageSizeChange,
+}: DataTablePaginationProps<TData>) {
   return (
       <div className="flex items-center justify-between px-2">
         {/* 🔹 Conteo de filas seleccionadas */}
@@ -33,27 +34,28 @@ export function DataTablePagination<TData>({
         {/* 🔹 Selector de tamaño de página */}
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Filas por página</p>
-          <Select
-              value={`${table.getState().pagination.pageSize}`}
-              onValueChange={(value) => {
-                if (manualPagination) {
-                  onPageSizeChange?.(Number(value))
-                } else {
-                  table.setPageSize(Number(value))
-                }
-              }}
-          >
-            <SelectTrigger className="h-8 w-[70px]">
-              <SelectValue placeholder={table.getState().pagination.pageSize} />
-            </SelectTrigger>
-            <SelectContent side="top">
-              {[10, 20, 30, 40, 50].map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
-                  </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select
+                value={`${manualPagination ? meta?.pageSize ?? 10 : table.getState().pagination.pageSize}`}
+                onValueChange={(value) => {
+                    const newSize = Number(value)
+                    if (manualPagination) {
+                        onPageSizeChange?.(newSize)
+                    } else {
+                        table.setPageSize(newSize)
+                    }
+                }}
+            >
+                <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent side="top">
+                    {[10, 20, 30, 40, 50].map((pageSize) => (
+                        <SelectItem key={pageSize} value={`${pageSize}`}>
+                            {pageSize}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
 
         {/* 🔹 Información de página */}
