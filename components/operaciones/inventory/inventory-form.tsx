@@ -34,7 +34,6 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import {
   saveInventory,
-  validateInventory,
   validateTrackingNumbers,
   uploadFiles
 } from "@/lib/services/inventories";
@@ -54,6 +53,34 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoaderWithOverlay } from "@/components/loader";
 import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAlertModal";
+
+// Hook useLocalStorage
+function useLocalStorage<T>(key: string, initialValue: T) {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      if (typeof window === "undefined") return initialValue;
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+
+  return [storedValue, setValue] as const;
+}
 
 interface Props {
   selectedSubsidiaryId?: string | null;
@@ -76,6 +103,8 @@ interface InventoryPackage {
   payment?: { type: string; amount: number } | null;
   commitDateTime?: string | null;
   isPendingValidation?: boolean;
+  isOffline?: boolean;
+  createdAt?: Date;
 }
 
 enum TrackingNotFoundEnum {
@@ -160,6 +189,11 @@ const PackageItem = ({
                 Validando...
               </Badge>
             )}
+            {pkg.isOffline && (
+              <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-xs">
+                ⚡ Offline
+              </Badge>
+            )}
           </div>
 
           {pkg.isValid && (
@@ -233,13 +267,31 @@ const PackageItem = ({
 };
 
 export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, onClose, onSuccess }: Props) {
-  const [scannedPackages, setScannedPackages] = useState<{trackingNumber: string}[]>([]);
-  const [packages, setPackages] = useState<PackageInfo[]>([]);
-  const [missingTrackings, setMissingTrackings] = useState<string[]>([]);
-  const [unScannedTrackings, setUnScannedTrackings] = useState<string[]>([]);
+  // Estados persistentes
+  const [scannedPackages, setScannedPackages] = useLocalStorage<{trackingNumber: string}[]>(
+    'inventory_scanned_packages', 
+    []
+  );
+  const [packages, setPackages] = useLocalStorage<PackageInfo[]>(
+    'inventory_packages', 
+    []
+  );
+  const [missingTrackings, setMissingTrackings] = useLocalStorage<string[]>(
+    'inventory_missing_trackings', 
+    []
+  );
+  const [unScannedTrackings, setUnScannedTrackings] = useLocalStorage<string[]>(
+    'inventory_unscanned_trackings', 
+    []
+  );
+  const [selectedReasons, setSelectedReasons] = useLocalStorage<Record<string, string>>(
+    'inventory_selected_reasons', 
+    {}
+  );
+
+  // Estados regulares
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [selectedReasons, setSelectedReasons] = useState<Record<string, string>>({});
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -247,6 +299,7 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [lastValidated, setLastValidated] = useState("");
   const [isValidationPackages, setIsValidationPackages] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   // Estados para manejo de expiración
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
@@ -256,6 +309,72 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  // Detectar estado de conexión
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    setIsOnline(navigator.onLine);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Revalidar paquetes offline cuando se recupera conexión
+  useEffect(() => {
+    if (isOnline) {
+      const offlinePackages = packages.filter(pkg => pkg.isOffline);
+      if (offlinePackages.length > 0 && selectedSubsidiaryId) {
+        toast({
+          title: "Revalidando paquetes",
+          description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
+        });
+        
+        // Revalidar paquetes offline
+        offlinePackages.forEach(async (pkg) => {
+          try {
+            const result = await validateTrackingNumbers(
+              [pkg.trackingNumber], 
+              selectedSubsidiaryId
+            );
+            
+            let validatedPackages: PackageInfo[] = [];
+            
+            if (Array.isArray(result)) {
+              validatedPackages = result;
+            } else if (result && typeof result === 'object') {
+              if (Array.isArray(result.validatedPackages)) {
+                validatedPackages = result.validatedPackages;
+              } else if (Array.isArray(result.validatedShipments)) {
+                validatedPackages = result.validatedShipments;
+              } else if (Array.isArray(result.packages)) {
+                validatedPackages = result.packages;
+              } else {
+                validatedPackages = Object.values(result).filter(item => 
+                  item && typeof item === 'object' && 'trackingNumber' in item
+                ) as PackageInfo[];
+              }
+            }
+
+            if (validatedPackages.length > 0) {
+              const validated = validatedPackages[0];
+              setPackages(prev => prev.map(prevPkg => 
+                prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
+              ));
+            }
+          } catch (error) {
+            console.error("Error revalidando paquete offline:", error);
+          }
+        });
+      }
+    }
+  }, [isOnline, packages, selectedSubsidiaryId, setPackages, toast]);
 
   // Validación automática como en UnloadingForm
   useEffect(() => {
@@ -332,8 +451,44 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
     setOpenPopover(null);
   };
 
-  // Funciones para manejo de expiración (copiadas de UnloadingForm)
-  // Asegúrate de que esta función esté correctamente tipada
+  // Función para limpiar TODO el almacenamiento
+  const clearAllStorage = useCallback(() => {
+    const keys = [
+      'inventory_scanned_packages',
+      'inventory_packages',
+      'inventory_missing_trackings',
+      'inventory_unscanned_trackings',
+      'inventory_selected_reasons'
+    ];
+
+    keys.forEach(key => {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Error clearing ${key}:`, error);
+      }
+    });
+
+    // Resetear estados persistentes
+    setScannedPackages([]);
+    setPackages([]);
+    setMissingTrackings([]);
+    setUnScannedTrackings([]);
+    setSelectedReasons({});
+
+    toast({
+      title: "Datos limpiados",
+      description: "Todos los datos locales han sido eliminados.",
+    });
+  }, [
+    setScannedPackages,
+    setPackages,
+    setMissingTrackings,
+    setUnScannedTrackings,
+    setSelectedReasons
+  ]);
+
+  // Funciones para manejo de expiración
   const checkPackageExpiration = useCallback((pkg: PackageInfo): boolean => {
     if (!pkg.commitDateTime) return false;
 
@@ -398,7 +553,6 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
   }, [currentExpiringIndex]);
 
   // Validar paquetes TODOS A LA VEZ como en UnloadingForm
-  // Modifica la función handleValidatePackages para manejar correctamente el resultado
   const handleValidatePackages = async () => {
     if (isLoading || isValidationPackages) return;
 
@@ -503,11 +657,32 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
       });
     } catch (error) {
       console.error("Error validating packages:", error);
-      toast({
-        title: "Error",
-        description: "Hubo un problema al validar los paquetes.",
-        variant: "destructive",
-      });
+      
+      // Modo offline: crear paquetes offline
+      if (!isOnline) {
+        const offlinePackages: PackageInfo[] = validNumbers.map(tn => ({
+          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          trackingNumber: tn,
+          isValid: false,
+          reason: "Sin conexión - validar cuando se restablezca internet",
+          isOffline: true,
+          createdAt: new Date(),
+        } as PackageInfo));
+        
+        setPackages((prev) => [...prev, ...offlinePackages]);
+        setMissingTrackings(invalidNumbers);
+        
+        toast({
+          title: "Modo offline activado",
+          description: `Se guardaron ${validNumbers.length} paquetes localmente. Se validarán cuando se recupere la conexión.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Hubo un problema al validar los paquetes.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsValidationPackages(false);
       setProgress(0);
@@ -536,7 +711,7 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setPackages(prev => prev.filter(p => p.trackingNumber !== trackingNumber));
     setScannedPackages(prev => prev.filter(p => p.trackingNumber !== trackingNumber));
-  }, []);
+  }, [setPackages, setScannedPackages]);
 
   const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
 
@@ -565,11 +740,9 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
       await handleSendEmail(saved)
       toast({ title: "Inventario guardado", description: "Inventario guardado con éxito." });
 
-      setPackages([]);
-      setScannedPackages([]);
-      setMissingTrackings([]);
-      setUnScannedTrackings([]);
-      setSelectedReasons({});
+      // Limpiar storage después de éxito
+      clearAllStorage();
+
       onSuccess?.();
     } catch (error) {
       console.error("saveInventory error", error);
@@ -699,6 +872,16 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
             className="rounded-lg"
           />
         )}
+        
+        {/* Indicador de modo offline */}
+        {!isOnline && (
+          <div className="bg-yellow-50 border-b border-yellow-200 p-2 text-center">
+            <span className="text-yellow-800 text-sm flex items-center justify-center gap-2">
+              ⚡ Modo offline - Los datos se guardan localmente
+            </span>
+          </div>
+        )}
+
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="space-y-1">
@@ -716,9 +899,24 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
               <CardDescription>Escanea paquetes y valida su estatus en el sistema</CardDescription>
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
-              <MapPinIcon className="h-4 w-4" />
-              <span>Sucursal: {user?.subsidiary?.name}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
+                <MapPinIcon className="h-4 w-4" />
+                <span>Sucursal: {user?.subsidiary?.name}</span>
+              </div>
+              
+              {(packages.length > 0) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllStorage}
+                  className="gap-2"
+                  disabled={isLoading}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Limpiar todo
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -749,7 +947,7 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
                     </div>
                   )}
 
-                  {/*<Button 
+                  <Button 
                     onClick={handleValidatePackages} 
                     disabled={isValidationPackages || isLoading || !selectedSubsidiaryId || scannedPackages.length === 0} 
                     className="w-full gap-2"
@@ -757,7 +955,7 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
                   >
                     {isValidationPackages ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
                     {isValidationPackages ? "Validando..." : "Validar paquetes"}
-                  </Button>*/}
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -855,6 +1053,14 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
                         </Badge>
                         <span>Alto Valor</span>
                       </div>
+                      {!isOnline && (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="h-4 bg-yellow-100 text-yellow-800">
+                            ⚡
+                          </Badge>
+                          <span>Offline</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -916,7 +1122,7 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
                     </Popover>
                   </div>
 
-                  {/* Contenido principal - ELIMINADO flex-1 y min-h-0 */}
+                  {/* Contenido principal */}
                   {packages.length > 0 ? (
                     <>
                       <Tabs defaultValue="todos" className="w-full">

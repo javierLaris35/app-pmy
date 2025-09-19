@@ -27,7 +27,35 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoaderWithOverlay } from "@/components/loader";
-import {ExpirationAlertModal, ExpiringPackage} from "@/components/ExpirationAlertModal";
+import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAlertModal";
+
+// Hook useLocalStorage
+function useLocalStorage<T>(key: string, initialValue: T) {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      if (typeof window === "undefined") return initialValue;
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+
+  return [storedValue, setValue] as const;
+}
 
 // Types
 interface Vehicles {
@@ -57,6 +85,8 @@ interface Shipment {
     type: string;
     amount: number;
   };
+  isOffline?: boolean;
+  createdAt?: Date;
 }
 
 enum ShipmentStatusType {
@@ -176,6 +206,12 @@ const PackageItem = ({
                 ${pkg.payment.amount}
               </Badge>
             )}
+
+            {pkg.isOffline && (
+              <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-xs">
+                ⚡ Offline
+              </Badge>
+            )}
           </div>
           
           {pkg.isValid && (
@@ -274,17 +310,42 @@ const PackageItem = ({
 
 // Componente principal
 export default function UnloadingForm({ onClose, onSuccess }: Props) {
-  const [selectedUnidad, setSelectedUnidad] = useState<Vehicles | null>(null);
-  const [scannedPackages, setScannedPackages] = useState<PackageInfo[]>([]);
-  const [shipments, setShipments] = useState<PackageInfoForUnloading[]>([]);
-  const [missingTrackings, setMissingTrackings] = useState<string[]>([]);
-  const [unScannedTrackings, setUnScannedTrackings] = useState<string[]>([]);
+  // Estados persistentes
+  const [selectedUnidad, setSelectedUnidad] = useLocalStorage<Vehicles | null>(
+    'unloading_unidad', 
+    null
+  );
+  const [scannedPackages, setScannedPackages] = useLocalStorage<PackageInfo[]>(
+    'unloading_scanned_packages', 
+    []
+  );
+  const [shipments, setShipments] = useLocalStorage<PackageInfoForUnloading[]>(
+    'unloading_shipments', 
+    []
+  );
+  const [missingTrackings, setMissingTrackings] = useLocalStorage<string[]>(
+    'unloading_missing_trackings', 
+    []
+  );
+  const [unScannedTrackings, setUnScannedTrackings] = useLocalStorage<string[]>(
+    'unloading_unscanned_trackings', 
+    []
+  );
+  const [selectedReasons, setSelectedReasons] = useLocalStorage<Record<string, string>>(
+    'unloading_selected_reasons', 
+    {}
+  );
+  const [trackingNumbersRaw, setTrackingNumbersRaw] = useLocalStorage<string>(
+    'unloading_tracking_raw', 
+    ""
+  );
+
+  // Estados regulares
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null);
   const [selectedSubsidiaryName, setSelectedSubsidiaryName] = useState<string | null>(null);
   const [savedUnload, setSavedUnloading] = useState<Unloading | null>(null);
-  const [selectedReasons, setSelectedReasons] = useState<Record<string, string>>({});
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -292,17 +353,63 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [consolidatedValidation, setConsolidatedValidation] = useState<Consolidateds>()
   const [lastValidated, setLastValidated] = useState("");
-
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
   const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
-
   const [isValidationPackages, setIsValidationPackages] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
-
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  // Detectar estado de conexión
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    setIsOnline(navigator.onLine);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Revalidar paquetes offline cuando se recupera conexión
+  useEffect(() => {
+    if (isOnline) {
+      const offlinePackages = shipments.filter(pkg => pkg.isOffline);
+      if (offlinePackages.length > 0 && selectedSubsidiaryId) {
+        toast({
+          title: "Revalidando paquetes",
+          description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
+        });
+        
+        // Revalidar paquetes offline
+        offlinePackages.forEach(async (pkg) => {
+          try {
+            const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
+              [pkg.trackingNumber], 
+              selectedSubsidiaryId
+            );
+            
+            if (result.validatedShipments.length > 0) {
+              const validated = result.validatedShipments[0];
+              setShipments(prev => prev.map(prevPkg => 
+                prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
+              ));
+            }
+          } catch (error) {
+            console.error("Error revalidando paquete offline:", error);
+          }
+        });
+      }
+    }
+  }, [isOnline, shipments, selectedSubsidiaryId, setShipments, toast]);
 
   useEffect(() => {
     if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
@@ -390,7 +497,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     } else if(value === TrackingNotFoundEnum.NOT_SCANNED) {
       setUnScannedTrackings(prev => [...prev, id]);
       setMissingTrackings(prev => prev.filter(item => item !== id));
-    } else if(value === TrackingNotFoundEnum.NET_IN_CHARGE) {
+    } else if(value === TrackingNotFoundEnum.NOT_IN_CHARGE) {
       setMissingTrackings(prev => prev.filter(item => item !== id));
       setUnScannedTrackings(prev => prev.filter(item => item !== id));
     }
@@ -455,6 +562,49 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setCurrentExpiringIndex(prev => prev - 1);
     }
   }, [currentExpiringIndex]);
+
+  // Función para limpiar TODO el almacenamiento
+  const clearAllStorage = useCallback(() => {
+    const keys = [
+      'unloading_unidad',
+      'unloading_scanned_packages',
+      'unloading_shipments',
+      'unloading_missing_trackings',
+      'unloading_unscanned_trackings',
+      'unloading_selected_reasons',
+      'unloading_tracking_raw'
+    ];
+
+    keys.forEach(key => {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Error clearing ${key}:`, error);
+      }
+    });
+
+    // Resetear estados persistentes
+    setSelectedUnidad(null);
+    setScannedPackages([]);
+    setShipments([]);
+    setMissingTrackings([]);
+    setUnScannedTrackings([]);
+    setSelectedReasons({});
+    setTrackingNumbersRaw("");
+
+    toast({
+      title: "Datos limpiados",
+      description: "Todos los datos locales han sido eliminados.",
+    });
+  }, [
+    setSelectedUnidad,
+    setScannedPackages,
+    setShipments,
+    setMissingTrackings,
+    setUnScannedTrackings,
+    setSelectedReasons,
+    setTrackingNumbersRaw
+  ]);
 
   const handleValidatePackages = async () => {
     if (isLoading || isValidationPackages) return;
@@ -532,11 +682,32 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       });
     } catch (error) {
       console.error("Error validating packages:", error);
-      toast({
-        title: "Error",
-        description: "Hubo un problema al validar los paquetes.",
-        variant: "destructive",
-      });
+      
+      // Modo offline: crear paquetes offline
+      if (!isOnline) {
+        const offlinePackages: PackageInfoForUnloading[] = validNumbers.map(tn => ({
+          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          trackingNumber: tn,
+          isValid: false,
+          reason: "Sin conexión - validar cuando se restablezca internet",
+          isOffline: true,
+          createdAt: new Date(),
+        } as PackageInfoForUnloading));
+        
+        setShipments((prev) => [...prev, ...offlinePackages]);
+        setMissingTrackings(invalidNumbers);
+        
+        toast({
+          title: "Modo offline activado",
+          description: `Se guardaron ${validNumbers.length} paquetes localmente. Se validarán cuando se recupere la conexión.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Hubo un problema al validar los paquetes.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsValidationPackages(false);
       setProgress(0);
@@ -565,7 +736,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
     setScannedPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
-  }, []);
+  }, [setShipments, setScannedPackages]);
 
   const handleSendEmail = async (unloadingSaved: Unloading) => {
     const blob = await pdf(
@@ -664,12 +835,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         description: `Se procesaron ${validShipments.length} paquetes para descarga.`,
       });
 
-      setSelectedUnidad(null);
-      setShipments([]);
-      setScannedPackages([]);
-      setMissingTrackings([]);
-      setUnScannedTrackings([]);
-      setProgress(0);
+      // Limpiar storage después de éxito
+      clearAllStorage();
+
       onSuccess();
     } catch (error) {
       console.error("Error in handleUnloading:", error);
@@ -748,6 +916,16 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   className="rounded-lg"
               />
           )}
+          
+          {/* Indicador de modo offline */}
+          {!isOnline && (
+            <div className="bg-yellow-50 border-b border-yellow-200 p-2 text-center">
+              <span className="text-yellow-800 text-sm flex items-center justify-center gap-2">
+                ⚡ Modo offline - Los datos se guardan localmente
+              </span>
+            </div>
+          )}
+
           <CardHeader className="pb-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="space-y-1">
@@ -766,10 +944,24 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   Procesa la descarga de paquetes de unidades de transporte
                 </CardDescription>
               </div>
-              <div
-                  className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
-                <MapPinIcon className="h-4 w-4"/>
-                <span>Sucursal: {selectedSubsidiaryName}</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
+                  <MapPinIcon className="h-4 w-4"/>
+                  <span>Sucursal: {selectedSubsidiaryName}</span>
+                </div>
+                
+                {(shipments.length > 0 || selectedUnidad) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearAllStorage}
+                    className="gap-2"
+                    disabled={isLoading}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Limpiar todo
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -885,6 +1077,22 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                           <p>Paquete con cobro asociado</p>
                         </TooltipContent>
                       </Tooltip>
+
+                      {!isOnline && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1 cursor-help">
+                              <Badge variant="outline" className="h-4 bg-yellow-100 text-yellow-800">
+                                ⚡
+                              </Badge>
+                              <span>Offline</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Paquete guardado en modo offline</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   </div>
 

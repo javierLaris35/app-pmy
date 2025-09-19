@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { MapPinIcon, StampIcon, Check, Trash2, Search, Filter, ChevronDown, ChevronUp, Download, X, AlertCircle, CheckCircle, XCircle, Package, Loader2, Send, Scan, CircleAlertIcon, GemIcon, DollarSignIcon, User, Phone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,34 @@ import { useAuthStore } from "@/store/auth.store";
 import { RouteClosurePDF } from "@/lib/services/route-closure/route-closure-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
 import { generateRouteClosureExcel } from "@/lib/services/route-closure/route-closure-excel-generator";
+
+// Hook useLocalStorage
+function useLocalStorage<T>(key: string, initialValue: T) {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      if (typeof window === "undefined") return initialValue;
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+
+  return [storedValue, setValue] as const;
+}
 
 interface ClosePackageDispatchProps {
   dispatch: PackageDispatch;
@@ -112,6 +140,12 @@ const PackageItem = ({
                 ${pkg.payment.amount}
               </Badge>
             )}
+
+            {pkg.isOffline && (
+              <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-xs">
+                ⚡ Offline
+              </Badge>
+            )}
           </div>
           
           {pkg.isValid && (
@@ -161,22 +195,101 @@ const PackageItem = ({
 
 // Componente principal
 export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: ClosePackageDispatchProps) {
-  const [returnedPackages, setReturnedPackages] = useState<PackageInfo[]>([]);
-  const [podPackages, setPodPackages] = useState<PackageInfo[]>([])
-  const [invalidNumbers, setInvalidNumbers] = useState<string[]>([]);
+  // Estados persistentes
+  const [returnedPackages, setReturnedPackages] = useLocalStorage<PackageInfo[]>(
+    `closure_${dispatch.id}_returned_packages`,
+    []
+  );
+  const [podPackages, setPodPackages] = useLocalStorage<PackageInfo[]>(
+    `closure_${dispatch.id}_pod_packages`,
+    []
+  );
+  const [invalidNumbers, setInvalidNumbers] = useLocalStorage<string[]>(
+    `closure_${dispatch.id}_invalid_numbers`,
+    []
+  );
+  const [trackingNumbersRaw, setTrackingNumbersRaw] = useLocalStorage<string>(
+    `closure_${dispatch.id}_tracking_raw`,
+    ""
+  );
+  const [collections, setCollections] = useLocalStorage<string>(
+    `closure_${dispatch.id}_collections`,
+    ""
+  );
+  const [selectedKms, setSelectedKms] = useLocalStorage<string>(
+    `closure_${dispatch.id}_kms`,
+    ""
+  );
+
+  // Estados regulares
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [selectedKms, setSelectedKms] = useState<string>("");
-  const [collections, setCollections] = useState("");
+  const [isOnline, setIsOnline] = useState(true);
 
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
   const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(dispatch.shipments, dispatch.chargeShipments);
+
+  // Detectar estado de conexión
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    setIsOnline(navigator.onLine);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Revalidar paquetes offline cuando se recupera conexión
+  useEffect(() => {
+    if (isOnline) {
+      const offlinePackages = returnedPackages.filter(pkg => pkg.isOffline);
+      if (offlinePackages.length > 0) {
+        toast({
+          title: "Revalidando paquetes",
+          description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
+        });
+        
+        // Revalidar paquetes offline
+        offlinePackages.forEach(async (pkg) => {
+          try {
+            const result = await validateTrackingNumbers([pkg.trackingNumber], dispatch.id);
+            
+            let validatedPackages: PackageInfo[] = [];
+            let podPackagesRes: PackageInfo[] = [];
+            
+            if (result && typeof result === 'object') {
+              if (Array.isArray(result.validatedPackages)) {
+                validatedPackages = result.validatedPackages;
+              }
+              if (Array.isArray(result.podPackages)) {
+                podPackagesRes = result.podPackages;
+              }
+            }
+
+            if (validatedPackages.length > 0) {
+              const validated = validatedPackages[0];
+              setReturnedPackages(prev => prev.map(prevPkg => 
+                prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
+              ));
+            }
+          } catch (error) {
+            console.error("Error revalidando paquete offline:", error);
+          }
+        });
+      }
+    }
+  }, [isOnline, returnedPackages, dispatch.id, setReturnedPackages, toast]);
 
   const charges = packageDispatchShipments
     .filter(pkg => pkg.payment) // solo los que tienen pago
@@ -185,6 +298,47 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
       amount: pkg.payment.amount,
       type: pkg.payment.type,
     }));
+
+  // Función para limpiar TODO el almacenamiento
+  const clearAllStorage = useCallback(() => {
+    const keys = [
+      `closure_${dispatch.id}_returned_packages`,
+      `closure_${dispatch.id}_pod_packages`,
+      `closure_${dispatch.id}_invalid_numbers`,
+      `closure_${dispatch.id}_tracking_raw`,
+      `closure_${dispatch.id}_collections`,
+      `closure_${dispatch.id}_kms`
+    ];
+
+    keys.forEach(key => {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Error clearing ${key}:`, error);
+      }
+    });
+
+    // Resetear estados persistentes
+    setReturnedPackages([]);
+    setPodPackages([]);
+    setInvalidNumbers([]);
+    setTrackingNumbersRaw("");
+    setCollections("");
+    setSelectedKms("");
+
+    toast({
+      title: "Datos limpiados",
+      description: "Todos los datos locales han sido eliminados.",
+    });
+  }, [
+    dispatch.id,
+    setReturnedPackages,
+    setPodPackages,
+    setInvalidNumbers,
+    setTrackingNumbersRaw,
+    setCollections,
+    setSelectedKms
+  ]);
 
   // Validar paquetes escaneados
   const validateReturnedPackages = async () => {
@@ -220,12 +374,30 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
 
     } catch (error) {
         console.log("🚀 ~ validateReturnedPackages ~ error:", error)
-        // En caso de error general
-        validatedPackages = validNumbers.map((tn) => ({
+        
+        // Modo offline: crear paquetes offline
+        if (!isOnline) {
+          validatedPackages = validNumbers.map((tn) => ({
+            id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            trackingNumber: tn,
+            isValid: false,
+            reason: "Sin conexión - validar cuando se restablezca internet",
+            isOffline: true,
+            createdAt: new Date(),
+          } as PackageInfo));
+          
+          toast({
+            title: "Modo offline activado",
+            description: `Se guardaron ${validNumbers.length} paquetes localmente. Se validarán cuando se recupere la conexión.`,
+          });
+        } else {
+          // En caso de error general
+          validatedPackages = validNumbers.map((tn) => ({
             trackingNumber: tn,
             isValid: false,
             reason: "Error en validación",
-        }));
+          }));
+        }
     }
 
     setReturnedPackages(validatedPackages);
@@ -266,7 +438,6 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
         .map(p => p.id)
       console.log("🚀 ~ handleCloseDispatch ~ podsShipmentsIds:", podsShipmentsIds)
 
-
       const closurePackageDispatch: RouteClosure = {
         packageDispatch: { id: dispatch.id},
         closeDate: new Date(),
@@ -290,6 +461,9 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
       });
       
       handleSendEmail(savedClosure);
+
+      // Limpiar storage después de éxito
+      clearAllStorage();
 
       if (typeof onSuccess === 'function') {
         onSuccess();
@@ -332,7 +506,6 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
     await generateRouteClosureExcel(returnedPackages, dispatch, selectedKms, collectionsForPdf, podPackages)
 
     setIsLoading(false);
-
   }
 
   const handleSendEmail = async (routeClosure: RouteClosure) => {
@@ -373,7 +546,6 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
     });
 
     await uploadFiles(pdfFile, excelFile, routeClosure.id)
-
   }
 
   // Calcular estadísticas
@@ -400,6 +572,15 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
 
   return (
     <Card className="w-full max-w-6xl mx-auto border-0 shadow-none">
+      {/* Indicador de modo offline */}
+      {!isOnline && (
+        <div className="bg-yellow-50 border-b border-yellow-200 p-2 text-center">
+          <span className="text-yellow-800 text-sm flex items-center justify-center gap-2">
+            ⚡ Modo offline - Los datos se guardan localmente
+          </span>
+        </div>
+      )}
+
       <CardHeader className="">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
@@ -418,9 +599,24 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
               Procesa el cierre de ruta y registra los paquetes devueltos
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
-            <MapPinIcon className="h-4 w-4" />
-            <span>Sucursal: {dispatch.subsidiary.name}</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
+              <MapPinIcon className="h-4 w-4" />
+              <span>Sucursal: {dispatch.subsidiary.name}</span>
+            </div>
+            
+            {(returnedPackages.length > 0 || trackingNumbersRaw) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllStorage}
+                className="gap-2"
+                disabled={isLoading}
+              >
+                <Trash2 className="h-4 w-4" />
+                Limpiar todo
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -564,6 +760,22 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
                     <p>Paquete con cobro asociado</p>
                   </TooltipContent>
                 </Tooltip>
+
+                {!isOnline && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 cursor-help">
+                        <Badge variant="outline" className="h-4 bg-yellow-100 text-yellow-800">
+                          ⚡
+                        </Badge>
+                        <span>Offline</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Paquete guardado en modo offline</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
             </div>
             
