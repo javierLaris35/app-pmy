@@ -799,18 +799,8 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
     setIsLoading(true);
 
     try {
-      // Preparar el objeto report igual que en los botones
-      const report: InventoryRequest = {
-        id: `INV-${Date.now()}`,
-        date: new Date().toISOString(),
-        subsidiary: { id: selectedSubsidiaryId ?? "", name: subsidiaryName ?? "" },
-        packages: packages.filter(p => !p.isPendingValidation) as unknown as PackageInfo[],
-        missingTrackings,
-        unScannedTrackings,
-      };
-
       // Generar PDF
-      const blob = await pdf(<InventoryPDFReport report={report} />).toBlob();
+      const blob = await pdf(<InventoryPDFReport report={inventory} />).toBlob();
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
       window.open(blobUrl, "_blank");
 
@@ -824,7 +814,7 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
       const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
 
       // Generar Excel
-      const excelBuffer = await generateInventoryExcel(report, true);
+      const excelBuffer = await generateInventoryExcel(inventory, true);
       const excelBlob = new Blob([excelBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
