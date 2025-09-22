@@ -3,11 +3,13 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { InventoryRequest } from "@/lib/types";
 import { format, toZonedTime } from "date-fns-tz";
+import { mapToPackageInfo } from "@/lib/utils";
 
 export async function generateInventoryExcel(report: InventoryRequest, forDownload = true): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Inventario");
   const timeZone = "America/Hermosillo";
+  const packages = mapToPackageInfo(report.shipments, report.chargeShipments);
 
   // === ENCABEZADO GENERAL ===
   const titleRow = sheet.addRow([`📦 Inventario`]);
@@ -20,9 +22,9 @@ export async function generateInventoryExcel(report: InventoryRequest, forDownlo
 
   sheet.addRow([]);
   sheet.addRow([`Sucursal: ${report.subsidiary.name}`]);
-  const createdAt = format(toZonedTime(new Date(report.date), timeZone), "yyyy-MM-dd HH:mm");
+  const createdAt = format(toZonedTime(new Date(report.inventoryDate), timeZone), "yyyy-MM-dd HH:mm");
   sheet.addRow([`Fecha: ${createdAt}`]);
-  sheet.addRow([`Paquetes: ${report.packages.length}`]);
+  sheet.addRow([`Paquetes: ${packages.length}`]);
   sheet.addRow([]);
 
   // === ENCABEZADO DE COLUMNAS ===
@@ -34,7 +36,7 @@ export async function generateInventoryExcel(report: InventoryRequest, forDownlo
   }
 
   // === DATOS ===
-  report.packages.forEach((pkg, index) => {
+  packages.forEach((pkg, index) => {
     const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
     const commitDate = format(zoned, "yyyy-MM-dd");
     const commitTime = format(zoned, "HH:mm:ss");
@@ -58,13 +60,13 @@ export async function generateInventoryExcel(report: InventoryRequest, forDownlo
   });
 
   // === Missing / UnScanned ===
-  if (report.missingTrackings.length > 0) {
+  if (report.missingTrackings && report.missingTrackings.length > 0) {
     sheet.addRow([]);
     sheet.addRow(["❌ Missing Trackings"]);
     report.missingTrackings.forEach((trk) => sheet.addRow([trk]));
   }
 
-  if (report.unScannedTrackings.length > 0) {
+  if (report.unScannedTrackings && report.unScannedTrackings.length > 0) {
     sheet.addRow([]);
     sheet.addRow(["📍 UnScanned Trackings"]);
     report.unScannedTrackings.forEach((trk) => sheet.addRow([trk]));

@@ -29,7 +29,7 @@ interface Props {
 export default function InventoryDetails({ inventory, onClose }: Props) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(inventory.shipments, inventory.chargeShipments)
+  const packages: PackageInfo[] = mapToPackageInfo(inventory.shipments, inventory.chargeShipments)
 
   const formatMexicanPhoneNumber = (phone: string | null | undefined): string => {
     if (!phone) return "N/A";
@@ -50,14 +50,7 @@ export default function InventoryDetails({ inventory, onClose }: Props) {
     setIsLoading(true);
     try {
       const blob = await pdf(
-        <InventoryPDFReport
-          key={Date.now()}
-          packages={packageDispatchShipments ?? []}
-          missingPackages={inventory.missingTrackings ?? []}
-          unScannedPackages={inventory.unScannedTrackings ?? []}
-          subsidiaryName={inventory.subsidiary?.name ?? "N/A"}
-          inventoryTrackigNumber={inventory.trackingNumber ?? "N/A"}
-        />
+        <InventoryPDFReport report={inventory} />
       ).toBlob();
 
       const currentDate = new Date()
@@ -117,13 +110,13 @@ export default function InventoryDetails({ inventory, onClose }: Props) {
         </div>
 
         {/* Paquetes Validados */}
-        {packageDispatchShipments.length > 0 && (
+        {packages.length > 0 && (
           <div className="mt-6 space-y-2">
             <h3 className="text-lg font-semibold text-gray-800">Paquetes Validados</h3>
 
             <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
               <ul className="divide-y divide-gray-300">
-                {packageDispatchShipments.map((pkg, index) => (
+                {packages.map((pkg, index) => (
                   <li
                     key={`${pkg.trackingNumber}-${index}`}
                     className="flex justify-between items-center px-4 py-2 hover:bg-gray-50"

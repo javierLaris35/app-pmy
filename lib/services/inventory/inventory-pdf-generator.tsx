@@ -11,6 +11,7 @@ import {
 } from "@react-pdf/renderer";
 import { format, toZonedTime } from "date-fns-tz";
 import { InventoryReport, InventoryRequest } from "@/lib/types";
+import { mapToPackageInfo } from "@/lib/utils";
 
 Font.register({ family: "Helvetica", src: undefined });
 
@@ -68,17 +69,23 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
   const formattedDate = format(currentDate, "yyyy-MM-dd", { timeZone });
   const formattedTime = format(currentDate, "HH:mm:ss", { timeZone });
   
-  const createdDate = toZonedTime(new Date(report.createdAt || report.date), timeZone);
+  console.log("🚀 ~ InventoryPDFReport ~ report:", report)
+
+  const createdDate = toZonedTime(new Date(report.inventoryDate), timeZone);
   const reportDate = format(createdDate, "yyyy-MM-dd", { timeZone });
 
   const truncate = (text: string, maxLength: number): string =>
     !text ? "" : text.length > maxLength ? text.slice(0, maxLength - 3) + "..." : text;
 
+  const packages = mapToPackageInfo(report.shipments, report.chargeShipments);
+
   // Estadísticas
-  const validPackages = report.packages.filter(p => p.isValid);
-  const chargePackages = report.packages.filter(p => p.isCharge);
-  const highValuePackages = report.packages.filter(p => p.isHighValue);
-  const paymentPackages = report.packages.filter(p => p.payment);
+  const validPackages = packages.filter(p => p.isValid);
+  const chargePackages = packages.filter(p => p.isCharge);
+  const highValuePackages = packages.filter(p => p.isHighValue);
+  const paymentPackages = packages.filter(p => p.payment);
+  const missingTrackings = report.missingTrackings ?? [];
+  const unScannedTrackings = report.unScannedTrackings ?? [];
 
   return (
     <Document>
@@ -105,7 +112,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
           </View>
           <View style={styles.compactItem}>
             <Text style={styles.compactLabel}>TOTAL PAQUETES</Text>
-            <Text style={styles.compactValue}>{report.packages.length}</Text>
+            <Text style={styles.compactValue}>{packages.length}</Text>
           </View>
           <View style={styles.compactItem}>
             <Text style={styles.compactLabel}>VÁLIDOS</Text>
@@ -124,7 +131,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
         {/* Tabla de paquetes - COLUMNAS MÁS ANCHAS */}
         <View>
           <Text style={styles.sectionTitle}>
-            PAQUETES DEL INVENTARIO ({report.packages.length})
+            PAQUETES DEL INVENTARIO ({packages.length})
           </Text>
           
           <View style={styles.tableContainer}>
@@ -138,7 +145,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
               <Text style={{ width: 50 }}>HORA</Text>
             </View>
             
-            {report.packages.map((pkg, i) => {
+            {packages.map((pkg, i) => {
               const zoned = pkg.commitDateTime ? toZonedTime(new Date(pkg.commitDateTime), timeZone) : null;
               const commitDate = zoned ? format(zoned, "yyyy-MM-dd", { timeZone }) : "N/A";
               const commitTime = zoned ? format(zoned, "HH:mm", { timeZone }) : "N/A";
@@ -171,7 +178,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
             <Text style={styles.statTitle}>TOTAL PAQUETES</Text>
-            <Text style={styles.statValue}>{report.packages.length}</Text>
+            <Text style={styles.statValue}>{packages.length}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statTitle}>VÁLIDOS</Text>
@@ -188,21 +195,23 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
         </View>
 
         {/* Guías faltantes y sin escaneo */}
-        {(report.missingTrackings.length > 0 || report.unScannedTrackings.length > 0) && (
+        {(missingTrackings.length > 0 || unScannedTrackings.length > 0) && (
           <View style={styles.trackingListsContainer}>
             {/* Guías faltantes */}
-            {report.missingTrackings.length > 0 && (
+            {missingTrackings.length > 0 && (
               <View style={styles.trackingList}>
-                <Text style={styles.sectionTitle}>GUIAS FALTANTES ({report.missingTrackings.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  GUIAS FALTANTES ({missingTrackings.length})
+                </Text>
                 <View style={styles.tableContainer}>
-                  {report.missingTrackings.slice(0, 15).map((tracking, i) => (
+                  {missingTrackings.slice(0, 15).map((tracking, i) => (
                     <Text style={styles.trackingItem} key={`missing-${i}`}>
                       {tracking}
                     </Text>
                   ))}
-                  {report.missingTrackings.length > 15 && (
+                  {missingTrackings.length > 15 && (
                     <Text style={[styles.trackingItem, { fontStyle: 'italic' }]}>
-                      ...y {report.missingTrackings.length - 15} más
+                      ...y {missingTrackings.length - 15} más
                     </Text>
                   )}
                 </View>
@@ -210,18 +219,20 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
             )}
 
             {/* Guías sin escaneo */}
-            {report.unScannedTrackings.length > 0 && (
+            {unScannedTrackings.length > 0 && (
               <View style={styles.trackingList}>
-                <Text style={styles.sectionTitle}>GUIAS SIN ESCANEO ({report.unScannedTrackings.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  GUIAS SIN ESCANEO ({unScannedTrackings.length})
+                </Text>
                 <View style={styles.tableContainer}>
-                  {report.unScannedTrackings.slice(0, 15).map((tracking, i) => (
+                  {unScannedTrackings.slice(0, 15).map((tracking, i) => (
                     <Text style={styles.trackingItem} key={`unscanned-${i}`}>
                       {tracking}
                     </Text>
                   ))}
-                  {report.unScannedTrackings.length > 15 && (
+                  {unScannedTrackings.length > 15 && (
                     <Text style={[styles.trackingItem, { fontStyle: 'italic' }]}>
-                      ...y {report.unScannedTrackings.length - 15} más
+                      ...y {unScannedTrackings.length - 15} más
                     </Text>
                   )}
                 </View>
@@ -229,6 +240,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
             )}
           </View>
         )}
+
 
         {/* Firmas */}
         <View style={styles.signatureContainer}>
