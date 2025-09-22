@@ -11,6 +11,7 @@ import {
 } from '@react-pdf/renderer';
 import { format, toZonedTime } from 'date-fns-tz';
 import { Driver, PackageInfo, Route, Vehicles } from '@/lib/types';
+import { formatMexicanPhoneNumber, formatMexicanPhoneNumberWithOutMexicanLada } from '@/lib/utils';
 
 Font.register({ family: 'Helvetica', src: undefined }); // Uses built-in Helvetica
 
@@ -237,7 +238,7 @@ export const FedExPackageDispatchPDF = ({
                 {commitTime}
               </Text>
               <Text style={[{ width: 55 }, hasPayment && styles.textBold]}>
-                {pkg.recipientPhone}
+                {formatMexicanPhoneNumberWithOutMexicanLada(pkg.recipientPhone)}
               </Text>
               <Text style={[{ width: 90 }, hasPayment && styles.textBold]}>
                 {}
