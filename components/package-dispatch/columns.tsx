@@ -37,20 +37,20 @@ export const columns: ColumnDef<PackageDispatch>[] = [
     cell: ({ row }) => <span className="font-medium">{row.original.trackingNumber}</span>,
   },
 
-  {
+ {
     accessorKey: "drivers",
     header: "Chofer",
-    cell: ({row}) => {
+    cell: ({ row }) => {
       const drivers = row.original.drivers;
 
-      if(!drivers) return 'Sin Chofer';
+      if (!drivers || drivers.length === 0) return "Sin Chofer";
 
       return (
         <span className="font-mono">
-          {drivers[0].name}
+          {drivers[0]?.name ?? "Sin Nombre"}
         </span>
-      )
-    }
+      );
+    },
   },
   // Dirección
   {
