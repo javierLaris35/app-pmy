@@ -8,24 +8,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useState, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { SucursalSelector } from "../sucursal-selector"
 
 interface DashboardHeaderProps {
   dateRange: {
     from: string
     to: string
   }
-  onDateRangeChange: (range: { from: string; to: string; branches?: string[] }) => void
+  onDateRangeChange: (range: { from: string; to: string;}) => void
+  onSelectedSucursalChange: (selectedSubsidiaries: string[]) => void
 }
 
-export function DashboardHeader({ dateRange, onDateRangeChange }: DashboardHeaderProps) {
+export function DashboardHeader({ dateRange, onDateRangeChange, onSelectedSucursalChange }: DashboardHeaderProps) {
   const [showFilters, setShowFilters] = useState(false)
   const [filterFrom, setFilterFrom] = useState(dateRange.from)
   const [filterTo, setFilterTo] = useState(dateRange.to)
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
   const [searchBranch, setSearchBranch] = useState("")
   const [isBranchesOpen, setIsBranchesOpen] = useState(false)
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const [selectedSucursalesIds, setSelectedSucursalesIds] = useState<string[]>([])
 
   const filtersRef = useRef<HTMLDivElement>(null)
   const branchesDropdownRef = useRef<HTMLDivElement>(null)
@@ -97,7 +98,8 @@ export function DashboardHeader({ dateRange, onDateRangeChange }: DashboardHeade
   }
 
   const handleApplyFilters = () => {
-    onDateRangeChange({ from: filterFrom, to: filterTo, branches: selectedBranches });
+    onDateRangeChange({ from: filterFrom, to: filterTo});
+    onSelectedSucursalChange(selectedSucursalesIds)
     setShowFilters(false);
   }
 
@@ -231,23 +233,7 @@ export function DashboardHeader({ dateRange, onDateRangeChange }: DashboardHeade
                     <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
                     Sucursales
                   </Label>
-                  
-                  <div className="relative">
-                    {/* Trigger */}
-                    <div
-                      ref={branchesTriggerRef}
-                      className="flex items-center justify-between p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:border-gray-400 transition-colors"
-                      onClick={() => setIsBranchesOpen(!isBranchesOpen)}
-                    >
-                      <span className={cn("text-gray-600", selectedBranches.length > 0 && "text-gray-900")}>
-                        {selectedBranches.length > 0 
-                          ? `${selectedBranches.length} sucursal(es) seleccionada(s)`
-                          : "Seleccionar sucursales..."
-                        }
-                      </span>
-                      <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                    </div>
-                  </div>
+                  <SucursalSelector value={selectedSucursalesIds} multi={true} onValueChange={setSelectedSucursalesIds} />
                 </div>
               </div>
             </div>
@@ -256,62 +242,7 @@ export function DashboardHeader({ dateRange, onDateRangeChange }: DashboardHeade
       </Card>
 
       {/* Dropdown de Sucursales - Posicionado absolutamente respecto al contenedor padre */}
-      {isBranchesOpen && (
-        <div
-          ref={branchesDropdownRef}
-          className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg"
-          style={{
-            top: `${dropdownPosition.top}px`,
-            left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`
-          }}
-        >
-          {/* Search */}
-          <div className="p-3 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Buscar sucursal..."
-                value={searchBranch}
-                onChange={(e) => setSearchBranch(e.target.value)}
-                className="pl-9 border-0 focus-visible:ring-0"
-              />
-            </div>
-          </div>
-
-          {/* List */}
-          <ScrollArea className="max-h-64">
-            {filteredBranches.map((branch) => (
-              <div
-                key={branch}
-                className={cn(
-                  "flex items-center justify-between p-3 cursor-pointer transition-colors",
-                  "hover:bg-gray-50 border-b border-gray-100 last:border-b-0",
-                  selectedBranches.includes(branch) && "bg-orange-50"
-                )}
-                onClick={() => toggleBranch(branch)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center">
-                    <Building className="h-4 w-4 text-white" />
-                  </div>
-                  <span className="font-medium text-gray-900">{branch}</span>
-                </div>
-                
-                {selectedBranches.includes(branch) && (
-                  <Check className="h-5 w-5 text-orange-600" />
-                )}
-              </div>
-            ))}
-          </ScrollArea>
-
-          {filteredBranches.length === 0 && (
-            <div className="p-4 text-center text-gray-500">
-              No se encontraron sucursales
-            </div>
-          )}
-        </div>
-      )}
+      
     </div>
   )
 }

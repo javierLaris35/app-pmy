@@ -1,18 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Switch } from "@/components/ui/switch"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,16 +17,45 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { Route } from "@/lib/types"
 import { columns } from "./columns"
 import { RouteForm } from "@/components/modals/route-form"
-import { useRoutes, useSaveRoute } from "@/hooks/services/routes/use-routes"
+import { useRoutesBySubsidiary, useSaveRoute } from "@/hooks/services/routes/use-routes"
+import { withAuth } from "@/hoc/withAuth"
+import { useAuthStore } from "@/store/auth.store"
+import { SucursalSelector } from "@/components/sucursal-selector"
+import { deleteRoute } from "@/lib/services/routes"
+import { LoaderWithOverlay } from "@/components/loader"
 
-export default function RoutesPage() {
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
+function RoutesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingRoute, setEditingRoute] = useState<Route | null>(null)
+  const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState("")
+  const user = useAuthStore((s) => s.user)
 
-  const { routes, isLoading, isError, mutate } = useRoutes()
+  const isAdmin = user?.role.includes("admin") || user?.role.includes("superadmin")
+  const effectiveSubsidiaryId = isAdmin
+    ? selectedSubsidiaryId || user?.subsidiary?.id
+    : user?.subsidiary?.id
+
+  const { routes, isLoading, isError, mutate } = useRoutesBySubsidiary(effectiveSubsidiaryId)
   const { save, isSaving } = useSaveRoute()
-
   const isMobile = useIsMobile()
+
+  useEffect(() => {
+    if (effectiveSubsidiaryId) {
+      mutate()
+    }
+  }, [effectiveSubsidiaryId, mutate])
 
   const openNewDialog = () => {
     setEditingRoute(null)
@@ -38,54 +63,75 @@ export default function RoutesPage() {
   }
 
   const openEditDialog = (route: Route) => {
-    console.log("🚀 ~ openEditDialog ~ route:", route)
     setEditingRoute(route)
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (route: Route) => { 
-
+  const handleDelete = async (routeId: string) => {
+    await deleteRoute(routeId)
+    mutate()
   }
 
   const handleSubmit = async (data: Route) => {
-    console.log("🚀 ~ handleSubmit ~ data:", data)
-    
     const payload = {
-        ...data,
-        ...(editingRoute?.id && { id: editingRoute.id })
+      ...data,
+      ...(editingRoute?.id && { id: editingRoute.id }),
     }
-    console.log("🚀 ~ handleSubmit ~ payload:", payload)
-
     await save(payload)
     setIsDialogOpen(false)
     mutate()
-    }
+  }
 
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
-        ? {
-            ...col,
-            cell: ({ row }) => (
-            <div className="flex gap-2">
+      ? {
+          ...col,
+          cell: ({ row }) =>
+            isAdmin ? (
+              <div className="flex gap-2">
                 <Button
-                    variant="ghost"
-                    className="h-8 w-8 p-0"
-                    onClick={() => openEditDialog(row.original)}
+                  variant="ghost"
+                  className="h-8 w-8 p-0"
+                  onClick={() => openEditDialog(row.original)}
                 >
-                    <PencilIcon className="h-4 w-4" />
+                  <PencilIcon className="h-4 w-4" />
                 </Button>
-                <Button
-                    variant="default"
-                    className="h-8 w-8 p-0"
-                    onClick={() => handleDelete(row.original)}
-                >
-                <Trash2Icon className="h-4 w-4" />
-                </Button>
-            </div>
-            ),
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="h-8 w-8 p-0">
+                      <Trash2Icon className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción eliminará la ruta <strong>{row.original.name}</strong>.
+                        No podrás deshacer esta acción.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(row.original.id)}
+                      >
+                        Sí, eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            ) : null,
         }
-        : col
-    );
+      : col,
+  )
+
+  const loaderText = isSaving
+    ? "Guardando cambios..."
+    : isLoading
+    ? "Cargando rutas..."
+    : ""
 
   return (
     <AppLayout>
@@ -95,13 +141,24 @@ export default function RoutesPage() {
             <h2 className="text-2xl font-bold tracking-tight">Catálogo de Rutas</h2>
             <p className="text-muted-foreground">Administra las rutas de la empresa</p>
           </div>
-          <Button onClick={openNewDialog}>
-            <Plus className="mr-2 h-4 w-4" /> Nueva Ruta
-          </Button>
+          {isAdmin && (
+            <Button onClick={openNewDialog}>
+              <Plus className="mr-2 h-4 w-4" /> Nueva Ruta
+            </Button>
+          )}
         </div>
 
-        {isLoading ? (
-          <p className="text-muted-foreground">Cargando rutas...</p>
+        {isAdmin && (
+          <div className="max-w-sm">
+            <SucursalSelector
+              value={selectedSubsidiaryId || user?.subsidiary?.id || ""}
+              onValueChange={setSelectedSubsidiaryId}
+            />
+          </div>
+        )}
+
+        {(isLoading || isSaving) && loaderText ? (
+          <LoaderWithOverlay overlay transparent text={loaderText} className="rounded-lg" />
         ) : isError ? (
           <p className="text-red-500">Error al cargar las rutas.</p>
         ) : (
@@ -116,12 +173,14 @@ export default function RoutesPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingRoute ? "Editar Ruta" : "Nuevo Ruta"}</DialogTitle>
+            <DialogTitle>{editingRoute ? "Editar Ruta" : "Nueva Ruta"}</DialogTitle>
             <DialogDescription>Completa la información de la ruta</DialogDescription>
           </DialogHeader>
-          <RouteForm defaultValues={editingRoute} onSubmit={handleSubmit}/>
+          <RouteForm defaultValues={editingRoute} onSubmit={handleSubmit} />
         </DialogContent>
       </Dialog>
     </AppLayout>
   )
 }
+
+export default withAuth(RoutesPage, "administracion.rutas")

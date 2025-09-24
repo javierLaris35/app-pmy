@@ -15,32 +15,60 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { Subsidiary } from "@/lib/types"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
-import { useAuthStore } from "@/store/auth.store" // Ajusta el path si es necesario
+import { useAuthStore } from "@/store/auth.store"
 
 interface SucursalSelectorProps {
-  value: string
-  onValueChange: (value: string) => void
+  value: string | string[] // ahora puede ser string (single) o string[] (multi)
+  onValueChange: (value: string | string[]) => void
+  multi?: boolean
 }
 
-export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps) {
+export function SucursalSelector({ value, onValueChange, multi = false }: SucursalSelectorProps) {
   const { subsidiaries, isLoading } = useSubsidiaries()
   const [open, setOpen] = useState(false)
-  const [selectedSucursal, setSelectedSucursal] = useState<Subsidiary | undefined>()
+  const [selectedSucursales, setSelectedSucursales] = useState<Subsidiary[]>([])
 
   const user = useAuthStore((state) => state.user)
 
   useEffect(() => {
     if (!subsidiaries || subsidiaries.length === 0) return
 
-    const selected = subsidiaries.find((s) => s.id === value)
-    if (selected) {
-      setSelectedSucursal(selected)
-    } else if (!value) {
-      const defaultSucursal = subsidiaries.find((s) => s.id === user?.subsidiary?.id) || subsidiaries[0]
-      setSelectedSucursal(defaultSucursal)
-      onValueChange(defaultSucursal.id)
+    if (multi) {
+      // Si es multi, "value" debería ser un array
+      const selected = subsidiaries.filter((s) =>
+        Array.isArray(value) ? value.includes(s.id) : false
+      )
+      setSelectedSucursales(selected)
+    } else {
+      // Modo single
+      const selected = subsidiaries.find((s) => s.id === value)
+      if (selected) {
+        setSelectedSucursales([selected])
+      } else if (!value) {
+        const defaultSucursal =
+          subsidiaries.find((s) => s.id === user?.subsidiary?.id) || subsidiaries[0]
+        setSelectedSucursales([defaultSucursal])
+        onValueChange(defaultSucursal.id)
+      }
     }
-  }, [subsidiaries, value, user, onValueChange])
+  }, [subsidiaries, value, user, onValueChange, multi])
+
+  const handleSelect = (sucursal: Subsidiary) => {
+    if (multi) {
+      let updated: Subsidiary[]
+      if (selectedSucursales.some((s) => s.id === sucursal.id)) {
+        updated = selectedSucursales.filter((s) => s.id !== sucursal.id)
+      } else {
+        updated = [...selectedSucursales, sucursal]
+      }
+      setSelectedSucursales(updated)
+      onValueChange(updated.map((s) => s.id))
+    } else {
+      setSelectedSucursales([sucursal])
+      onValueChange(sucursal.id)
+      setOpen(false)
+    }
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -51,7 +79,13 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {selectedSucursal ? selectedSucursal.name : "Seleccionar sucursal..."}
+          {multi ? (
+            selectedSucursales.length > 0
+              ? selectedSucursales.map((s) => s.name).join(", ")
+              : "Seleccionar sucursales..."
+          ) : (
+            selectedSucursales[0]?.name || "Seleccionar sucursal..."
+          )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -59,30 +93,28 @@ export function SucursalSelector({ value, onValueChange }: SucursalSelectorProps
         <Command>
           <CommandInput placeholder="Buscar sucursal..." />
           <CommandList>
-            <CommandEmpty>{isLoading ? "Cargando sucursales..." : "No se encontraron sucursales."}</CommandEmpty>
+            <CommandEmpty>
+              {isLoading ? "Cargando sucursales..." : "No se encontraron sucursales."}
+            </CommandEmpty>
             <CommandGroup>
-              {subsidiaries.map((sucursal) => (
-                <CommandItem
-                  key={sucursal.id}
-                  value={sucursal.id}
-                  onSelect={(currentValue) => {
-                    const selected = subsidiaries.find((s) => s.id === currentValue)
-                    if (selected) {
-                      setSelectedSucursal(selected)
-                      onValueChange(selected.id)
-                    }
-                    setOpen(false)
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === sucursal.id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {sucursal.name}
-                </CommandItem>
-              ))}
+              {subsidiaries.map((sucursal) => {
+                const isSelected = selectedSucursales.some((s) => s.id === sucursal.id)
+                return (
+                  <CommandItem
+                    key={sucursal.id}
+                    value={sucursal.id}
+                    onSelect={() => handleSelect(sucursal)}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        isSelected ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    {sucursal.name}
+                  </CommandItem>
+                )
+              })}
             </CommandGroup>
           </CommandList>
         </Command>

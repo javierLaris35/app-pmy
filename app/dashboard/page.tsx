@@ -23,6 +23,7 @@ function DashboardContent() {
   const [fromDate, setFromDate] = useState(startDayOfMonth)
   const [toDate, setToDate] = useState(endDayOfMonth)
   const [dateRange, setDateRange] = useState({ from: startDayOfMonth, to: endDayOfMonth })
+  const [selectedSubsidiaries, setSelectedSubsidiaries] = useState<string[]>([])
 
   const user = useAuthStore((s) => s.user)
   const selectedSucursalId = useSubsidiaryStore((s) => s.selectedSubsidiaryId)
@@ -79,7 +80,6 @@ function DashboardContent() {
       }
     })
     setGastosData(gastosFormateados)
-
     setGastosPorCategoria(calcularGastosPorCategoria(safeExpenses))
   }, [summary, isLoading])
 
@@ -107,6 +107,7 @@ function DashboardContent() {
               setFromDate(range.from)
               setToDate(range.to)
             }}
+            onSelectedSucursalChange={setSelectedSubsidiaries}
           />
 
           {/* Métricas y dashboards */}

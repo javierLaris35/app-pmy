@@ -1,4 +1,4 @@
-import { getVehicles, getVehiclesById, saveVehicle } from "@/lib/services/vehicles";
+import { getVehicles, getVehiclesById, getVehiclesBySucursalId, saveVehicle } from "@/lib/services/vehicles";
 import { Vehicles } from "@/lib/types";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
@@ -12,6 +12,20 @@ export function useVehicles() {
         isError: !!error,
         mutate
     }
+}
+
+export function useVehiclesBySubsidiary(subsidiaryId: string) {
+  const { data, error, isLoading, mutate } = useSWR(
+    subsidiaryId ? ["/vehicles", subsidiaryId] : null, // null = no fetch
+    () => getVehiclesBySucursalId(subsidiaryId!)
+  );
+
+  return {
+    vehicles: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  };
 }
 
 export function useVehiclesById(id: string) {

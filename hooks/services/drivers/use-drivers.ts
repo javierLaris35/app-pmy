@@ -1,4 +1,4 @@
-import { getDrivers, getDriversById, saveDriver } from "@/lib/services/drivers";
+import { getDrivers, getDriversById, getDriversBySucursalId, saveDriver } from "@/lib/services/drivers";
 import { Driver } from "@/lib/types";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
@@ -12,6 +12,20 @@ export function useDrivers() {
         isError: !!error,
         mutate
     }
+}
+
+export function useDriversBySubsidiary(subsidiaryId?: string) {
+  const { data, error, isLoading, mutate } = useSWR(
+    subsidiaryId ? ["/drivers", subsidiaryId] : null, // null = no fetch
+    () => getDriversBySucursalId(subsidiaryId!)
+  );
+
+  return {
+    drivers: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  };
 }
 
 export function useDriversById(id: string) {

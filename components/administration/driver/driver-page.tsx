@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -9,81 +9,131 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Switch } from "@/components/ui/switch"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
-import { Card, CardContent} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Plus, Trash2Icon, PencilIcon } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { columns } from "./columns"
-import { useDrivers, useSaveDriver } from "@/hooks/services/drivers/use-drivers"
+import { useDriversBySubsidiary, useSaveDriver } from "@/hooks/services/drivers/use-drivers"
 import { Driver } from "@/lib/types"
 import { DriverForm } from "@/components/modals/driver-form"
-import {withAuth} from "@/hoc/withAuth";
+import { withAuth } from "@/hoc/withAuth"
+import { useAuthStore } from "@/store/auth.store"
+import { SucursalSelector } from "@/components/sucursal-selector"
+import { deleteDriver } from "@/lib/services/drivers"
+import { LoaderWithOverlay } from "@/components/loader"
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 function VehiclesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
+  const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState("")
+  const user = useAuthStore((s) => s.user)
 
-  const { drivers, isLoading, isError, mutate } = useDrivers()
+  const isAdmin = user?.role.includes("admin") || user?.role.includes("superadmin")
+  const effectiveSubsidiaryId = isAdmin
+    ? selectedSubsidiaryId || user?.subsidiary?.id
+    : user?.subsidiary?.id
+
+  const { drivers, isLoading, isError, mutate } = useDriversBySubsidiary(effectiveSubsidiaryId)
   const { save, isSaving } = useSaveDriver()
-
   const isMobile = useIsMobile()
+
+  // Refresca automáticamente cuando cambie la sucursal seleccionada
+  useEffect(() => {
+    if (effectiveSubsidiaryId) {
+      mutate()
+    }
+  }, [effectiveSubsidiaryId, mutate])
 
   const openNewDialog = () => {
     setEditingDriver(null)
     setIsDialogOpen(true)
   }
 
-  const openEditDialog = (vehicle: Driver) => {
-    console.log("🚀 ~ openEditDialog ~ vehicle:", vehicle)
-    setEditingDriver(vehicle)
+  const openEditDialog = (driver: Driver) => {
+    setEditingDriver(driver)
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (vehicle: Driver) => { 
-
+  const handleDelete = async (driverId: string) => {
+    await deleteDriver(driverId)
+    mutate() // refresca la lista
   }
 
   const handleSubmit = async (data: Driver) => {
-    console.log("🚀 ~ handleSubmit ~ data:", data)
-    
     const payload = {
-        ...data,
-        ...(editingDriver?.id && { id: editingDriver.id })
+      ...data,
+      ...(editingDriver?.id && { id: editingDriver.id }),
     }
-    console.log("🚀 ~ handleSubmit ~ payload:", payload)
-
     await save(payload)
     setIsDialogOpen(false)
     mutate()
-    }
+  }
 
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
-        ? {
-            ...col,
-            cell: ({ row }) => (
-            <div className="flex gap-2">
+      ? {
+          ...col,
+          cell: ({ row }) =>
+            isAdmin ? (
+              <div className="flex gap-2">
                 <Button
-                variant="ghost"
-                className="h-8 w-8 p-0"
-                onClick={() => openEditDialog(row.original)}
+                  variant="ghost"
+                  className="h-8 w-8 p-0"
+                  onClick={() => openEditDialog(row.original)}
                 >
-                <PencilIcon className="h-4 w-4" />
+                  <PencilIcon className="h-4 w-4" />
                 </Button>
-                <Button
-                variant="default"
-                className="h-8 w-8 p-0"
-                onClick={() => handleDelete(row.original)}
-                >
-                <Trash2Icon className="h-4 w-4" />
-                </Button>
-            </div>
-            ),
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="h-8 w-8 p-0">
+                      <Trash2Icon className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción eliminará al chofer <strong>{row.original.name}</strong>.
+                        No podrás deshacer esta acción.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(row.original.id)}
+                      >
+                        Sí, eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            ) : null,
         }
-        : col
-    );
+      : col,
+  )
+
+  // Determina el texto dinámico del loader
+  const loaderText = isSaving
+    ? "Guardando cambios..."
+    : isLoading
+    ? "Cargando choferes..."
+    : ""
 
   return (
     <AppLayout>
@@ -91,15 +141,33 @@ function VehiclesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Catálogo de Choferes/Repartidores</h2>
-            <p className="text-muted-foreground">Administra los choferes/repartidores de la empresa</p>
+            <p className="text-muted-foreground">
+              Administra los choferes/repartidores de la empresa
+            </p>
           </div>
-          <Button onClick={openNewDialog}>
-            <Plus className="mr-2 h-4 w-4" /> Nuevo Chofer
-          </Button>
+          {isAdmin && (
+            <Button onClick={openNewDialog}>
+              <Plus className="mr-2 h-4 w-4" /> Nuevo Chofer
+            </Button>
+          )}
         </div>
 
-        {isLoading ? (
-          <p className="text-muted-foreground">Cargando choferes...</p>
+        {isAdmin && (
+          <div className="max-w-sm">
+            <SucursalSelector
+              value={selectedSubsidiaryId || user?.subsidiary?.id || ""}
+              onValueChange={setSelectedSubsidiaryId}
+            />
+          </div>
+        )}
+
+        {(isLoading || isSaving) && loaderText ? (
+          <LoaderWithOverlay
+            overlay
+            transparent
+            text={loaderText}
+            className="rounded-lg"
+          />
         ) : isError ? (
           <p className="text-red-500">Error al cargar los choferes.</p>
         ) : (
@@ -117,7 +185,7 @@ function VehiclesPage() {
             <DialogTitle>{editingDriver ? "Editar Chofer" : "Nuevo Chofer"}</DialogTitle>
             <DialogDescription>Completa la información del chofer</DialogDescription>
           </DialogHeader>
-          <DriverForm defaultValues={editingDriver} onSubmit={handleSubmit}/>
+          <DriverForm defaultValues={editingDriver} onSubmit={handleSubmit} />
         </DialogContent>
       </Dialog>
     </AppLayout>
@@ -125,5 +193,3 @@ function VehiclesPage() {
 }
 
 export default withAuth(VehiclesPage, "administracion.vehiculos")
-
-
