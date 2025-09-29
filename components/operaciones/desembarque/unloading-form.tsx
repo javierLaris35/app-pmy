@@ -308,9 +308,55 @@ const PackageItem = ({
   );
 };
 
+// Componente para mostrar paquetes faltantes
+const MissingPackageItem = ({ pkg }: { pkg: { trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null } }) => {
+  const formatMexicanPhoneNumber = (phone: string): string => {
+    if (!phone) return "N/A";
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length === 10) {
+      return `+52 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+    }
+    return phone;
+  };
+
+  return (
+    <div className="p-3 hover:bg-muted/20 transition-colors border-b">
+      <div className="flex justify-between items-start gap-4">
+        <div className="flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono font-medium text-sm">{pkg.trackingNumber}</span>
+            <Badge variant="destructive" className="text-xs">Faltante</Badge>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
+            {pkg.recipientAddress && (
+              <div className="flex items-start gap-1">
+                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span className="line-clamp-1 text-xs">{pkg.recipientAddress}</span>
+              </div>
+            )}
+            {pkg.recipientName && (
+              <div className="flex items-center gap-1">
+                <User className="w-4 w-4" />
+                <span className="text-xs">{pkg.recipientName}</span>
+              </div>
+            )}
+            {pkg.recipientPhone && (
+              <div className="flex items-center gap-1">
+                <Phone className="w-4 w-4" />
+                <span className="text-xs">{formatMexicanPhoneNumber(pkg.recipientPhone)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Componente principal
 export default function UnloadingForm({ onClose, onSuccess }: Props) {
-  // Estados persistentes
+  // Estados persistentes - TODOS LOS ESTADOS PERSISTENTES
   const [selectedUnidad, setSelectedUnidad] = useLocalStorage<Vehicles | null>(
     'unloading_unidad', 
     null
@@ -323,12 +369,12 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     'unloading_shipments', 
     []
   );
-  const [missingTrackings, setMissingTrackings] = useLocalStorage<string[]>(
-    'unloading_missing_trackings', 
+  const [missingPackages, setMissingPackages] = useLocalStorage<{trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null}[]>(
+    'unloading_missing_packages', 
     []
   );
-  const [unScannedTrackings, setUnScannedTrackings] = useLocalStorage<string[]>(
-    'unloading_unscanned_trackings', 
+  const [surplusTrackings, setSurplusTrackings] = useLocalStorage<string[]>(
+    'unloading_surplus_trackings', 
     []
   );
   const [selectedReasons, setSelectedReasons] = useLocalStorage<Record<string, string>>(
@@ -338,6 +384,10 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [trackingNumbersRaw, setTrackingNumbersRaw] = useLocalStorage<string>(
     'unloading_tracking_raw', 
     ""
+  );
+  const [consolidatedValidation, setConsolidatedValidation] = useLocalStorage<Consolidateds | null>(
+    'unloading_consolidated_validation',
+    null
   );
 
   // Estados regulares
@@ -351,7 +401,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [consolidatedValidation, setConsolidatedValidation] = useState<Consolidateds>()
   const [lastValidated, setLastValidated] = useState("");
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
@@ -411,6 +460,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   }, [isOnline, shipments, selectedSubsidiaryId, setShipments, toast]);
 
+  // 🔥 VALIDACIÓN AUTOMÁTICA - MANTENIENDO LA ESTRUCTURA ORIGINAL
   useEffect(() => {
     if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
     
@@ -492,14 +542,25 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }));
 
     if(value === TrackingNotFoundEnum.NOT_TRACKING) {
-      setMissingTrackings(prev => [...prev, id]);
-      setUnScannedTrackings(prev => prev.filter(item => item !== id));
+      // Para faltantes, agregar a missingPackages
+      const existingPackage = scannedPackages.find(p => p.trackingNumber === id);
+      if (existingPackage) {
+        setMissingPackages(prev => [...prev.filter(p => p.trackingNumber !== id), {
+          trackingNumber: id,
+          recipientName: existingPackage.recipientName,
+          recipientAddress: existingPackage.recipientAddress,
+          recipientPhone: existingPackage.recipientPhone
+        }]);
+      }
+      setSurplusTrackings(prev => prev.filter(item => item !== id));
     } else if(value === TrackingNotFoundEnum.NOT_SCANNED) {
-      setUnScannedTrackings(prev => [...prev, id]);
-      setMissingTrackings(prev => prev.filter(item => item !== id));
+      // Para sobrantes, agregar a surplusTrackings
+      setSurplusTrackings(prev => [...prev.filter(item => item !== id), id]);
+      setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
     } else if(value === TrackingNotFoundEnum.NOT_IN_CHARGE) {
-      setMissingTrackings(prev => prev.filter(item => item !== id));
-      setUnScannedTrackings(prev => prev.filter(item => item !== id));
+      // Remover de ambas listas
+      setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
+      setSurplusTrackings(prev => prev.filter(item => item !== id));
     }
 
     setOpenPopover(null);
@@ -569,10 +630,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       'unloading_unidad',
       'unloading_scanned_packages',
       'unloading_shipments',
-      'unloading_missing_trackings',
-      'unloading_unscanned_trackings',
+      'unloading_missing_packages',
+      'unloading_surplus_trackings',
       'unloading_selected_reasons',
-      'unloading_tracking_raw'
+      'unloading_tracking_raw',
+      'unloading_consolidated_validation'
     ];
 
     keys.forEach(key => {
@@ -587,10 +649,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setSelectedUnidad(null);
     setScannedPackages([]);
     setShipments([]);
-    setMissingTrackings([]);
-    setUnScannedTrackings([]);
+    setMissingPackages([]);
+    setSurplusTrackings([]);
     setSelectedReasons({});
     setTrackingNumbersRaw("");
+    setConsolidatedValidation(null);
 
     toast({
       title: "Datos limpiados",
@@ -600,10 +663,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setSelectedUnidad,
     setScannedPackages,
     setShipments,
-    setMissingTrackings,
-    setUnScannedTrackings,
+    setMissingPackages,
+    setSurplusTrackings,
     setSelectedReasons,
-    setTrackingNumbersRaw
+    setTrackingNumbersRaw,
+    setConsolidatedValidation
   ]);
 
   const handleValidatePackages = async () => {
@@ -645,16 +709,47 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
       }
 
-      const newValidShipments = result.validatedShipments.filter(
-          (r) => !shipments.some((p) => p.trackingNumber === r.trackingNumber)
-      );
+      // 1. ACTUALIZAR SHIPMENTS - Reemplazar completamente
+      const newShipments = result.validatedShipments;
+      setShipments(newShipments);
 
-      setShipments((prev) => [...prev, ...newValidShipments]);
-      setMissingTrackings(invalidNumbers);
-      setUnScannedTrackings([]);
-      setConsolidatedValidation(result.consolidateds);
+      // 2. MISSING PACKAGES - Extraer de consolidados
+      const newMissingPackages: {trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null}[] = [];
+      if (result.consolidateds) {
+        Object.values(result.consolidateds).forEach(consolidateds => {
+          consolidateds.forEach(consolidated => {
+            if (consolidated.notFound && consolidated.notFound.length > 0) {
+              consolidated.notFound.forEach(missingPkg => {
+                if (!newMissingPackages.some(m => m.trackingNumber === missingPkg.trackingNumber)) {
+                  newMissingPackages.push({
+                    trackingNumber: missingPkg.trackingNumber,
+                    recipientName: missingPkg.recipientName,
+                    recipientAddress: missingPkg.recipientAddress,
+                    recipientPhone: missingPkg.recipientPhone
+                  });
+                }
+              });
+            }
+          });
+        });
+      }
 
-      const todayExpiringPackages: ExpiringPackage[] = newValidShipments
+      setMissingPackages(newMissingPackages);
+
+      // 3. SURPLUS TRACKINGS - Guías inválidas + guías que no están en shipments válidos
+      const validTrackings = newShipments
+        .filter(p => p.isValid)
+        .map(p => p.trackingNumber);
+      
+      const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
+      const allSurplus = [...invalidNumbers, ...surplusFromValid];
+      
+      setSurplusTrackings(allSurplus);
+
+      // 4. CONSOLIDATED VALIDATION
+      setConsolidatedValidation(result.consolidateds || null);
+
+      const todayExpiringPackages: ExpiringPackage[] = newShipments
           .filter(pkg => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
           .map(pkg => ({
             trackingNumber: pkg.trackingNumber,
@@ -671,14 +766,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         setExpirationAlertOpen(true);
       }
 
-      const validCount = newValidShipments.filter((p) => p.isValid).length;
-      const invalidCount = newValidShipments.filter((p) => !p.isValid).length;
-
+      const validCount = newShipments.filter((p) => p.isValid).length;
+      
       toast({
         title: "Validación completada",
-        description: `Se agregaron ${validCount} paquetes válidos. Paquetes inválidos: ${
-            invalidCount + invalidNumbers.length
-        }`,
+        description: `✅ ${validCount} válidos | ❌ ${newMissingPackages.length} faltantes | ⚠️ ${allSurplus.length} sobrantes`,
       });
     } catch (error) {
       console.error("Error validating packages:", error);
@@ -695,7 +787,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         } as PackageInfoForUnloading));
         
         setShipments((prev) => [...prev, ...offlinePackages]);
-        setMissingTrackings(invalidNumbers);
+        setSurplusTrackings(invalidNumbers);
         
         toast({
           title: "Modo offline activado",
@@ -736,7 +828,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
     setScannedPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
-  }, [setShipments, setScannedPackages]);
+    setMissingPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
+    setSurplusTrackings((prev) => prev.filter((p) => p !== trackingNumber));
+  }, [setShipments, setScannedPackages, setMissingPackages, setSurplusTrackings]);
 
   const handleSendEmail = async (unloadingSaved: Unloading) => {
     const blob = await pdf(
@@ -744,8 +838,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         key={Date.now()}
         vehicle={selectedUnidad}
         packages={validShipments}
-        missingPackages={missingTrackings}
-        unScannedPackages={unScannedTrackings}
+        missingPackages={missingPackages}
+        unScannedPackages={surplusTrackings}
         subsidiaryName={unloadingSaved?.subsidiary?.name ?? ""}
         unloadingTrackigNumber={unloadingSaved?.trackingNumber ?? ""}
       />
@@ -820,8 +914,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         vehicle: selectedUnidad,
         subsidiary: { id: selectedSubsidiaryId, name: selectedSubsidiaryName || "Unknown" },
         shipments: validShipments.map((p) => p.id),
-        missingTrackings,
-        unScannedTrackings,
+        missingTrackings: missingPackages.map(p => p.trackingNumber),
+        unScannedTrackings: surplusTrackings,
         date: new Date().toISOString(),
       };
 
@@ -832,7 +926,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
       toast({
         title: "Descarga procesada exitosamente",
-        description: `Se procesaron ${validShipments.length} paquetes para descarga.`,
+        description: `Se procesaron ${validShipments.length} paquetes para descarga. Faltantes: ${missingPackages.length}, Sobrantes: ${surplusTrackings.length}`,
       });
 
       // Limpiar storage después de éxito
@@ -860,8 +954,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         key={Date.now()}
         vehicle={selectedUnidad}
         packages={validShipments}
-        missingPackages={missingTrackings}
-        unScannedPackages={unScannedTrackings}
+        missingPackages={missingPackages}
+        unScannedPackages={surplusTrackings}
         subsidiaryName={user?.subsidiary?.name || ""}
         unloadingTrackigNumber="1254639874598"
       />
@@ -985,7 +1079,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                 <Separator/>
 
                 <div>
-                  <ConsolidateDetails consolidatedData={consolidatedValidation}/>
+                  <ConsolidateDetails consolidatedData={consolidatedValidation || undefined}/>
                 </div>
               </div>
 
@@ -1164,13 +1258,13 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                         <Check className="h-4 w-4"/>
                         Válidos ({validShipments.length})
                       </TabsTrigger>
-                      <TabsTrigger value="sin-escaneo" className="flex items-center gap-1">
-                        <AlertCircle className="h-4 w-4"/>
-                        Sin escaneo ({unScannedTrackings.length})
-                      </TabsTrigger>
                       <TabsTrigger value="faltantes" className="flex items-center gap-1">
                         <CircleAlertIcon className="h-4 w-4"/>
-                        Faltantes ({missingTrackings.length})
+                        Faltantes ({missingPackages.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="sobrantes" className="flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4"/>
+                        Sobrantes ({surplusTrackings.length})
                       </TabsTrigger>
                     </TabsList>
 
@@ -1214,38 +1308,32 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                       )}
                     </TabsContent>
 
-                    <TabsContent value="sin-escaneo" className="mt-4">
-                      {unScannedTrackings.length > 0 ? (
-                          <ScrollArea className="h-[300px] rounded-md border p-4">
-                            <ul className="space-y-2">
-                              {unScannedTrackings.map(tracking => (
-                                  <li key={tracking}
-                                      className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50">
-                                    <span className="font-mono text-sm">{tracking}</span>
-                                    <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">
-                                      Sin escaneo
-                                    </Badge>
-                                  </li>
+                    <TabsContent value="faltantes" className="mt-4">
+                      {missingPackages.length > 0 ? (
+                          <ScrollArea className="h-[300px] rounded-md border">
+                            <div className="grid grid-cols-1 divide-y">
+                              {missingPackages.map((pkg, index) => (
+                                  <MissingPackageItem key={`${pkg.trackingNumber}-${index}`} pkg={pkg} />
                               ))}
-                            </ul>
+                            </div>
                           </ScrollArea>
                       ) : (
                           <div className="text-center py-8 text-muted-foreground border rounded-md">
-                            <p>No hay guías sin escaneo</p>
+                            <p>No hay paquetes faltantes</p>
                           </div>
                       )}
                     </TabsContent>
 
-                    <TabsContent value="faltantes" className="mt-4">
-                      {missingTrackings.length > 0 ? (
+                    <TabsContent value="sobrantes" className="mt-4">
+                      {surplusTrackings.length > 0 ? (
                           <ScrollArea className="h-[300px] rounded-md border p-4">
                             <ul className="space-y-2">
-                              {missingTrackings.map(tracking => (
+                              {surplusTrackings.map(tracking => (
                                   <li key={tracking}
-                                      className="flex justify-between items-center py-2 px-3 rounded-md bg-red-50">
+                                      className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50">
                                     <span className="font-mono text-sm">{tracking}</span>
-                                    <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">
-                                      Faltante
+                                    <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">
+                                      Sobrante
                                     </Badge>
                                   </li>
                               ))}
@@ -1253,7 +1341,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                           </ScrollArea>
                       ) : (
                           <div className="text-center py-8 text-muted-foreground border rounded-md">
-                            <p>No hay guías faltantes</p>
+                            <p>No hay guías sobrantes</p>
                           </div>
                       )}
                     </TabsContent>
@@ -1269,12 +1357,12 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                       <span>válidos</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-amber-600 font-semibold">{unScannedTrackings.length}</span>
-                      <span>sin escaneo</span>
+                      <span className="text-red-600 font-semibold">{missingPackages.length}</span>
+                      <span>faltantes</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-red-600 font-semibold">{missingTrackings.length}</span>
-                      <span>faltantes</span>
+                      <span className="text-amber-600 font-semibold">{surplusTrackings.length}</span>
+                      <span>sobrantes</span>
                     </div>
                   </div>
                 </div>

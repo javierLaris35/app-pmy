@@ -149,7 +149,7 @@ export default function UnLoadingPageControl() {
                     onEscapeKeyDown={(event) => event.preventDefault()}   // bloquea ESC
                 >
                     <DialogHeader>
-                    <DialogTitle>Nuevo Desembarque</DialogTitle>
+                        <DialogTitle></DialogTitle>
                     </DialogHeader>
 
                     <UnloadingForm

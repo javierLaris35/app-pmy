@@ -11,6 +11,7 @@ import {
 } from '@react-pdf/renderer';
 import { format, toZonedTime } from 'date-fns-tz';
 import { PackageInfo, Vehicles } from '@/lib/types';
+import { MissingPackageInfo } from '@/components/operaciones/desembarque/unloading-form';
 
 Font.register({ family: 'Helvetica', src: undefined }); // Uses built-in Helvetica
 
@@ -117,13 +118,16 @@ export const UnloadingPDFReport = ({
 }: {
   vehicle: Vehicles;
   packages: PackageInfo[];
-  missingPackages?: string[];
+  missingPackages?: MissingPackageInfo[];
   unScannedPackages?: string[];
   subsidiaryName: string;
   unloadingTrackigNumber: string;
 }) => {
-  console.log("🚀 ~ UnloadingPDFReport ~ unScannedPackages:", unScannedPackages)
-  console.log("🚀 ~ UnloadingPDFReport ~ missingPackages:", missingPackages)
+  const packagesMissing = missingPackages ?? [];
+  const packagesUnScanned = unScannedPackages ?? [];
+
+  console.log("🚀 ~ UnloadingPDFReport ~ unScannedPackages:", packagesUnScanned)
+  console.log("🚀 ~ UnloadingPDFReport ~ missingPackages:", packagesMissing)
   
   const timeZone = 'America/Hermosillo';
   const currentDate = new Date();
@@ -226,21 +230,24 @@ export const UnloadingPDFReport = ({
           );
         })}
 
-        {missingPackages.length > 0 && (
+        {packagesMissing.length > 0 && (
           <View style={styles.trackingSection}>
             <Text style={styles.subTitle}>* Guías Faltantes</Text>
-            {missingPackages.map((tracking, i) => (
+            {packagesMissing.map((missing, i) => (
               <View style={styles.trackingRow} key={`missing-${i}`}>
-                <Text>{tracking}</Text>
+                <Text style={{ width: 70 }}>{missing.trackingNumber}</Text>
+                <Text style={{ width: 145 }}>{missing.recipientAddress ?? 'Sin Dirección'}</Text>
+                <Text style={{ width: 155 }}>{missing.recipientName ?? 'Sin Nombre'}</Text>
+                <Text style={{ width: 55 }}>{missing.recipientPhone ?? 'Sin Teléfono'}</Text>
               </View>
             ))}
           </View>
         )}
 
-        {unScannedPackages.length > 0 && (
+        {packagesUnScanned.length > 0 && (
           <View style={styles.trackingSection}>
             <Text style={styles.subTitle}>** Guías Sin Escaneo</Text>
-            {unScannedPackages.map((tracking, i) => (
+            {packagesUnScanned.map((tracking, i) => (
               <View style={styles.trackingRow} key={`unscanned-${i}`}>
                 <Text>{tracking}</Text>
               </View>
