@@ -105,6 +105,28 @@ const styles = StyleSheet.create({
   },
   textBold: {
     fontWeight: 'bold',
+  },
+  invalidSection: {
+    marginTop: 10,
+    padding: 8,
+    backgroundColor: '#ffe6e6', // Fondo rojo claro para destacar
+    border: '1px solid #ff9999',
+  },
+  invalidTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#cc0000',
+    marginBottom: 4,
+  },
+  invalidRow: {
+    flexDirection: 'row',
+    marginBottom: 2,
+    fontSize: 9,
+  },
+  invalidTracking: {
+    fontWeight: 'bold',
+    color: '#cc0000',
+    marginRight: 10,
   }
 });
 
@@ -113,6 +135,7 @@ export const FedExPackageDispatchPDF = ({
   routes,
   vehicle,
   packages,
+  invalidTrackings,
   subsidiaryName,
   trackingNumber,
 }: {
@@ -120,6 +143,7 @@ export const FedExPackageDispatchPDF = ({
   routes: Route[];
   vehicle: Vehicles;
   packages: PackageInfo[];
+  invalidTrackings?: string[];
   subsidiaryName: string;
   trackingNumber: string;
 }) => {
@@ -246,6 +270,22 @@ export const FedExPackageDispatchPDF = ({
             </View>
           );
         })}
+
+        {invalidTrackings && invalidTrackings.length > 0 && (
+          <View style={styles.invalidSection}>
+            <Text style={styles.invalidTitle}>
+              Guías Inválidas ({invalidTrackings.length})
+            </Text>
+            <View style={styles.row}>
+              {invalidTrackings.map((tracking, index) => (
+                <Text style={styles.invalidRow} key={index}>
+                  <Text style={styles.invalidTracking}>{tracking}</Text>
+                  {index < invalidTrackings.length - 1 && ' • '}
+                </Text>
+              ))}
+            </View>
+          </View>
+        )}
       </Page>
     </Document>
   );

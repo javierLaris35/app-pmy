@@ -439,12 +439,15 @@ const PackageDispatchForm: React.FC<Props> = ({
     try {
       setIsLoading(true);
       const validPackages = packages.filter((p) => p.isValid);
+      const invalidPackages = packages.filter((p) => !p.isValid).map(p => p.trackingNumber);
+
       const blob = await pdf(
         <FedExPackageDispatchPDF
           key={Date.now()}
           drivers={selectedRepartidores}
           routes={selectedRutas}
           vehicle={selectedUnidad}
+          invalidTrackings={invalidPackages}
           packages={validPackages}
           subsidiaryName={user?.subsidiary?.name}
           trackingNumber="123456789"
@@ -468,12 +471,15 @@ const PackageDispatchForm: React.FC<Props> = ({
   const handleSendEmail = async (packageDispatch: PackageDispatch) => {
     try {
       const validPackages = packages.filter((p) => p.isValid);
+      const invalidPackages = packages.filter((p) => !p.isValid).map(p => p.trackingNumber);
+
       const blob = await pdf(
         <FedExPackageDispatchPDF
           key={Date.now()}
           drivers={selectedRepartidores}
           routes={selectedRutas}
           vehicle={selectedUnidad}
+          invalidTrackings={invalidPackages}
           packages={validPackages}
           subsidiaryName={packageDispatch.subsidiary?.name}
           trackingNumber={packageDispatch.trackingNumber}
@@ -494,7 +500,11 @@ const PackageDispatchForm: React.FC<Props> = ({
       const fileName = `${packageDispatch?.drivers[0]?.name.toUpperCase()}--${packageDispatch.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.pdf`;
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
-      const excelBuffer = await generateDispatchExcelClient(packageDispatch, false);
+      const excelBuffer = await generateDispatchExcelClient(
+        packageDispatch, 
+        invalidPackages,
+        false);
+
       const excelBlob = new Blob([excelBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });

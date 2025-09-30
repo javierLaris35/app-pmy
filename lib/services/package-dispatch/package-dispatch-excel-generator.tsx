@@ -4,14 +4,17 @@ import { PackageDispatch, PackageInfo } from '@/lib/types';
 import { format, toZonedTime } from 'date-fns-tz';
 import { mapToPackageInfo } from '@/lib/utils';
 
-export async function generateDispatchExcelClient(data: PackageDispatch, forDownload = true) {
+export async function generateDispatchExcelClient(
+  data: PackageDispatch,
+  invalidPackages?: string[], 
+  forDownload = true
+) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Despacho');
   const timeZone = 'America/Hermosillo';
   const packages: PackageInfo[] = mapToPackageInfo(data.shipments, data.chargeShipments);
 
-
- // === ENCABEZADO GENERAL (A:G) ===
+  // === ENCABEZADO GENERAL (A:G) ===
   const titleRow = sheet.addRow([`🚚 Salida a Ruta`]);
   sheet.mergeCells(`A${titleRow.number}:H${titleRow.number}`);
   titleRow.font = { size: 16, bold: true, color: { argb: 'FFFFFF' } };
@@ -53,8 +56,50 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
   const row5 = sheet.addRow([`Paquetes: ${packages.length}`]);
   sheet.mergeCells(`A${row5.number}:E${row5.number}`);
 
-  // Espacio en blanco
-  sheet.addRow([]);
+  // === SECCIÓN DE GUÍAS INVÁLIDAS (si existen) ===
+  if (invalidPackages && invalidPackages.length > 0) {
+    sheet.addRow([]); // Espacio en blanco
+    
+    const invalidTitleRow = sheet.addRow([`❌ Guías Inválidas (${invalidPackages.length})`]);
+    sheet.mergeCells(`A${invalidTitleRow.number}:H${invalidTitleRow.number}`);
+    invalidTitleRow.font = { size: 12, bold: true, color: { argb: 'FFFFFF' } };
+    invalidTitleRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    
+    // Color rojo para el título de guías inválidas
+    for (let col = 1; col <= 8; col++) {
+      sheet.getCell(invalidTitleRow.number, col).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0000' },
+      };
+    }
+
+    // Agrupar guías inválidas en filas para mejor presentación
+    const maxGuidesPerRow = 6; // Máximo de guías por fila
+    for (let i = 0; i < invalidPackages.length; i += maxGuidesPerRow) {
+      const chunk = invalidPackages.slice(i, i + maxGuidesPerRow);
+      const invalidRow = sheet.addRow([]);
+      
+      // Combinar celdas para esta fila de guías inválidas
+      sheet.mergeCells(`A${invalidRow.number}:H${invalidRow.number}`);
+      
+      const guidesText = chunk.map(tracking => `📦 ${tracking}`).join('    ');
+      sheet.getCell(`A${invalidRow.number}`).value = guidesText;
+      sheet.getCell(`A${invalidRow.number}`).font = { bold: true, color: { argb: 'CC0000' } };
+      sheet.getCell(`A${invalidRow.number}`).alignment = { vertical: 'middle', horizontal: 'left' };
+      
+      // Fondo rojo claro para las filas de guías inválidas
+      for (let col = 1; col <= 8; col++) {
+        sheet.getCell(invalidRow.number, col).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE6E6' },
+        };
+      }
+    }
+
+    sheet.addRow([]); // Espacio en blanco después de las guías inválidas
+  }
 
   // Encabezado de columnas
   const headerRow = sheet.addRow([
@@ -71,7 +116,7 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
   headerRow.height = 20;
 
-    // color institucional medio (A:G)
+  // color institucional medio (A:G)
   for (let col = 1; col <= 8; col++) {
     sheet.getCell(headerRow.number, col).fill = {
       type: 'pattern',
@@ -89,11 +134,11 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
   // Datos
   packages.forEach((pkg, index) => {
     const zonedDate = toZonedTime(new Date(pkg.commitDateTime), timeZone);
-    const commitDate = format(zonedDate, "yyyy-MM-dd"); // Ej: "2025/08/05"
+    const commitDate = format(zonedDate, "yyyy-MM-dd");
     const commitTime = format(zonedDate, "HH:mm:ss");
     const hasPayment = pkg.payment?.amount != null;
 
-    console.log("🚀 ~ generateDispatchExcelClient ~ hasPayment:", hasPayment)
+    console.log("🚀 ~ generateDispatchExcelClient ~ hasPayment:", hasPayment);
 
     const row = sheet.addRow([
       index + 1,
@@ -157,7 +202,7 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
 
   sheet.getColumn(1).width = 5;   // No.
   sheet.getColumn(2).width = 18;  // Guía
-  sheet.getColumn(3).width = 35;  // Dirección
+  sheet.getColumn(3).width = 35;  // Recibe
   sheet.getColumn(4).width = 45;  // Dirección
   sheet.getColumn(5).width = 20;  // Cobro
   sheet.getColumn(6).width = 12;  // Fecha
@@ -169,8 +214,7 @@ export async function generateDispatchExcelClient(data: PackageDispatch, forDown
 
   if(forDownload) {
     const blob = new Blob([buffer], {
-      type:
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
     saveAs(blob, `${data?.drivers[0]?.name.toUpperCase()}--${data?.subsidiary?.name}--Salida a Ruta--${createdAt.replace(/\//g, "-")}.xlsx`);
