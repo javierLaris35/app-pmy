@@ -203,7 +203,7 @@ const PackageItem = ({
             {pkg.payment && (
               <Badge className="bg-blue-600 text-xs">
                 <DollarSignIcon className="h-3 w-3 mr-1" />
-                ${pkg.payment.amount}
+                {pkg.payment.type} ${pkg.payment.amount}
               </Badge>
             )}
 
@@ -502,6 +502,13 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     };
   }, []);
 
+  // Efecto para debuggear missingPackages
+  useEffect(() => {
+    console.log("🔍 DEBUG missingPackages:", missingPackages);
+    console.log("🔍 DEBUG selectedReasons:", selectedReasons);
+    console.log("🔍 DEBUG surplusTrackings:", surplusTrackings);
+  }, [missingPackages, selectedReasons, surplusTrackings]);
+
   const simulateScannerEnter = (inputElement: HTMLTextAreaElement | null) => {
     if (!inputElement) return;
 
@@ -536,30 +543,35 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     label: value
   }));
 
+  // FUNCIÓN CORREGIDA PARA MANEJAR RAZONES DE PAQUETES FALTANTES
   const handleSelectMissingTracking = (id: string, value: string) => {
     setSelectedReasons(prev => ({
       ...prev,
       [id]: value
     }));
 
-    if(value === TrackingNotFoundEnum.NOT_TRACKING) {
+    // Limpiar primero de ambos arrays
+    setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
+    setSurplusTrackings(prev => prev.filter(item => item !== id));
+
+    // Lógica corregida para agregar solo cuando sea NOT_TRACKING
+    if (value === TrackingNotFoundEnum.NOT_TRACKING) {
       const existingPackage = scannedPackages.find(p => p.trackingNumber === id);
       if (existingPackage) {
-        setMissingPackages(prev => [...prev.filter(p => p.trackingNumber !== id), {
-          trackingNumber: id,
-          recipientName: existingPackage.recipientName,
-          recipientAddress: existingPackage.recipientAddress,
-          recipientPhone: existingPackage.recipientPhone
-        }]);
+        setMissingPackages(prev => [
+          ...prev.filter(p => p.trackingNumber !== id), 
+          {
+            trackingNumber: id,
+            recipientName: existingPackage.recipientName,
+            recipientAddress: existingPackage.recipientAddress,
+            recipientPhone: existingPackage.recipientPhone
+          }
+        ]);
       }
-      setSurplusTrackings(prev => prev.filter(item => item !== id));
-    } else if(value === TrackingNotFoundEnum.NOT_SCANNED) {
+    } else if (value === TrackingNotFoundEnum.NOT_SCANNED) {
       setSurplusTrackings(prev => [...prev.filter(item => item !== id), id]);
-      setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
-    } else if(value === TrackingNotFoundEnum.NOT_IN_CHARGE) {
-      setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
-      setSurplusTrackings(prev => prev.filter(item => item !== id));
     }
+    // Para NOT_IN_CHARGE no se agrega a ningún array
 
     setOpenPopover(null);
   }
@@ -655,7 +667,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   }, [currentExpiringIndex]);
 
-  // FUNCIÓN SIMPLIFICADA PARA ACTUALIZAR FALTANTES
+  // FUNCIÓN SIMPLIFICADA Y CORRECTA PARA ACTUALIZAR FALTANTES
   const updateMissingPackages = useCallback((currentShipments: PackageInfoForUnloading[], currentConsolidateds: Consolidateds | null) => {
     if (!currentConsolidateds) {
       console.log("❌ No hay datos de consolidados");
@@ -666,48 +678,71 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     
     const updatedMissingPackages: {trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null}[] = [];
     
+    // Obtener todos los trackings válidos escaneados
+    const validTrackings = currentShipments
+      .filter(p => p.isValid)
+      .map(p => p.trackingNumber);
+    
+    console.log(`📊 Trackings válidos escaneados: ${validTrackings.length}`, validTrackings);
+
     // Aplanar todos los consolidados
     const allConsolidateds = Object.values(currentConsolidateds).flat();
     
-    // LÓGICA SIMPLE: Si hay paquetes válidos, agregar TODOS los notFound
-    const hasValidPackages = currentShipments.some(s => s.isValid);
-    
-    console.log(`📊 Hay ${currentShipments.filter(s => s.isValid).length} paquetes válidos`);
-    
-    if (hasValidPackages) {
-      let totalNotFound = 0;
-      
-      allConsolidateds.forEach((consolidated, index) => {
-        if (consolidated.notFound && consolidated.notFound.length > 0) {
-          console.log(`📦 Consolidado ${index + 1} tiene ${consolidated.notFound.length} paquetes faltantes`);
-          totalNotFound += consolidated.notFound.length;
+    console.log(`📦 Total de consolidados: ${allConsolidateds.length}`);
+
+    // LÓGICA SIMPLE Y DIRECTA:
+    // 1. Encontrar qué consolidados tienen al menos un paquete válido escaneado
+    const relevantConsolidateds = allConsolidateds.filter(consolidated => {
+      // Verificar si este consolidado tiene trackings que coincidan con los escaneados
+      return consolidated.added.some(tracking => 
+        validTrackings.includes(tracking.trackingNumber)
+      );
+    });
+
+    console.log(`🎯 Consolidados con al menos 1 paquete escaneado: ${relevantConsolidateds.length}`);
+
+    // 2. Para cada consolidado relevante, agregar TODOS sus notFound a missingPackages
+    relevantConsolidateds.forEach((consolidated, index) => {
+      if (consolidated.notFound && consolidated.notFound.length > 0) {
+        console.log(`📦 Consolidado ${index + 1} tiene ${consolidated.notFound.length} paquetes faltantes`);
+        
+        consolidated.notFound.forEach(missingPkg => {
+          // Solo agregar si no está ya en los paquetes válidos escaneados
+          // Y no ha sido marcado manualmente como excluido
+          const isInValidShipments = validTrackings.includes(missingPkg.trackingNumber);
+          const isManuallyExcluded = selectedReasons[missingPkg.trackingNumber] === TrackingNotFoundEnum.NOT_SCANNED || 
+                                   selectedReasons[missingPkg.trackingNumber] === TrackingNotFoundEnum.NOT_IN_CHARGE;
           
-          consolidated.notFound.forEach(missingPkg => {
-            // Solo agregar si no está en los shipments válidos
-            const isInValidShipments = currentShipments.some(s => 
-              s.trackingNumber === missingPkg.trackingNumber && s.isValid
-            );
-            
-            if (!isInValidShipments) {
-              updatedMissingPackages.push({
-                trackingNumber: missingPkg.trackingNumber,
-                recipientName: missingPkg.recipientName,
-                recipientAddress: missingPkg.recipientAddress,
-                recipientPhone: missingPkg.recipientPhone
-              });
-            }
-          });
+          if (!isInValidShipments && !isManuallyExcluded) {
+            updatedMissingPackages.push({
+              trackingNumber: missingPkg.trackingNumber,
+              recipientName: missingPkg.recipientName,
+              recipientAddress: missingPkg.recipientAddress,
+              recipientPhone: missingPkg.recipientPhone
+            });
+          }
+        });
+      }
+    });
+
+    console.log(`✅ Faltantes totales: ${updatedMissingPackages.length}`);
+    return updatedMissingPackages;
+  }, [selectedReasons]);
+
+  // Función para limpiar específicamente los missingPackages
+  const clearMissingPackages = useCallback(() => {
+    setMissingPackages([]);
+    // También limpiar las razones relacionadas con missing packages
+    setSelectedReasons(prev => {
+      const newReasons = { ...prev };
+      Object.keys(newReasons).forEach(key => {
+        if (newReasons[key] === TrackingNotFoundEnum.NOT_TRACKING) {
+          delete newReasons[key];
         }
       });
-      
-      console.log(`🎯 Total de paquetes faltantes encontrados: ${totalNotFound}`);
-    } else {
-      console.log("⚠️ No hay paquetes válidos, no se pueden calcular faltantes");
-    }
-
-    console.log(`✅ Faltantes que se mostrarán: ${updatedMissingPackages.length}`);
-    return updatedMissingPackages;
-  }, []);
+      return newReasons;
+    });
+  }, [setMissingPackages, setSelectedReasons]);
 
   // Función para limpiar TODO el almacenamiento
   const clearAllStorage = useCallback(() => {
@@ -797,6 +832,15 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
       console.log("📋 Resultado de validación recibido");
 
+      // DEBUG: Mostrar estructura de consolidados
+      console.log("🔍 Estructura de consolidados:");
+      Object.entries(result.consolidateds || {}).forEach(([key, consolidados]) => {
+        console.log(`📦 ${key}: ${consolidados.length} consolidados`);
+        consolidados.forEach((consolidado, idx) => {
+          console.log(`   Consolidado ${idx + 1}: ${consolidado.trackings?.length || 0} trackings, ${consolidado.notFound?.length || 0} notFound`);
+        });
+      });
+
       // Actualizar los paquetes escaneados con la información validada
       if (barScannerInputRef.current && barScannerInputRef.current.updateValidatedPackages) {
         barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
@@ -809,7 +853,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       // Verificar expiración SOLO después de actualizar los shipments
       handleExpirationCheck(newShipments);
 
-      // 2. MISSING PACKAGES - Extraer de consolidados
+      // 2. MISSING PACKAGES - Lógica simplificada
       console.log("🔄 Calculando faltantes...");
       const newMissingPackages = updateMissingPackages(newShipments, result.consolidateds);
       
@@ -834,6 +878,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       
       console.log("🎊 Validación completada:", {
         válidos: validCount,
+        consolidadosRelevantes: "calculado en updateMissingPackages",
         faltantes: newMissingPackages.length,
         sobrantes: allSurplus.length
       });
@@ -1128,7 +1173,10 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={clearAllStorage}
+                    onClick={() => {
+                      clearAllStorage();
+                      clearMissingPackages();
+                    }}
                     className="gap-2"
                     disabled={isLoading}
                   >
