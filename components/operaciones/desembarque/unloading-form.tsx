@@ -405,7 +405,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [isValidationPackages, setIsValidationPackages] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-  // Estados para manejo de expiración CORREGIDOS
+  // Estados para manejo de expiración
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
   const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
@@ -462,7 +462,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   }, [isOnline, shipments, selectedSubsidiaryId, setShipments, toast]);
 
-  // 🔥 VALIDACIÓN AUTOMÁTICA
+  // VALIDACIÓN AUTOMÁTICA
   useEffect(() => {
     if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
     
@@ -655,65 +655,57 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   }, [currentExpiringIndex]);
 
-  // Función para actualizar faltantes cuando se agregan/remueven paquetes - VERSIÓN SIMPLIFICADA
+  // FUNCIÓN SIMPLIFICADA PARA ACTUALIZAR FALTANTES
   const updateMissingPackages = useCallback((currentShipments: PackageInfoForUnloading[], currentConsolidateds: Consolidateds | null) => {
     if (!currentConsolidateds) {
-      console.log("❌ No hay consolidateds data");
+      console.log("❌ No hay datos de consolidados");
       return [];
     }
 
-    console.log("📦 Consolidateds data recibida:", currentConsolidateds);
-    console.log("✅ Shipments válidos:", currentShipments.filter(s => s.isValid).map(s => s.trackingNumber));
-
+    console.log("🔄 Calculando faltantes...");
+    
     const updatedMissingPackages: {trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null}[] = [];
     
     // Aplanar todos los consolidados
     const allConsolidateds = Object.values(currentConsolidateds).flat();
     
-    allConsolidateds.forEach((consolidated, index) => {
-      console.log(`📋 Procesando consolidado ${index + 1}:`, {
-        id: consolidated.id,
-        packages: consolidated.packages?.map(p => p.trackingNumber),
-        notFound: consolidated.notFound?.map(n => n.trackingNumber)
-      });
-
-      // Verificar si este consolidado tiene al menos un paquete válido escaneado
-      const hasValidatedPackages = consolidated.packages?.some(consolidatedPkg => 
-        currentShipments.some(shipment => 
-          shipment.trackingNumber === consolidatedPkg.trackingNumber && shipment.isValid
-        )
-      );
-
-      console.log(`🔍 Consolidado ${index + 1} tiene paquetes válidos:`, hasValidatedPackages);
-
-      // Si el consolidado tiene paquetes válidos escaneados, agregar sus notFound como faltantes
-      if (hasValidatedPackages && consolidated.notFound && consolidated.notFound.length > 0) {
-        console.log(`🎯 Agregando faltantes del consolidado ${index + 1}:`, consolidated.notFound.map(n => n.trackingNumber));
-        
-        consolidated.notFound.forEach(missingPkg => {
-          // Solo agregar si no está en los shipments válidos
-          const isInValidShipments = currentShipments.some(s => 
-            s.trackingNumber === missingPkg.trackingNumber && s.isValid
-          );
+    // LÓGICA SIMPLE: Si hay paquetes válidos, agregar TODOS los notFound
+    const hasValidPackages = currentShipments.some(s => s.isValid);
+    
+    console.log(`📊 Hay ${currentShipments.filter(s => s.isValid).length} paquetes válidos`);
+    
+    if (hasValidPackages) {
+      let totalNotFound = 0;
+      
+      allConsolidateds.forEach((consolidated, index) => {
+        if (consolidated.notFound && consolidated.notFound.length > 0) {
+          console.log(`📦 Consolidado ${index + 1} tiene ${consolidated.notFound.length} paquetes faltantes`);
+          totalNotFound += consolidated.notFound.length;
           
-          if (!isInValidShipments) {
-            console.log(`➕ Agregando faltante: ${missingPkg.trackingNumber}`);
-            updatedMissingPackages.push({
-              trackingNumber: missingPkg.trackingNumber,
-              recipientName: missingPkg.recipientName,
-              recipientAddress: missingPkg.recipientAddress,
-              recipientPhone: missingPkg.recipientPhone
-            });
-          } else {
-            console.log(`⏭️ Saltando faltante ${missingPkg.trackingNumber}: ya está en shipments válidos`);
-          }
-        });
-      } else {
-        console.log(`🚫 Consolidado ${index + 1} no cumple condiciones: hasValidatedPackages=${hasValidatedPackages}, notFound=${consolidated.notFound?.length}`);
-      }
-    });
+          consolidated.notFound.forEach(missingPkg => {
+            // Solo agregar si no está en los shipments válidos
+            const isInValidShipments = currentShipments.some(s => 
+              s.trackingNumber === missingPkg.trackingNumber && s.isValid
+            );
+            
+            if (!isInValidShipments) {
+              updatedMissingPackages.push({
+                trackingNumber: missingPkg.trackingNumber,
+                recipientName: missingPkg.recipientName,
+                recipientAddress: missingPkg.recipientAddress,
+                recipientPhone: missingPkg.recipientPhone
+              });
+            }
+          });
+        }
+      });
+      
+      console.log(`🎯 Total de paquetes faltantes encontrados: ${totalNotFound}`);
+    } else {
+      console.log("⚠️ No hay paquetes válidos, no se pueden calcular faltantes");
+    }
 
-    console.log("📊 Faltantes finales calculados:", updatedMissingPackages.map(m => m.trackingNumber));
+    console.log(`✅ Faltantes que se mostrarán: ${updatedMissingPackages.length}`);
     return updatedMissingPackages;
   }, []);
 
@@ -803,10 +795,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       console.log("🔍 Validando paquetes:", validNumbers);
       const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(validNumbers, selectedSubsidiaryId);
 
-      console.log("📋 Resultado de validación:", {
-        validatedShipments: result.validatedShipments,
-        consolidateds: result.consolidateds
-      });
+      console.log("📋 Resultado de validación recibido");
 
       // Actualizar los paquetes escaneados con la información validada
       if (barScannerInputRef.current && barScannerInputRef.current.updateValidatedPackages) {
@@ -820,13 +809,13 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       // Verificar expiración SOLO después de actualizar los shipments
       handleExpirationCheck(newShipments);
 
-      // 2. MISSING PACKAGES - Extraer de consolidados SOLO los que tienen paquetes agregados
+      // 2. MISSING PACKAGES - Extraer de consolidados
       console.log("🔄 Calculando faltantes...");
       const newMissingPackages = updateMissingPackages(newShipments, result.consolidateds);
       
-      // IMPORTANTE: Actualizar el estado de missingPackages
+      // ACTUALIZAR EL ESTADO DE FALTANTES
       setMissingPackages(newMissingPackages);
-      console.log("✅ Missing packages actualizados:", newMissingPackages.length);
+      console.log("✅ Estado de missingPackages actualizado:", newMissingPackages.length);
 
       // 3. SURPLUS TRACKINGS - Guías inválidas + guías que no están en shipments válidos
       const validTrackings = newShipments
@@ -843,7 +832,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
       const validCount = newShipments.filter((p) => p.isValid).length;
       
-      console.log("✅ Validación completada:", {
+      console.log("🎊 Validación completada:", {
         válidos: validCount,
         faltantes: newMissingPackages.length,
         sobrantes: allSurplus.length
