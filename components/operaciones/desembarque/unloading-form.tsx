@@ -356,7 +356,7 @@ const MissingPackageItem = ({ pkg }: { pkg: { trackingNumber: string; recipientN
 
 // Componente principal
 export default function UnloadingForm({ onClose, onSuccess }: Props) {
-  // Estados persistentes - TODOS LOS ESTADOS PERSISTENTES
+  // Estados persistentes
   const [selectedUnidad, setSelectedUnidad] = useLocalStorage<Vehicles | null>(
     'unloading_unidad', 
     null
@@ -402,11 +402,14 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [lastValidated, setLastValidated] = useState("");
+  const [isValidationPackages, setIsValidationPackages] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  // Estados para manejo de expiración CORREGIDOS
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
   const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
-  const [isValidationPackages, setIsValidationPackages] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
+  const [shownExpiringPackages, setShownExpiringPackages] = useState<Set<string>>(new Set());
 
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
   const { toast } = useToast();
@@ -438,7 +441,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
           description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
         });
         
-        // Revalidar paquetes offline
         offlinePackages.forEach(async (pkg) => {
           try {
             const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
@@ -460,11 +462,10 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }
   }, [isOnline, shipments, selectedSubsidiaryId, setShipments, toast]);
 
-  // 🔥 VALIDACIÓN AUTOMÁTICA - MANTENIENDO LA ESTRUCTURA ORIGINAL
+  // 🔥 VALIDACIÓN AUTOMÁTICA
   useEffect(() => {
     if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
     
-    // Obtener tracking numbers de los paquetes escaneados
     const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber).join("\n");
     
     if (trackingNumbers === lastValidated) return;
@@ -542,7 +543,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     }));
 
     if(value === TrackingNotFoundEnum.NOT_TRACKING) {
-      // Para faltantes, agregar a missingPackages
       const existingPackage = scannedPackages.find(p => p.trackingNumber === id);
       if (existingPackage) {
         setMissingPackages(prev => [...prev.filter(p => p.trackingNumber !== id), {
@@ -554,11 +554,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       }
       setSurplusTrackings(prev => prev.filter(item => item !== id));
     } else if(value === TrackingNotFoundEnum.NOT_SCANNED) {
-      // Para sobrantes, agregar a surplusTrackings
       setSurplusTrackings(prev => [...prev.filter(item => item !== id), id]);
       setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
     } else if(value === TrackingNotFoundEnum.NOT_IN_CHARGE) {
-      // Remover de ambas listas
       setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
       setSurplusTrackings(prev => prev.filter(item => item !== id));
     }
@@ -566,19 +564,50 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setOpenPopover(null);
   }
 
+  // Función para verificar expiración (solo hoy)
   const checkPackageExpiration = useCallback((pkg: PackageInfoForUnloading) => {
     if (!pkg.commitDateTime) return false;
 
     const commitDate = new Date(pkg.commitDateTime);
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    commitDate.setHours(0, 0, 0, 0);
-
-    const timeDiff = commitDate.getTime() - today.getTime();
-    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-    return daysDiff === 0;
+    
+    // Comparar solo fecha (sin horas)
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const commitDateOnly = new Date(commitDate.getFullYear(), commitDate.getMonth(), commitDate.getDate());
+    
+    return commitDateOnly.getTime() === todayDate.getTime();
   }, []);
+
+  // Función para manejar la verificación de expiración
+  const handleExpirationCheck = useCallback((newShipments: PackageInfoForUnloading[]) => {
+    // Filtrar solo paquetes que expiran hoy y que no han sido mostrados
+    const todayExpiringPackages: ExpiringPackage[] = newShipments
+      .filter(pkg => {
+        const expiresToday = pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg);
+        const notShownYet = !shownExpiringPackages.has(pkg.trackingNumber);
+        return expiresToday && notShownYet;
+      })
+      .map(pkg => ({
+        trackingNumber: pkg.trackingNumber,
+        recipientName: pkg.recipientName || undefined,
+        recipientAddress: pkg.recipientAddress || undefined,
+        commitDateTime: pkg.commitDateTime || undefined,
+        daysUntilExpiration: 0, // Hoy = 0 días
+        priority: pkg.priority || undefined
+      }));
+
+    // Si hay paquetes que expiran hoy y no han sido mostrados
+    if (todayExpiringPackages.length > 0) {
+      setExpiringPackages(todayExpiringPackages);
+      setCurrentExpiringIndex(0);
+      setExpirationAlertOpen(true);
+      
+      // Agregar estos paquetes al conjunto de mostrados
+      const newShownPackages = new Set(shownExpiringPackages);
+      todayExpiringPackages.forEach(pkg => newShownPackages.add(pkg.trackingNumber));
+      setShownExpiringPackages(newShownPackages);
+    }
+  }, [checkPackageExpiration, shownExpiringPackages]);
 
   const getDaysUntilExpiration = useCallback((commitDateTime: string) => {
     const commitDate = new Date(commitDateTime);
@@ -591,13 +620,15 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   }, []);
 
   const handleNextExpiring = useCallback(() => {
-    const packagesDueToday = expiringPackages.filter(pkg => pkg.daysUntilExpiration === 0);
-    if (currentExpiringIndex < packagesDueToday.length - 1) {
+    if (currentExpiringIndex < expiringPackages.length - 1) {
+      // Mostrar siguiente paquete
       setCurrentExpiringIndex(prev => prev + 1);
     } else {
+      // Todos los paquetes expirantes han sido mostrados, cerrar modal
       setExpirationAlertOpen(false);
       setCurrentExpiringIndex(0);
-
+      
+      // Continuar con el flujo normal después de un breve delay
       setTimeout(() => {
         if (barScannerInputRef.current) {
           barScannerInputRef.current.focus();
@@ -616,13 +647,75 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         }
       }, 100);
     }
-  }, [currentExpiringIndex, expiringPackages]);
+  }, [currentExpiringIndex, expiringPackages.length]);
 
   const handlePreviousExpiring = useCallback(() => {
     if (currentExpiringIndex > 0) {
       setCurrentExpiringIndex(prev => prev - 1);
     }
   }, [currentExpiringIndex]);
+
+  // Función para actualizar faltantes cuando se agregan/remueven paquetes - VERSIÓN SIMPLIFICADA
+  const updateMissingPackages = useCallback((currentShipments: PackageInfoForUnloading[], currentConsolidateds: Consolidateds | null) => {
+    if (!currentConsolidateds) {
+      console.log("❌ No hay consolidateds data");
+      return [];
+    }
+
+    console.log("📦 Consolidateds data recibida:", currentConsolidateds);
+    console.log("✅ Shipments válidos:", currentShipments.filter(s => s.isValid).map(s => s.trackingNumber));
+
+    const updatedMissingPackages: {trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null}[] = [];
+    
+    // Aplanar todos los consolidados
+    const allConsolidateds = Object.values(currentConsolidateds).flat();
+    
+    allConsolidateds.forEach((consolidated, index) => {
+      console.log(`📋 Procesando consolidado ${index + 1}:`, {
+        id: consolidated.id,
+        packages: consolidated.packages?.map(p => p.trackingNumber),
+        notFound: consolidated.notFound?.map(n => n.trackingNumber)
+      });
+
+      // Verificar si este consolidado tiene al menos un paquete válido escaneado
+      const hasValidatedPackages = consolidated.packages?.some(consolidatedPkg => 
+        currentShipments.some(shipment => 
+          shipment.trackingNumber === consolidatedPkg.trackingNumber && shipment.isValid
+        )
+      );
+
+      console.log(`🔍 Consolidado ${index + 1} tiene paquetes válidos:`, hasValidatedPackages);
+
+      // Si el consolidado tiene paquetes válidos escaneados, agregar sus notFound como faltantes
+      if (hasValidatedPackages && consolidated.notFound && consolidated.notFound.length > 0) {
+        console.log(`🎯 Agregando faltantes del consolidado ${index + 1}:`, consolidated.notFound.map(n => n.trackingNumber));
+        
+        consolidated.notFound.forEach(missingPkg => {
+          // Solo agregar si no está en los shipments válidos
+          const isInValidShipments = currentShipments.some(s => 
+            s.trackingNumber === missingPkg.trackingNumber && s.isValid
+          );
+          
+          if (!isInValidShipments) {
+            console.log(`➕ Agregando faltante: ${missingPkg.trackingNumber}`);
+            updatedMissingPackages.push({
+              trackingNumber: missingPkg.trackingNumber,
+              recipientName: missingPkg.recipientName,
+              recipientAddress: missingPkg.recipientAddress,
+              recipientPhone: missingPkg.recipientPhone
+            });
+          } else {
+            console.log(`⏭️ Saltando faltante ${missingPkg.trackingNumber}: ya está en shipments válidos`);
+          }
+        });
+      } else {
+        console.log(`🚫 Consolidado ${index + 1} no cumple condiciones: hasValidatedPackages=${hasValidatedPackages}, notFound=${consolidated.notFound?.length}`);
+      }
+    });
+
+    console.log("📊 Faltantes finales calculados:", updatedMissingPackages.map(m => m.trackingNumber));
+    return updatedMissingPackages;
+  }, []);
 
   // Función para limpiar TODO el almacenamiento
   const clearAllStorage = useCallback(() => {
@@ -654,6 +747,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setSelectedReasons({});
     setTrackingNumbersRaw("");
     setConsolidatedValidation(null);
+    
+    // Limpiar también el registro de paquetes mostrados
+    setShownExpiringPackages(new Set());
+    setExpirationAlertOpen(false);
+    setExpiringPackages([]);
 
     toast({
       title: "Datos limpiados",
@@ -702,7 +800,13 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setProgress(0);
 
     try {
+      console.log("🔍 Validando paquetes:", validNumbers);
       const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(validNumbers, selectedSubsidiaryId);
+
+      console.log("📋 Resultado de validación:", {
+        validatedShipments: result.validatedShipments,
+        consolidateds: result.consolidateds
+      });
 
       // Actualizar los paquetes escaneados con la información validada
       if (barScannerInputRef.current && barScannerInputRef.current.updateValidatedPackages) {
@@ -713,28 +817,16 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       const newShipments = result.validatedShipments;
       setShipments(newShipments);
 
-      // 2. MISSING PACKAGES - Extraer de consolidados
-      const newMissingPackages: {trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null}[] = [];
-      if (result.consolidateds) {
-        Object.values(result.consolidateds).forEach(consolidateds => {
-          consolidateds.forEach(consolidated => {
-            if (consolidated.notFound && consolidated.notFound.length > 0) {
-              consolidated.notFound.forEach(missingPkg => {
-                if (!newMissingPackages.some(m => m.trackingNumber === missingPkg.trackingNumber)) {
-                  newMissingPackages.push({
-                    trackingNumber: missingPkg.trackingNumber,
-                    recipientName: missingPkg.recipientName,
-                    recipientAddress: missingPkg.recipientAddress,
-                    recipientPhone: missingPkg.recipientPhone
-                  });
-                }
-              });
-            }
-          });
-        });
-      }
+      // Verificar expiración SOLO después de actualizar los shipments
+      handleExpirationCheck(newShipments);
 
+      // 2. MISSING PACKAGES - Extraer de consolidados SOLO los que tienen paquetes agregados
+      console.log("🔄 Calculando faltantes...");
+      const newMissingPackages = updateMissingPackages(newShipments, result.consolidateds);
+      
+      // IMPORTANTE: Actualizar el estado de missingPackages
       setMissingPackages(newMissingPackages);
+      console.log("✅ Missing packages actualizados:", newMissingPackages.length);
 
       // 3. SURPLUS TRACKINGS - Guías inválidas + guías que no están en shipments válidos
       const validTrackings = newShipments
@@ -749,25 +841,14 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       // 4. CONSOLIDATED VALIDATION
       setConsolidatedValidation(result.consolidateds || null);
 
-      const todayExpiringPackages: ExpiringPackage[] = newShipments
-          .filter(pkg => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
-          .map(pkg => ({
-            trackingNumber: pkg.trackingNumber,
-            recipientName: pkg.recipientName || undefined,
-            recipientAddress: pkg.recipientAddress || undefined,
-            commitDateTime: pkg.commitDateTime || undefined,
-            daysUntilExpiration: pkg.commitDateTime ? getDaysUntilExpiration(pkg.commitDateTime) : 0,
-            priority: pkg.priority || undefined
-          }));
-
-      if (todayExpiringPackages.length > 0) {
-        setExpiringPackages(todayExpiringPackages);
-        setCurrentExpiringIndex(0);
-        setExpirationAlertOpen(true);
-      }
-
       const validCount = newShipments.filter((p) => p.isValid).length;
       
+      console.log("✅ Validación completada:", {
+        válidos: validCount,
+        faltantes: newMissingPackages.length,
+        sobrantes: allSurplus.length
+      });
+
       toast({
         title: "Validación completada",
         description: `✅ ${validCount} válidos | ❌ ${newMissingPackages.length} faltantes | ⚠️ ${allSurplus.length} sobrantes`,
@@ -826,11 +907,21 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   };
 
   const handleRemovePackage = useCallback((trackingNumber: string) => {
-    setShipments((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
+    setShipments((prev) => {
+      const updatedShipments = prev.filter((p) => p.trackingNumber !== trackingNumber);
+      
+      // Actualizar faltantes después de remover
+      if (consolidatedValidation) {
+        const updatedMissing = updateMissingPackages(updatedShipments, consolidatedValidation);
+        setMissingPackages(updatedMissing);
+      }
+      
+      return updatedShipments;
+    });
+    
     setScannedPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
-    setMissingPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
     setSurplusTrackings((prev) => prev.filter((p) => p !== trackingNumber));
-  }, [setShipments, setScannedPackages, setMissingPackages, setSurplusTrackings]);
+  }, [setShipments, setScannedPackages, setMissingPackages, setSurplusTrackings, consolidatedValidation, updateMissingPackages]);
 
   const handleSendEmail = async (unloadingSaved: Unloading) => {
     const blob = await pdf(
