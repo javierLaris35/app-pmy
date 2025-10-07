@@ -98,6 +98,7 @@ export const columns: ColumnDef<PackageDispatch>[] = [
       IN_TRANSIT: { label: "En Tránsito", variant: "default" as const },
       DELIVERED: { label: "Entregado", variant: "default" as const },
       RETURNED: { label: "Devuelto", variant: "destructive" as const },
+      COMPLETED: { label: "Completada", variant: "success" as const }
     };
 
     const statusKey = row.original.status as keyof typeof statusMap;

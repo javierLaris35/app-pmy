@@ -11,6 +11,7 @@ import {
 } from "@react-pdf/renderer";
 import { format } from "date-fns-tz";
 import { PackageInfo, PackageDispatch } from "@/lib/types";
+import { mapToPackageInfo } from "@/lib/utils";
 
 Font.register({ family: "Helvetica", src: undefined });
 
@@ -255,8 +256,10 @@ export const RouteClosurePDF = ({
   const { subsidiary, vehicle, shipments, drivers, routes, createdAt, kms } =
     packageDispatch;
 
+  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(packageDispatch.shipments, packageDispatch.chargeShipments);
+
   const validReturns = returnedPackages.filter((p) => p.isValid);
-  const originalCount = shipments?.length || 0;
+  const originalCount = packageDispatchShipments?.length || 0;
   const deliveredCount = originalCount - validReturns.length;
   const returnRate =
     originalCount > 0 ? (validReturns.length / originalCount) * 100 : 0;

@@ -536,7 +536,14 @@ export default function ClosePackageDispatch({ dispatch, onClose, onSuccess }: C
     const fileName = `CIERRE--${dispatch.drivers[0]?.name.toUpperCase()}--${dispatch.subsidiary.name}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`;
     const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
-    const excelBuffer = await generateRouteClosureExcel(returnedPackages, dispatch, selectedKms, collectionsForPdf, podPackages, false)
+    const excelBuffer = await generateRouteClosureExcel(
+      returnedPackages, 
+      dispatch, 
+      selectedKms, 
+      collectionsForPdf, 
+      podPackages, 
+      false);
+      
     const excelBlob = new Blob([excelBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });

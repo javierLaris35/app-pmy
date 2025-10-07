@@ -29,6 +29,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoaderWithOverlay } from "@/components/loader";
 import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAlertModal";
 
+// Añadir el nuevo modal para completar datos
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+
 // Hook useLocalStorage
 function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {
@@ -112,7 +122,103 @@ interface Props {
   onSuccess: () => void;
 }
 
-// Componente auxiliar para mostrar cada paquete
+// Componente para el modal de completar datos
+interface CompleteDataModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  package: Shipment | null;
+  onSave: (trackingNumber: string, data: { recipientName: string; recipientAddress: string; recipientPhone: string }) => void;
+}
+
+const CompleteDataModal = ({ isOpen, onClose, package: pkg, onSave }: CompleteDataModalProps) => {
+  const [formData, setFormData] = useState({
+    recipientName: "",
+    recipientAddress: "",
+    recipientPhone: ""
+  });
+
+  useEffect(() => {
+    if (pkg) {
+      setFormData({
+        recipientName: pkg.recipientName || "",
+        recipientAddress: pkg.recipientAddress || "",
+        recipientPhone: pkg.recipientPhone || ""
+      });
+    }
+  }, [pkg]);
+
+  const handleSave = () => {
+    if (pkg && formData.recipientName && formData.recipientAddress && formData.recipientPhone) {
+      onSave(pkg.trackingNumber, formData);
+      onClose();
+    }
+  };
+
+  const handleClose = () => {
+    setFormData({ recipientName: "", recipientAddress: "", recipientPhone: "" });
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Completar datos del paquete</DialogTitle>
+          <DialogDescription>
+            Complete la información del destinatario para el paquete <b>{pkg?.trackingNumber}</b>
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="recipientName">Nombre del destinatario *</Label>
+            <Input
+              id="recipientName"
+              value={formData.recipientName}
+              onChange={(e) => setFormData(prev => ({ ...prev, recipientName: e.target.value }))}
+              placeholder="Ingrese el nombre completo"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="recipientAddress">Dirección *</Label>
+            <Textarea
+              id="recipientAddress"
+              value={formData.recipientAddress}
+              onChange={(e) => setFormData(prev => ({ ...prev, recipientAddress: e.target.value }))}
+              placeholder="Ingrese la dirección completa"
+              rows={3}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="recipientPhone">Teléfono *</Label>
+            <Input
+              id="recipientPhone"
+              value={formData.recipientPhone}
+              onChange={(e) => setFormData(prev => ({ ...prev, recipientPhone: e.target.value }))}
+              placeholder="Ingrese el número de teléfono"
+            />
+          </div>
+        </div>
+        
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={handleClose}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSave}
+            disabled={!formData.recipientName || !formData.recipientAddress || !formData.recipientPhone}
+          >
+            Guardar datos
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Componente auxiliar para mostrar cada paquete - MODIFICADO
 const PackageItem = ({ 
   pkg, 
   onRemove, 
@@ -120,7 +226,8 @@ const PackageItem = ({
   selectedReasons, 
   onSelectReason, 
   openPopover, 
-  setOpenPopover 
+  setOpenPopover,
+  onCompleteData
 }: {
   pkg: Shipment;
   onRemove: (trackingNumber: string) => void;
@@ -129,6 +236,7 @@ const PackageItem = ({
   onSelectReason: (id: string, value: string) => void;
   openPopover: string | null;
   setOpenPopover: (value: string | null) => void;
+  onCompleteData: (pkg: Shipment) => void;
 }) => {
   const formatMexicanPhoneNumber = (phone: string): string => {
     const cleaned = phone.replace(/\D/g, "");
@@ -143,6 +251,9 @@ const PackageItem = ({
     }
     return phone;
   };
+
+  // Verificar si el paquete necesita datos completos
+  const needsData = pkg.isValid && (!pkg.recipientName || !pkg.recipientAddress || !pkg.recipientPhone);
 
   const options = Object.entries(TrackingNotFoundEnum).map(([key, value]) => ({
     key,
@@ -159,6 +270,12 @@ const PackageItem = ({
             <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
               {pkg.isValid ? "Válido" : "Inválido"}
             </Badge>
+            
+            {needsData && (
+              <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                Datos incompletos
+              </Badge>
+            )}
             
             {pkg.priority && (
               <Badge
@@ -216,22 +333,37 @@ const PackageItem = ({
           
           {pkg.isValid && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
-              {pkg.recipientAddress && (
+              {pkg.recipientAddress ? (
                 <div className="flex items-start gap-1">
                   <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span className="line-clamp-1 text-xs">{pkg.recipientAddress}</span>
                 </div>
+              ) : (
+                <div className="flex items-start gap-1 text-yellow-600">
+                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span className="line-clamp-1 text-xs">Dirección no disponible</span>
+                </div>
               )}
-              {pkg.recipientName && (
+              {pkg.recipientName ? (
                 <div className="flex items-center gap-1">
                   <User className="w-4 w-4" />
                   <span className="text-xs">{pkg.recipientName}</span>
                 </div>
+              ) : (
+                <div className="flex items-center gap-1 text-yellow-600">
+                  <User className="w-4 w-4" />
+                  <span className="text-xs">Nombre no disponible</span>
+                </div>
               )}
-              {pkg.recipientPhone && (
+              {pkg.recipientPhone ? (
                 <div className="flex items-center gap-1">
                   <Phone className="w-4 w-4" />
                   <span className="text-xs">{formatMexicanPhoneNumber(pkg.recipientPhone)}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-yellow-600">
+                  <Phone className="w-4 w-4" />
+                  <span className="text-xs">Teléfono no disponible</span>
                 </div>
               )}
             </div>
@@ -246,6 +378,18 @@ const PackageItem = ({
         </div>
         
         <div className="flex flex-col items-end gap-2">
+          {needsData && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onCompleteData(pkg)}
+              disabled={isLoading}
+              className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"
+            >
+              Completar datos
+            </Button>
+          )}
+          
           {!pkg.isValid && (
             <Popover
               open={openPopover === pkg.trackingNumber}
@@ -411,9 +555,69 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
   const [shownExpiringPackages, setShownExpiringPackages] = useState<Set<string>>(new Set());
 
+  // NUEVOS ESTADOS para el modal de completar datos
+  const [completeDataModalOpen, setCompleteDataModalOpen] = useState(false);
+  const [selectedPackageForData, setSelectedPackageForData] = useState<Shipment | null>(null);
+  const [packagesNeedingData, setPackagesNeedingData] = useState<Shipment[]>([]);
+
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  // Función para verificar si un paquete necesita datos
+  const checkPackageNeedsData = useCallback((pkg: Shipment): boolean => {
+    return pkg.isValid && (!pkg.recipientName || !pkg.recipientAddress || !pkg.recipientPhone);
+  }, []);
+
+  // Función para encontrar paquetes que necesitan datos
+  const findPackagesNeedingData = useCallback((shipmentsList: Shipment[]): Shipment[] => {
+    return shipmentsList.filter(checkPackageNeedsData);
+  }, [checkPackageNeedsData]);
+
+  // Efecto para actualizar la lista de paquetes que necesitan datos
+  useEffect(() => {
+    const packagesWithMissingData = findPackagesNeedingData(shipments);
+    setPackagesNeedingData(packagesWithMissingData);
+    
+    // Si hay paquetes que necesitan datos, mostrar el modal automáticamente
+    if (packagesWithMissingData.length > 0 && !completeDataModalOpen) {
+      setSelectedPackageForData(packagesWithMissingData[0]);
+      setCompleteDataModalOpen(true);
+    }
+  }, [shipments, findPackagesNeedingData, completeDataModalOpen]);
+
+  // NUEVA FUNCIÓN para manejar el guardado de datos completados
+  const handleSavePackageData = useCallback((trackingNumber: string, data: { recipientName: string; recipientAddress: string; recipientPhone: string }) => {
+    setShipments(prev => 
+      prev.map(pkg => 
+        pkg.trackingNumber === trackingNumber 
+          ? { 
+              ...pkg, 
+              recipientName: data.recipientName,
+              recipientAddress: data.recipientAddress,
+              recipientPhone: data.recipientPhone
+            } 
+          : pkg
+      )
+    );
+
+    toast({
+      title: "Datos guardados",
+      description: `Se actualizaron los datos del paquete ${trackingNumber}`,
+    });
+  }, [setShipments, toast]);
+
+  // NUEVA FUNCIÓN para abrir el modal de completar datos
+  const handleOpenCompleteData = useCallback((pkg: Shipment) => {
+    setSelectedPackageForData(pkg);
+    setCompleteDataModalOpen(true);
+  }, []);
+
+  // NUEVA FUNCIÓN para cerrar el modal
+  const handleCloseCompleteData = useCallback(() => {
+    setCompleteDataModalOpen(false);
+    setSelectedPackageForData(null);
+  }, []);
 
   // Detectar estado de conexión
   useEffect(() => {
@@ -614,12 +818,53 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setCurrentExpiringIndex(0);
       setExpirationAlertOpen(true);
       
+      playExpirationSound() 
+
       // Agregar estos paquetes al conjunto de mostrados
       const newShownPackages = new Set(shownExpiringPackages);
       todayExpiringPackages.forEach(pkg => newShownPackages.add(pkg.trackingNumber));
       setShownExpiringPackages(newShownPackages);
     }
   }, [checkPackageExpiration, shownExpiringPackages]);
+
+  // Función para reproducir sonido (MEJORADA)
+  const playExpirationSound = () => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Alerta clara y urgente
+      oscillator.type = 'square'; // Sonido más "duro"
+      
+      // Dos pitidos rápidos (como alarma)
+      const now = audioContext.currentTime;
+      
+      // Primer pitido
+      oscillator.frequency.setValueAtTime(1000, now);
+      gainNode.gain.setValueAtTime(0.2, now);
+      gainNode.gain.setValueAtTime(0, now + 0.1);
+      
+      // Breve silencio
+      gainNode.gain.setValueAtTime(0, now + 0.1);
+      
+      // Segundo pitido
+      oscillator.frequency.setValueAtTime(1000, now + 0.15);
+      gainNode.gain.setValueAtTime(0.2, now + 0.15);
+      gainNode.gain.setValueAtTime(0, now + 0.25);
+      
+      oscillator.start(now);
+      oscillator.stop(now + 0.3);
+      
+    } catch (error) {
+      console.log('Error reproduciendo sonido:', error);
+    }
+  };
 
   const getDaysUntilExpiration = useCallback((commitDateTime: string) => {
     const commitDate = new Date(commitDateTime);
@@ -1243,6 +1488,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                       <Badge variant="outline" className="ml-2">
                         {filteredValidShipments.length} de {validShipments.length}
                       </Badge>
+                      {packagesNeedingData.length > 0 && (
+                        <Badge variant="destructive" className="ml-2">
+                          {packagesNeedingData.length} necesitan datos
+                        </Badge>
+                      )}
                     </h3>
 
                     <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
@@ -1257,6 +1507,18 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>Paquete no válido para descarga</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 cursor-help">
+                            <Badge className="h-4 px-1 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Datos incompletos</Badge>
+                            <span>Datos faltantes</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Paquete válido pero falta información del destinatario</p>
                         </TooltipContent>
                       </Tooltip>
 
@@ -1385,6 +1647,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                       <TabsTrigger value="validos" className="flex items-center gap-1">
                         <Check className="h-4 w-4"/>
                         Válidos ({validShipments.length})
+                        {packagesNeedingData.length > 0 && (
+                          <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 text-xs">
+                            {packagesNeedingData.length}
+                          </Badge>
+                        )}
                       </TabsTrigger>
                       <TabsTrigger value="faltantes" className="flex items-center gap-1">
                         <CircleAlertIcon className="h-4 w-4"/>
@@ -1410,6 +1677,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                                       onSelectReason={handleSelectMissingTracking}
                                       openPopover={openPopover}
                                       setOpenPopover={setOpenPopover}
+                                      onCompleteData={handleOpenCompleteData}
                                   />
                               ))}
                             </div>
@@ -1492,6 +1760,12 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                       <span className="text-amber-600 font-semibold">{surplusTrackings.length}</span>
                       <span>sobrantes</span>
                     </div>
+                    {packagesNeedingData.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-yellow-600 font-semibold">{packagesNeedingData.length}</span>
+                        <span>necesitan datos</span>
+                      </div>
+                    )}
                   </div>
                 </div>
             )}
@@ -1525,7 +1799,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
 
                 <Button
                     onClick={handleUnloading}
-                    disabled={isLoading || !canUnload}
+                    disabled={isLoading || !canUnload || packagesNeedingData.length > 0}
                     className="gap-2"
                 >
                   {isLoading ? (
@@ -1534,6 +1808,11 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                       <Send className="h-4 w-4"/>
                   )}
                   Procesar descarga
+                  {packagesNeedingData.length > 0 && (
+                    <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 text-xs">
+                      {packagesNeedingData.length}
+                    </Badge>
+                  )}
                 </Button>
 
                 <TooltipProvider>
@@ -1554,10 +1833,22 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                <Button onClick={playExpirationSound}>
+                  Probar sonido de expiración
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
+        
+        {/* MODAL PARA COMPLETAR DATOS */}
+        <CompleteDataModal
+          isOpen={completeDataModalOpen}
+          onClose={handleCloseCompleteData}
+          package={selectedPackageForData}
+          onSave={handleSavePackageData}
+        />
+        
         <ExpirationAlertModal
             isOpen={expirationAlertOpen}
             onClose={handleNextExpiring}

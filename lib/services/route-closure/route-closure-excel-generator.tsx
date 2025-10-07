@@ -47,7 +47,7 @@ export async function generateRouteClosureExcel(
   const { subsidiary, vehicle, shipments, trackingNumber, drivers, routes, createdAt, kms } = packageDispatch;
 
   const validReturns = returnedPackages.filter(p => p.isValid);
-  const originalCount = shipments?.length || 0;
+  const originalCount = packageDispatchShipments?.length || 0;
   const deliveredCount = Math.max(0, originalCount - validReturns.length);
   const returnRate = originalCount > 0 ? (validReturns.length / originalCount) * 100 : 0;
   const podDeliveredCount = podPackages?.length || 0;
@@ -381,11 +381,16 @@ export async function generateRouteClosureExcel(
     column.width = maxLength + 2;
   });
 
-  // Generar archivo
-  if (forDownload) {
-    const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `Cierre_Ruta_${currentDate}.xlsx`);
-  } else {
-    return workbook;
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  if(forDownload) {
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    saveAs(blob, `CIERRE DE RUTA ${packageDispatch?.drivers[0]?.name.toUpperCase()}--${packageDispatch?.subsidiary?.name}--Salida a Ruta--${createdAt.replace(/\//g, "-")}.xlsx`);
   }
+
+  return buffer;
 }
