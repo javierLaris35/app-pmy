@@ -575,7 +575,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   }, [checkPackageNeedsData]);
 
   // Efecto para actualizar la lista de paquetes que necesitan datos
-  useEffect(() => {
+  /*useEffect(() => {
     const packagesWithMissingData = findPackagesNeedingData(shipments);
     setPackagesNeedingData(packagesWithMissingData);
     
@@ -584,7 +584,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setSelectedPackageForData(packagesWithMissingData[0]);
       setCompleteDataModalOpen(true);
     }
-  }, [shipments, findPackagesNeedingData, completeDataModalOpen]);
+  }, [shipments, findPackagesNeedingData, completeDataModalOpen]);*/
 
   // NUEVA FUNCIÓN para manejar el guardado de datos completados
   const handleSavePackageData = useCallback((trackingNumber: string, data: { recipientName: string; recipientAddress: string; recipientPhone: string }) => {
