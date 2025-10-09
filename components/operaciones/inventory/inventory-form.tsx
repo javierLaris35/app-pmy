@@ -755,11 +755,17 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
   const handleExportPDF = async () => {
     setIsLoading(true);
     try {
+      const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
+      const shipments = validPackages.filter(p => !p.isCharge);
+      const chargeShipments = validPackages.filter(p => p.isCharge);
+
       const report: InventoryRequest = {
         id: `INV-${Date.now()}`,
-        date: new Date().toISOString(),
+        trackingNumber: '1234567890123',
+        inventoryDate: new Date().toISOString(),
         subsidiary: { id: user?.subsidiary?.id ?? "", name: user?.subsidiary?.name ?? "" },
-        packages: packages.filter(p => !p.isPendingValidation) as unknown as PackageInfo[],
+        shipments: shipments,
+        chargeShipments: chargeShipments,
         missingTrackings,
         unScannedTrackings,
       };
@@ -778,11 +784,17 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
   const handleExportExcel = async () => {
     setIsLoading(true);
     try {
+      const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
+      const shipments = validPackages.filter(p => !p.isCharge);
+      const chargeShipments = validPackages.filter(p => p.isCharge);
+
       const report: InventoryRequest = {
         id: `INV-${Date.now()}`,
-        date: new Date().toISOString(),
+        trackingNumber: '1234567890123',
+        inventoryDate: new Date().toISOString(),
         subsidiary: { id: user?.subsidiary?.id ?? "", name: user?.subsidiary?.name ?? "" },
-        packages: packages.filter(p => !p.isPendingValidation) as unknown as PackageInfo[],
+        shipments: shipments,
+        chargeShipments: chargeShipments,
         missingTrackings,
         unScannedTrackings,
       };

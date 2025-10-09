@@ -10,28 +10,30 @@ export async function generateInventoryExcel(report: InventoryRequest, forDownlo
   const sheet = workbook.addWorksheet("Inventario");
   const timeZone = "America/Hermosillo";
   const packages = mapToPackageInfo(report.shipments, report.chargeShipments);
+  const currentDate = new Date();
 
   // === ENCABEZADO GENERAL ===
   const titleRow = sheet.addRow([`📦 Inventario`]);
   sheet.mergeCells(`A${titleRow.number}:H${titleRow.number}`);
   titleRow.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   titleRow.alignment = { vertical: "middle", horizontal: "center" };
-  for (let col = 1; col <= 8; col++) {
+  for (let col = 1; col <= 9; col++) {
     sheet.getCell(titleRow.number, col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "ef883a" } };
   }
 
   sheet.addRow([]);
   sheet.addRow([`Sucursal: ${report.subsidiary.name}`]);
+
   const createdAt = format(toZonedTime(new Date(report.inventoryDate), timeZone), "yyyy-MM-dd HH:mm");
   sheet.addRow([`Fecha: ${createdAt}`]);
   sheet.addRow([`Paquetes: ${packages.length}`]);
   sheet.addRow([]);
 
   // === ENCABEZADO DE COLUMNAS ===
-  const headerRow = sheet.addRow(["No.", "Guía", "Nombre", "Dirección", "Cobro", "Fecha", "Hora", "Celular"]);
+  const headerRow = sheet.addRow(["No.", "Guía", "Nombre", "Dirección", "CP", "Cobro", "Fecha", "Hora", "Celular"]);
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
-  for (let col = 1; col <= 8; col++) {
+  for (let col = 1; col <= 9; col++) {
     sheet.getCell(headerRow.number, col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "8c5e4e" } };
   }
 
@@ -46,6 +48,7 @@ export async function generateInventoryExcel(report: InventoryRequest, forDownlo
       pkg.trackingNumber,
       pkg.recipientName,
       pkg.recipientAddress,
+      pkg.recipientZip ?? '',
       pkg.payment ? `${pkg.payment.type} $${pkg.payment.amount}` : "",
       commitDate,
       commitTime,

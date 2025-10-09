@@ -71,7 +71,9 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
   
   console.log("🚀 ~ InventoryPDFReport ~ report:", report)
 
-  const createdDate = toZonedTime(new Date(report.inventoryDate), timeZone);
+  const createdDate = report.inventoryDate 
+    ? toZonedTime(new Date(report.inventoryDate), timeZone)
+    : toZonedTime(currentDate, timeZone);
   const reportDate = format(createdDate, "yyyy-MM-dd", { timeZone });
 
   const truncate = (text: string, maxLength: number): string =>
@@ -140,6 +142,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
               <Text style={{ width: 80 }}>GUÍA</Text>
               <Text style={{ width: 100 }}>NOMBRE</Text>
               <Text style={{ width: 110 }}>DIRECCIÓN</Text>
+              <Text style={{ width: 50 }}>CP</Text>
               <Text style={{ width: 70 }}>COBRO</Text>
               <Text style={{ width: 60 }}>FECHA</Text>
               <Text style={{ width: 50 }}>HORA</Text>
@@ -149,6 +152,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
               const zoned = pkg.commitDateTime ? toZonedTime(new Date(pkg.commitDateTime), timeZone) : null;
               const commitDate = zoned ? format(zoned, "yyyy-MM-dd", { timeZone }) : "N/A";
               const commitTime = zoned ? format(zoned, "HH:mm", { timeZone }) : "N/A";
+              const zipCode = pkg.recipientZip ?? '';
 
               // Formato completo del pago
               const paymentText = pkg.payment ? 
@@ -165,6 +169,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
                   <Text style={{ width: 80 }}>{pkg.trackingNumber}</Text>
                   <Text style={{ width: 100 }}>{truncate(pkg.recipientName || "", 20)}</Text>
                   <Text style={{ width: 110 }}>{truncate(pkg.recipientAddress || "", 22)}</Text>
+                  <Text style={{ width: 50 }}>{zipCode}</Text>
                   <Text style={{ width: 70 }}>{paymentText}</Text>
                   <Text style={{ width: 60 }}>{commitDate}</Text>
                   <Text style={{ width: 50 }}>{commitTime}</Text>
