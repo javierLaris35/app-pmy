@@ -816,7 +816,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     if (todayExpiringPackages.length > 0) {
       setExpiringPackages(todayExpiringPackages);
       setCurrentExpiringIndex(0);
-      setExpirationAlertOpen(true);
+      //No mostrar el Alert en lo que encuentrar más gente
+      //setExpirationAlertOpen(true);
       
       playExpirationSound() 
 
@@ -1336,20 +1337,6 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     
     setIsLoading(false);
   }
-
-  const formatMexicanPhoneNumber = (phone: string): string => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 10) {
-      return `+52 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    if (cleaned.length === 12 && cleaned.startsWith("52")) {
-      return `+52 (${cleaned.slice(2, 5)}) ${cleaned.slice(5, 8)}-${cleaned.slice(8)}`;
-    }
-    if (cleaned.length === 13 && cleaned.startsWith("521")) {
-      return `+52 (${cleaned.slice(3, 6)}) ${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
-    }
-    return phone;
-  };
 
   const validShipments = shipments.filter((p) => p.isValid);
   const canUnload = selectedUnidad && validShipments.length > 0;

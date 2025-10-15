@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import classNames from "classnames";
-import { Label } from "./ui/label";
 import { Scan } from "lucide-react";
+import { Label } from "../ui/label";
 
 export interface BarcodeScannerInputHandle {
   focus: () => void;

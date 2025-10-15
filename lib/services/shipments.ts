@@ -1,6 +1,8 @@
 import { format, toZonedTime } from 'date-fns-tz';
 import { axiosConfig } from "../axios-config";
-import { Shipment } from "../types";
+import { SearchShipmentDto, Shipment } from "../types";
+
+const url = '/shipments'
 
 //GET
   const getShipments = async (url: string) => { 
@@ -96,7 +98,6 @@ import { Shipment } from "../types";
 
     return response.data;
   }
-
 
   export async function uploadHighValueShipments(file: File,
     subsidiaryId: string,
@@ -212,6 +213,11 @@ import { Shipment } from "../types";
     })
 
     return response.data
+  }
+
+  export const searchPackageInfo = async (trackingNumber: string): Promise<SearchShipmentDto> => {
+    const response = await axiosConfig.get<SearchShipmentDto>(`${url}/search-by-trackingnumber/${trackingNumber}`);
+    return response.data;
   }
 
 export {

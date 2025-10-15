@@ -17,7 +17,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input";
-import { BarcodeScannerInput } from "../barcode-scanner-input";
+import { BarcodeScannerInput } from "../barcode-input/barcode-scanner-input-list";
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

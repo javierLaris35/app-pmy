@@ -530,6 +530,37 @@ export interface PackageInfo {
   status?: ShipmentStatusType
 }
 
+export interface SearchShipmentDto {
+  trackingNumber: string
+  commitDateTime: string
+  payment: {
+    type: string
+    amount: number
+  }
+  recipient: {
+        name: string;
+        address: string;
+        phoneNumber: string;
+        zipCode: string
+  }
+  prority: Priority
+  status: string
+  subsidiary: string
+  unloading: {
+    id: string
+    trackingNumber: string
+  }
+  route?:
+    | {
+        id: string
+        trackingNumber: string
+        driver: {
+          name: string
+        }
+      }
+    | null
+}
+
 export interface Unloading {
   id: string;
   trackingNumber: string;

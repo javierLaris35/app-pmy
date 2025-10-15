@@ -153,13 +153,13 @@ export default function UnLoadingPageControl() {
                     </DialogHeader>
 
                     <UnloadingForm
-                    selectedSubsidiaryId={selectedSucursalId}
-                    subsidiaryName={selectedSucursalName}
-                    onClose={() => setIsUnloadingDialogOpen(false)} // esto cierra correctamente
-                    onSuccess={() => {
-                        mutate()
-                        setIsUnloadingDialogOpen(false)
-                    }}
+                        selectedSubsidiaryId={selectedSucursalId}
+                        subsidiaryName={selectedSucursalName}
+                        onClose={() => setIsUnloadingDialogOpen(false)} // esto cierra correctamente
+                        onSuccess={() => {
+                            mutate()
+                            setIsUnloadingDialogOpen(false)
+                        }}
                     />
                 </DialogContent>
             </Dialog>

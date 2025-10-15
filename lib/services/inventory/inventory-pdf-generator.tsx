@@ -10,7 +10,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import { format, toZonedTime } from "date-fns-tz";
-import { InventoryReport, InventoryRequest } from "@/lib/types";
+import { InventoryRequest } from "@/lib/types";
 import { mapToPackageInfo } from "@/lib/utils";
 
 Font.register({ family: "Helvetica", src: undefined });
@@ -29,26 +29,115 @@ const colors = {
 };
 
 const styles = StyleSheet.create({
-  page: { padding: 15, fontSize: 8, fontFamily: "Helvetica", flexDirection: "column", backgroundColor: "#FFFFFF" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10, paddingBottom: 8, borderBottom: `2px solid ${colors.primary}` },
+  page: {
+    padding: 15,
+    fontSize: 8,
+    fontFamily: "Helvetica",
+    flexDirection: "column",
+    backgroundColor: "#FFFFFF",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottom: `2px solid ${colors.primary}`,
+  },
   logo: { width: 45, height: 45 },
-  headerText: { fontSize: 14, fontWeight: "bold", color: colors.primary, textAlign: "center" },
+  headerText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: colors.primary,
+    textAlign: "center",
+  },
   dateText: { fontSize: 8, color: colors.dark, textAlign: "right" },
-  compactGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 10, padding: 8, backgroundColor: colors.light, borderRadius: 4, border: `1px solid ${colors.border}` },
+  compactGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    padding: 8,
+    backgroundColor: colors.light,
+    borderRadius: 4,
+    border: `1px solid ${colors.border}`,
+  },
   compactItem: { width: "32%", marginBottom: 5 },
-  compactLabel: { fontSize: 7, fontWeight: "bold", color: colors.primary, marginBottom: 2 },
+  compactLabel: {
+    fontSize: 7,
+    fontWeight: "bold",
+    color: colors.primary,
+    marginBottom: 2,
+  },
   compactValue: { fontSize: 8, color: colors.dark, fontWeight: "bold" },
   mainContainer: { flexDirection: "column", marginBottom: 10 },
-  tableContainer: { border: `1px solid ${colors.border}`, borderRadius: 4, marginBottom: 10 },
-  tableHeader: { flexDirection: "row", backgroundColor: colors.primary, color: "white", padding: 4, fontSize: 7, fontWeight: "bold" },
-  tableRow: { flexDirection: "row", borderBottom: `1px solid ${colors.border}`, fontSize: 7, padding: 3, minHeight: 16 },
+  tableContainer: {
+    border: `1px solid ${colors.border}`,
+    borderRadius: 4,
+    marginBottom: 10,
+  },
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: colors.primary,
+    color: "white",
+    paddingVertical: 6, // más alto
+    paddingHorizontal: 2,
+    fontSize: 7,
+    fontWeight: "bold",
+    minHeight: 20, // alto mínimo del encabezado
+    lineHeight: 1.4, // línea más espaciada
+  },
+  tableRow: {
+    flexDirection: "row",
+    borderBottom: `1px solid ${colors.border}`,
+    fontSize: 7,
+    paddingVertical: 4, // más alto
+    paddingHorizontal: 2,
+    minHeight: 18,
+    lineHeight: 1.3,
+  },
   tableRowEven: { backgroundColor: colors.light },
-  sectionTitle: { fontSize: 10, fontWeight: "bold", color: colors.primary, marginBottom: 6, padding: 4, textAlign: "center", backgroundColor: colors.light, borderRadius: 3, border: `1px solid ${colors.border}` },
-  statsContainer: { flexDirection: "row", justifyContent: "space-between", marginTop: 12, flexWrap: "wrap" },
-  statBox: { width: "23%", border: `1px solid ${colors.primary}`, borderRadius: 3, padding: 6, alignItems: "center", marginBottom: 5, backgroundColor: colors.light },
-  statTitle: { fontSize: 7, fontWeight: "bold", color: colors.primary, textAlign: "center", marginBottom: 2 },
+  sectionTitle: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: colors.primary,
+    marginBottom: 6,
+    padding: 4,
+    textAlign: "center",
+    backgroundColor: colors.light,
+    borderRadius: 3,
+    border: `1px solid ${colors.border}`,
+  },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  statBox: {
+    width: "23%",
+    border: `1px solid ${colors.primary}`,
+    borderRadius: 3,
+    padding: 6,
+    alignItems: "center",
+    marginBottom: 5,
+    backgroundColor: colors.light,
+  },
+  statTitle: {
+    fontSize: 7,
+    fontWeight: "bold",
+    color: colors.primary,
+    textAlign: "center",
+    marginBottom: 2,
+  },
   statValue: { fontSize: 12, fontWeight: "bold", color: colors.dark, textAlign: "center" },
-  signatureContainer: { flexDirection: "row", justifyContent: "space-between", marginTop: 15, borderTop: `1px solid ${colors.border}`, paddingTop: 10 },
+  signatureContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 15,
+    borderTop: `1px solid ${colors.border}`,
+    paddingTop: 10,
+  },
   signatureBox: { width: "48%", alignItems: "center" },
   signatureLine: { borderTop: `1px solid ${colors.dark}`, width: "80%", paddingTop: 3, marginBottom: 3 },
   signatureText: { fontSize: 9, color: colors.dark, textAlign: "center", fontWeight: "bold" },
@@ -68,8 +157,6 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
   const currentDate = new Date();
   const formattedDate = format(currentDate, "yyyy-MM-dd", { timeZone });
   const formattedTime = format(currentDate, "HH:mm:ss", { timeZone });
-  
-  console.log("🚀 ~ InventoryPDFReport ~ report:", report)
 
   const createdDate = report.inventoryDate 
     ? toZonedTime(new Date(report.inventoryDate), timeZone)
@@ -81,7 +168,6 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
 
   const packages = mapToPackageInfo(report.shipments, report.chargeShipments);
 
-  // Estadísticas
   const validPackages = packages.filter(p => p.isValid);
   const chargePackages = packages.filter(p => p.isCharge);
   const highValuePackages = packages.filter(p => p.isHighValue);
@@ -102,7 +188,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
           </View>
         </View>
 
-        {/* Información general compacta */}
+        {/* Información compacta */}
         <View style={styles.compactGrid}>
           <View style={styles.compactItem}>
             <Text style={styles.compactLabel}>SUCURSAL</Text>
@@ -130,12 +216,12 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
           </View>
         </View>
 
-        {/* Tabla de paquetes - COLUMNAS MÁS ANCHAS */}
+        {/* Tabla de paquetes */}
         <View>
           <Text style={styles.sectionTitle}>
             PAQUETES DEL INVENTARIO ({packages.length})
           </Text>
-          
+
           <View style={styles.tableContainer}>
             <View style={styles.tableHeader}>
               <Text style={{ width: 25 }}>#</Text>
@@ -147,16 +233,13 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
               <Text style={{ width: 60 }}>FECHA</Text>
               <Text style={{ width: 50 }}>HORA</Text>
             </View>
-            
+
             {packages.map((pkg, i) => {
               const zoned = pkg.commitDateTime ? toZonedTime(new Date(pkg.commitDateTime), timeZone) : null;
               const commitDate = zoned ? format(zoned, "yyyy-MM-dd", { timeZone }) : "N/A";
               const commitTime = zoned ? format(zoned, "HH:mm", { timeZone }) : "N/A";
               const zipCode = pkg.recipientZip ?? '';
-
-              // Formato completo del pago
-              const paymentText = pkg.payment ? 
-                `${pkg.payment.type} $${pkg.payment.amount}` : "";
+              const paymentText = pkg.payment ? `${pkg.payment.type} $${pkg.payment.amount}` : "";
 
               return (
                 <View style={[styles.tableRow, i % 2 === 0 && styles.tableRowEven]} key={i}>
@@ -179,7 +262,7 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
           </View>
         </View>
 
-        {/* Estadísticas abajo */}
+        {/* Estadísticas */}
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
             <Text style={styles.statTitle}>TOTAL PAQUETES</Text>
@@ -202,7 +285,6 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
         {/* Guías faltantes y sin escaneo */}
         {(missingTrackings.length > 0 || unScannedTrackings.length > 0) && (
           <View style={styles.trackingListsContainer}>
-            {/* Guías faltantes */}
             {missingTrackings.length > 0 && (
               <View style={styles.trackingList}>
                 <Text style={styles.sectionTitle}>
@@ -223,7 +305,6 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
               </View>
             )}
 
-            {/* Guías sin escaneo */}
             {unScannedTrackings.length > 0 && (
               <View style={styles.trackingList}>
                 <Text style={styles.sectionTitle}>
@@ -245,7 +326,6 @@ export const InventoryPDFReport = ({ report }: { report: InventoryRequest }) => 
             )}
           </View>
         )}
-
 
         {/* Firmas */}
         <View style={styles.signatureContainer}>

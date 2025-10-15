@@ -5,6 +5,8 @@ import "@/styles/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import HistoryTracker from "@/app/HistoryTracker";
+import { Suspense } from "react"
+import { CommandPalette } from "@/components/search-packages/search-package"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -30,7 +32,10 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <TooltipProvider>
                 <HistoryTracker/>
-                {children}
+                <Suspense fallback={null}>
+                  {children}
+                  <CommandPalette />
+                </Suspense>
             </TooltipProvider>
         </ThemeProvider>
       </body>

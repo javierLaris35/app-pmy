@@ -30,7 +30,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 120,
     height: 120,
-    //marginRight: 10,
   },
   leftHeader: {
     flex: 1,
@@ -49,12 +48,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: 'bold',
-    marginBottom: 2
+    marginBottom: 2,
   },
   subTitle: {
     fontSize: 11,
     fontWeight: 'bold',
-    marginTop: 2
+    marginTop: 2,
   },
   section: {
     marginBottom: 6,
@@ -97,13 +96,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   trackingSection: {
-    marginTop: 12, // Increased spacing to separate from packages table
-    borderTop: '1px solid #ccc', // Adds a top border to visually separate sections
+    marginTop: 12,
+    borderTop: '1px solid #ccc',
   },
   trackingRow: {
-    fontSize: 9, // Matches tableRow font size
-    padding: 4, // Matches tableRow padding
-    borderBottom: '1px solid #ccc', // Matches tableRow border
+    fontSize: 9,
+    padding: 4,
+    borderBottom: '1px solid #ccc',
     flexDirection: 'row',
   },
 });
@@ -114,7 +113,7 @@ export const UnloadingPDFReport = ({
   subsidiaryName,
   missingPackages,
   unScannedPackages,
-  unloadingTrackigNumber
+  unloadingTrackigNumber,
 }: {
   vehicle: Vehicles;
   packages: PackageInfo[];
@@ -126,9 +125,6 @@ export const UnloadingPDFReport = ({
   const packagesMissing = missingPackages ?? [];
   const packagesUnScanned = unScannedPackages ?? [];
 
-  console.log("🚀 ~ UnloadingPDFReport ~ unScannedPackages:", packagesUnScanned)
-  console.log("🚀 ~ UnloadingPDFReport ~ missingPackages:", packagesMissing)
-  
   const timeZone = 'America/Hermosillo';
   const currentDate = new Date();
   const formattedDate = format(currentDate, 'yyyy-MM-dd', { timeZone });
@@ -144,9 +140,9 @@ export const UnloadingPDFReport = ({
         <View style={styles.header}>
           <View style={styles.leftHeader}>
             <Text style={styles.title}>Desembarque</Text>
-            
+
             <Text style={styles.cell}>Información</Text>
-            
+
             <View style={styles.row}>
               <Text style={styles.cell}>Sucursal:</Text>
               <Text>{subsidiaryName}</Text>
@@ -162,10 +158,9 @@ export const UnloadingPDFReport = ({
             </View>
             <Text>Fecha: {formattedDate}</Text>
           </View>
-          
-          <View style={styles.centerHeader}>
-            
-          </View>
+
+          <View style={styles.centerHeader}></View>
+
           <View style={styles.rightHeader}>
             <Image src="/logo-no-fondo.png" style={styles.logo} />
           </View>
@@ -178,7 +173,6 @@ export const UnloadingPDFReport = ({
                 Simbología: [C] Carga/F2/31.5 [$] Pago [H] Valor alto
               </Text>
             </View>
-            <View>
             <View style={styles.column}>
               <View style={styles.row}>
                 <Text style={styles.cell}>Número de seguimiento:</Text>
@@ -186,30 +180,29 @@ export const UnloadingPDFReport = ({
               </View>
             </View>
           </View>
-          </View>
         </View>
 
+        {/* 🟤 Tabla principal con más espacio en Nombre y Dirección */}
         <View style={styles.tableHeader}>
           <Text style={{ width: 25 }}>[#]</Text>
           <Text style={{ width: 63 }}>No. Guia</Text>
-          <Text style={{ width: 145 }}>Nombre</Text>
-          <Text style={{ width: 155 }}>Dirección</Text>
-          <Text style={{ width: 65 }}>Cobro</Text>
+          <Text style={{ width: 175 }}>Nombre</Text>
+          <Text style={{ width: 185 }}>Dirección</Text>
+          <Text style={{ width: 40 }}>C.P.</Text>
+          <Text style={{ width: 55 }}>Cobro</Text>
           <Text style={{ width: 55 }}>Fecha</Text>
           <Text style={{ width: 45 }}>Hora</Text>
-          <Text style={{ width: 55 }}>Celular</Text>
+          <Text style={{ width: 50 }}>Celular</Text>
         </View>
 
         {packages.map((pkg, i) => {
-          const icons = `${pkg.isCharge ? '[C]' : ''}${
-            pkg.payment ? '[$]' : ''
-          }${pkg.isHighValue ? '[H]' : ''}`;
-
+          const icons = `${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
           const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
           const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
           const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
-          const recipientName = pkg.recipientName ?? "";
-          const recipientAddress = pkg.recipientAddress ?? "";
+          const recipientName = pkg.recipientName ?? '';
+          const recipientAddress = pkg.recipientAddress ?? '';
+          const recipientZip = pkg.recipientZip ?? '';
 
           return (
             <View style={styles.tableRow} key={i}>
@@ -217,15 +210,15 @@ export const UnloadingPDFReport = ({
                 {icons} {i + 1}
               </Text>
               <Text style={{ width: 63 }}>{pkg.trackingNumber}</Text>
-              <Text style={{ width: 145 }}>{truncate(recipientName, 26)}</Text>
-              <Text style={{ width: 155 }}>{truncate(recipientAddress, 28)}</Text>
-              <Text style={{ width: 65 }}>
-                {pkg.payment?.amount != null ? `${pkg.payment.type } $${pkg.payment.amount}` : ''}
+              <Text style={{ width: 175 }}>{truncate(recipientName, 32)}</Text>
+              <Text style={{ width: 185 }}>{truncate(recipientAddress, 38)}</Text>
+              <Text style={{ width: 40 }}>{recipientZip}</Text>
+              <Text style={{ width: 55 }}>
+                {pkg.payment?.amount != null ? `${pkg.payment.type} $${pkg.payment.amount}` : ''}
               </Text>
               <Text style={{ width: 55 }}>{commitDate}</Text>
               <Text style={{ width: 45 }}>{commitTime}</Text>
-              <Text style={{ width: 55 }}>{pkg.recipientPhone}</Text>
-              <Text style={{ width: 90 }}></Text>
+              <Text style={{ width: 50 }}>{pkg.recipientPhone}</Text>
             </View>
           );
         })}
@@ -236,9 +229,10 @@ export const UnloadingPDFReport = ({
             {packagesMissing.map((missing, i) => (
               <View style={styles.trackingRow} key={`missing-${i}`}>
                 <Text style={{ width: 70 }}>{missing.trackingNumber}</Text>
-                <Text style={{ width: 145 }}>{missing.recipientAddress ?? 'Sin Dirección'}</Text>
-                <Text style={{ width: 155 }}>{missing.recipientName ?? 'Sin Nombre'}</Text>
-                <Text style={{ width: 55 }}>{missing.recipientPhone ?? 'Sin Teléfono'}</Text>
+                <Text style={{ width: 175 }}>{missing.recipientName ?? 'Sin Nombre'}</Text>
+                <Text style={{ width: 185 }}>{missing.recipientAddress ?? 'Sin Dirección'}</Text>
+                <Text style={{ width: 50 }}>{missing.recipientZip ?? 'No CP'}</Text>
+                <Text style={{ width: 50 }}>{missing.recipientPhone ?? 'Sin Teléfono'}</Text>
               </View>
             ))}
           </View>
