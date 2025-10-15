@@ -17,7 +17,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input";
-import { BarcodeScannerInput } from "../barcode-input/barcode-scanner-input-list";
+import { BarcodeScannerInput } from "../barcode-scanner-input";
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -222,8 +222,10 @@ const PackageDispatchForm: React.FC<Props> = ({
   }, [user]);
 
   const validatePackageForDispatch = async (trackingNumber: string): Promise<PackageInfo> => {
+    console.log("🚀 ~ validatePackageForDispatch ~ trackingNumber:", trackingNumber)
     try {
       const shipment = await validateTrackingNumber(trackingNumber, selectedSubsidiaryId);
+      console.log("🚀 ~ validatePackageForDispatch ~ shipment:", shipment)
       return shipment;
     } catch (error) {
       console.warn("Error validando paquete, modo offline:", error);
@@ -252,6 +254,8 @@ const PackageDispatchForm: React.FC<Props> = ({
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
+      
+    console.log("🚀 ~ handleValidatePackages ~ lines:", lines)
 
     const uniqueLines = Array.from(new Set(lines));
     const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn));
