@@ -1,0 +1,43 @@
+import { axiosConfig } from "@/lib/axios-config"
+
+const url = 'monitoring'
+
+const getConsolidateds = async(subsidiaryId: string) => {
+    const response = await axiosConfig.get(`${url}/consolidated/${subsidiaryId}`);
+    return response.data;
+}
+
+const getUnloadings = async(subsidiaryId: string) => {
+    const response = await axiosConfig.get(`${url}/unloading/${subsidiaryId}`);
+    return response.data;
+}
+
+const getPackageDispatchs = async(subsidiaryId: string) => {
+    const response = await axiosConfig.get(`${url}/package-dispatch/${subsidiaryId}`);
+    return response.data;
+}
+
+const getInfoFromPackageDispatch = async(packageDispatchId: string) => {
+    console.log("🚀 ~ getInfoFromPackageDispatch ~ packageDispatchId:", packageDispatchId)
+    const response = await axiosConfig.get(`${url}/package-dispatch-info/${packageDispatchId}`);
+    return response.data;
+}
+
+const getInfoFromUnloading = async(unloadingId: string) => {
+    const response = await axiosConfig.get(`${url}/unloading-info/${unloadingId}`);
+    return response.data;
+}
+
+const getInfoFromConsolidated = async(consolidatedId: string) => {
+    const response = await axiosConfig.get(`${url}/consolidated-info/${consolidatedId}`);
+    return response.data;
+}
+
+export {
+    getConsolidateds,
+    getUnloadings,
+    getPackageDispatchs,
+    getInfoFromPackageDispatch,
+    getInfoFromUnloading,
+    getInfoFromConsolidated
+}

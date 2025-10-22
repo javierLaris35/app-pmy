@@ -18,6 +18,7 @@ interface SearchResult {
   metadata?: string
   priority?: Priority
   commitDateTime?: string
+  paymentType?: string
   paymentAmount?: number
   address?: string
   phone?: string
@@ -98,6 +99,7 @@ export function CommandPalette() {
             metadata: data.status,
             priority: data.prority,
             commitDateTime: data.commitDateTime,
+            paymentType: data.payment?.type,
             paymentAmount: data.payment?.amount,
             address: data.recipient.address,
             phone: data.recipient.phoneNumber,
@@ -244,14 +246,14 @@ export function CommandPalette() {
                           {/* Pago */}
                           {result.paymentAmount !== undefined && result.paymentAmount > 0 && (
                             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                              ${result.paymentAmount}
+                               {result.paymentType} ${result.paymentAmount}
                             </span>
                           )}
                         </div>
 
                         {/* Subtítulos conductor/ruta */}
                         {result.subtitle && (
-                          <div className="text-xs text-muted-foreground truncate">
+                          <div className="text-muted-foreground truncate">
                             {result.subtitle.split("|").map((part) => {
                               const [key, value] = part.split(":")
                               return (
@@ -264,7 +266,7 @@ export function CommandPalette() {
                         )}
 
                         {/* Datos adicionales */}
-                        <div className="text-xs text-muted-foreground space-y-0.5">
+                        <div className="text-muted-foreground space-y-0.5">
                           {result.subsidiary && <div><b>Sucursal:</b> {result.subsidiary}</div>}
                           {result.address && <div><b>Dirección:</b> {result.address}</div>}
                           {result.phone && <div><b>Teléfono:</b> {result.phone}</div>}

@@ -103,13 +103,13 @@ export const sidebarMenu = {
           roles: allowedPageRoles.operaciones.inventarios,
           isActive: false
         },
-        /*{
+        {
           name: "Monitoreo",
           url: "/operaciones/monitoreo",
           icon: MonitorCheckIcon,
-          roles: allowedPageRoles.operaciones.monitoreo
+          roles: allowedPageRoles.operaciones.monitoreo,
           isActive: false
-        },*/
+        },
         {
           name: "Salidas a Rutas",
           url: "/operaciones/salidas-a-ruta",

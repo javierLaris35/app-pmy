@@ -11,6 +11,26 @@ export function formatDateWithTimeToDDMMYYYY(dateStr: string): Date {
   return new Date(Number(year), Number(month) - 1, Number(day));
 }
 
+export function formatDateToShortDate(dateStr: string): string {
+  if (!dateStr) return '';
+
+  // 1️⃣ Crear el objeto Date desde el string UTC
+  const utcDate = new Date(dateStr);
+
+  // 2️⃣ Convertir a zona horaria de Hermosillo
+  // Intl.DateTimeFormat maneja la conversión automática
+  const formatter = new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Hermosillo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  // 3️⃣ Retornar la fecha corta (DD/MM/YYYY)
+  return formatter.format(utcDate);
+}
+
+
 export function getLastWeekRange(): { fromDate: string; toDate: string } {
   const today = new Date()
   const day = today.getDay()
