@@ -1,18 +1,23 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronDown, Ship, Search, PackageCheckIcon } from "lucide-react"
+import { Check, ChevronDown, Search, PackageCheckIcon, Truck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Badge } from "@/components/ui/badge"
 import { formatDateToShortDate } from "@/utils/date.utils"
 
 export interface Desembarque {
   id: string
   trackingNumber: string
   date: string
+  numberOfPackages: number
+  vehicle?: {
+    id?: string
+    name?: string
+    plateNumber?: string
+  } | null
 }
 
 interface DesembarqueSelectProps {
@@ -53,11 +58,14 @@ export function UnloadingSelect({
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <PackageCheckIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
             {selectedDesembarque ? (
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="font-medium truncate">{selectedDesembarque.trackingNumber}</span>
-                {/*<span className="text-muted-foreground text-sm truncate">
-                  {selectedDesembarque.puerto} • {selectedDesembarque.contenedor}
-                </span>*/}
+              <div className="flex flex-col min-w-0 flex-1 text-left">
+                <span className="font-medium truncate">
+                  {selectedDesembarque.trackingNumber}
+                </span>
+                <span className="text-sm text-muted-foreground truncate flex items-center gap-2">
+                  <Truck className="h-4 w-4 shrink-0 opacity-70" />
+                  {selectedDesembarque.vehicle?.name || "Sin vehículo"} • {selectedDesembarque.numberOfPackages} paquetes
+                </span>
               </div>
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
@@ -66,6 +74,7 @@ export function UnloadingSelect({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
+
       <PopoverContent className="w-[500px] p-0" align="start">
         <Command shouldFilter={false}>
           <div className="flex items-center border-b px-3">
@@ -77,6 +86,7 @@ export function UnloadingSelect({
               className="flex h-11 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
+
           <CommandList>
             <CommandEmpty>No se encontraron desembarques.</CommandEmpty>
             <CommandGroup>
@@ -88,29 +98,22 @@ export function UnloadingSelect({
                     onValueChange?.(currentValue === value ? "" : currentValue)
                     setOpen(false)
                   }}
-                  className="flex items-center gap-3 px-3 py-3 cursor-pointer"
+                  className="flex items-start gap-3 px-3 py-3 cursor-pointer"
                 >
-                  <Check className={cn("h-4 w-4 shrink-0", value === desembarque.id ? "opacity-100" : "opacity-0")} />
-                  <PackageCheckIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  <Check className={cn("h-4 w-4 shrink-0 mt-1", value === desembarque.id ? "opacity-100" : "opacity-0")} />
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      <PackageCheckIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
                       <span className="font-medium">{desembarque.trackingNumber}</span>
-                      {/*<Badge variant="secondary" className={cn("text-xs", getEstadoColor(desembarque.status))}>
-                        {desembarque.status}
-                      </Badge>*/}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>{formatDateToShortDate(desembarque.date)}</span>
-                      {/*<span>•</span>
-                      <span>{desembarque.naviera}</span>*/}
+                      <span>•</span>
+                      <Truck className="h-4 w-4 opacity-70" />
+                      <span>{desembarque.vehicle?.name || "Sin vehículo"}</span>
+                      <span>•</span>
+                      <span>{desembarque.numberOfPackages} paquetes</span>
                     </div>
-                    {/*<div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{desembarque.contenedor}</span>
-                      <span>•</span>
-                      <span>{desembarque.paquetes} paquetes</span>
-                      <span>•</span>
-                      <span>{desembarque.fechaLlegada}</span>
-                    </div>*/}
                   </div>
                 </CommandItem>
               ))}

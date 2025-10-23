@@ -1,20 +1,45 @@
-import { ArrowUpDown, Package, Truck, Warehouse } from "lucide-react"
+import { ArrowUpDown, Package, Truck, Warehouse, XCircleIcon } from "lucide-react"
 import { Button } from "../../ui/button"
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "../../ui/badge"
 import { MonitoringInfo } from "./shipment-tracking"
 
-const getStatusBadge = (ubication: string) => {
+const getStatusBadge = (status: string) => {
   const variants = {
-    "EN BODEGA": { variant: "secondary" as const, label: "En Bodega", icon: Warehouse },
-    "EN RUTA": { variant: "default" as const, label: "En Ruta", icon: Truck },
-    ENTREGADO: { variant: "outline" as const, label: "Entregado", icon: Package },
-  } as Record<string, { variant: "secondary" | "default" | "outline"; label: string; icon: any }>
-
-  return (
-    variants[ubication.toUpperCase()] || {
+    "entregado": { 
+      label: "Entregado", 
+      color: "bg-green-50 text-green-700 ring-green-600/20" as const,
+      variant: "outline" as const,
+      icon: Package
+    },
+    "no_entregado": { 
+      label: "No Entregado", 
+      color: "bg-red-50 text-red-700 ring-red-600/20" as const,
+      variant: "destructive" as const,
+      icon: XCircleIcon
+    },
+    "en_ruta": { 
+      label: "En Ruta", 
+      color: "bg-purple-50 text-purple-700 ring-purple-700/10" as const,
+      variant: "default" as const,
+      icon: Truck
+    },
+    "en_bodega": { 
+      label: "En Bodega", 
+      color: "bg-blue-50 text-blue-700 ring-blue-700/10" as const,
       variant: "secondary" as const,
-      label: ubication || "Desconocido",
+      icon: Warehouse
+    }
+  } as Record<string, { label: string; color: string; variant: "secondary" | "default" | "outline" | "destructive"; icon: any }>
+
+  // Convertir el status a minúsculas para que coincida con las claves
+  const normalizedStatus = status.toLowerCase()
+  
+  return (
+    variants[normalizedStatus] || {
+      label: status || "Desconocido",
+      color: "bg-gray-50 text-gray-700 ring-gray-700/10",
+      variant: "secondary" as const,
       icon: Package,
     }
   )
@@ -37,22 +62,19 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
     cell: ({ row }) => <div className="font-medium">{row.getValue("trackingNumber")}</div>,
   },
   {
-    id: "ubication",
-    accessorFn: (row) => row.shipmentData.ubication,
+    id: "status",
+    accessorFn: (row) => row.shipmentData.shipmentStatus,
     header: "Estado",
     cell: ({ row }) => {
-      const ubication = row.getValue("ubication") as string
-      const statusInfo = getStatusBadge(ubication)
+      const status = row.getValue("status") as string
+      const statusInfo = getStatusBadge(status)
       const StatusIcon = statusInfo.icon
       return (
-        <Badge variant={statusInfo.variant} className="whitespace-nowrap">
+        <Badge variant={statusInfo.variant} className={`whitespace-nowrap ${statusInfo.color}`}>
           <StatusIcon className="mr-1 h-3 w-3" />
           {statusInfo.label}
         </Badge>
       )
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
     },
   },
   {
@@ -60,8 +82,9 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
     header: "Ubicación",
     cell: ({ row }) => {
       const pkg = row.original
-      const ubication = pkg.shipmentData.ubication.toUpperCase()
-      if (ubication === "EN RUTA" && pkg.packageDispatch?.vehicle) {
+      const status = pkg.shipmentData.shipmentStatus.toLowerCase()
+      
+      if (status === "en_ruta" && pkg.packageDispatch?.vehicle) {
         return (
           <div className="text-sm">
             <div className="flex items-center gap-1">
@@ -72,23 +95,35 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
           </div>
         )
       }
-      if (ubication === "EN BODEGA" && pkg.packageDispatch?.subsidiary) {
+      if (status === "en_bodega") {
         return (
           <div className="text-sm">
             <div className="flex items-center gap-1">
               <Warehouse className="h-3 w-3 text-muted-foreground" />
-              <span className="font-medium">{pkg.packageDispatch.subsidiary.name}</span>
+              <span className="font-medium">{pkg.shipmentData.subsidiary?.name || "Bodega"}</span>
             </div>
-            <p className="text-xs text-muted-foreground">ID: {pkg.packageDispatch.subsidiary.id}</p>
           </div>
         )
       }
-      if (ubication === "ENTREGADO") {
+      if (status === "entregado") {
         return (
           <div className="text-sm">
             <div className="flex items-center gap-1">
               <Package className="h-3 w-3 text-muted-foreground" />
               <span className="font-medium">Entregado</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {pkg.shipmentData.deliveryDate ? new Date(pkg.shipmentData.deliveryDate).toLocaleDateString() : ""}
+            </p>
+          </div>
+        )
+      }
+      if (status === "no_entregado") {
+        return (
+          <div className="text-sm">
+            <div className="flex items-center gap-1">
+              <XCircleIcon className="h-3 w-3 text-muted-foreground" />
+              <span className="font-medium">No Entregado</span>
             </div>
           </div>
         )
@@ -171,5 +206,20 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
     cell: ({ row }) => (
       <div className="text-sm">{row.getValue("isCharge") ? "Sí" : "No"}</div>
     ),
+  },
+  {
+    id: "payment",
+    header: "Pago",
+    cell: ({ row }) => {
+      const pkg = row.original
+      if (pkg.shipmentData.payment && typeof pkg.shipmentData.payment.amount === "number") {
+        return (
+          <Badge className="bg-blue-500 text-white whitespace-nowrap">
+            {pkg.shipmentData.payment.type}: ${pkg.shipmentData.payment.amount.toFixed(2)}
+          </Badge>
+        )
+      }
+      return <span className="text-sm text-muted-foreground">-</span>
+    },
   },
 ]

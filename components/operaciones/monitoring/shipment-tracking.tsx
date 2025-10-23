@@ -21,6 +21,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  DollarSignIcon,
 } from "lucide-react"
 import { AppLayout } from "../../app-layout"
 import { DataTable } from "../../data-table/data-table"
@@ -32,16 +33,17 @@ import { Label } from "@/components/ui/label"
 import {
   getConsolidateds,
   getInfoFromConsolidated,
-  getInfoFromPackageDispatch,
   getInfoFromUnloading,
-  getPackageDispatchs,
+  getInfoFromPackageDispatch,
   getUnloadings,
+  getPackageDispatchs,
 } from "@/lib/services/monitoring/monitoring"
 import { useAuthStore } from "@/store/auth.store"
 import { Loader } from "@/components/loader"
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { driver } from "driver.js"
 import "driver.js/dist/driver.css"
+import { SucursalSelector } from "@/components/sucursal-selector"
 
 export interface MonitoringInfo {
   shipmentData: {
@@ -57,7 +59,15 @@ export interface MonitoringInfo {
     }
     destination: string
     isCharge: boolean
+    subsidiary: {
+      name: string
+    }
     shipmentStatus: string
+    payment?: {
+      type: string
+      amount: number
+      status: "paid" | "pending" | "failed"
+    }
   }
   packageDispatch?: {
     id: string
@@ -85,6 +95,8 @@ interface PackageStats {
   porcentajeEntrega: number
   porcentajeNoEntrega: number
   eficiencia: number
+  packagesWithPayment: number
+  totalPaymentAmount: number
 }
 
 export default function TrackingPage() {
@@ -98,21 +110,24 @@ export default function TrackingPage() {
   const [packages, setPackages] = useState<MonitoringInfo[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null)
+  const [selectedSubsidiaryName, setSelectedSubsidiaryName] = useState<string | null>(null)
+
   const user = useAuthStore((s) => s.user)
 
   const calculateStats = (packages: MonitoringInfo[]): PackageStats => {
     const total = packages.length
-    const enRuta = packages.filter((p) => 
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "en-ruta" || 
+    const enRuta = packages.filter((p) =>
+      p.shipmentData?.shipmentStatus?.toLowerCase() === "en_ruta" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "en ruta"
     ).length
-    const enBodega = packages.filter((p) => 
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "en-bodega" || 
+    const enBodega = packages.filter((p) =>
+      p.shipmentData?.shipmentStatus?.toLowerCase() === "en-bodega" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "en bodega" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "bodega"
     ).length
-    const entregados = packages.filter((p) => 
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" || 
+    const entregados = packages.filter((p) =>
+      p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "entregada" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "entregados"
     ).length
@@ -120,16 +135,22 @@ export default function TrackingPage() {
     const porcentajeEntrega = total > 0 ? (entregados / total) * 100 : 0
     const porcentajeNoEntrega = total > 0 ? (noEntregados / total) * 100 : 0
     const eficiencia = total > 0 ? (entregados / total) * 100 : 0
+    const packagesWithPayment = packages.filter((p) => p.shipmentData?.payment && typeof p.shipmentData.payment.amount === "number").length
+    const totalPaymentAmount = packages
+      .filter((p) => p.shipmentData?.payment && typeof p.shipmentData.payment.amount === "number")
+      .reduce((sum, p) => sum + (p.shipmentData.payment?.amount || 0), 0)
 
     return {
       total,
       enRuta,
       enBodega,
       entregados,
-      noEntregados: Math.max(0, noEntregados), // Evitar números negativos
+      noEntregados: Math.max(0, noEntregados),
       porcentajeEntrega,
       porcentajeNoEntrega,
-      eficiencia
+      eficiencia,
+      packagesWithPayment,
+      totalPaymentAmount,
     }
   }
 
@@ -147,18 +168,19 @@ export default function TrackingPage() {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case "entregado": 
-      case "entregada": 
-      case "entregados": 
-        return "text-green-600"
-      case "en-ruta": 
-      case "en ruta": 
-        return "text-blue-600"
-      case "en-bodega": 
-      case "en bodega": 
-      case "bodega": 
+      case "entregado":
+      case "entregada":
+      case "entregados":
+        return "text-green-700"
+      case "en_ruta":
+      case "en ruta":
+        return "text-blue-700"
+      case "en-bodega":
+      case "en bodega":
+      case "bodega":
         return "text-gray-600"
-      default: return "text-gray-600"
+      default:
+        return "text-gray-600"
     }
   }
 
@@ -168,16 +190,15 @@ export default function TrackingPage() {
     setIsLoading(true)
     try {
       const [consolidatedData, unloadingsData, packageDispathData] = await Promise.all([
-        getConsolidateds(user?.subsidiary?.id),
-        getUnloadings(user?.subsidiary?.id),
-        getPackageDispatchs(user?.subsidiary?.id)
+        getConsolidateds(selectedSubsidiaryId || user?.subsidiary?.id),
+        getUnloadings(selectedSubsidiaryId || user?.subsidiary?.id),
+        getPackageDispatchs(selectedSubsidiaryId || user?.subsidiary?.id),
       ])
-      
-      console.log("Initial data:", { 
-        consolidatedData, 
-        unloadingsData, 
+      console.log("Initial data:", {
+        consolidatedData,
+        unloadingsData,
         packageDispathData,
-        subsidiaryId: user?.subsidiary?.id 
+        subsidiaryId: selectedSubsidiaryId || user?.subsidiary?.id,
       })
       setConsolidateds(consolidatedData || [])
       setUnloadings(unloadingsData || [])
@@ -192,10 +213,7 @@ export default function TrackingPage() {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     setPackages([])
-    
     await fetchInitialData()
-    
-    // Recargar datos basado en el filtro activo
     if (selectedConsolidado) {
       try {
         const packagesInfo = await getInfoFromConsolidated(selectedConsolidado)
@@ -312,52 +330,60 @@ export default function TrackingPage() {
 
   useEffect(() => {
     if (user?.subsidiary?.id) {
+      setSelectedSubsidiaryId(user.subsidiary.id || null)
+      setSelectedSubsidiaryName(user.subsidiary.name || null)
       fetchInitialData()
     }
   }, [user?.subsidiary?.id])
 
-  // Effect para Consolidado
+  useEffect(() => {
+    if (selectedSubsidiaryId) {
+      fetchInitialData()
+    }
+  }, [selectedSubsidiaryId])
+
   useEffect(() => {
     console.log("🔵 Consolidado Effect triggered:", {
       selectedConsolidado,
       selectedDesembarque,
-      selectedRuta
+      selectedRuta,
     })
-
     if (!selectedConsolidado) {
       return
     }
-
     const fetchConsolidadoData = async () => {
       setIsLoading(true)
       try {
         console.log("🟡 Fetching consolidado data for:", selectedConsolidado)
         const packagesInfo = await getInfoFromConsolidated(selectedConsolidado)
         console.log("🟢 Consolidado API response:", packagesInfo)
-        
-        // Transformar los datos si es necesario para que coincidan con la interfaz MonitoringInfo
         let processedPackages: MonitoringInfo[] = []
-        
         if (Array.isArray(packagesInfo)) {
           processedPackages = packagesInfo.map((pkg: any) => {
-            // Si el paquete ya tiene la estructura correcta, usarlo directamente
             if (pkg.shipmentData) {
               return pkg
             }
-            // Si no, transformar la estructura
             return {
               shipmentData: {
-                trackingNumber: pkg.trackingNumber || pkg.id || '',
-                ubication: pkg.ubication || pkg.location || '',
+                trackingNumber: pkg.trackingNumber || pkg.id || "",
+                ubication: pkg.ubication || pkg.location || "",
                 consolidated: pkg.consolidated || {
                   consNumber: selectedConsolidado,
-                  date: pkg.date || pkg.createdAt || new Date().toISOString()
+                  date: pkg.date || pkg.createdAt || new Date().toISOString(),
                 },
-                destination: pkg.destination || '',
+                destination: pkg.destination || "",
                 isCharge: pkg.isCharge || false,
-                shipmentStatus: pkg.shipmentStatus || pkg.status || 'en-bodega'
+                shipmentStatus: pkg.shipmentStatus || pkg.status || "en-bodega",
+                subsidiary: pkg.subsidiary || { name: "Unknown" },
+                payment: pkg.payment
+                  ? {
+                      type: pkg.payment.type || "Unknown",
+                      amount: Number(pkg.payment.amount) || 0,
+                      status: pkg.payment.status || "pending",
+                    }
+                  : undefined,
               },
-              packageDispatch: pkg.packageDispatch
+              packageDispatch: pkg.packageDispatch,
             }
           })
           console.log("✅ Processed consolidado packages:", processedPackages)
@@ -373,52 +399,51 @@ export default function TrackingPage() {
         setIsLoading(false)
       }
     }
-
     fetchConsolidadoData()
   }, [selectedConsolidado])
 
-  // Effect para Desembarque
   useEffect(() => {
     console.log("🔵 Desembarque Effect triggered:", {
       selectedConsolidado,
       selectedDesembarque,
-      selectedRuta
+      selectedRuta,
     })
-
     if (!selectedDesembarque) {
       return
     }
-
     const fetchDesembarqueData = async () => {
       setIsLoading(true)
       try {
         console.log("🟡 Fetching desembarque data for:", selectedDesembarque)
         const packagesInfo = await getInfoFromUnloading(selectedDesembarque)
         console.log("🟢 Desembarque API response:", packagesInfo)
-        
-        // Transformar los datos si es necesario para que coincidan con la interfaz MonitoringInfo
         let processedPackages: MonitoringInfo[] = []
-        
         if (Array.isArray(packagesInfo)) {
           processedPackages = packagesInfo.map((pkg: any) => {
-            // Si el paquete ya tiene la estructura correcta, usarlo directamente
             if (pkg.shipmentData) {
               return pkg
             }
-            // Si no, transformar la estructura
             return {
               shipmentData: {
-                trackingNumber: pkg.trackingNumber || pkg.id || '',
-                ubication: pkg.ubication || pkg.location || '',
+                trackingNumber: pkg.trackingNumber || pkg.id || "",
+                ubication: pkg.ubication || pkg.location || "",
                 unloading: pkg.unloading || {
                   trackingNumber: selectedDesembarque,
-                  date: pkg.date || pkg.createdAt || new Date().toISOString()
+                  date: pkg.date || pkg.createdAt || new Date().toISOString(),
                 },
-                destination: pkg.destination || '',
+                destination: pkg.destination || "",
                 isCharge: pkg.isCharge || false,
-                shipmentStatus: pkg.shipmentStatus || pkg.status || 'en-bodega'
+                shipmentStatus: pkg.shipmentStatus || pkg.status || "en-bodega",
+                subsidiary: pkg.subsidiary || { name: "Unknown" },
+                payment: pkg.payment
+                  ? {
+                      type: pkg.payment.type || "Unknown",
+                      amount: Number(pkg.payment.amount) || 0,
+                      status: pkg.payment.status || "pending",
+                    }
+                  : undefined,
               },
-              packageDispatch: pkg.packageDispatch
+              packageDispatch: pkg.packageDispatch,
             }
           })
           console.log("✅ Processed desembarque packages:", processedPackages)
@@ -434,48 +459,47 @@ export default function TrackingPage() {
         setIsLoading(false)
       }
     }
-
     fetchDesembarqueData()
   }, [selectedDesembarque])
 
-  // Effect para Ruta
   useEffect(() => {
     console.log("🔵 Ruta Effect triggered:", {
       selectedConsolidado,
       selectedDesembarque,
-      selectedRuta
+      selectedRuta,
     })
-
     if (!selectedRuta) {
       return
     }
-
     const fetchRutaData = async () => {
       setIsLoading(true)
       try {
         console.log("🟡 Fetching ruta data for:", selectedRuta)
         const packagesInfo = await getInfoFromPackageDispatch(selectedRuta)
         console.log("🟢 Ruta API response:", packagesInfo)
-        
-        // Transformar los datos si es necesario para que coincidan con la interfaz MonitoringInfo
         let processedPackages: MonitoringInfo[] = []
-        
         if (Array.isArray(packagesInfo)) {
           processedPackages = packagesInfo.map((pkg: any) => {
-            // Si el paquete ya tiene la estructura correcta, usarlo directamente
             if (pkg.shipmentData) {
               return pkg
             }
-            // Si no, transformar la estructura
             return {
               shipmentData: {
-                trackingNumber: pkg.trackingNumber || pkg.id || '',
-                ubication: pkg.ubication || pkg.location || '',
-                destination: pkg.destination || '',
+                trackingNumber: pkg.trackingNumber || pkg.id || "",
+                ubication: pkg.ubication || pkg.location || "",
+                destination: pkg.destination || "",
                 isCharge: pkg.isCharge || false,
-                shipmentStatus: pkg.shipmentStatus || pkg.status || 'en-ruta'
+                shipmentStatus: pkg.shipmentStatus || pkg.status || "en-ruta",
+                subsidiary: pkg.subsidiary || { name: "Unknown" },
+                payment: pkg.payment
+                  ? {
+                      type: pkg.payment.type || "Unknown",
+                      amount: Number(pkg.payment.amount) || 0,
+                      status: pkg.payment.status || "pending",
+                    }
+                  : undefined,
               },
-              packageDispatch: pkg.packageDispatch || pkg
+              packageDispatch: pkg.packageDispatch || pkg,
             }
           })
           console.log("✅ Processed ruta packages:", processedPackages)
@@ -491,17 +515,15 @@ export default function TrackingPage() {
         setIsLoading(false)
       }
     }
-
     fetchRutaData()
   }, [selectedRuta])
 
-  // Handlers para los filtros
   const handleConsolidadoChange = (value: string) => {
     console.log("🎯 Consolidado selected:", value)
     setSelectedConsolidado(value)
     setSelectedDesembarque("")
     setSelectedRuta("")
-    setPackages([]) // Limpiar paquetes al cambiar filtro
+    setPackages([])
   }
 
   const handleDesembarqueChange = (value: string) => {
@@ -509,7 +531,7 @@ export default function TrackingPage() {
     setSelectedDesembarque(value)
     setSelectedConsolidado("")
     setSelectedRuta("")
-    setPackages([]) // Limpiar paquetes al cambiar filtro
+    setPackages([])
   }
 
   const handleRutaChange = (value: string) => {
@@ -517,7 +539,7 @@ export default function TrackingPage() {
     setSelectedRuta(value)
     setSelectedConsolidado("")
     setSelectedDesembarque("")
-    setPackages([]) // Limpiar paquetes al cambiar filtro
+    setPackages([])
   }
 
   const clearAllFilters = () => {
@@ -528,7 +550,6 @@ export default function TrackingPage() {
     setPackages([])
   }
 
-  // Simplificar el filtrado - ya que los packages vienen filtrados de la API
   const filteredPackages = packages
 
   console.log("📊 Final packages:", {
@@ -536,25 +557,25 @@ export default function TrackingPage() {
     selectedConsolidado,
     selectedDesembarque,
     selectedRuta,
-    stats
+    stats,
   })
 
   const getStatusBadge = (status: string | undefined) => {
     if (!status) {
-      return { variant: "secondary" as const, label: "Desconocido", icon: Package }
+      return { variant: "secondary" as const, label: "Desconocido", icon: Package, color: "bg-gray-50 text-gray-600" }
     }
     const statusLower = status.toLowerCase()
     const variants = {
-      "en-bodega": { variant: "secondary" as const, label: "En Bodega", icon: Warehouse },
-      "en bodega": { variant: "secondary" as const, label: "En Bodega", icon: Warehouse },
-      "bodega": { variant: "secondary" as const, label: "En Bodega", icon: Warehouse },
-      "en-ruta": { variant: "default" as const, label: "En Ruta", icon: Truck },
-      "en ruta": { variant: "default" as const, label: "En Ruta", icon: Truck },
-      "entregado": { variant: "outline" as const, label: "Entregado", icon: Package },
-      "entregada": { variant: "outline" as const, label: "Entregado", icon: Package },
-      "entregados": { variant: "outline" as const, label: "Entregado", icon: Package },
-    } as Record<string, { variant: "secondary" | "default" | "outline"; label: string; icon: any }>
-    return variants[statusLower] || { variant: "secondary" as const, label: status, icon: Package }
+      "en_bodega": { variant: "secondary" as const, label: "En Bodega", icon: Warehouse, color: "bg-gray-50 text-gray-600" },
+      "en bodega": { variant: "secondary" as const, label: "En Bodega", icon: Warehouse, color: "bg-gray-50 text-gray-600" },
+      "bodega": { variant: "secondary" as const, label: "En Bodega", icon: Warehouse, color: "bg-gray-50 text-gray-600" },
+      "en_ruta": { variant: "default" as const, label: "En Ruta", icon: Truck, color: "bg-blue-50 text-blue-700" },
+      "en ruta": { variant: "default" as const, label: "En Ruta", icon: Truck, color: "bg-blue-50 text-blue-700" },
+      "entregado": { variant: "outline" as const, label: "Entregado", icon: Package, color: "bg-green-50 text-green-700" },
+      "entregada": { variant: "outline" as const, label: "Entregado", icon: Package, color: "bg-green-50 text-green-700" },
+      "entregados": { variant: "outline" as const, label: "Entregado", icon: Package, color: "bg-green-50 text-green-700" },
+    } as Record<string, { variant: "secondary" | "default" | "outline"; label: string; icon: any; color: string }>
+    return variants[statusLower] || { variant: "secondary" as const, label: status, icon: Package, color: "bg-gray-50 text-gray-600" }
   }
 
   const statusData = [
@@ -596,6 +617,27 @@ export default function TrackingPage() {
     )
     .filter((item) => item.value > 0)
 
+  const paymentData = filteredPackages
+    .filter((p) => p.shipmentData?.payment)
+    .reduce(
+      (acc, pkg) => {
+        const status = pkg.shipmentData?.payment?.status || "pending"
+        const existing = acc.find((item) => item.name === status)
+        if (existing) {
+          existing.value += 1
+        } else {
+          acc.push({
+            name: status.charAt(0).toUpperCase() + status.slice(1),
+            value: 1,
+            color: status === "paid" ? "hsl(var(--chart-3))" : status === "pending" ? "hsl(var(--chart-2))" : "hsl(var(--chart-1))",
+          })
+        }
+        return acc
+      },
+      [] as { name: string; value: number; color: string }[],
+    )
+    .filter((item) => item.value > 0)
+
   return (
     <AppLayout>
       <div className="p-4 md:p-6">
@@ -612,6 +654,13 @@ export default function TrackingPage() {
               <Button id="tutorial-button" variant="outline" size="icon" onClick={startTutorial}>
                 <HelpCircle className="h-4 w-4" />
               </Button>
+              <div>
+                <SucursalSelector
+                  value={selectedSubsidiaryId}
+                  onValueChange={setSelectedSubsidiaryId}
+                />
+              </div>
+              <Button>Exportar</Button>
             </div>
           </div>
 
@@ -672,26 +721,25 @@ export default function TrackingPage() {
             </div>
           </Card>
 
-          {/* Card de información seleccionada - Ocupa todo el row */}
           {selectedConsolidado && (
-            <Card className="p-6">
-              <CardHeader className="p-0 pb-6">
-                <CardTitle className="text-xl font-semibold flex items-center gap-3">
-                  <FileText className="h-6 w-6" />
+            <Card className="p-4">
+              <CardHeader className="p-0 pb-4">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
                   Consolidado Seleccionado
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Número de Consolidado</p>
-                        <p className="font-semibold text-lg">{selectedConsolidado}</p>
+                        <p className="font-semibold text-base">{selectedConsolidado}</p>
                       </div>
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Fecha</p>
-                        <p className="font-semibold">
+                        <p className="font-semibold text-base">
                           {consolidateds.find((c) => c.consNumber === selectedConsolidado)?.date
                             ? new Date(
                                 consolidateds.find((c) => c.consNumber === selectedConsolidado)!.date,
@@ -702,7 +750,7 @@ export default function TrackingPage() {
                     </div>
                     <div className="text-sm">
                       <p className="font-medium text-muted-foreground">Estado</p>
-                      <Badge variant="outline" className="mt-1">
+                      <Badge variant="outline" className="mt-1 bg-gray-50 text-gray-600">
                         Activo
                       </Badge>
                     </div>
@@ -710,24 +758,24 @@ export default function TrackingPage() {
                   <div className="space-y-4">
                     <div className="text-sm">
                       <p className="font-medium text-muted-foreground">Total de Paquetes</p>
-                      <p className="font-semibold text-2xl">{stats.total}</p>
+                      <p className="font-semibold text-xl">{stats.total}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className={`p-3 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor('en-ruta')}`}>
-                        <p className="font-medium">En Ruta</p>
-                        <p className="font-bold text-xl">{stats.enRuta}</p>
+                      <div className={`p-2 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor("en-ruta")}`}>
+                        <p className="font-medium text-sm">En Ruta</p>
+                        <p className="font-bold text-lg">{stats.enRuta}</p>
                       </div>
-                      <div className={`p-3 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor('en-bodega')}`}>
-                        <p className="font-medium">En Bodega</p>
-                        <p className="font-bold text-xl">{stats.enBodega}</p>
+                      <div className={`p-2 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor("en-bodega")}`}>
+                        <p className="font-medium text-sm">En Bodega</p>
+                        <p className="font-bold text-lg">{stats.enBodega}</p>
                       </div>
-                      <div className={`p-3 rounded-lg bg-green-50 border border-green-200 ${getStatusColor('entregado')}`}>
-                        <p className="font-medium">Entregados</p>
-                        <p className="font-bold text-xl">{stats.entregados}</p>
+                      <div className={`p-2 rounded-lg bg-green-50 border border-green-200 ${getStatusColor("entregado")}`}>
+                        <p className="font-medium text-sm">Entregados</p>
+                        <p className="font-bold text-lg">{stats.entregados}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600">
-                        <p className="font-medium">No Entregados</p>
-                        <p className="font-bold text-xl">{stats.noEntregados}</p>
+                      <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600">
+                        <p className="font-medium text-sm">No Entregados</p>
+                        <p className="font-bold text-lg">{stats.noEntregados}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 pt-2">
@@ -736,7 +784,7 @@ export default function TrackingPage() {
                           <span className="font-medium text-muted-foreground">Eficiencia</span>
                           {getEfficiencyBadge(stats.eficiencia)}
                         </div>
-                        <p className={`font-semibold text-2xl ${getEfficiencyColor(stats.eficiencia)}`}>
+                        <p className={`font-semibold text-xl ${getEfficiencyColor(stats.eficiencia)}`}>
                           {stats.eficiencia.toFixed(1)}%
                         </p>
                       </div>
@@ -751,6 +799,20 @@ export default function TrackingPage() {
                         </div>
                       </div>
                     </div>
+                    <div className="text-sm p-2 rounded bg-green-50 border border-green-200 text-green-600">
+                      <div className="flex items-center gap-2">
+                        <DollarSignIcon className="h-4 w-4" />
+                        <p className="font-medium">Paquetes con Cobros</p>
+                      </div>
+                      {stats.packagesWithPayment > 0 ? (
+                        <>
+                          <p className="font-semibold text-lg">{stats.packagesWithPayment}</p>
+                          <p className="text-xs">Total: ${stats.totalPaymentAmount.toFixed(2)}</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sin paquetes con cobros</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -758,24 +820,24 @@ export default function TrackingPage() {
           )}
 
           {selectedDesembarque && (
-            <Card className="p-6">
-              <CardHeader className="p-0 pb-6">
-                <CardTitle className="text-xl font-semibold flex items-center gap-3">
-                  <Ship className="h-6 w-6" />
+            <Card className="p-4">
+              <CardHeader className="p-0 pb-4">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Ship className="h-5 w-5" />
                   Desembarque Seleccionado
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Número de Desembarque</p>
-                        <p className="font-semibold text-lg">{selectedDesembarque}</p>
+                        <p className="font-semibold text-base">{selectedDesembarque}</p>
                       </div>
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Fecha</p>
-                        <p className="font-semibold">
+                        <p className="font-semibold text-base">
                           {unloadings.find((d) => d.trackingNumber === selectedDesembarque)?.date
                             ? new Date(
                                 unloadings.find((d) => d.trackingNumber === selectedDesembarque)!.date,
@@ -786,7 +848,7 @@ export default function TrackingPage() {
                     </div>
                     <div className="text-sm">
                       <p className="font-medium text-muted-foreground">Estado</p>
-                      <Badge variant="outline" className="mt-1">
+                      <Badge variant="outline" className="mt-1 bg-gray-50 text-gray-600">
                         Procesado
                       </Badge>
                     </div>
@@ -794,24 +856,24 @@ export default function TrackingPage() {
                   <div className="space-y-4">
                     <div className="text-sm">
                       <p className="font-medium text-muted-foreground">Total de Paquetes</p>
-                      <p className="font-semibold text-2xl">{stats.total}</p>
+                      <p className="font-semibold text-xl">{stats.total}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className={`p-3 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor('en-ruta')}`}>
-                        <p className="font-medium">En Ruta</p>
-                        <p className="font-bold text-xl">{stats.enRuta}</p>
+                      <div className={`p-2 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor("en-ruta")}`}>
+                        <p className="font-medium text-sm">En Ruta</p>
+                        <p className="font-bold text-lg">{stats.enRuta}</p>
                       </div>
-                      <div className={`p-3 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor('en-bodega')}`}>
-                        <p className="font-medium">En Bodega</p>
-                        <p className="font-bold text-xl">{stats.enBodega}</p>
+                      <div className={`p-2 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor("en-bodega")}`}>
+                        <p className="font-medium text-sm">En Bodega</p>
+                        <p className="font-bold text-lg">{stats.enBodega}</p>
                       </div>
-                      <div className={`p-3 rounded-lg bg-green-50 border border-green-200 ${getStatusColor('entregado')}`}>
-                        <p className="font-medium">Entregados</p>
-                        <p className="font-bold text-xl">{stats.entregados}</p>
+                      <div className={`p-2 rounded-lg bg-green-50 border border-green-200 ${getStatusColor("entregado")}`}>
+                        <p className="font-medium text-sm">Entregados</p>
+                        <p className="font-bold text-lg">{stats.entregados}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600">
-                        <p className="font-medium">No Entregados</p>
-                        <p className="font-bold text-xl">{stats.noEntregados}</p>
+                      <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600">
+                        <p className="font-medium text-sm">No Entregados</p>
+                        <p className="font-bold text-lg">{stats.noEntregados}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 pt-2">
@@ -820,7 +882,7 @@ export default function TrackingPage() {
                           <span className="font-medium text-muted-foreground">Eficiencia</span>
                           {getEfficiencyBadge(stats.eficiencia)}
                         </div>
-                        <p className={`font-semibold text-2xl ${getEfficiencyColor(stats.eficiencia)}`}>
+                        <p className={`font-semibold text-xl ${getEfficiencyColor(stats.eficiencia)}`}>
                           {stats.eficiencia.toFixed(1)}%
                         </p>
                       </div>
@@ -834,6 +896,20 @@ export default function TrackingPage() {
                           <p className="font-bold">{stats.porcentajeNoEntrega.toFixed(1)}%</p>
                         </div>
                       </div>
+                    </div>
+                    <div className="text-sm p-2 rounded bg-green-50 border border-green-200 text-green-600">
+                      <div className="flex items-center gap-2">
+                        <DollarSignIcon className="h-4 w-4" />
+                        <p className="font-medium">Paquetes con Cobros</p>
+                      </div>
+                      {stats.packagesWithPayment > 0 ? (
+                        <>
+                          <p className="font-semibold text-lg">{stats.packagesWithPayment}</p>
+                          <p className="text-xs">Total: ${stats.totalPaymentAmount.toFixed(2)}</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sin paquetes con cobros</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -842,29 +918,33 @@ export default function TrackingPage() {
           )}
 
           {selectedRuta && (
-            <Card className="p-6">
-              <CardHeader className="p-0 pb-6">
-                <CardTitle className="text-xl font-semibold flex items-center gap-3">
-                  <Car className="h-6 w-6" />
+            <Card className="p-4">
+              <CardHeader className="p-0 pb-4">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Car className="h-5 w-5" />
                   Ruta Seleccionada
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Chofer</p>
-                        <p className="font-semibold text-lg">{packageDispatchs.find((r) => r.id === selectedRuta)?.driver || "-"}</p>
+                        <p className="font-semibold text-base">
+                          {packageDispatchs.find((r) => r.id === selectedRuta)?.driver || "-"}
+                        </p>
                       </div>
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Vehículo</p>
-                        <p className="font-semibold">{packageDispatchs.find((r) => r.id === selectedRuta)?.vehicle?.plateNumber || "-"}</p>
+                        <p className="font-semibold text-base">
+                          {packageDispatchs.find((r) => r.id === selectedRuta)?.vehicle?.plateNumber || "-"}
+                        </p>
                       </div>
                     </div>
                     <div className="text-sm">
                       <p className="font-medium text-muted-foreground">Estado de Ruta</p>
-                      <Badge variant="outline" className="mt-1">
+                      <Badge variant="outline" className="mt-1 bg-gray-50 text-gray-600">
                         En Progreso
                       </Badge>
                     </div>
@@ -872,24 +952,24 @@ export default function TrackingPage() {
                   <div className="space-y-4">
                     <div className="text-sm">
                       <p className="font-medium text-muted-foreground">Total de Paquetes</p>
-                      <p className="font-semibold text-2xl">{stats.total}</p>
+                      <p className="font-semibold text-xl">{stats.total}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className={`p-3 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor('en-ruta')}`}>
-                        <p className="font-medium">En Ruta</p>
-                        <p className="font-bold text-xl">{stats.enRuta}</p>
+                      <div className={`p-2 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor("en-ruta")}`}>
+                        <p className="font-medium text-sm">En Ruta</p>
+                        <p className="font-bold text-lg">{stats.enRuta}</p>
                       </div>
-                      <div className={`p-3 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor('en-bodega')}`}>
-                        <p className="font-medium">En Bodega</p>
-                        <p className="font-bold text-xl">{stats.enBodega}</p>
+                      <div className={`p-2 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor("en-bodega")}`}>
+                        <p className="font-medium text-sm">En Bodega</p>
+                        <p className="font-bold text-lg">{stats.enBodega}</p>
                       </div>
-                      <div className={`p-3 rounded-lg bg-green-50 border border-green-200 ${getStatusColor('entregado')}`}>
-                        <p className="font-medium">Entregados</p>
-                        <p className="font-bold text-xl">{stats.entregados}</p>
+                      <div className={`p-2 rounded-lg bg-green-50 border border-green-200 ${getStatusColor("entregado")}`}>
+                        <p className="font-medium text-sm">Entregados</p>
+                        <p className="font-bold text-lg">{stats.entregados}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600">
-                        <p className="font-medium">No Entregados</p>
-                        <p className="font-bold text-xl">{stats.noEntregados}</p>
+                      <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600">
+                        <p className="font-medium text-sm">No Entregados</p>
+                        <p className="font-bold text-lg">{stats.noEntregados}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 pt-2">
@@ -898,7 +978,7 @@ export default function TrackingPage() {
                           <span className="font-medium text-muted-foreground">Eficiencia</span>
                           {getEfficiencyBadge(stats.eficiencia)}
                         </div>
-                        <p className={`font-semibold text-2xl ${getEfficiencyColor(stats.eficiencia)}`}>
+                        <p className={`font-semibold text-xl ${getEfficiencyColor(stats.eficiencia)}`}>
                           {stats.eficiencia.toFixed(1)}%
                         </p>
                       </div>
@@ -912,6 +992,20 @@ export default function TrackingPage() {
                           <p className="font-bold">{stats.porcentajeNoEntrega.toFixed(1)}%</p>
                         </div>
                       </div>
+                    </div>
+                    <div className="text-sm p-2 rounded bg-green-50 border border-green-200 text-green-600">
+                      <div className="flex items-center gap-2">
+                        <DollarSignIcon className="h-4 w-4" />
+                        <p className="font-medium">Paquetes con Cobros</p>
+                      </div>
+                      {stats.packagesWithPayment > 0 ? (
+                        <>
+                          <p className="font-semibold text-lg">{stats.packagesWithPayment}</p>
+                          <p className="text-xs">Total: ${stats.totalPaymentAmount.toFixed(2)}</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sin paquetes con cobros</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -949,14 +1043,14 @@ export default function TrackingPage() {
             </div>
           ) : viewMode === "stats" ? (
             <div id="stats-section" className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-5">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Paquetes</CardTitle>
                     <Package className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats.total}</div>
+                    <div className="text-xl font-bold">{stats.total}</div>
                     <p className="text-xs text-muted-foreground">Paquetes monitoreados</p>
                   </CardContent>
                 </Card>
@@ -967,7 +1061,7 @@ export default function TrackingPage() {
                     <Truck className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats.enRuta}</div>
+                    <div className="text-xl font-bold">{stats.enRuta}</div>
                     <p className="text-xs text-muted-foreground">
                       {stats.total > 0 ? Math.round((stats.enRuta / stats.total) * 100) : 0}% del total
                     </p>
@@ -980,7 +1074,7 @@ export default function TrackingPage() {
                     <Warehouse className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats.enBodega}</div>
+                    <div className="text-xl font-bold">{stats.enBodega}</div>
                     <p className="text-xs text-muted-foreground">
                       {stats.total > 0 ? Math.round((stats.enBodega / stats.total) * 100) : 0}% del total
                     </p>
@@ -993,10 +1087,32 @@ export default function TrackingPage() {
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats.entregados}</div>
+                    <div className="text-xl font-bold">{stats.entregados}</div>
                     <p className="text-xs text-muted-foreground">
                       {stats.total > 0 ? Math.round((stats.entregados / stats.total) * 100) : 0}% del total
                     </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Pagos</CardTitle>
+                    <DollarSignIcon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    {stats.packagesWithPayment > 0 ? (
+                      <>
+                        <div className="text-xl font-bold">{stats.packagesWithPayment}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Total: ${stats.totalPaymentAmount.toFixed(2)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-xl font-bold">0</div>
+                        <p className="text-xs text-muted-foreground">Sin paquetes con cobros</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1075,6 +1191,38 @@ export default function TrackingPage() {
                 </Card>
               )}
 
+              {paymentData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSignIcon className="h-5 w-5" />
+                      Distribución por Estado de Pago
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={paymentData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={100}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {paymentData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1099,9 +1247,7 @@ export default function TrackingPage() {
                               <p className="text-xs text-muted-foreground">{pkg.shipmentData.destination}</p>
                             </div>
                           </div>
-                          <Badge variant={statusInfo.variant} className="text-xs">
-                            {statusInfo.label}
-                          </Badge>
+                          <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
                         </div>
                       )
                     })}
