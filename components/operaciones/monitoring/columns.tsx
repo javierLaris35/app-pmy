@@ -1,8 +1,10 @@
-import { ArrowUpDown, Package, Truck, Warehouse, XCircleIcon } from "lucide-react"
+import { ArrowUpDown, History, Package, Truck, Warehouse, XCircleIcon } from "lucide-react"
 import { Button } from "../../ui/button"
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "../../ui/badge"
 import { MonitoringInfo } from "./shipment-tracking"
+import { formatDate } from "@/utils/date.utils"
+import { ShipmentHistoryModal } from "../envios/shipment-history-modal"
 
 const getStatusBadge = (status: string) => {
   const variants = {
@@ -76,6 +78,16 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
         </Badge>
       )
     },
+  },
+  {
+    accessorKey: "commitDateTime",
+      header: "Fecha de Vencimiento",
+      cell: ({ row }) => {
+        const rawValue = formatDate(row.original.shipmentData.commitDateTime).toString();
+        return (
+        <span className="font-medium">{rawValue}</span>
+        )
+      },
   },
   {
     id: "location",
@@ -220,6 +232,26 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
         )
       }
       return <span className="text-sm text-muted-foreground">-</span>
+    },
+  },
+  {
+    id: "actions",
+    header: "Acciones",
+    cell: ({ row }) => {
+      const pkg = row.original
+      return (
+        <div className="flex justify-end">
+          <ShipmentHistoryModal
+            shipmentId={pkg.shipmentData.id}
+            trackingNumber={pkg.shipmentData.trackingNumber}
+            trigger={
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <History className="h-4 w-4" />
+              </Button>
+            }
+          />
+        </div>
+      )
     },
   },
 ]

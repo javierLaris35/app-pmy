@@ -220,6 +220,11 @@ const url = '/shipments'
     return response.data;
   }
 
+  export const getHistoryById = async (id: string) => {
+    const response = await axiosConfig.get(`${url}/history/${id}`);
+    return response.data;
+  }
+
 export {
     getShipments,
     getShipmentById,

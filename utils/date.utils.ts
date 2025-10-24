@@ -30,6 +30,26 @@ export function formatDateToShortDate(dateStr: string): string {
   return formatter.format(utcDate);
 }
 
+export function formatDate(dateStr: string): string {
+  if (!dateStr) return '';
+
+  const utcDate = new Date(dateStr);
+
+  // 🕓 Formateador de fecha y hora para Hermosillo
+  const formatter = new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Hermosillo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false, // usa formato 24h
+  });
+
+  // 📅 Devuelve fecha y hora (ej: 22/10/2025 13:45)
+  return formatter.format(utcDate);
+}
+
 
 export function getLastWeekRange(): { fromDate: string; toDate: string } {
   const today = new Date()
