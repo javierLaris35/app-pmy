@@ -3,15 +3,18 @@ import { KpiData } from '@/lib/types';
 import useSWR from 'swr';
 import qs from "query-string";
 
-export function useShipments() {
-    const { data, error, isLoading, mutate } = useSWR('/shipments', getShipments);
+export function useShipments(subsidiaryId?: string) {
+  const { data, error, isLoading, mutate } = useSWR(
+    subsidiaryId ? `/shipments/${subsidiaryId}` : null,
+    getShipments
+  )
 
-    return {
-        shipments: data,
-        isLoading,
-        isError: !!error,
-        mutate,
-    };
+  return {
+    shipments: data,
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
 }
 
 export function useCharges() {

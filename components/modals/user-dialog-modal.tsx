@@ -112,6 +112,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
             </div>
           )}
           <div>
+            {/*role: 'admin' | 'user' | 'auxiliar' | 'superamin' | 'bodega';*/}
             <Label htmlFor="role">Rol</Label>
             <select
               id="role"
@@ -122,6 +123,8 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
             >
               <option value="user">Usuario</option>
               <option value="admin">Administrador</option>
+              <option value="auxiliar">Auxiliar/Finanzas</option>
+              <option value="bodega">Bodega</option>
             </select>
           </div>
           <div>

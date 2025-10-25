@@ -12,8 +12,7 @@ import {
 import { Eye, Upload } from "lucide-react"
 import { columns } from "./columns"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
-import { Shipment } from "@/lib/types"
-import { CSVUploadModal } from "@/components/modals/csv-upload-modal"
+import { Shipment, UserRoleEnum } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
 import { useShipments } from "@/hooks/services/shipments/use-shipments"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -25,12 +24,20 @@ import { NewShipmentDialog } from "@/components/modals/new-shipment-modal"
 import { toast } from "sonner"
 import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
 import { withAuth } from "@/hoc/withAuth";
+import { useAuthStore } from "@/store/auth.store"
+import { SucursalSelector } from "@/components/sucursal-selector"
 
 
 function ShipmentsPage() {
+  const user = useAuthStore((s) => s.user)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
-  const { shipments, isLoading, mutate } = useShipments()
+  const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null)
+
+  // ✅ Determinamos la sucursal actual
+  const effectiveSubsidiaryId = selectedSubsidiaryId || user?.subsidiary?.id
+
+  const { shipments, isLoading } = useShipments(effectiveSubsidiaryId)
   const isMobile = useIsMobile()
 
   const handleViewTimeline = useCallback((shipment: Shipment) => {
@@ -39,14 +46,8 @@ function ShipmentsPage() {
 
   const handleUploadSuccess = () => {
     toast("La importación de los envíos se realizó correctamente.")
-    /*toast({
-      title: "Importación de Envíos",
-      description: "La importación de los envíos se realizó correctamente.",
-      variant: "default",
-    })
-    mutate()*/
   }
-  
+
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
       ? {
@@ -61,13 +62,12 @@ function ShipmentsPage() {
       : col,
   )
 
-
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Skeleton para los botones de acción */}
+        {/* Header + acciones */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {/* Contenedor título + subtítulo */}
+          {/* Título y subtítulo */}
           <div>
             {isLoading ? (
               <div className="space-y-2">
@@ -77,52 +77,51 @@ function ShipmentsPage() {
             ) : (
               <>
                 <h2 className="text-2xl font-bold tracking-tight">Envios</h2>
-                <p className="text-muted-foreground">Administra las paquetes a enviar de las diferentes empresas (Fedex & DHL)</p>
+                <p className="text-muted-foreground">
+                  Administra las paquetes a enviar de las diferentes empresas (Fedex & DHL)
+                </p>
               </>
             )}
           </div>
 
-          {/* Contenedor botones */}
+          {/* Botones y selector de sucursal */}
           <div className="flex flex-col sm:flex-row gap-2 items-center">
-            {isLoading ? (
-              <>
-                <Skeleton className="h-10 w-32 rounded-md" />
-                <Skeleton className="h-10 w-32 rounded-md" />
-                <Skeleton className="h-10 w-32 rounded-md" />
-              </>
-            ) : (
-              <>
-                <NewShipmentDialog />
-                
-                <Button onClick={() => setIsUploadModalOpen(true)}>
-                  <Upload className="h-4 w-4" />
-                  Importar Envíos
-                </Button>
-
-                <ShipmentWizardModal 
-                  open={isUploadModalOpen} 
-                  onOpenChange={setIsUploadModalOpen} 
-                  onUploadSuccess={handleUploadSuccess}
+            {(user?.role === UserRoleEnum.ADMIN || user?.role === UserRoleEnum.SUPERADMIN) && (
+              <div>
+                <SucursalSelector
+                  value={selectedSubsidiaryId}
+                  onValueChange={setSelectedSubsidiaryId}
                 />
-
-                {/*<CSVUploadModal 
-                  open={isUploadModalOpen} 
-                  onOpenChange={setIsUploadModalOpen} 
-                  onUploadSuccess={handleUploadSuccess}
-                />*/}
-              </>
+              </div>
             )}
+
+            <NewShipmentDialog />
+
+            <Button onClick={() => setIsUploadModalOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Importar Envíos
+            </Button>
+
+            <ShipmentWizardModal
+              open={isUploadModalOpen}
+              onOpenChange={setIsUploadModalOpen}
+              onUploadSuccess={handleUploadSuccess}
+            />
           </div>
         </div>
 
-        {/* Sección KPI's */}      
-        { isLoading ? (
-          <span> Cargando datos de kpis</span>
+        {/* KPI's */}
+        {isLoading ? (
+          <div className="flex flex-row space-x-4">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-[110px] w-[250px] rounded-md" />
+            ))}
+          </div>
         ) : (
-          <KPIShipmentCards />
+          <KPIShipmentCards date={new Date().toDateString()} />
         )}
 
-        {/* Skeleton para la tabla de datos */}
+        {/* Tabla de envíos */}
         {isLoading ? (
           isMobile ? (
             <div className="space-y-4">
@@ -151,21 +150,18 @@ function ShipmentsPage() {
               </div>
             </div>
           )
+        ) : isMobile ? (
+          <ShipmentFilters shipments={shipments || []} />
         ) : (
-          isMobile ? (
-            <div>
-              <ShipmentFilters shipments={shipments || []} />
-            </div>
-          ) : (
-            <DataTable
-              columns={updatedColumns}
-              data={shipments || []}
-              searchKey="trackingNumber"
-              filters={filters}
-            />
-          )
+          <DataTable
+            columns={updatedColumns}
+            data={shipments || []}
+            searchKey="trackingNumber"
+            filters={filters}
+          />
         )}
- 
+
+        {/* Timeline */}
         {selectedShipment && (
           <Dialog open={!!selectedShipment} onOpenChange={() => setSelectedShipment(null)}>
             <DialogContent className="sm:max-w-[600px] bg-white rounded-lg">
