@@ -7,7 +7,7 @@ export const allowedPageRoles = {
         choferes: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
         sucursales: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
     },
-    dashboard: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
+    dashboard: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.AUXILIAR, UserRoleEnum.USER, UserRoleEnum.BODEGA],
     reportes: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER],
     operaciones: {
         cargas: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA],

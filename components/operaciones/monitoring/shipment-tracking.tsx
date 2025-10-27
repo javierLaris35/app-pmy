@@ -457,7 +457,7 @@ export default function TrackingPage() {
         <div className="space-y-6">
           <div className="flex items-start justify-between">
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight">Seguimiento de Paquetes</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Seguimiento de Paquetes</h1>
               <p className="text-muted-foreground">Monitorea el estado y ubicación de tus envíos en tiempo real</p>
             </div>
             <div className="flex gap-2">

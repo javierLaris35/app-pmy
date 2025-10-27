@@ -117,26 +117,27 @@ function VehiclesPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Catálogo de Vehículos</h2>
             <p className="text-muted-foreground">Administra los vehículos de la empresa</p>
           </div>
-          {isAdmin && (
-            <Button onClick={openNewDialog}>
-              <Plus className="mr-2 h-4 w-4" /> Nuevo Vehículo
-            </Button>
-          )}
-        </div>
-
-        {isAdmin && (
-          <div className="max-w-sm">
-            <SucursalSelector
-              value={selectedSubsidiaryId || user?.subsidiary?.id || ""}
-              onValueChange={setSelectedSubsidiaryId}
-            />
+          <div className="flex gap-2">
+            {isAdmin && (
+              <>
+                <div className="max-w-sm">
+                  <SucursalSelector
+                    value={selectedSubsidiaryId || user?.subsidiary?.id || ""}
+                    onValueChange={setSelectedSubsidiaryId}
+                  />
+                </div>
+                <Button onClick={openNewDialog}>
+                  <Plus className="mr-2 h-4 w-4" /> Nuevo Vehículo
+                </Button>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         {(isLoading || isSaving) && loaderText ? (
           <LoaderWithOverlay overlay transparent text={loaderText} className="rounded-lg" />

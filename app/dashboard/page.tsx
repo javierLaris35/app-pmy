@@ -35,6 +35,7 @@ function DashboardContent() {
   const [ingresosData, setIngresosData] = useState<any[]>([])
   const [gastosData, setGastosData] = useState<any[]>([])
   const [gastosPorCategoria, setGastosPorCategoria] = useState<any[]>([])
+  const isAdmin = user?.role.includes("admin") || user?.role.includes("superadmin")
 
   // Inicializar sucursal si no hay seleccionada
   useEffect(() => {
@@ -111,8 +112,12 @@ function DashboardContent() {
           />
 
           {/* Métricas y dashboards */}
-          <SubsidiaryMetricsGrid data={data || []} />
-          <InteractiveMap branches={data || []} />
+          {isAdmin && (
+            <>
+              <SubsidiaryMetricsGrid data={data || []} />
+              <InteractiveMap branches={data || []} />
+            </>
+          )}
         </div>
       </div>
     </AppLayout>
