@@ -152,14 +152,14 @@ export const sidebarMenu = {
           url: "/ingresos",
           icon: BarChart3,
           roles: allowedPageRoles.finanzas.ingresos,
-          permission: "ingresos:view",
+          isActive: false
         },
         {
           name: "Gastos",
           url: "/gastos",
           icon: PieChart,
           roles: allowedPageRoles.finanzas.gastos,
-          permission: "gastos:view",
+          isActive: false
         },
       ]
     },
