@@ -16,7 +16,7 @@ import { Plus, Trash2Icon, PencilIcon } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { columns } from "./columns"
 import { useDriversBySubsidiary, useSaveDriver } from "@/hooks/services/drivers/use-drivers"
-import { Driver } from "@/lib/types"
+import { Driver, Subsidiary } from "@/lib/types"
 import { DriverForm } from "@/components/modals/driver-form"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
@@ -39,24 +39,33 @@ import {
 function VehiclesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
-  const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState("")
+  const [selectedSubsidiary, setSelectedSubsidiary] = useState<Subsidiary | null>(null)
   const user = useAuthStore((s) => s.user)
 
   const isAdmin = user?.role.includes("admin") || user?.role.includes("superadmin")
+
+  // 🧠 Calcula el ID efectivo según el rol
   const effectiveSubsidiaryId = isAdmin
-    ? selectedSubsidiaryId || user?.subsidiary?.id
+    ? selectedSubsidiary?.id || user?.subsidiary?.id
     : user?.subsidiary?.id
 
   const { drivers, isLoading, isError, mutate } = useDriversBySubsidiary(effectiveSubsidiaryId)
   const { save, isSaving } = useSaveDriver()
   const isMobile = useIsMobile()
 
-  // Refresca automáticamente cuando cambie la sucursal seleccionada
+  // 🔄 Refresca automáticamente cuando cambie la sucursal seleccionada
   useEffect(() => {
     if (effectiveSubsidiaryId) {
       mutate()
     }
   }, [effectiveSubsidiaryId, mutate])
+
+  // 🧩 Inicializa la sucursal seleccionada con la del usuario al cargar
+  useEffect(() => {
+    if (!selectedSubsidiary && user?.subsidiary) {
+      setSelectedSubsidiary(user.subsidiary)
+    }
+  }, [user, selectedSubsidiary])
 
   const openNewDialog = () => {
     setEditingDriver(null)
@@ -83,6 +92,7 @@ function VehiclesPage() {
     mutate()
   }
 
+  // 🧱 Actualiza la columna de acciones
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
       ? {
@@ -108,15 +118,13 @@ function VehiclesPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esta acción eliminará al chofer <strong>{row.original.name}</strong>.
-                        No podrás deshacer esta acción.
+                        Esta acción eliminará al chofer{" "}
+                        <strong>{row.original.name}</strong>. No podrás deshacer esta acción.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDelete(row.original.id)}
-                      >
+                      <AlertDialogAction onClick={() => handleDelete(row.original.id)}>
                         Sí, eliminar
                       </AlertDialogAction>
                     </AlertDialogFooter>
@@ -128,7 +136,7 @@ function VehiclesPage() {
       : col,
   )
 
-  // Determina el texto dinámico del loader
+  // 💬 Texto dinámico del loader
   const loaderText = isSaving
     ? "Guardando cambios..."
     : isLoading
@@ -138,28 +146,33 @@ function VehiclesPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Catálogo de Choferes/Repartidores</h2>
             <p className="text-muted-foreground">
               Administra los choferes/repartidores de la empresa
             </p>
           </div>
-          {isAdmin && (
-            <Button onClick={openNewDialog}>
-              <Plus className="mr-2 h-4 w-4" /> Nuevo Chofer
-            </Button>
-          )}
-        </div>
 
-        {isAdmin && (
-          <div className="max-w-sm">
-            <SucursalSelector
-              value={selectedSubsidiaryId || user?.subsidiary?.id || ""}
-              onValueChange={setSelectedSubsidiaryId}
-            />
+          <div className="flex gap-2 flex-wrap">
+            {isAdmin && (
+              <>
+                <div className="max-w-sm">
+                  <SucursalSelector
+                    value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
+                    onValueChange={(subsidiary) =>
+                      setSelectedSubsidiary(subsidiary as Subsidiary)
+                    }
+                    returnObject
+                  />
+                </div>
+                <Button onClick={openNewDialog}>
+                  <Plus className="mr-2 h-4 w-4" /> Nuevo Vehículo
+                </Button>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         {(isLoading || isSaving) && loaderText ? (
           <LoaderWithOverlay
@@ -185,7 +198,11 @@ function VehiclesPage() {
             <DialogTitle>{editingDriver ? "Editar Chofer" : "Nuevo Chofer"}</DialogTitle>
             <DialogDescription>Completa la información del chofer</DialogDescription>
           </DialogHeader>
-          <DriverForm defaultValues={editingDriver} onSubmit={handleSubmit} />
+          <DriverForm
+            defaultValues={editingDriver}
+            onSubmit={handleSubmit}
+            subsidiary={selectedSubsidiary || user?.subsidiary}
+          />
         </DialogContent>
       </Dialog>
     </AppLayout>

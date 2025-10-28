@@ -1,4 +1,4 @@
-export type Role = "admin" | "superadmin" | "user"
+export type Role = "admin" | "superadmin" | "user" | "auxiliar" | "bodega" | "subadmin"
 
 export interface RouteAccessEntry {
     path: string

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -18,57 +18,76 @@ import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { useAuthStore } from "@/store/auth.store"
 
 interface SucursalSelectorProps {
-  value: string | string[] // ahora puede ser string (single) o string[] (multi)
-  onValueChange: (value: string | string[]) => void
+  value: string | string[]
+  onValueChange: (value: string | string[] | Subsidiary | Subsidiary[]) => void
   multi?: boolean
+  returnObject?: boolean // ✅ Nueva prop opcional
 }
 
-export function SucursalSelector({ value, onValueChange, multi = false }: SucursalSelectorProps) {
+export function SucursalSelector({
+  value,
+  onValueChange,
+  multi = false,
+  returnObject = false,
+}: SucursalSelectorProps) {
   const { subsidiaries, isLoading } = useSubsidiaries()
   const [open, setOpen] = useState(false)
   const [selectedSucursales, setSelectedSucursales] = useState<Subsidiary[]>([])
-
   const user = useAuthStore((state) => state.user)
 
+  // 🧠 Memorizar selección basada en value
   useEffect(() => {
     if (!subsidiaries || subsidiaries.length === 0) return
 
     if (multi) {
-      // Si es multi, "value" debería ser un array
       const selected = subsidiaries.filter((s) =>
         Array.isArray(value) ? value.includes(s.id) : false
       )
       setSelectedSucursales(selected)
     } else {
-      // Modo single
       const selected = subsidiaries.find((s) => s.id === value)
       if (selected) {
         setSelectedSucursales([selected])
       } else if (!value) {
         const defaultSucursal =
           subsidiaries.find((s) => s.id === user?.subsidiary?.id) || subsidiaries[0]
-        setSelectedSucursales([defaultSucursal])
-        onValueChange(defaultSucursal.id)
+        if (defaultSucursal) {
+          setSelectedSucursales([defaultSucursal])
+          onValueChange(returnObject ? defaultSucursal : defaultSucursal.id)
+        }
       }
     }
-  }, [subsidiaries, value, user, onValueChange, multi])
+  }, [subsidiaries, value, user, onValueChange, multi, returnObject])
 
-  const handleSelect = (sucursal: Subsidiary) => {
-    if (multi) {
-      let updated: Subsidiary[]
-      if (selectedSucursales.some((s) => s.id === sucursal.id)) {
-        updated = selectedSucursales.filter((s) => s.id !== sucursal.id)
+  // 🧩 Función para manejar selección
+  const handleSelect = useCallback(
+    (sucursal: Subsidiary) => {
+      if (multi) {
+        let updated: Subsidiary[]
+        if (selectedSucursales.some((s) => s.id === sucursal.id)) {
+          updated = selectedSucursales.filter((s) => s.id !== sucursal.id)
+        } else {
+          updated = [...selectedSucursales, sucursal]
+        }
+        setSelectedSucursales(updated)
+        onValueChange(returnObject ? updated : updated.map((s) => s.id))
       } else {
-        updated = [...selectedSucursales, sucursal]
+        setSelectedSucursales([sucursal])
+        onValueChange(returnObject ? sucursal : sucursal.id)
+        setOpen(false)
       }
-      setSelectedSucursales(updated)
-      onValueChange(updated.map((s) => s.id))
-    } else {
-      setSelectedSucursales([sucursal])
-      onValueChange(sucursal.id)
-      setOpen(false)
+    },
+    [multi, selectedSucursales, onValueChange, returnObject]
+  )
+
+  const selectedLabel = useMemo(() => {
+    if (multi) {
+      return selectedSucursales.length > 0
+        ? selectedSucursales.map((s) => s.name).join(", ")
+        : "Seleccionar sucursales..."
     }
-  }
+    return selectedSucursales[0]?.name || "Seleccionar sucursal..."
+  }, [multi, selectedSucursales])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -79,13 +98,7 @@ export function SucursalSelector({ value, onValueChange, multi = false }: Sucurs
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {multi ? (
-            selectedSucursales.length > 0
-              ? selectedSucursales.map((s) => s.name).join(", ")
-              : "Seleccionar sucursales..."
-          ) : (
-            selectedSucursales[0]?.name || "Seleccionar sucursal..."
-          )}
+          {selectedLabel}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -106,10 +119,7 @@ export function SucursalSelector({ value, onValueChange, multi = false }: Sucurs
                     onSelect={() => handleSelect(sucursal)}
                   >
                     <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        isSelected ? "opacity-100" : "opacity-0"
-                      )}
+                      className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")}
                     />
                     {sucursal.name}
                   </CommandItem>

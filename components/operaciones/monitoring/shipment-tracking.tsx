@@ -860,7 +860,12 @@ export default function TrackingPage() {
 
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
-              <LoaderWithOverlay />
+              <LoaderWithOverlay 
+                overlay
+                transparent
+                text={"Cargando..."}
+                className="rounded-lg"
+              />
             </div>
           ) : viewMode === "stats" ? (
             <div id="stats-section" className="space-y-6">

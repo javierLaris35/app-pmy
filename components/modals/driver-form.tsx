@@ -33,64 +33,71 @@ const stringField = (message: string) =>
   z.string({
     required_error: message,
     invalid_type_error: message,
-  }).min(1, message);
+  }).min(1, message)
 
 export const driverSchema = z.object({
-  name: stringField("Nombre es requerido"),
-  licenseNumber: stringField("Número de licencia es requerido"),
-  phoneNumber: stringField("Número de teléfono es requerido"),
-
+  name: stringField('Nombre es requerido'),
+  licenseNumber: stringField('Número de licencia es requerido'),
+  phoneNumber: stringField('Número de teléfono es requerido'),
   status: z.nativeEnum(StatusEnum, {
-    errorMap: () => ({ message: "Estado inválido" }),
+    errorMap: () => ({ message: 'Estado inválido' }),
   }),
-
-  licenseExpiration: z
-      .union([z.date(), z.string().datetime(), z.null()]),
-
+  licenseExpiration: z.union([z.date(), z.string().datetime(), z.null()]),
   subsidiary: z.object({
     id: z.string({
-      required_error: "ID de sucursal es requerido",
-      invalid_type_error: "ID de sucursal inválido",
+      required_error: 'ID de sucursal es requerido',
+      invalid_type_error: 'ID de sucursal inválido',
     }),
     name: z.string({
-      invalid_type_error: "Nombre de sucursal inválido",
+      invalid_type_error: 'Nombre de sucursal inválido',
     }).optional(),
   }),
-});
+})
 
 type DriverFormProps = {
   defaultValues?: Partial<Driver>
+  subsidiary?: { id: string; name: string }
   onSubmit: (values: Driver) => void
 }
 
-export function DriverForm({ defaultValues, onSubmit }: DriverFormProps) {
+export function DriverForm({ defaultValues, subsidiary, onSubmit }: DriverFormProps) {
   const user = useAuthStore((s) => s.user)
 
+  // ✅ Define valores seguros
   const form = useForm<z.infer<typeof driverSchema>>({
     resolver: zodResolver(driverSchema),
     defaultValues: {
-      ...defaultValues,
-      subsidiary: defaultValues?.subsidiary || user?.subsidiary
-    }
+      name: defaultValues?.name ?? '',
+      licenseNumber: defaultValues?.licenseNumber ?? '',
+      phoneNumber: defaultValues?.phoneNumber ?? '',
+      status: defaultValues?.status ?? StatusEnum.ACTIVE,
+      licenseExpiration: defaultValues?.licenseExpiration
+        ? new Date(defaultValues.licenseExpiration)
+        : null,
+      subsidiary: subsidiary || user?.subsidiary || { id: '', name: '' },
+    },
   })
 
-  const { setValue } = form
+  const { setValue, watch } = form
+  const effectiveSubsidiary = watch('subsidiary')
 
   useEffect(() => {
-    if (user?.subsidiary) {
-      setValue('subsidiary', user.subsidiary)
+    if (subsidiary || user?.subsidiary) {
+      setValue('subsidiary', subsidiary || user?.subsidiary)
     }
-  }, [user, setValue])
+  }, [subsidiary, user, setValue])
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* Sucursal mostrada como campo de solo lectura */}
-        {user?.subsidiary && (
+        {/* Sucursal de solo lectura */}
+        {effectiveSubsidiary && (
           <div>
-            <FormLabel className="text-sm font-medium text-muted-foreground">Sucursal</FormLabel>
+            <FormLabel className="text-sm font-medium text-muted-foreground">
+              Sucursal
+            </FormLabel>
             <div className="border rounded-md px-3 py-2 text-sm bg-muted">
-              {user.subsidiary.name}
+              {effectiveSubsidiary.name}
             </div>
           </div>
         )}
@@ -102,7 +109,7 @@ export function DriverForm({ defaultValues, onSubmit }: DriverFormProps) {
             <FormItem>
               <FormLabel>Nombre</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -116,7 +123,7 @@ export function DriverForm({ defaultValues, onSubmit }: DriverFormProps) {
             <FormItem>
               <FormLabel>Número de Licencia</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -129,56 +136,64 @@ export function DriverForm({ defaultValues, onSubmit }: DriverFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Expiración de Licencia</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
-                        {field.value ? format(field.value, 'dd/MM/yyyy') : 'Selecciona una fecha'}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
-                  </PopoverContent>
-                </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      {field.value
+                        ? format(field.value, 'dd/MM/yyyy')
+                        : 'Selecciona una fecha'}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={field.value instanceof Date ? field.value : undefined}
+                    onSelect={(date) => field.onChange(date ?? null)}
+                  />
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}
         />
 
         <FormField
-            control={form.control}
-            name="phoneNumber"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Número de Teléfono</FormLabel>
-                <FormControl>
-                    <Input
-                    {...field}
-                    maxLength={14} // para el formato (123) 456-7890 son 14 caracteres incluyendo espacios y paréntesis
-                    onChange={(e) => {
-                        // Solo números
-                        let value = e.target.value.replace(/\D/g, "")
-
-                        // Aplica formato (123) 456-7890 paso a paso
-                        if (value.length > 6) {
-                        value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`
-                        } else if (value.length > 3) {
-                        value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}`
-                        } else if (value.length > 0) {
-                        value = `(${value}`
-                        }
-
-                        field.onChange(value)
-                    }}
-                    />
-                </FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
+          control={form.control}
+          name="phoneNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Número de Teléfono</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  value={field.value ?? ''}
+                  maxLength={14}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, '')
+                    if (value.length > 6) {
+                      value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(
+                        6,
+                        10
+                      )}`
+                    } else if (value.length > 3) {
+                      value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}`
+                    } else if (value.length > 0) {
+                      value = `(${value}`
+                    }
+                    field.onChange(value)
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-
 
         <FormField
           control={form.control}
@@ -186,7 +201,10 @@ export function DriverForm({ defaultValues, onSubmit }: DriverFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Estatus</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value ?? StatusEnum.ACTIVE}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona un estatus" />
