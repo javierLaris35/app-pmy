@@ -12,7 +12,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogClose,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Switch } from "@/components/ui/switch"
 import {
   MapPin,
@@ -22,17 +33,13 @@ import {
   Smartphone,
   Trash2,
   User,
+  Mail,
+  Copy,
+  AlertTriangle,
 } from "lucide-react"
-import { updateSucursal } from "@/lib/data"
 import type { Subsidiary } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
-import {
-  createSelectColumn,
-  createSortableColumn,
-  createActionsColumn,
-  createSwitchColumn
-} from "@/components/data-table/columns"
 import {
   Card,
   CardContent,
@@ -40,14 +47,20 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useSaveSubsidiary, useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
-import {withAuth} from "@/hoc/withAuth";
+import { useSaveSubsidiary, useSubsidiaries, useDeleteSubsidiary } from "@/hooks/services/subsidiaries/use-subsidiaries"
+import { withAuth } from "@/hoc/withAuth"
+import { toast } from "sonner"
+import { getColumns } from "./columns"
 
 function SucursalesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingSucursal, setEditingSucursal] = useState<Subsidiary | null>(null)
+  const [sucursalToDelete, setSucursalToDelete] = useState<Subsidiary | null>(null)
+  
   const { subsidiaries, isLoading, isError, mutate } = useSubsidiaries()
-  const { save, isSaving, isError: isSaveError } = useSaveSubsidiary();
+  const { save, isSaving } = useSaveSubsidiary()
+  const { deleteSubsidiary, isDeleting } = useDeleteSubsidiary()
 
   const [nombre, setNombre] = useState("")
   const [direccion, setDireccion] = useState("")
@@ -58,7 +71,8 @@ function SucursalesPage() {
   const [fedexCostPackage, setFedexCostPackage] = useState(0.00)
   const [dhlCostPackage, setDhlCostPackage] = useState(0.00)
   const [chargeCost, setChargeCost] = useState(0.00)
-
+  const [officeEmail, setOfficeEmail] = useState("")
+  const [officeEmailToCopy, setOfficeEmailToCopy] = useState("")
 
   const isMobile = useIsMobile()
 
@@ -72,6 +86,9 @@ function SucursalesPage() {
     setActivo(true)
     setFedexCostPackage(0.00)
     setDhlCostPackage(0.00)
+    setChargeCost(0.00)
+    setOfficeEmail("")
+    setOfficeEmailToCopy("")
   }
 
   const openNewSucursalDialog = () => {
@@ -88,77 +105,98 @@ function SucursalesPage() {
     setEncargadoTelefono(sucursal.managerPhone || "")
     setFedexCostPackage(sucursal.fedexCostPackage || 0)
     setDhlCostPackage(sucursal.dhlCostPackage || 0)
+    setChargeCost(sucursal.chargeCost || 0)
     setActivo(sucursal.active)
+    setOfficeEmail(sucursal.officeEmail || "")
+    setOfficeEmailToCopy(sucursal.officeEmailToCopy || "")
     setIsDialogOpen(true)
+  }
+
+  const openDeleteDialog = (sucursal: Subsidiary) => {
+    setSucursalToDelete(sucursal)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const closeDeleteDialog = () => {
+    setIsDeleteDialogOpen(false)
+    setSucursalToDelete(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (editingSucursal) {
-      save({
-        id: editingSucursal.id,
-        name: nombre,
-        address: direccion,
-        phone: telefono,
-        officeManager: encargado,
-        managerPhone: encargadoTelefono,
-        fedexCostPackage,
-        dhlCostPackage,
-        chargeCost,
-        active: activo
-      });
-    } else {
-      save({
-        name: nombre,
-        address: direccion,
-        phone: telefono,
-        officeManager: encargado,
-        managerPhone: encargadoTelefono,
-        fedexCostPackage,
-        dhlCostPackage,
-        chargeCost,
-        active: activo
-      });
+    const subsidiaryData = {
+      name: nombre,
+      address: direccion,
+      phone: telefono,
+      officeManager: encargado,
+      managerPhone: encargadoTelefono,
+      fedexCostPackage,
+      dhlCostPackage,
+      chargeCost,
+      active: activo,
+      officeEmail: officeEmail || undefined,
+      officeEmailToCopy: officeEmailToCopy || undefined
     }
 
-    setIsDialogOpen(false)
-    mutate
+    try {
+      if (editingSucursal) {
+        await save({
+          ...subsidiaryData,
+          id: editingSucursal.id
+        })
+        toast.success("Sucursal actualizada correctamente")
+      } else {
+        await save(subsidiaryData)
+        toast.success("Sucursal creada correctamente")
+      }
+      
+      mutate()
+      setIsDialogOpen(false)
+      resetForm()
+      
+    } catch (error) {
+      console.error("Error al guardar:", error)
+      toast.error("Error al guardar la sucursal")
+    }
   }
 
   const handleToggleActive = async (subsidiary: Subsidiary, checked: boolean) => {
     try {
-      await save({ ...subsidiary, active: checked });
-      mutate();
+      await save({ 
+        ...subsidiary, 
+        active: checked 
+      })
+      mutate()
+      toast.success(`Sucursal ${checked ? "activada" : "desactivada"} correctamente`)
     } catch (error) {
-      console.error("Error al cambiar estado:", error);
+      console.error("Error al cambiar estado:", error)
+      toast.error("Error al cambiar el estado de la sucursal")
     }
-  };
+  }
 
-  const columns = [
-    createSelectColumn<Subsidiary>(),
-    createSortableColumn<Subsidiary>(
-      "nombre",
-      "Nombre",
-      (row) => row.name,
-      (value) => <span className="font-medium">{value}</span>,
-    ),
-    createSortableColumn<Subsidiary>("direccion", "Dirección", (row) => row.address || "-"),
-    createSortableColumn<Subsidiary>("telefono", "Teléfono", (row) => row.phone || "-"),
-    createSortableColumn<Subsidiary>("encargado", "Encargado", (row) => row.officeManager || "-"),
-    createSwitchColumn<Subsidiary>(
-      "active",
-      "Estado",
-      (row) => row.active,
-      (value, row) => (
-        <Switch
-          id={`switch-${row.id}`}
-          checked={value}
-          onCheckedChange={(checked) => handleToggleActive(row, checked)}
-        />
-      )
-    ),
-  ]
+  const handleConfirmDelete = async () => {
+    if (!sucursalToDelete) return
+
+    try {
+      await deleteSubsidiary(sucursalToDelete.id!)
+      mutate()
+      toast.success("Sucursal eliminada correctamente")
+      closeDeleteDialog()
+    } catch (error) {
+      console.error("Error al eliminar:", error)
+      toast.error("Error al eliminar la sucursal")
+    }
+  }
+
+  // Obtener las columnas con las funciones inyectadas
+  const columns = getColumns({
+    handleToggleActive,
+    openEditSucursalDialog,
+    handleDeleteSubsidiary: openDeleteDialog, // Cambiamos para usar el diálogo
+    isSaving,
+    isDeleting
+  })
 
   return (
     <AppLayout>
@@ -187,15 +225,9 @@ function SucursalesPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={sucursal.active}
-                      onCheckedChange={(value) =>
-                        updateSucursal(sucursal.id, {
-                          nombre: sucursal.name,
-                          direccion: sucursal.address || "",
-                          telefono: sucursal.phone || "",
-                          activo: value,
-                        }).then(() => mutate())
-                      }
+                      onCheckedChange={(value) => handleToggleActive(sucursal, value)}
                       id={`switch-${sucursal.id}`}
+                      disabled={isSaving}
                     />
                     <label htmlFor={`switch-${sucursal.id}`} className="text-sm text-muted-foreground">
                       {sucursal.active ? "Activo" : "Inactivo"}
@@ -233,6 +265,36 @@ function SucursalesPage() {
                         {sucursal.managerPhone || "-"}
                       </p>
                     </div>
+                    <div className="flex items-start gap-2">
+                      <Mail className="w-4 h-4 mt-0.5 text-foreground" />
+                      <p>
+                        <span className="font-medium text-foreground">Email oficina:</span>{" "}
+                        {sucursal.officeEmail || "-"}
+                      </p>
+                    </div>
+                    {sucursal.officeEmailToCopy && (
+                      <div className="flex items-start gap-2">
+                        <Copy className="w-4 h-4 mt-0.5 text-foreground" />
+                        <p>
+                          <span className="font-medium text-foreground">Email copia:</span>{" "}
+                          {sucursal.officeEmailToCopy}
+                        </p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-2 pt-2">
+                      <div>
+                        <span className="font-medium text-foreground">FedEx:</span>
+                        <p>${sucursal.fedexCostPackage?.toFixed(2) || "0.00"}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">DHL:</span>
+                        <p>${sucursal.dhlCostPackage?.toFixed(2) || "0.00"}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Carga:</span>
+                        <p>${sucursal.chargeCost?.toFixed(2) || "0.00"}</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2">
@@ -247,10 +309,11 @@ function SucursalesPage() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => console.log("Eliminar", sucursal)}
+                      onClick={() => openDeleteDialog(sucursal)}
+                      disabled={isDeleting}
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
-                      Eliminar
+                      {isDeleting ? "Eliminando..." : "Eliminar"}
                     </Button>
                   </div>
                 </CardContent>
@@ -269,61 +332,92 @@ function SucursalesPage() {
         )}
       </div>
 
+      {/* Diálogo para crear/editar sucursal */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingSucursal ? "Editar Sucursal" : "Nueva Sucursal"}</DialogTitle>
-            <DialogDescription>Ingresa los datos de la sucursal</DialogDescription>
+            <DialogDescription>
+              {editingSucursal ? "Modifica los datos de la sucursal" : "Ingresa los datos de la nueva sucursal"}
+            </DialogDescription>
           </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="nombre">Nombre</Label>
-                  <Input
-                    id="nombre"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="direccion">Dirección</Label>
-                  <Input
-                    id="direccion"
-                    value={direccion}
-                    onChange={(e) => setDireccion(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="telefono">Teléfono</Label>
-                  <Input
-                    id="telefono"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="encargado">Encargado</Label>
-                  <Input
-                    id="encargado"
-                    value={encargado}
-                    onChange={(e) => setEncargado(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="encargadoTelefono">Teléfono Encargado</Label>
-                  <Input
-                    id="encargadoTelefono"
-                    value={encargadoTelefono}
-                    onChange={(e) => setEncargadoTelefono(e.target.value)}
-                  />
-                </div>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="nombre">Nombre *</Label>
+                <Input
+                  id="nombre"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  required
+                  placeholder="Nombre de la sucursal"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="direccion">Dirección</Label>
+                <Input
+                  id="direccion"
+                  value={direccion}
+                  onChange={(e) => setDireccion(e.target.value)}
+                  placeholder="Dirección completa"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="telefono">Teléfono</Label>
+                <Input
+                  id="telefono"
+                  value={telefono}
+                  onChange={(e) => setTelefono(e.target.value)}
+                  placeholder="Número de teléfono"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="encargado">Encargado *</Label>
+                <Input
+                  id="encargado"
+                  value={encargado}
+                  onChange={(e) => setEncargado(e.target.value)}
+                  required
+                  placeholder="Nombre del encargado"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="encargadoTelefono">Teléfono Encargado</Label>
+                <Input
+                  id="encargadoTelefono"
+                  value={encargadoTelefono}
+                  onChange={(e) => setEncargadoTelefono(e.target.value)}
+                  placeholder="Teléfono del encargado"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="officeEmail">Email Oficina</Label>
+                <Input
+                  id="officeEmail"
+                  type="email"
+                  value={officeEmail}
+                  onChange={(e) => setOfficeEmail(e.target.value)}
+                  placeholder="ejemplo@sucursal.com"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="officeEmailToCopy">Email para Copia (CC)</Label>
+                <Input
+                  id="officeEmailToCopy"
+                  type="email"
+                  value={officeEmailToCopy}
+                  onChange={(e) => setOfficeEmailToCopy(e.target.value)}
+                  placeholder="copia@empresa.com"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="fedexCostPackage">Costo Paquete FedEx</Label>
                   <Input
                     id="fedexCostPackage"
                     type="number"
                     step="0.01"
+                    min="0"
                     value={fedexCostPackage}
                     onChange={(e) => setFedexCostPackage(+e.target.value)}
                   />
@@ -334,37 +428,84 @@ function SucursalesPage() {
                     id="dhlCostPackage"
                     type="number"
                     step="0.01"
+                    min="0"
                     value={dhlCostPackage}
                     onChange={(e) => setDhlCostPackage(+e.target.value)}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="dhlCostPackage">Costo por Carga</Label>
+                  <Label htmlFor="chargeCost">Costo por Carga</Label>
                   <Input
                     id="chargeCost"
                     type="number"
                     step="0.01"
+                    min="0"
                     value={chargeCost}
                     onChange={(e) => setChargeCost(+e.target.value)}
                   />
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="activo"
-                    checked={activo}
-                    onCheckedChange={setActivo}
-                  />
-                  <Label htmlFor="activo">Activo</Label>
-                </div>
               </div>
-              <DialogFooter>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? "Guardando..." : "Guardar"}
-                </Button>
-              </DialogFooter>
-            </form>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="activo"
+                  checked={activo}
+                  onCheckedChange={setActivo}
+                />
+                <Label htmlFor="activo">Activo</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                type="submit" 
+                disabled={isSaving}
+              >
+                {isSaving ? "Guardando..." : editingSucursal ? "Actualizar" : "Crear"} Sucursal
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
+
+      {/* Diálogo de confirmación para eliminar */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <AlertDialogTitle>¿Eliminar sucursal?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente la sucursal{" "}
+              <span className="font-semibold text-foreground">
+                "{sucursalToDelete?.name}"
+              </span>
+              {sucursalToDelete?.officeManager && (
+                <span> a cargo de {sucursalToDelete.officeManager}</span>
+              )}
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={closeDeleteDialog}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+                  Eliminando...
+                </>
+              ) : (
+                "Eliminar"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }

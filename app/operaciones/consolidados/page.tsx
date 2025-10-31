@@ -1,24 +1,21 @@
+// components/consolidated/consolidated-with-kpis.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
-import { ColumnDef } from "@tanstack/react-table";
-import { endOfMonth, format, isValid, parseISO, startOfMonth } from "date-fns";
-import { es } from "date-fns/locale";
+import { endOfMonth, format, startOfMonth } from "date-fns";
 import { Loader } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
 import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon, Plane, Truck } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
-import { Consolidated } from "@/lib/types";
 import { useConsolidated } from "@/hooks/services/consolidateds/use-consolidated";
-import { ConsolidatedDetailDialog } from "@/components/modals/consolidated-shipment-detail-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getFedexStatus } from "@/lib/services/consolidated";
 import { withAuth } from "@/hoc/withAuth";
+import { columns } from "./columns";
 
 function ConsolidatedWithKpis() {
   const today = new Date()
@@ -36,9 +33,9 @@ function ConsolidatedWithKpis() {
     dateRange.to
   );
 
-    // Efecto para recargar datos cuando cambian los filtros
+  // Efecto para recargar datos cuando cambian los filtros
   useEffect(() => {
-    mutate;
+    mutate();
   }, [dateRange.from, dateRange.to, selectedSucursalId, mutate]);
 
   // Función para manejar cambios de fecha
@@ -49,7 +46,6 @@ function ConsolidatedWithKpis() {
     }));
   };
 
-
   if (!consolidateds || isLoading) return <Loader />;
 
   // Conteos corregidos
@@ -58,139 +54,21 @@ function ConsolidatedWithKpis() {
   let totalInTransit = 0;
 
   consolidateds.forEach(c => {
-    c.shipments.forEach(s => {
-      const status = s.status?.toLowerCase().trim();
-      if (status === "entregado") totalPOD++;
-      else if (status === "no_entregado") totalDEX++;
-      else totalInTransit++;
-    });
+    totalPOD += c.shipmentCounts?.entregado || 0;
+    totalDEX += c.shipmentCounts?.no_entregado || 0;
+    totalInTransit += c.shipmentCounts?.en_ruta || 0;
   });
 
   const totalConsolidateds = consolidateds.length;
-  const totalShipments = consolidateds.reduce((sum, c) => sum + c.shipments.length, 0);
+  const totalShipments = consolidateds.reduce((sum, c) => sum + (c.shipmentCounts?.total || 0), 0);
   const completedConsolidateds = consolidateds.filter(c => c.status === "completo").length;
 
-  const columns: ColumnDef<Consolidated>[] = [
-    /*{
-      accessorKey: "id",
-      header: "id",
-    },*/
-    {
-      accessorKey: "date",
-      header: "Fecha",
-      cell: ({ row }) => {
-        const raw: string = row.getValue("date")
-        
-        if (!raw) return "Sin fecha"
-
-        const [year, month, day] = raw.split("T")[0].split("-") // "2025-06-30" => [2025, 06, 30]
-
-        return `${day}/${month}/${year}` // "30/06/2025"
-      }
-    },
-    {
-      accessorKey: "numberOfPackages",
-      header: "# Paquetes",
-    },
-    {
-      accessorKey: "subsidiary",
-      header: "Sucursal",
-      cell: ({ row }) => {
-        const subsidiary = row.getValue("subsidiary") as { name: string };
-        return <span>{subsidiary?.name ?? "N/A"}</span>;
-      },
-    },
-    {
-      accessorKey: "type",
-      header: "Tipo",
-      cell: ({ row }) => {
-        const type = row.getValue("type") as string;
-        
-        // Definimos los íconos según el tipo de consolidado
-        const typeIcons = {
-          ordinario: <Truck className="h-5 w-5 text-blue-600" />,
-          aereo: <Plane className="h-5 w-5 text-purple-600" />,
-        };
-
-        // Mapeo de tipos a nombres completos
-        const typeNames = {
-          ordinario: "Terrestre",
-          aereo: "Aéreo"
-        };
-
-        const icon = typeIcons[type.toLowerCase()] || <Truck className="h-5 w-5" />;
-        const name = typeNames[type.toLowerCase()] || type;
-
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-2">
-                {icon}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Tipo: {name}</p>
-            </TooltipContent>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      header: "POD (Entregados)",
-      cell: ({ row }) => {
-        const consolidated = row.original;
-        const count = consolidated.shipments.filter(s => s.status?.toLowerCase().trim() === "entregado").length;
-        return <span className="text-green-600 font-semibold">{count}</span>;
-      },
-    },
-    {
-      header: "DEX (No Entregados)",
-      cell: ({ row }) => {
-        const consolidated = row.original;
-        const count = consolidated.shipments.filter(s => s.status?.toLowerCase().trim() === "no_entregado").length;
-        return <span className="text-red-600 font-semibold">{count}</span>;
-      },
-    },
-    {
-      header: "En Ruta",
-      cell: ({ row }) => {
-        const consolidated = row.original;
-        const count = consolidated.shipments.filter(s => {
-          const status = s.status?.toLowerCase().trim();
-          return status !== "entregado" && status !== "no_entregado";
-        }).length;
-        return <span className="text-yellow-600 font-semibold">{count}</span>;
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Estado",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return (
-          <Badge
-            variant={status === "completo" ? "default" : "outline"}
-            className={status === "completo" ? "bg-green-600" : "bg-yellow-400 text-black"}
-          >
-            {status === "completo" ? "Completo" : "Incompleto"}
-          </Badge>
-        );
-      },
-    },
-    {
-      id: "actions",
-      header: "Acciones",
-      cell: ({ row }) => {
-        const consolidated = row.original;
-        return <ConsolidatedDetailDialog consolidated={consolidated} date={consolidated.date}/>;
-      },
-    },
-  ];
-
   const handleUpdateFedexStatus = async () => {
-    await getFedexStatus();
+    // Pasar los parámetros actuales del filtro
+    await getFedexStatus(selectedSucursalId, dateRange.from, dateRange.to);
+    mutate(); // Recargar datos después de actualizar
   }
-
+  
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -252,7 +130,6 @@ function ConsolidatedWithKpis() {
             </div>
           </div>
         </div>
-
 
         {/* KPIs estilo moderno */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

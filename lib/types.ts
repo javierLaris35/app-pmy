@@ -9,6 +9,8 @@ export type Subsidiary = {
   dhlCostPackage: number
   chargeCost: number
   active: boolean
+  officeEmail?: string
+  officeEmailToCopy?: string
 }
 
 export type Collection = {
@@ -159,6 +161,7 @@ export type StatusHistory = {
 }
 
 export type Shipment = {
+  id: string
   trackingNumber: string
   recipientName: string
   recipientAddress: string
@@ -244,6 +247,13 @@ export interface Consolidated {
       id: string;
       name: string;
   };
+  shipmentCounts?: {
+    total: number; 
+    en_ruta: number;
+    entregado: number;
+    no_entregado: number;
+    other: number;
+  }
   isCompleted: boolean;
   consNumber: string;
   efficiency: number;

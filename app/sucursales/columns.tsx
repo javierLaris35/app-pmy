@@ -1,10 +1,27 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Subsidiary } from "@/lib/types" // Ajusta según tu modelo real
+import { Button } from "@/components/ui/button"
+import { Subsidiary } from "@/lib/types"
+import { Pencil, Trash2 } from "lucide-react"
 
-export const columns: ColumnDef<Subsidiary>[] = [
-  // Columna de selección
+// Definir el tipo para las funciones que necesitas
+interface ColumnHelpers {
+  handleToggleActive: (subsidiary: Subsidiary, checked: boolean) => void
+  openEditSucursalDialog: (subsidiary: Subsidiary) => void
+  handleDeleteSubsidiary: (subsidiary: Subsidiary) => void
+  isSaving?: boolean
+  isDeleting?: boolean
+}
+
+// Función que retorna las columnas con las funciones inyectadas
+export const getColumns = ({
+  handleToggleActive,
+  openEditSucursalDialog,
+  handleDeleteSubsidiary,
+  isSaving = false,
+  isDeleting = false
+}: ColumnHelpers): ColumnDef<Subsidiary>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -24,36 +41,46 @@ export const columns: ColumnDef<Subsidiary>[] = [
     enableSorting: false,
     enableHiding: false,
   },
-
-  // Nombre
   {
-    accessorKey: "nombre",
+    accessorKey: "name",
     header: "Nombre",
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
   },
-
-  // Dirección
   {
-    accessorKey: "direccion",
+    accessorKey: "address",
     header: "Dirección",
     cell: ({ row }) => row.original.address || "-",
   },
-
-  // Teléfono
   {
-    accessorKey: "telefono",
+    accessorKey: "phone",
     header: "Teléfono",
     cell: ({ row }) => row.original.phone || "-",
   },
-
-  // Encargado
   {
-    accessorKey: "encargado",
+    accessorKey: "officeManager",
     header: "Encargado",
     cell: ({ row }) => row.original.officeManager || "-",
   },
-
-  // Estado (activo)
+  {
+    accessorKey: "officeEmail",
+    header: "Email Oficina",
+    cell: ({ row }) => row.original.officeEmail || "-",
+  },
+  {
+    accessorKey: "fedexCostPackage",
+    header: "Costo FedEx",
+    cell: ({ row }) => `$${row.original.fedexCostPackage || "0.00"}`,
+  },
+  {
+    accessorKey: "dhlCostPackage",
+    header: "Costo DHL",
+    cell: ({ row }) => `$${row.original.dhlCostPackage || "0.00"}`,
+  },
+  {
+    accessorKey: "chargeCost",
+    header: "Costo Carga",
+    cell: ({ row }) => `$${row.original.chargeCost || "0.00"}`,
+  },
   {
     accessorKey: "active",
     header: "Estado",
@@ -62,28 +89,33 @@ export const columns: ColumnDef<Subsidiary>[] = [
         id={`switch-${row.original.id}`}
         checked={row.original.active}
         onCheckedChange={(checked) => handleToggleActive(row.original, checked)}
+        disabled={isSaving}
       />
     ),
   },
-
-  // Acciones
   {
     id: "actions",
     header: "Acciones",
     cell: ({ row }) => (
-      <div className="flex gap-2">
-        <button
-          className="text-sm text-blue-600 hover:underline"
+      <div className="flex gap-2 justify-end">
+        <Button
+          variant="ghost"
+          className="h-8 w-8 p-0"
           onClick={() => openEditSucursalDialog(row.original)}
+          disabled={isSaving}
+          title="Editar sucursal"
         >
-          Editar
-        </button>
-        <button
-          className="text-sm text-red-600 hover:underline"
-          onClick={() => console.log("Eliminar", row.original)}
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="destructive"
+          className="h-8 w-8 p-0"
+          onClick={() => handleDeleteSubsidiary(row.original)}
+          disabled={isDeleting || isSaving}
+          title="Eliminar sucursal"
         >
-          Eliminar
-        </button>
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
     ),
   },

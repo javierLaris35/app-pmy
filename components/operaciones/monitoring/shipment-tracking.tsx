@@ -38,6 +38,9 @@ import {
   getUnloadings,
   getInfoFromConsolidated,
   getInfoFromUnloading,
+  updateDataFromFedexByPackageDispatchId,
+  updateDataFromFedexByConsolidatedId,
+  updateDataFromFedexByUnloadingId,
 } from "@/lib/services/monitoring/monitoring"
 import { useAuthStore } from "@/store/auth.store"
 import { Loader, LoaderWithOverlay } from "@/components/loader"
@@ -225,6 +228,16 @@ export default function TrackingPage() {
 
     setIsLoading(true)
     try {
+      // Primero actualizar los estados de FedEx según el tipo seleccionado
+      if (selectedRuta) {
+        await updateDataFromFedexByPackageDispatchId(selectedRuta)
+      } else if (selectedConsolidado) {
+        await updateDataFromFedexByConsolidatedId(selectedConsolidado)
+      } else if (selectedDesembarque) {
+        await updateDataFromFedexByUnloadingId(selectedDesembarque)
+      }
+
+      // Luego obtener los paquetes actualizados
       let packagesInfo: MonitoringInfo[] = []
       
       if (selectedRuta) {

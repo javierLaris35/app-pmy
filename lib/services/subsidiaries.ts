@@ -18,8 +18,14 @@ const saveSubsidiary = async (subsidiary: Subsidiary) => {
     return response.data;
 }
 
+const deleteSubsidiary = async (id: string) => {
+    const response = await axiosConfig.delete(`${url}/${id}`);
+    return response.data;
+}
+
 export {
     getSubsidiaries,
     getSubsidiaryById,
-    saveSubsidiary
-}
+    saveSubsidiary,
+    deleteSubsidiary
+};

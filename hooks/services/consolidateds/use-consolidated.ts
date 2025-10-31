@@ -19,13 +19,19 @@ export function useConsolidated(
     };
 }
 
-export function useUpdateFedexStatus () {
-    const { data, error, isLoading, mutate } = useSWR('/consolidated/update-fedex-status', getFedexStatus);
+export function useUpdateFedexStatus(subsidiaryId?: string, fromDate?: string, toDate?: string) {
+  // Crear una key única basada en los parámetros
+  const key = `/consolidated/update-fedex-status?subsidiaryId=${subsidiaryId || ''}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`;
+  
+  const { data, error, isLoading, mutate } = useSWR(
+    key, 
+    () => getFedexStatus(subsidiaryId, fromDate, toDate)
+  );
 
-    return {
-        updates: data,
-        isLoading, 
-        isError: !!error,
-        mutate
-    }
+  return {
+    updates: data,
+    isLoading, 
+    isError: !!error,
+    mutate
+  };
 }

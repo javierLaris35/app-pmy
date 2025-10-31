@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react";
-import { Eye, History } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Eye, History, Download } from "lucide-react";
 import { DataTable } from "../data-table/data-table";
 import { Button } from "../ui/button";
 import {
@@ -14,22 +14,58 @@ import {
 import { format } from "date-fns";
 import { ColumnDef, useReactTable } from "@tanstack/react-table";
 import { es } from "date-fns/locale";
-import { Shipment } from "@/lib/types";
+import { Shipment, Consolidated } from "@/lib/types";
 import { Badge } from "../ui/badge";
 import { StatusHistoryTimeline } from "./status-history-timeline";
 import * as XLSX from "xlsx"
+import { getShipmentsByConsolidatedId } from "@/lib/services/consolidated";
+import { Loader, LoaderWithOverlay } from "../loader";
+import { ShipmentHistoryModal } from "../operaciones/envios/shipment-history-modal";
 
 interface Props {
-  consolidated: {
-    shipments: Shipment[];
-  };
+  consolidated: Consolidated;
   date: string
 }
 
 export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [openStatusDialog, setOpenStatusDialog] = useState(false);
-  const [table, setTable] = useState<ReturnType<typeof useReactTable> | null>(null)
+  const [table, setTable] = useState<ReturnType<typeof useReactTable> | null>(null);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Cargar shipments cuando se abre el diálogo
+  const loadShipments = async () => {
+    if (!isOpen) return;
+    
+    setIsLoading(true);
+    setError(null);
+    try {
+      const shipmentsData = await getShipmentsByConsolidatedId(consolidated.id);
+      setShipments(shipmentsData);
+    } catch (err) {
+      console.error("Error loading shipments:", err);
+      setError("Error al cargar los shipments");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadShipments();
+    } else {
+      // Limpiar datos cuando se cierra el diálogo
+      setShipments([]);
+      setError(null);
+    }
+  }, [isOpen, consolidated.id]);
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+  };
 
   const exportToExcel = () => {
     if (!table) return;
@@ -74,7 +110,7 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
     const resumenSheet = XLSX.utils.json_to_sheet(resumenData);
     XLSX.utils.book_append_sheet(workbook, resumenSheet, "Resumen");
 
-    // Hoja 2: Historial (código original sin cambios)
+    // Hoja 2: Historial
     const historyData: {
       "No. Rastreo": string;
       "Estatus": string;
@@ -105,7 +141,7 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
     const historySheet = XLSX.utils.json_to_sheet(cleanedHistoryData);
     XLSX.utils.book_append_sheet(workbook, historySheet, "Historial");
 
-    // Generar nombre del archivo (código original sin cambios)
+    // Generar nombre del archivo
     const { columnFilters, globalFilter } = table.getState();
     const filterLabels: string[] = [];
 
@@ -147,8 +183,12 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
     {
       accessorKey: "commitDateTime",
       header: "Fecha Compromiso",
-      cell: ({ row }) =>
-        format(new Date(row.getValue("commitDateTime")), "dd/MM/yyyy hh:mm a", { locale: es }),
+      cell: ({ row }) => {
+        const dateValue = row.getValue("commitDateTime") as string;
+        return dateValue 
+          ? format(new Date(dateValue), "dd/MM/yyyy hh:mm a", { locale: es })
+          : "-";
+      },
     },
     {
       accessorKey: "status",
@@ -197,17 +237,16 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
       cell: ({ row }) => {
         const shipment = row.original;
         return (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setSelectedShipment(shipment);
-              setOpenStatusDialog(true);
-            }}
-          >
-            <History className="h-4 w-4 mr-1" />
-            Ver
-          </Button>
+          <ShipmentHistoryModal
+            shipmentId={shipment.id} // Asegúrate de que el shipment tenga id
+            trackingNumber={shipment.trackingNumber}
+            trigger={
+              <Button size="sm" variant="ghost">
+                <History className="h-4 w-4 mr-1" />
+                Ver
+              </Button>
+            }
+          />
         );
       },
     },
@@ -215,37 +254,100 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
 
   return (
     <>
-      <Dialog>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="icon" aria-label="Ver detalles">
             <Eye className="h-4 w-4 text-muted-foreground" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>
-              Envíos del Consolidado ({consolidated.shipments.length})
+        <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="flex-shrink-0 px-6 py-4 border-b bg-background">
+            <DialogTitle className="text-lg font-semibold">
+              Envíos del Consolidado - {consolidated.consNumber}
             </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Fecha: {date ? format(new Date(date), "dd/MM/yyyy", { locale: es }) : "Sin fecha"}
+            </p>
           </DialogHeader>
 
-          {/* Botón de exportación */}
-          <div className="flex justify-end pb-2">
-            <Button onClick={exportToExcel} variant="default" size="sm">
-              Exportar a Excel
-            </Button>
-          </div>
-
-          {consolidated.shipments && consolidated.shipments.length > 0 ? (
-            <div className="max-h-[80vh] overflow-y-auto p-1">
-              <DataTable
-                columns={shipmentColumns}
-                data={consolidated.shipments}
-                onTableReady={setTable}
-                searchKey="trackingNumber"
-              />
+          {/* Estado de carga y error */}
+          {isLoading && (
+            <div className="flex-1 flex items-center justify-center p-8">
+              <LoaderWithOverlay overlay text="Cargando shipments..." />
             </div>
-          ) : (
-            <p className="p-4 text-center">No hay envíos para esta carga.</p>
+          )}
+
+          {error && (
+            <div className="flex-1 flex items-center justify-center p-8 text-red-500">
+              <div className="text-center">
+                <p className="font-medium">{error}</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-2"
+                  onClick={loadShipments}
+                >
+                  Reintentar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && !error && (
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Botón de exportación */}
+              <div className="flex justify-between items-center px-6 py-3 border-b bg-muted/30 flex-shrink-0">
+                <div className="text-sm text-muted-foreground">
+                  Total: {shipments.length} paquetes
+                </div>
+                <Button 
+                  onClick={exportToExcel} 
+                  variant="default" 
+                  size="sm"
+                  disabled={shipments.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar a Excel
+                </Button>
+              </div>
+
+              {shipments.length > 0 ? (
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <div className="p-6 pt-4">
+                    <DataTable
+                      columns={shipmentColumns}
+                      data={shipments}
+                      onTableReady={setTable}
+                      searchKey="trackingNumber"
+                      filters={[
+                        {
+                          columnId: "status",
+                          title: "Estado",
+                          options: [
+                            { label: "Entregado", value: "entregado" },
+                            { label: "No Entregado", value: "no_entregado" },
+                            { label: "En Ruta", value: "en_ruta" },
+                          ],
+                        },
+                      ]}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center p-8">
+                  <div className="text-center">
+                    <p className="text-muted-foreground mb-4">
+                      No hay shipments para este consolidado.
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      onClick={loadShipments}
+                    >
+                      Reintentar carga
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>
@@ -255,12 +357,14 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
         <Dialog open={openStatusDialog} onOpenChange={setOpenStatusDialog}>
           <DialogContent className="max-w-xl">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
                 Historial de Estatus - {selectedShipment.trackingNumber}
               </DialogTitle>
             </DialogHeader>
-
-            <StatusHistoryTimeline history={selectedShipment.statusHistory ?? []} />
+            <div className="max-h-[60vh] overflow-auto">
+              <StatusHistoryTimeline history={selectedShipment.statusHistory ?? []} />
+            </div>
           </DialogContent>
         </Dialog>
       )}

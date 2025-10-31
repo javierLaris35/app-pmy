@@ -1,51 +1,52 @@
-import { getSubsidiaries, getSubsidiaryById, saveSubsidiary } from "@/lib/services/subsidiaries";
-import { Subsidiary } from "@/lib/types";
-import useSWR from "swr";
-import useSWRMutation from "swr/mutation";
+import useSWR from 'swr';
+import useSWRMutation from 'swr/mutation';
+import { getSubsidiaries, saveSubsidiary as saveSubsidiaryService, deleteSubsidiary as deleteSubsidiaryService } from '@/lib/services/subsidiaries';
+import type { Subsidiary } from '@/lib/types';
 
 export function useSubsidiaries() {
-    const { data, error, isLoading, mutate } = useSWR('/subsidiaries', getSubsidiaries);
+  const {
+    data: subsidiaries,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR<Subsidiary[]>('subsidiaries', getSubsidiaries);
 
-    return {
-        subsidiaries: data || [],
-        isLoading,
-        isError: !!error,
-        mutate
-    }
+  return {
+    subsidiaries: subsidiaries || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  };
 }
 
-export function useSubsidiariesById(id: string) {
-    const isValid = id;
-    
-    const { data, error, isLoading, mutate } = useSWR<Subsidiary>(
-        isValid
-          ? [`/subsidiaries`, id]
-          : null,
-        ([, id]: [string, string]) => getSubsidiaryById(id)
-      );
+export function useSaveSubsidiary() {
+  const {
+    trigger: save,
+    isMutating: isSaving,
+    error,
+  } = useSWRMutation("save-subsidiary", async (_key, { arg }: { arg: Subsidiary }) => {
+    return await saveSubsidiaryService(arg);
+  });
 
-    return {
-        subsidiary: data,
-        isLoading,
-        isError: !!error,
-        mutate
-    }
+  return {
+    save,
+    isSaving,
+    isError: !!error,
+  };
 }
 
-export function useSaveSubsidiary(){
-    const {
-        trigger: save,
-        isMutating: isSaving,
-        error,
-    } = useSWRMutation("save-subsidiary", async (_key, { arg }: { arg: Subsidiary }) => {
-        return await saveSubsidiary(arg);
-    });
+export function useDeleteSubsidiary() {
+  const {
+    trigger: deleteSubsidiary,
+    isMutating: isDeleting,
+    error,
+  } = useSWRMutation("delete-subsidiary", async (_key, { arg }: { arg: string }) => {
+    return await deleteSubsidiaryService(arg);
+  });
 
-    return {
-        save,
-        isSaving,
-        isError: !!error,
-    };
+  return {
+    deleteSubsidiary,
+    isDeleting,
+    isError: !!error,
+  };
 }
-
-

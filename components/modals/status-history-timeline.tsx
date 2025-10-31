@@ -82,7 +82,7 @@ export function StatusHistoryTimeline({ history }: Props) {
           const showException = item.exceptionCode && item.exceptionCode !== "";
 
           return (
-            <div key={item.id} className="relative pl-8">
+            <div key={index} className="relative pl-8">
               {/* Dot */}
               <span
                 className={`absolute left-[-0.6rem] top-1.5 h-4 w-4 rounded-full ring-4 ring-white shadow-md ${config.dotColor}`}
