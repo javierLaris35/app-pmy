@@ -34,7 +34,6 @@ export default function RootLayout({
                 <HistoryTracker/>
                 <Suspense fallback={null}>
                   {children}
-                  <CommandPalette />
                 </Suspense>
             </TooltipProvider>
         </ThemeProvider>

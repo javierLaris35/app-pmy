@@ -224,7 +224,7 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
     header: "Pago",
     cell: ({ row }) => {
       const pkg = row.original
-      if (pkg.shipmentData.payment && typeof pkg.shipmentData.payment.amount === "number") {
+      if (pkg.shipmentData.payment) {
         return (
           <Badge className="bg-blue-500 text-white whitespace-nowrap">
             {pkg.shipmentData.payment.type}: ${pkg.shipmentData.payment.amount.toFixed(2)}

@@ -128,3 +128,13 @@ body {
     border-radius: 3px;
   }
 }
+
+[data-slot="dialog-content"] {
+  overflow: hidden !important;
+}
+
+/* Asegurar que el contenido interno pueda hacer scroll */
+[data-slot="dialog-content"] > .dialog-scroll-content {
+  overflow-y: auto;
+  max-height: inherit;
+}

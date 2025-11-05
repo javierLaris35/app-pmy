@@ -140,9 +140,9 @@ export default function TrackingPage() {
     const porcentajeEntrega = total > 0 ? (entregados / total) * 100 : 0
     const porcentajeNoEntrega = total > 0 ? (noEntregados / total) * 100 : 0
     const eficiencia = total > 0 ? (entregados / total) * 100 : 0
-    const packagesWithPayment = packages.filter((p) => p.shipmentData?.payment && typeof p.shipmentData.payment.amount === "number").length
+    const packagesWithPayment = packages.filter((p) => p.shipmentData?.payment).length
     const totalPaymentAmount = packages
-      .filter((p) => p.shipmentData?.payment && typeof p.shipmentData.payment.amount === "number")
+      .filter((p) => p.shipmentData?.payment)
       .reduce((sum, p) => sum + (p.shipmentData.payment?.amount || 0), 0)
 
     return {
@@ -550,7 +550,7 @@ export default function TrackingPage() {
             </div>
           </Card>
 
-                    {selectedConsolidado && (
+          {selectedConsolidado && (
             <Card className="p-4">
               <CardHeader className="p-0 pb-4">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -662,14 +662,14 @@ export default function TrackingPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Número de Desembarque</p>
-                        <p className="font-semibold text-base">{selectedDesembarque}</p>
+                        <p className="font-semibold text-base">{unloadings.find((d) => d.id === selectedDesembarque)?.trackingNumber}</p>
                       </div>
                       <div className="text-sm">
                         <p className="font-medium text-muted-foreground">Fecha</p>
                         <p className="font-semibold text-base">
-                          {unloadings.find((d) => d.trackingNumber === selectedDesembarque)?.date
+                          {unloadings.find((d) => d.id === selectedDesembarque)?.date
                             ? new Date(
-                                unloadings.find((d) => d.trackingNumber === selectedDesembarque)!.date,
+                                unloadings.find((d) => d.id === selectedDesembarque)!.date,
                               ).toLocaleDateString()
                             : "-"}
                         </p>
@@ -875,7 +875,6 @@ export default function TrackingPage() {
             <div className="flex justify-center items-center h-64">
               <LoaderWithOverlay 
                 overlay
-                transparent
                 text={"Cargando..."}
                 className="rounded-lg"
               />

@@ -8,6 +8,8 @@ import { SidebarProvider, SidebarTrigger } from "./ui/sidebar"
 import { useAuthStore } from "@/store/auth.store"
 import { Loader } from "./loader"
 import { Toaster } from "./ui/sonner"
+import { CommandPalette } from "./search-packages/search-package"
+import { AddShipmentDialog } from "./add-shipment/add-shipment-dialog"
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -41,6 +43,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className="flex-1 p-4 md:p-6 overflow-auto">
         <SidebarTrigger className="mb-2" />
         {children}
+        <CommandPalette />
+        <AddShipmentDialog />
       </main>
       <Toaster />
     </SidebarProvider>

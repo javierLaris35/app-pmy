@@ -151,6 +151,8 @@ const PackageItem = ({
 };
 
 const PackageDispatchForm: React.FC<Props> = ({
+  selectedSubsidiaryId: propSubsidiaryId,
+  subsidiaryName: propSubsidiaryName,
   onClose,
   onSuccess,
 }) => {
@@ -185,8 +187,6 @@ const PackageDispatchForm: React.FC<Props> = ({
   );
 
   // Estados de UI
-  const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null);
-  const [selectedSubsidiaryName, setSelectedSubsidiaryName] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
@@ -197,6 +197,15 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   const user = useAuthStore((s) => s.user);
   const { toast } = useToast();
+
+  // Determinar subsidiaria: primero la del prop, luego la del usuario
+  const selectedSubsidiaryId = useMemo(() => {
+    return propSubsidiaryId || user?.subsidiary?.id || null;
+  }, [propSubsidiaryId, user]);
+
+  const selectedSubsidiaryName = useMemo(() => {
+    return propSubsidiaryName || user?.subsidiary?.name || null;
+  }, [propSubsidiaryName, user]);
 
   // Detectar estado de conexión
   useEffect(() => {
@@ -213,13 +222,6 @@ const PackageDispatchForm: React.FC<Props> = ({
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
-  useEffect(() => {
-    if (user?.subsidiary) {
-      setSelectedSubsidiaryId(user.subsidiary.id || null);
-      setSelectedSubsidiaryName(user.subsidiary.name || null);
-    }
-  }, [user]);
 
   const validatePackageForDispatch = async (trackingNumber: string): Promise<PackageInfo> => {
     console.log("🚀 ~ validatePackageForDispatch ~ trackingNumber:", trackingNumber)
@@ -244,7 +246,7 @@ const PackageDispatchForm: React.FC<Props> = ({
     if (!selectedSubsidiaryId) {
       toast({
         title: "Error",
-        description: "Selecciona una sucursal antes de validar.",
+        description: "No se pudo determinar la sucursal. Por favor, selecciona una sucursal.",
         variant: "destructive",
       });
       return;
@@ -349,7 +351,7 @@ const PackageDispatchForm: React.FC<Props> = ({
     if (!selectedSubsidiaryId) {
       toast({
         title: "Sucursal no seleccionada",
-        description: "Por favor selecciona una sucursal antes de procesar.",
+        description: "No se pudo determinar la sucursal. Por favor, selecciona una sucursal antes de procesar.",
         variant: "destructive",
       });
       return;
@@ -411,7 +413,10 @@ const PackageDispatchForm: React.FC<Props> = ({
         routes: selectedRutas,
         vehicle: selectedUnidad,
         shipments: validPackages.map((p) => p.id),
-        subsidiary: { id: selectedSubsidiaryId, name: selectedSubsidiaryName || "Unknown" },
+        subsidiary: { 
+          id: selectedSubsidiaryId, 
+          name: selectedSubsidiaryName || "Unknown" 
+        },
         kms: selectedKms
       };
 
@@ -453,7 +458,7 @@ const PackageDispatchForm: React.FC<Props> = ({
           vehicle={selectedUnidad}
           invalidTrackings={invalidPackages}
           packages={validPackages}
-          subsidiaryName={user?.subsidiary?.name}
+          subsidiaryName={selectedSubsidiaryName}
           trackingNumber="123456789"
         />
       ).toBlob();
