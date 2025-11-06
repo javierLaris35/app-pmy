@@ -28,7 +28,7 @@ interface SelectionInfoProps {
 
 export function SelectionInfo({ type, data }: SelectionInfoProps) {
   return (
-    <Card className="p-6 border border-gray-100">
+      <Card className="p-4 md:p-5 border border-gray-100 shadow-sm rounded-xl">
       <div className="space-y-4">
         {type === "consolidado" && (
           <>

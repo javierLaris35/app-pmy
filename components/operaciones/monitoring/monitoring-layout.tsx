@@ -33,17 +33,15 @@ export function MonitoringLayout({
                 </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="grid grid-cols-1 xl:grid-cols-[250px_1fr] gap-4 xl:gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-4">
                     {/* Columna izquierda: Información y paquetes que vencen hoy */}
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-4 h-full">
                         <SelectionInfo type={selectionType} data={selectionData}/>
-                        <div className="flex-1">
-                            <ExpiringTodayCard packagesData={packagesData} />
-                        </div>
+                        <ExpiringTodayCard packagesData={packagesData} />
                     </div>
 
                     {/* Columna derecha: Estadísticas */}
-                    <div className="xl:-mt-6">
+                    <div>
                         <PackagesStatistics stats={stats} packagesData={packagesData} />
                     </div>
                 </div>

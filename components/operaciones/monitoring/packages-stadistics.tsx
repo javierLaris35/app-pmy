@@ -440,11 +440,11 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
         totalAmount={stats.totalAmountToSettle}
       />
 
-      <div className="px-0 sm:px-4 mt-0 sm:mt-6">
+        <div className="p-0">
         {/* 🔹 Cambiamos a 5 columnas en desktop grande */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 md:gap-4 auto-rows-auto">
           {/* Eficiencia */}
-          <Card className="flex flex-col gap-3 md:gap-4 rounded-xl py-3 md:py-4 shadow-sm border border-gray-100 h-full">
+          <Card className="flex flex-col gap-3 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 h-full">
             <div className="grid auto-rows-min items-start gap-2 px-3 md:px-4 grid-cols-[1fr_auto]">
               <div className="text-muted-foreground text-xs">Eficiencia</div>
               <div className={`text-xl font-semibold tabular-nums ${efficiencyStatus.valueColor} flex items-center gap-2`}>
@@ -466,7 +466,7 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
           </Card>
 
           {/* Paquetes Entregados */}
-          <Card className="flex flex-col gap-3 md:gap-4 rounded-xl py-3 md:py-4 shadow-sm border border-gray-100 h-full">
+          <Card className="flex flex-col gap-3 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 h-full">
             <div className="grid auto-rows-min items-start gap-2 px-3 md:px-4 grid-cols-[1fr_auto]">
               <div className="text-muted-foreground text-xs">Entrega</div>
               <div className="text-xl font-semibold tabular-nums text-green-600 flex items-center gap-2">
@@ -486,31 +486,36 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
           </Card>
 
           {/* Paquetes No Entregados */}
-          <Card className="relative flex flex-col gap-3 md:gap-4 rounded-xl py-3 md:py-4 shadow-sm border border-gray-100 h-full">
+          <Card className="relative flex flex-col gap-3 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 h-full">
             <div className="grid auto-rows-min items-start gap-2 px-3 md:px-4 grid-cols-[1fr_auto]">
               <div className="text-muted-foreground text-xs">No Entrega</div>
               <div className="text-xl font-semibold tabular-nums text-red-600 flex items-center gap-2">
-                <XCircle className="h-5 w-5" />
+                <XCircle className="h-5 w-5 text-red-600" />
                 {stats.noEntregados}
               </div>
               <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
-              <span className="inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium bg-red-50 text-red-700 border-red-200">
-                {stats.porcentajeNoEntrega.toFixed(1)}%
-              </span>
+      <span className="inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium bg-red-50 text-red-700 border-red-200">
+        {stats.porcentajeNoEntrega.toFixed(1)}%
+      </span>
               </div>
             </div>
+
             <div className="flex px-3 md:px-4 flex-col items-start gap-1 text-xs">
               <div className="line-clamp-1 font-medium text-red-600">Entregas fallidas</div>
               <div className="text-muted-foreground">Paquetes no entregados</div>
             </div>
+
             <Button
-              variant="ghost"
-              className="absolute bottom-2 right-2 h-8 w-8 p-0"
-              onClick={() => setIsUndeliveredDialogOpen(true)}
+                variant="ghost"
+                className="absolute bottom-3 right-3 h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-gray-50"
+                onClick={() => setIsUndeliveredDialogOpen(true)}
             >
               <Eye className="h-4 w-4" />
             </Button>
           </Card>
+
+
+
 
           {/* 🔹 Donut Chart ahora usa 2 columnas y 2 filas */}
           <Card className="md:col-span-2 xl:col-span-2 xl:row-span-2 flex flex-col rounded-xl shadow-sm p-4 md:p-6 border border-gray-100">
