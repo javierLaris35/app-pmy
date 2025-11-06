@@ -138,3 +138,33 @@ body {
   overflow-y: auto;
   max-height: inherit;
 }
+
+/* Estilos especificos para hacer que los bordes de la modal ( que en realidad es el scroll del dialog
+   Parece salir de los redondeados de la modal
+ */
+
+/* Estilos personalizados para la barra de scroll en diálogos (Edge/Chrome) */
+[role="dialog"]::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+[role="dialog"]::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+  border-radius: 0 8px 8px 0; /* Redondear esquinas derecha superior e inferior */
+}
+
+[role="dialog"]::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 8px; /* Redondear el thumb completamente */
+  border: 2px solid hsl(var(--background));
+}
+
+[role="dialog"]::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+[role="dialog"]::-webkit-scrollbar-corner {
+  background: hsl(var(--background));
+  border-radius: 0 0 8px 0; /* Redondear esquina inferior derecha */
+}
