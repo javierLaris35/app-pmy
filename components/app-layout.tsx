@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type * as React from "react"
 import { AppSidebar } from "./app-sidebar"
-import { SidebarProvider, SidebarTrigger } from "./ui/sidebar"
+import { SidebarProvider } from "./ui/sidebar"
 import { useAuthStore } from "@/store/auth.store"
 import { Loader } from "./loader"
 import { Toaster } from "./ui/sonner"
@@ -41,7 +41,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarProvider>
       <AppSidebar user={user} />
       <main className="flex-1 p-4 md:p-6 overflow-auto">
-        <SidebarTrigger className="mb-2" />
         {children}
         <CommandPalette />
         <AddShipmentDialog />

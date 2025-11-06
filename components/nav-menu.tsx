@@ -21,6 +21,7 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import type * as React from "react";
 
 type NavItem = {
   title: string
