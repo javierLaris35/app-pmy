@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/data-table/data-table";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { Loader } from "@/components/loader";
+import { Loader, LoaderWithOverlay } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
 import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon, Plane, Truck } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -46,7 +46,7 @@ function ConsolidatedWithKpis() {
     }));
   };
 
-  if (!consolidateds || isLoading) return <Loader />;
+  if (!consolidateds || isLoading) return <LoaderWithOverlay overlay transparent text="Cargado..." className="rounded-lg"/>;
 
   // Conteos corregidos
   let totalPOD = 0;
