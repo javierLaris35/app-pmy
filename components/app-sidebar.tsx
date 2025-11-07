@@ -6,11 +6,9 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarRail,
+  SidebarTriggerChevron,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 import { NavUser } from "./nav-user"
@@ -29,21 +27,30 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const sidebarMenu: any = useFilteredMenu();
+  const { state } = useSidebar()
 
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarContent>
-        <div className="flex justify-center items-center pt-2">
-          <Image src="/logo-no-fondo.png" alt="Logo Del Yaqui" width={200} height={200} />
-        </div>
-        <NavMenu items={sidebarMenu.items} />
-        <NavSecondary items={sidebarMenu.secondary} className="mt-auto" />
-      </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={user} />
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+      <Sidebar collapsible="icon" {...props}>
+        <SidebarContent>
+          <div className="flex justify-center items-center pt-2">
+            <Image src="/logo-no-fondo.png" alt="Logo Del Yaqui" width={200} height={200} />
+          </div>
+          <NavMenu items={sidebarMenu.items} />
+          <NavSecondary items={sidebarMenu.secondary} className="mt-auto" />
+          {state !== "expanded" && (
+              <div className="flex justify-center items-center py-2">
+                <SidebarTriggerChevron />
+              </div>
+          )}
+        </SidebarContent>
+        <SidebarFooter>
+          <div className="flex items-center justify-between gap-2">
+            <NavUser user={user} />
+            {state === "expanded" && <SidebarTriggerChevron className="h-12 w-12" />}
+          </div>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
   )
 }
 
