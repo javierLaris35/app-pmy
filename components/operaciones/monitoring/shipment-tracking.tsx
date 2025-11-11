@@ -19,10 +19,6 @@ import {
   HelpCircle,
   Clock,
   Download,
-  AlertTriangle,
-  CheckCircle,
-  DollarSignIcon,
-  XCircle,
 } from "lucide-react"
 import { AppLayout } from "../../app-layout"
 import { DataTable } from "../../data-table/data-table"
@@ -49,6 +45,7 @@ import { driver } from "driver.js"
 import "driver.js/dist/driver.css"
 import { exportToExcel } from "./export-to-excel"
 import { SucursalSelector } from "@/components/sucursal-selector"
+import { MonitoringLayout } from "./monitoring-layout"
 
 export interface MonitoringInfo {
   shipmentData: {
@@ -156,36 +153,6 @@ export default function TrackingPage() {
       eficiencia,
       packagesWithPayment,
       totalPaymentAmount,
-    }
-  }
-
-  const getEfficiencyColor = (eficiencia: number) => {
-    if (eficiencia >= 90) return "text-green-600"
-    if (eficiencia >= 70) return "text-yellow-600"
-    return "text-red-600"
-  }
-
-  const getEfficiencyBadge = (eficiencia: number) => {
-    if (eficiencia >= 90) return <CheckCircle className="h-4 w-4 text-green-600" />
-    if (eficiencia >= 70) return <AlertTriangle className="h-4 w-4 text-yellow-600" />
-    return <XCircle className="h-4 w-4 text-red-600" />
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "entregado":
-      case "entregada":
-      case "entregados":
-        return "text-green-700"
-      case "en_ruta":
-      case "en ruta":
-        return "text-blue-700"
-      case "en-bodega":
-      case "en bodega":
-      case "bodega":
-        return "text-gray-600"
-      default:
-        return "text-gray-600"
     }
   }
 
@@ -551,295 +518,49 @@ export default function TrackingPage() {
           </Card>
 
           {selectedConsolidado && (
-            <Card className="p-4">
-              <CardHeader className="p-0 pb-4">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Consolidado Seleccionado
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-sm">
-                        <p className="font-medium text-muted-foreground">Número de Consolidado</p>
-                        <p className="font-semibold text-base">{consolidateds.find((c) => c.id === selectedConsolidado)?.consNumber}</p>
-                      </div>
-                      <div className="text-sm">
-                        <p className="font-medium text-muted-foreground">Fecha</p>
-                        <p className="font-semibold text-base">
-                          {consolidateds.find((c) => c.id === selectedConsolidado)?.date
-                            ? new Date(
-                                consolidateds.find((c) => c.id === selectedConsolidado)!.date,
-                              ).toLocaleDateString()
-                            : "-"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-sm">
-                      <p className="font-medium text-muted-foreground">Estado</p>
-                      <Badge variant="outline" className="mt-1 bg-gray-50 text-gray-600">
-                        Activo
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="text-sm">
-                      <p className="font-medium text-muted-foreground">Total de Paquetes</p>
-                      <p className="font-semibold text-xl">{statsInfo.total}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className={`p-2 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor("en-ruta")}`}>
-                        <p className="font-medium text-sm">En Ruta</p>
-                        <p className="font-bold text-lg">{statsInfo.enRuta}</p>
-                      </div>
-                      <div className={`p-2 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor("en-bodega")}`}>
-                        <p className="font-medium text-sm">En Bodega</p>
-                        <p className="font-bold text-lg">{statsInfo.enBodega}</p>
-                      </div>
-                      <div className={`p-2 rounded-lg bg-green-50 border border-green-200 ${getStatusColor("entregado")}`}>
-                        <p className="font-medium text-sm">Entregados</p>
-                        <p className="font-bold text-lg">{statsInfo.entregados}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600">
-                        <p className="font-medium text-sm">No Entregados</p>
-                        <p className="font-bold text-lg">{statsInfo.noEntregados}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      <div className="text-sm">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-muted-foreground">Eficiencia</span>
-                          {getEfficiencyBadge(statsInfo.eficiencia)}
-                        </div>
-                        <p className={`font-semibold text-xl ${getEfficiencyColor(statsInfo.eficiencia)}`}>
-                          {statsInfo.eficiencia.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="p-2 rounded bg-green-50 text-green-600 border border-green-200">
-                          <p className="font-medium">% Entrega</p>
-                          <p className="font-bold">{statsInfo.porcentajeEntrega.toFixed(1)}%</p>
-                        </div>
-                        <div className="p-2 rounded bg-red-50 text-red-600 border border-red-200">
-                          <p className="font-medium">% No Entrega</p>
-                          <p className="font-bold">{statsInfo.porcentajeNoEntrega.toFixed(1)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-sm p-2 rounded bg-green-50 border border-green-200 text-green-600">
-                      <div className="flex items-center gap-2">
-                        <DollarSignIcon className="h-4 w-4" />
-                        <p className="font-medium">Paquetes con Cobros</p>
-                      </div>
-                      {statsInfo.packagesWithPayment > 0 ? (
-                        <>
-                          <p className="font-semibold text-lg">{statsInfo.packagesWithPayment}</p>
-                          <p className="text-xs">Total: ${statsInfo.totalPaymentAmount.toFixed(2)}</p>
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sin paquetes con cobros</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <MonitoringLayout
+              title="Consolidado Seleccionado"
+              icon={FileText}
+              selectionType="consolidado"
+              selectionData={{
+                consNumber: consolidateds.find((c) => c.id === selectedConsolidado)?.consNumber || "-",
+                date: consolidateds.find((c) => c.id === selectedConsolidado)?.date
+                  ? new Date(consolidateds.find((c) => c.id === selectedConsolidado)!.date).toLocaleDateString()
+                  : "-",
+                estado: "Activo",
+              }}
+              stats={statsInfo}
+            />
           )}
 
           {selectedDesembarque && (
-            <Card className="p-4">
-              <CardHeader className="p-0 pb-4">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Ship className="h-5 w-5" />
-                  Desembarque Seleccionado
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-sm">
-                        <p className="font-medium text-muted-foreground">Número de Desembarque</p>
-                        <p className="font-semibold text-base">{unloadings.find((d) => d.id === selectedDesembarque)?.trackingNumber}</p>
-                      </div>
-                      <div className="text-sm">
-                        <p className="font-medium text-muted-foreground">Fecha</p>
-                        <p className="font-semibold text-base">
-                          {unloadings.find((d) => d.id === selectedDesembarque)?.date
-                            ? new Date(
-                                unloadings.find((d) => d.id === selectedDesembarque)!.date,
-                              ).toLocaleDateString()
-                            : "-"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-sm">
-                      <p className="font-medium text-muted-foreground">Estado</p>
-                      <Badge variant="outline" className="mt-1 bg-gray-50 text-gray-600">
-                        Procesado
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="text-sm">
-                      <p className="font-medium text-muted-foreground">Total de Paquetes</p>
-                      <p className="font-semibold text-xl">{statsInfo.total}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className={`p-2 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor("en-ruta")}`}>
-                        <p className="font-medium text-sm">En Ruta</p>
-                        <p className="font-bold text-lg">{statsInfo.enRuta}</p>
-                      </div>
-                      <div className={`p-2 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor("en-bodega")}`}>
-                        <p className="font-medium text-sm">En Bodega</p>
-                        <p className="font-bold text-lg">{statsInfo.enBodega}</p>
-                      </div>
-                      <div className={`p-2 rounded-lg bg-green-50 border border-green-200 ${getStatusColor("entregado")}`}>
-                        <p className="font-medium text-sm">Entregados</p>
-                        <p className="font-bold text-lg">{statsInfo.entregados}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600">
-                        <p className="font-medium text-sm">No Entregados</p>
-                        <p className="font-bold text-lg">{statsInfo.noEntregados}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      <div className="text-sm">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-muted-foreground">Eficiencia</span>
-                          {getEfficiencyBadge(statsInfo.eficiencia)}
-                        </div>
-                        <p className={`font-semibold text-xl ${getEfficiencyColor(statsInfo.eficiencia)}`}>
-                          {statsInfo.eficiencia.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="p-2 rounded bg-green-50 text-green-600 border border-green-200">
-                          <p className="font-medium">% Entrega</p>
-                          <p className="font-bold">{statsInfo.porcentajeEntrega.toFixed(1)}%</p>
-                        </div>
-                        <div className="p-2 rounded bg-red-50 text-red-600 border border-red-200">
-                          <p className="font-medium">% No Entrega</p>
-                          <p className="font-bold">{statsInfo.porcentajeNoEntrega.toFixed(1)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-sm p-2 rounded bg-green-50 border border-green-200 text-green-600">
-                      <div className="flex items-center gap-2">
-                        <DollarSignIcon className="h-4 w-4" />
-                        <p className="font-medium">Paquetes con Cobros</p>
-                      </div>
-                      {statsInfo.packagesWithPayment > 0 ? (
-                        <>
-                          <p className="font-semibold text-lg">{statsInfo.packagesWithPayment}</p>
-                          <p className="text-xs">Total: ${statsInfo.totalPaymentAmount.toFixed(2)}</p>
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sin paquetes con cobros</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <MonitoringLayout
+              title="Desembarque Seleccionado"
+              icon={Ship}
+              selectionType="desembarque"
+              selectionData={{
+                trackingNumber: unloadings.find((d) => d.id === selectedDesembarque)?.trackingNumber || "-",
+                date: unloadings.find((d) => d.id === selectedDesembarque)?.date
+                  ? new Date(unloadings.find((d) => d.id === selectedDesembarque)!.date).toLocaleDateString()
+                  : "-",
+                estado: "Procesado",
+              }}
+              stats={statsInfo}
+            />
           )}
 
           {selectedRuta && (
-            <Card className="p-4">
-              <CardHeader className="p-0 pb-4">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Car className="h-5 w-5" />
-                  Ruta Seleccionada
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-sm">
-                        <p className="font-medium text-muted-foreground">Chofer</p>
-                        <p className="font-semibold text-base">
-                          {packageDispatchs.find((r) => r.id === selectedRuta)?.driver || "-"}
-                        </p>
-                      </div>
-                      <div className="text-sm">
-                        <p className="font-medium text-muted-foreground">Vehículo</p>
-                        <p className="font-semibold text-base">
-                          {packageDispatchs.find((r) => r.id === selectedRuta)?.vehicle?.plateNumber || "-"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-sm">
-                      <p className="font-medium text-muted-foreground">Estado de Ruta</p>
-                      <Badge variant="outline" className="mt-1 bg-gray-50 text-gray-600">
-                        En Progreso
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="text-sm">
-                      <p className="font-medium text-muted-foreground">Total de Paquetes</p>
-                      <p className="font-semibold text-xl">{statsInfo.total}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className={`p-2 rounded-lg bg-blue-50 border border-blue-200 ${getStatusColor("en-ruta")}`}>
-                        <p className="font-medium text-sm">En Ruta</p>
-                        <p className="font-bold text-lg">{statsInfo.enRuta}</p>
-                      </div>
-                      <div className={`p-2 rounded-lg bg-gray-50 border border-gray-200 ${getStatusColor("en-bodega")}`}>
-                        <p className="font-medium text-sm">En Bodega</p>
-                        <p className="font-bold text-lg">{statsInfo.enBodega}</p>
-                      </div>
-                      <div className={`p-2 rounded-lg bg-green-50 border border-green-200 ${getStatusColor("entregado")}`}>
-                        <p className="font-medium text-sm">Entregados</p>
-                        <p className="font-bold text-lg">{statsInfo.entregados}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600">
-                        <p className="font-medium text-sm">No Entregados</p>
-                        <p className="font-bold text-lg">{statsInfo.noEntregados}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      <div className="text-sm">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-muted-foreground">Eficiencia</span>
-                          {getEfficiencyBadge(statsInfo.eficiencia)}
-                        </div>
-                        <p className={`font-semibold text-xl ${getEfficiencyColor(statsInfo.eficiencia)}`}>
-                          {statsInfo.eficiencia.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="p-2 rounded bg-green-50 text-green-600 border border-green-200">
-                          <p className="font-medium">% Entrega</p>
-                          <p className="font-bold">{statsInfo.porcentajeEntrega.toFixed(1)}%</p>
-                        </div>
-                        <div className="p-2 rounded bg-red-50 text-red-600 border border-red-200">
-                          <p className="font-medium">% No Entrega</p>
-                          <p className="font-bold">{statsInfo.porcentajeNoEntrega.toFixed(1)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-sm p-2 rounded bg-green-50 border border-green-200 text-green-600">
-                      <div className="flex items-center gap-2">
-                        <DollarSignIcon className="h-4 w-4" />
-                        <p className="font-medium">Paquetes con Cobros</p>
-                      </div>
-                      {statsInfo.packagesWithPayment > 0 ? (
-                        <>
-                          <p className="font-semibold text-lg">{statsInfo.packagesWithPayment}</p>
-                          <p className="text-xs">Total: ${statsInfo.totalPaymentAmount.toFixed(2)}</p>
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sin paquetes con cobros</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <MonitoringLayout
+              title="Ruta Seleccionada"
+              icon={Car}
+              selectionType="ruta"
+              selectionData={{
+                driver: packageDispatchs.find((r) => r.id === selectedRuta)?.driver || "-",
+                vehicle: packageDispatchs.find((r) => r.id === selectedRuta)?.vehicle?.plateNumber || "-",
+                estado: "En Progreso",
+              }}
+              stats={statsInfo}
+            />
           )}
 
 
