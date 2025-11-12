@@ -4,9 +4,9 @@
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/data-table/data-table";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { Loader, LoaderWithOverlay } from "@/components/loader";
+import { LoaderWithOverlay } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
-import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon, Plane, Truck } from "lucide-react";
+import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useConsolidated } from "@/hooks/services/consolidateds/use-consolidated";

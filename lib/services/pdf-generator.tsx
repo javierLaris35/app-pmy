@@ -260,7 +260,7 @@ export const EnhancedFedExPDF = ({
         <View style={styles.locationSection}>
           <Text style={styles.locality}>LOCALIDAD:</Text>
           <Text style={styles.subsidiary}>{subsidiaryName.toUpperCase()}</Text>
-          <Text>La Paz o San Jose del Cabo</Text>
+          {/*<Text>La Paz o San Jose del Cabo</Text>*/}
           <Text style={styles.subtitle}>DEVOLUCIONES Y RECOLECCIONES</Text>
         </View>
 

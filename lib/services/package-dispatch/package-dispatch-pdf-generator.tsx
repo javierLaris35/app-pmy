@@ -17,7 +17,7 @@ Font.register({ family: 'Helvetica', src: undefined }); // Uses built-in Helveti
 
 const styles = StyleSheet.create({
   page: {
-    padding: 20,
+    padding: 15,
     fontSize: 10,
     fontFamily: 'Helvetica',
     flexDirection: 'column',
@@ -28,8 +28,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
   },
   leftHeader: {
     flex: 1,
@@ -215,16 +215,18 @@ export const FedExPackageDispatchPDF = ({
           </View>
         </View>
 
+        {/* Tabla con nuevas columnas optimizadas - manteniendo fontSize */}
         <View style={styles.tableHeader}>
-          <Text style={{ width: 25 }}>[#]</Text>
-          <Text style={{ width: 63 }}>No. Guia</Text>
-          <Text style={{ width: 145 }}>Nombre</Text>
-          <Text style={{ width: 155 }}>Dirección</Text>
-          <Text style={{ width: 45 }}>Cobro</Text>
-          <Text style={{ width: 55 }}>Fecha</Text>
-          <Text style={{ width: 45 }}>Hora</Text>
-          <Text style={{ width: 55 }}>Celular</Text>
-          <Text style={{ width: 90 }}>Nombre y Firma</Text>
+          <Text style={{ width: 22 }}>[#]</Text>
+          <Text style={{ width: 60 }}>No. Guia</Text>
+          <Text style={{ width: 110 }}>Nombre</Text>
+          <Text style={{ width: 125 }}>Dirección</Text>
+          <Text style={{ width: 28 }}>CP</Text>
+          <Text style={{ width: 38 }}>Cobro</Text>
+          <Text style={{ width: 50 }}>Fecha</Text>
+          <Text style={{ width: 38 }}>Hora</Text>
+          <Text style={{ width: 50 }}>Celular</Text>
+          <Text style={{ width: 75 }}>Nombre y Firma</Text>
         </View>
 
         {packages.map((pkg, i) => {
@@ -237,34 +239,38 @@ export const FedExPackageDispatchPDF = ({
           const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
           const hasPayment = pkg.payment?.amount != null;
           const rowStyle = hasPayment ? styles.paymentRow : styles.tableRow;
+          const hasZipCode = pkg.recipientZip ?? '';
 
           return (
             <View style={rowStyle} key={i}>
-              <Text style={[{ width: 25 }, hasPayment && styles.textBold]}>
+              <Text style={[{ width: 22 }, hasPayment && styles.textBold]}>
                 {icons} {i + 1}
               </Text>
-              <Text style={[{ width: 63 }, hasPayment && styles.textBold]}>
+              <Text style={[{ width: 60 }, hasPayment && styles.textBold]}>
                 {pkg.trackingNumber}
               </Text>
-              <Text style={[{ width: 145 }, hasPayment && styles.textBold]}>
-                {truncate(pkg.recipientName, 24)}
+              <Text style={[{ width: 110 }, hasPayment && styles.textBold]}>
+                {truncate(pkg.recipientName, 22)}
               </Text>
-              <Text style={[{ width: 155 }, hasPayment && styles.textBold]}>
-                {truncate(pkg.recipientAddress, 28)}
+              <Text style={[{ width: 125 }, hasPayment && styles.textBold]}>
+                {truncate(pkg.recipientAddress, 26)}
               </Text>
-              <Text style={[{ width: 45 }, hasPayment && styles.textBold]}>
+              <Text style={[{ width: 28 }, hasPayment && styles.textBold]}>
+                {hasZipCode}
+              </Text>
+              <Text style={[{ width: 38 }, hasPayment && styles.textBold]}>
                 {hasPayment ? `${pkg.payment?.type} $${pkg.payment?.amount}` : ''}
               </Text>
-              <Text style={[{ width: 55 }, hasPayment && styles.textBold]}>
+              <Text style={[{ width: 50 }, hasPayment && styles.textBold]}>
                 {commitDate}
               </Text>
-              <Text style={[{ width: 45 }, hasPayment && styles.textBold]}>
+              <Text style={[{ width: 38 }, hasPayment && styles.textBold]}>
                 {commitTime}
               </Text>
-              <Text style={[{ width: 55 }, hasPayment && styles.textBold]}>
+              <Text style={[{ width: 50 }, hasPayment && styles.textBold]}>
                 {formatMexicanPhoneNumberWithOutMexicanLada(pkg.recipientPhone)}
               </Text>
-              <Text style={[{ width: 90 }, hasPayment && styles.textBold]}>
+              <Text style={[{ width: 75 }, hasPayment && styles.textBold]}>
                 {}
               </Text>
             </View>

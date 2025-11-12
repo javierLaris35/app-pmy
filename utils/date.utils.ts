@@ -50,6 +50,52 @@ export function formatDate(dateStr: string): string {
   return formatter.format(utcDate);
 }
 
+export function formatShortDate(dateStr: string): string {
+  if (!dateStr) return '';
+  
+  try {
+    // Si es una fecha ISO (contiene 'T' o es un formato completo)
+    if (dateStr.includes('T') || dateStr.includes('-')) {
+      // Extraer directamente los componentes YYYY-MM-DD del string
+      const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      
+      if (dateMatch) {
+        const [, year, month, day] = dateMatch;
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Si no coincide el patrón, intentar con Date pero ajustando por zona horaria
+      const date = new Date(dateStr);
+      
+      // Validar que la fecha sea válida
+      if (isNaN(date.getTime())) {
+        console.warn('Fecha ISO inválida:', dateStr);
+        return '';
+      }
+      
+      // Usar UTC para evitar problemas de zona horaria
+      const day = date.getUTCDate().toString().padStart(2, '0');
+      const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+      const year = date.getUTCFullYear().toString();
+      
+      return `${day}/${month}/${year}`;
+    }
+    
+    // Si ya viene en formato DD/MM/YYYY, retornar tal cual
+    const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+    if (dateRegex.test(dateStr)) {
+      const [day, month, year] = dateStr.split('/');
+      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    
+    console.warn('Formato de fecha no reconocido:', dateStr);
+    return '';
+    
+  } catch (error) {
+    console.warn('Error al formatear fecha:', dateStr, error);
+    return '';
+  }
+}
 
 export function getLastWeekRange(): { fromDate: string; toDate: string } {
   const today = new Date()

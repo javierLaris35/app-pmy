@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
-import { formatDateToShortDate } from "@/utils/date.utils"
+import { formatShortDate } from "@/utils/date.utils"
 import { IconTruckLoading } from "@tabler/icons-react"
 
 export interface Consolidado {
@@ -122,7 +122,7 @@ export function ConsolidadoSelect({
                       <span>•</span>
                       <span>{consolidado.numberOfPackages} paquetes</span>
                       <span>•</span>
-                      <span>{formatDateToShortDate(consolidado.date)}</span>
+                      <span>{formatShortDate(consolidado.date)}</span>
                     </div>
                   </div>
                 </CommandItem>

@@ -14,14 +14,14 @@ export async function generateDispatchExcelClient(
   const timeZone = 'America/Hermosillo';
   const packages: PackageInfo[] = mapToPackageInfo(data.shipments, data.chargeShipments);
 
-  // === ENCABEZADO GENERAL (A:G) ===
+  // === ENCABEZADO GENERAL (A:I) ===
   const titleRow = sheet.addRow([`🚚 Salida a Ruta`]);
-  sheet.mergeCells(`A${titleRow.number}:H${titleRow.number}`);
+  sheet.mergeCells(`A${titleRow.number}:I${titleRow.number}`);
   titleRow.font = { size: 16, bold: true, color: { argb: 'FFFFFF' } };
   titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
-  // color institucional (A:G)
-  for (let col = 1; col <= 8; col++) {
+  // color institucional (A:I)
+  for (let col = 1; col <= 9; col++) {
     sheet.getCell(titleRow.number, col).fill = {
       type: 'pattern',
       pattern: 'solid',
@@ -61,12 +61,12 @@ export async function generateDispatchExcelClient(
     sheet.addRow([]); // Espacio en blanco
     
     const invalidTitleRow = sheet.addRow([`❌ Guías Inválidas (${invalidPackages.length})`]);
-    sheet.mergeCells(`A${invalidTitleRow.number}:H${invalidTitleRow.number}`);
+    sheet.mergeCells(`A${invalidTitleRow.number}:I${invalidTitleRow.number}`);
     invalidTitleRow.font = { size: 12, bold: true, color: { argb: 'FFFFFF' } };
     invalidTitleRow.alignment = { vertical: 'middle', horizontal: 'center' };
     
     // Color rojo para el título de guías inválidas
-    for (let col = 1; col <= 8; col++) {
+    for (let col = 1; col <= 9; col++) {
       sheet.getCell(invalidTitleRow.number, col).fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -81,7 +81,7 @@ export async function generateDispatchExcelClient(
       const invalidRow = sheet.addRow([]);
       
       // Combinar celdas para esta fila de guías inválidas
-      sheet.mergeCells(`A${invalidRow.number}:H${invalidRow.number}`);
+      sheet.mergeCells(`A${invalidRow.number}:I${invalidRow.number}`);
       
       const guidesText = chunk.map(tracking => `📦 ${tracking}`).join('    ');
       sheet.getCell(`A${invalidRow.number}`).value = guidesText;
@@ -89,7 +89,7 @@ export async function generateDispatchExcelClient(
       sheet.getCell(`A${invalidRow.number}`).alignment = { vertical: 'middle', horizontal: 'left' };
       
       // Fondo rojo claro para las filas de guías inválidas
-      for (let col = 1; col <= 8; col++) {
+      for (let col = 1; col <= 9; col++) {
         sheet.getCell(invalidRow.number, col).fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -107,6 +107,7 @@ export async function generateDispatchExcelClient(
     'Guía',
     'Recibe',
     'Dirección',
+    'CP', // Nueva columna de Código Postal
     'Cobro',
     'Fecha',
     'Hora',
@@ -116,8 +117,8 @@ export async function generateDispatchExcelClient(
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
   headerRow.height = 20;
 
-  // color institucional medio (A:G)
-  for (let col = 1; col <= 8; col++) {
+  // color institucional medio (A:I)
+  for (let col = 1; col <= 9; col++) {
     sheet.getCell(headerRow.number, col).fill = {
       type: 'pattern',
       pattern: 'solid',
@@ -145,6 +146,7 @@ export async function generateDispatchExcelClient(
       pkg.trackingNumber,
       pkg.recipientName || '',
       pkg.recipientAddress || '',
+      pkg.recipientZip || '', // Nueva columna de Código Postal
       hasPayment ? `${pkg.payment?.type} $ ${pkg.payment?.amount}` : '',
       commitDate || '',
       commitTime || '',
@@ -152,7 +154,7 @@ export async function generateDispatchExcelClient(
     ]);
 
     if (index % 2 === 0) {
-      for (let col = 1; col <= 7; col++) {
+      for (let col = 1; col <= 9; col++) {
         sheet.getCell(row.number, col).fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -163,7 +165,7 @@ export async function generateDispatchExcelClient(
 
     // Color para filas con pago (amarillo suave)
     if (hasPayment) {
-      for (let col = 1; col <= 8; col++) {
+      for (let col = 1; col <= 9; col++) {
         sheet.getCell(row.number, col).fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -200,14 +202,16 @@ export async function generateDispatchExcelClient(
     column.width = maxLength + 2;
   });
 
+  // Ajustes manuales de ancho de columnas
   sheet.getColumn(1).width = 5;   // No.
   sheet.getColumn(2).width = 18;  // Guía
-  sheet.getColumn(3).width = 35;  // Recibe
-  sheet.getColumn(4).width = 45;  // Dirección
-  sheet.getColumn(5).width = 20;  // Cobro
-  sheet.getColumn(6).width = 12;  // Fecha
-  sheet.getColumn(7).width = 12;  // Hora
-  sheet.getColumn(8).width = 18;  // Celular
+  sheet.getColumn(3).width = 30;  // Recibe (reducido de 35)
+  sheet.getColumn(4).width = 40;  // Dirección (reducido de 45)
+  sheet.getColumn(5).width = 10;  // CP (nueva columna)
+  sheet.getColumn(6).width = 18;  // Cobro (reducido de 20)
+  sheet.getColumn(7).width = 12;  // Fecha
+  sheet.getColumn(8).width = 12;  // Hora
+  sheet.getColumn(9).width = 18;  // Celular
 
   // Crear archivo y descargar
   const buffer = await workbook.xlsx.writeBuffer();
