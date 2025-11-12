@@ -52,6 +52,7 @@ export interface MonitoringInfo {
     id: string
     trackingNumber: string
     ubication: string
+    warehouse?: string
     unloading?: {
       trackingNumber: string
       date: string
@@ -68,7 +69,7 @@ export interface MonitoringInfo {
     payment: {
       type: string
       amount: number
-    }
+    } | null
   }
   packageDispatch?: {
     id: string
@@ -98,6 +99,8 @@ interface PackageStats {
   eficiencia: number
   packagesWithPayment: number
   totalPaymentAmount: number
+  packagesToSettle: number
+  totalAmountToSettle: number
 }
 
 export default function TrackingPage() {
@@ -142,6 +145,21 @@ export default function TrackingPage() {
       .filter((p) => p.shipmentData?.payment)
       .reduce((sum, p) => sum + (p.shipmentData.payment?.amount || 0), 0)
 
+    const packagesToSettle = packages.filter((p) => {
+      const isDelivered = p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" ||
+        p.shipmentData?.shipmentStatus?.toLowerCase() === "entregada" ||
+        p.shipmentData?.shipmentStatus?.toLowerCase() === "entregados"
+      const hasPayment = p.shipmentData?.payment !== null
+      const paymentType = p.shipmentData?.payment?.type?.toLowerCase()
+      const isCOD = paymentType === "cod"
+      return isDelivered && hasPayment && isCOD
+    })
+
+    const totalAmountToSettle = packagesToSettle.reduce(
+      (sum, p) => sum + (p.shipmentData.payment?.amount || 0),
+      0
+    )
+
     return {
       total,
       enRuta,
@@ -153,6 +171,8 @@ export default function TrackingPage() {
       eficiencia,
       packagesWithPayment,
       totalPaymentAmount,
+      packagesToSettle: packagesToSettle.length,
+      totalAmountToSettle,
     }
   }
 
@@ -165,7 +185,6 @@ export default function TrackingPage() {
         getConsolidateds(selectedSubsidiaryId || user?.subsidiary?.id),
         getUnloadings(selectedSubsidiaryId || user?.subsidiary?.id),
         getPackageDispatchs(selectedSubsidiaryId || user?.subsidiary?.id),
-
       ])
       console.log("Initial data:", {
         consolidatedData,
@@ -529,6 +548,7 @@ export default function TrackingPage() {
                   : "-",
                 estado: "Activo",
               }}
+              packagesData={filteredPackages}
               stats={statsInfo}
             />
           )}
@@ -545,6 +565,7 @@ export default function TrackingPage() {
                   : "-",
                 estado: "Procesado",
               }}
+              packagesData={filteredPackages}
               stats={statsInfo}
             />
           )}
@@ -559,6 +580,7 @@ export default function TrackingPage() {
                 vehicle: packageDispatchs.find((r) => r.id === selectedRuta)?.vehicle?.plateNumber || "-",
                 estado: "En Progreso",
               }}
+              packagesData={filteredPackages}
               stats={statsInfo}
             />
           )}

@@ -14,6 +14,7 @@ import {
 import { DataTable } from "@/components/data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Shipment } from "@/lib/types"
+import { Badge } from "@/components/ui/badge"
 
 interface PackageStats {
   total: number
@@ -26,6 +27,8 @@ interface PackageStats {
   eficiencia: number
   packagesWithPayment: number
   totalPaymentAmount: number
+  packagesToSettle: number
+  totalAmountToSettle: number
 }
 
 const chartConfig = {
@@ -131,8 +134,30 @@ function PackagesDonutChart({ stats }: PackagesDonutChartProps) {
   )
 }
 
+interface MonitoringInfo {
+  shipmentData: {
+    id: string
+    trackingNumber: string
+    ubication: string
+    warehouse?: string
+    destination: string
+    shipmentStatus: string
+    payment: {
+      type: string
+      amount: number
+    } | null
+  }
+  packageDispatch?: {
+    driver: string
+    vehicle: {
+      plateNumber: string
+    }
+  }
+}
+
 interface PackagesStatisticsProps {
   stats: PackageStats
+  packagesData: MonitoringInfo[]
 }
 
 // Helper para obtener los estilos y texto de eficiencia
@@ -227,6 +252,64 @@ const undeliveredPackagesColumns: ColumnDef<Shipment>[] = [
   },
 ]
 
+// Columnas para la tabla de cobros a liquidar
+const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
+  {
+    id: "trackingNumber",
+    accessorFn: (row) => row.shipmentData.trackingNumber,
+    header: "Tracking Number",
+    cell: ({ row }) => (
+      <span className="font-medium">{row.original.shipmentData.trackingNumber}</span>
+    ),
+  },
+  {
+    id: "destination",
+    accessorFn: (row) => row.shipmentData.destination,
+    header: "Destino",
+    cell: ({ row }) => row.original.shipmentData.destination || "-",
+  },
+  {
+    id: "warehouse",
+    accessorFn: (row) => row.shipmentData.warehouse,
+    header: "Bodega",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.shipmentData.warehouse || "-"}</span>
+    ),
+  },
+  {
+    id: "driver",
+    accessorFn: (row) => row.packageDispatch?.driver,
+    header: "Chofer",
+    cell: ({ row }) => {
+      const pkg = row.original
+      if (pkg.packageDispatch?.driver && pkg.packageDispatch?.vehicle) {
+        return (
+          <div className="text-sm">
+            <p className="font-medium">{pkg.packageDispatch.driver}</p>
+            <p className="text-xs text-muted-foreground">{pkg.packageDispatch.vehicle.plateNumber}</p>
+          </div>
+        )
+      }
+      return <span className="text-sm text-muted-foreground">-</span>
+    },
+  },
+  {
+    id: "payment",
+    header: "Pago",
+    cell: ({ row }) => {
+      const pkg = row.original
+      if (pkg.shipmentData.payment) {
+        return (
+          <Badge className="bg-blue-500 text-white whitespace-nowrap">
+            {pkg.shipmentData.payment.type}: ${pkg.shipmentData.payment.amount.toFixed(2)}
+          </Badge>
+        )
+      }
+      return <span className="text-sm text-muted-foreground">-</span>
+    },
+  },
+]
+
 // Componente del modal de paquetes no entregados
 function UndeliveredPackagesDialog({ isOpen, onClose, count }: {
   isOpen: boolean
@@ -292,16 +375,69 @@ function UndeliveredPackagesDialog({ isOpen, onClose, count }: {
   )
 }
 
-export function PackagesStatistics({ stats }: PackagesStatisticsProps) {
-  const [isDialogOpen, setIsDialogOpen] = React.useState(false)
+// Componente del modal de cobros a liquidar
+function PaymentsToSettleDialog({ isOpen, onClose, packages, totalAmount }: {
+  isOpen: boolean
+  onClose: () => void
+  packages: MonitoringInfo[]
+  totalAmount: number
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="flex items-center gap-2 justify-between pt-2">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              Cobros a Liquidar a FedEx ({packages.length})
+            </div>
+            <div className="text-2xl font-bold text-green-600">
+              Total: ${totalAmount.toFixed(2)}
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="mt-4">
+          <DataTable
+            columns={paymentsToSettleColumns}
+            data={packages}
+            searchKey="trackingNumber"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsProps) {
+  const [isUndeliveredDialogOpen, setIsUndeliveredDialogOpen] = React.useState(false)
+  const [isPaymentsDialogOpen, setIsPaymentsDialogOpen] = React.useState(false)
   const efficiencyStatus = getEfficiencyStatus(stats.eficiencia)
+
+  // Filtrar paquetes con COD entregados
+  const packagesToSettle = packagesData.filter((p) => {
+    const isDelivered = p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" ||
+      p.shipmentData?.shipmentStatus?.toLowerCase() === "entregada" ||
+      p.shipmentData?.shipmentStatus?.toLowerCase() === "entregados"
+    const hasPayment = p.shipmentData?.payment !== null
+    const paymentType = p.shipmentData?.payment?.type?.toLowerCase()
+    const isCOD = paymentType === "cod"
+    return isDelivered && hasPayment && isCOD
+  })
 
   return (
       <>
       <UndeliveredPackagesDialog
-        isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
+        isOpen={isUndeliveredDialogOpen}
+        onClose={() => setIsUndeliveredDialogOpen(false)}
         count={stats.noEntregados}
+      />
+
+      <PaymentsToSettleDialog
+        isOpen={isPaymentsDialogOpen}
+        onClose={() => setIsPaymentsDialogOpen(false)}
+        packages={packagesToSettle}
+        totalAmount={stats.totalAmountToSettle}
       />
 
       <div className="px-0 sm:px-4 mt-0 sm:mt-6">
@@ -370,7 +506,7 @@ export function PackagesStatistics({ stats }: PackagesStatisticsProps) {
             <Button
               variant="ghost"
               className="absolute bottom-2 right-2 h-8 w-8 p-0"
-              onClick={() => setIsDialogOpen(true)}
+              onClick={() => setIsUndeliveredDialogOpen(true)}
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -382,25 +518,35 @@ export function PackagesStatistics({ stats }: PackagesStatisticsProps) {
           </Card>
 
           {/* Cobros */}
-          <Card className="md:col-span-2 xl:col-span-3 flex flex-col gap-4 md:gap-6 rounded-xl py-4 md:py-6 shadow-sm border border-gray-100">
+          <Card className="relative md:col-span-2 xl:col-span-3 flex flex-col gap-4 md:gap-6 rounded-xl py-4 md:py-6 shadow-sm border border-gray-100">
             <div className="grid auto-rows-min items-start gap-2 px-4 md:px-6 grid-cols-[1fr_auto]">
-              <div className="text-muted-foreground text-sm">Cobros</div>
-              <div className="text-3xl font-semibold tabular-nums sm:text-4xl text-green-600 flex items-center gap-3">
+              <div className="text-muted-foreground text-sm">Cobros a Liquidar</div>
+              <div className="text-3xl font-semibold tabular-nums sm:text-4xl text-green-600 flex items-center gap-1">
                 <DollarSign className="h-9 w-9" />
-                ${stats.totalPaymentAmount.toFixed(2)}
+                {stats.totalAmountToSettle.toFixed(2)}
               </div>
               <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
-              <span className="inline-flex items-center justify-center rounded-full border px-4 py-2 text-lg font-medium bg-green-50 text-green-700 border-green-200">
-                <Package className="h-6 w-6 mr-2" />
-                {stats.packagesWithPayment}
-              </span>
+      <span className="inline-flex items-center justify-center rounded-full border px-4 py-2 text-lg font-medium bg-green-50 text-green-700 border-green-200">
+        <Package className="h-6 w-6 mr-2" />
+        {stats.packagesToSettle}
+      </span>
               </div>
             </div>
             <div className="flex px-4 md:px-6 flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 font-medium text-green-600">Total a cobrar</div>
-              <div className="text-muted-foreground">Monto total de cobros pendientes</div>
+              <div className="line-clamp-1 font-medium text-green-600">Total a liquidar a FedEx</div>
+              <div className="text-muted-foreground">Monto de paquetes COD entregados</div>
             </div>
+
+            {/* 👁️ Botón para ver cobros a liquidar */}
+            <Button
+                variant="ghost"
+                className="absolute bottom-2 right-2 h-8 w-8 p-0"
+                onClick={() => setIsPaymentsDialogOpen(true)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
           </Card>
+
         </div>
       </div>
       </>
