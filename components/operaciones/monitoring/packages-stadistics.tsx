@@ -252,6 +252,25 @@ const undeliveredPackagesColumns: ColumnDef<Shipment>[] = [
   },
 ]
 
+// Helper para obtener el badge del status
+const getStatusBadge = (status: string) => {
+  const statusLower = status.toLowerCase()
+
+  if (statusLower === "entregado" || statusLower === "entregada" || statusLower === "entregados") {
+    return <Badge className="bg-green-500 text-white whitespace-nowrap">Entregado</Badge>
+  }
+  if (statusLower === "en-ruta" || statusLower === "en ruta" || statusLower === "ruta") {
+    return <Badge className="bg-blue-500 text-white whitespace-nowrap">En Ruta</Badge>
+  }
+  if (statusLower === "en-bodega" || statusLower === "en bodega" || statusLower === "bodega") {
+    return <Badge className="bg-cyan-500 text-white whitespace-nowrap">En Bodega</Badge>
+  }
+  if (statusLower === "no_entregado" || statusLower === "no entregado" || statusLower === "no-entregado") {
+    return <Badge className="bg-red-500 text-white whitespace-nowrap">No Entregado</Badge>
+  }
+  return <Badge variant="outline" className="whitespace-nowrap">{status}</Badge>
+}
+
 // Columnas para la tabla de cobros a liquidar
 const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
   {
@@ -261,6 +280,15 @@ const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
     cell: ({ row }) => (
       <span className="font-medium">{row.original.shipmentData.trackingNumber}</span>
     ),
+  },
+  {
+    id: "status",
+    accessorFn: (row) => row.shipmentData.shipmentStatus,
+    header: "Status",
+    cell: ({ row }) => {
+      const status = row.original.shipmentData.shipmentStatus
+      return status ? getStatusBadge(status) : <span className="text-sm text-muted-foreground">-</span>
+    },
   },
   {
     id: "destination",
@@ -375,6 +403,40 @@ function UndeliveredPackagesDialog({ isOpen, onClose, count }: {
   )
 }
 
+// Componente del modal de todos los cobros
+function AllPaymentsDialog({ isOpen, onClose, packages, totalAmount }: {
+  isOpen: boolean
+  onClose: () => void
+  packages: MonitoringInfo[]
+  totalAmount: number
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="flex items-center gap-2 justify-between pt-2">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-blue-600" />
+              Todos los Cobros ({packages.length})
+            </div>
+            <div className="text-2xl font-bold text-blue-600">
+              Total: ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="mt-4">
+          <DataTable
+            columns={paymentsToSettleColumns}
+            data={packages}
+            searchKey="trackingNumber"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Componente del modal de cobros a liquidar
 function PaymentsToSettleDialog({ isOpen, onClose, packages, totalAmount }: {
   isOpen: boolean
@@ -392,7 +454,7 @@ function PaymentsToSettleDialog({ isOpen, onClose, packages, totalAmount }: {
               Cobros a Liquidar a FedEx ({packages.length})
             </div>
             <div className="text-2xl font-bold text-green-600">
-              Total: ${totalAmount.toFixed(2)}
+              Total: ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -411,18 +473,22 @@ function PaymentsToSettleDialog({ isOpen, onClose, packages, totalAmount }: {
 
 export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsProps) {
   const [isUndeliveredDialogOpen, setIsUndeliveredDialogOpen] = React.useState(false)
+  const [isAllPaymentsDialogOpen, setIsAllPaymentsDialogOpen] = React.useState(false)
   const [isPaymentsDialogOpen, setIsPaymentsDialogOpen] = React.useState(false)
   const efficiencyStatus = getEfficiencyStatus(stats.eficiencia)
 
-  // Filtrar paquetes con COD entregados
+  // Filtrar todos los paquetes con pagos (sin importar el estado)
+  const allPackagesWithPayment = packagesData.filter((p) => p.shipmentData?.payment)
+
+  // Filtrar paquetes entregados con payment (para liquidar a FedEx)
   const packagesToSettle = packagesData.filter((p) => {
     const isDelivered = p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "entregada" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "entregados"
     const hasPayment = p.shipmentData?.payment !== null
-    const paymentType = p.shipmentData?.payment?.type?.toLowerCase()
-    const isCOD = paymentType === "cod"
-    return isDelivered && hasPayment && isCOD
+    const paymentType = p.shipmentData?.payment?.type
+    const hasPaymentType = paymentType !== undefined && paymentType !== null
+    return isDelivered && hasPayment && hasPaymentType
   })
 
   return (
@@ -431,6 +497,13 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
         isOpen={isUndeliveredDialogOpen}
         onClose={() => setIsUndeliveredDialogOpen(false)}
         count={stats.noEntregados}
+      />
+
+      <AllPaymentsDialog
+        isOpen={isAllPaymentsDialogOpen}
+        onClose={() => setIsAllPaymentsDialogOpen(false)}
+        packages={allPackagesWithPayment}
+        totalAmount={stats.totalPaymentAmount}
       />
 
       <PaymentsToSettleDialog
@@ -523,33 +596,74 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
           </Card>
 
           {/* Cobros */}
-          <Card className="relative md:col-span-2 xl:col-span-3 flex flex-col gap-4 md:gap-6 rounded-xl py-4 md:py-6 shadow-sm border border-gray-100">
-            <div className="grid auto-rows-min items-start gap-2 px-4 md:px-6 grid-cols-[1fr_auto]">
-              <div className="text-muted-foreground text-sm">Cobros a Liquidar</div>
-              <div className="text-3xl font-semibold tabular-nums sm:text-4xl text-green-600 flex items-center gap-1">
-                <DollarSign className="h-9 w-9" />
-                {stats.totalAmountToSettle.toFixed(2)}
-              </div>
-              <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
-      <span className="inline-flex items-center justify-center rounded-full border px-4 py-2 text-lg font-medium bg-green-50 text-green-700 border-green-200">
-        <Package className="h-6 w-6 mr-2" />
-        {stats.packagesToSettle}
-      </span>
-              </div>
-            </div>
-            <div className="flex px-4 md:px-6 flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 font-medium text-green-600">Total a liquidar a FedEx</div>
-              <div className="text-muted-foreground">Monto de paquetes COD entregados</div>
+          <Card className="relative md:col-span-2 xl:col-span-3 flex flex-col gap-4 rounded-xl p-5 md:p-6 shadow-sm border border-gray-100">
+
+            {/* Encabezado */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-muted-foreground">Cobros a Liquidar</h3>
             </div>
 
-            {/* 👁️ Botón para ver cobros a liquidar */}
-            <Button
-                variant="ghost"
-                className="absolute bottom-2 right-2 h-8 w-8 p-0"
-                onClick={() => setIsPaymentsDialogOpen(true)}
-            >
-              <Eye className="h-4 w-4" />
-            </Button>
+            {/* Total de Cobros (Grande) + Badge Total */}
+            <div className="flex items-center justify-between">
+              {/* Total de Cobros */}
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-8 w-8 text-blue-600" />
+                <span className="text-4xl font-bold text-blue-600 tabular-nums">
+                  {stats.totalPaymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* Badge Total de Paquetes */}
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border-blue-200 px-3 py-1">
+                  <Package className="h-3.5 w-3.5" />
+                  <span className="text-sm font-bold tabular-nums">
+                    {stats.packagesWithPayment}
+                  </span>
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 hover:bg-blue-50"
+                  onClick={() => setIsAllPaymentsDialogOpen(true)}
+                >
+                  <Eye className="h-3.5 w-3.5 text-blue-600" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Total a Liquidar a FedEx */}
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Total a liquidar a FedEx</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm font-medium text-green-600">$</span>
+                  <span className="text-2xl font-bold text-green-600 tabular-nums">
+                    {stats.totalAmountToSettle.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">Monto de paquetes entregados</span>
+              </div>
+
+              {/* Badge Paquetes FedEx */}
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="flex items-center gap-1.5 bg-green-50 text-green-700 border-green-200 px-3 py-1">
+                  <Package className="h-3.5 w-3.5" />
+                  <span className="text-sm font-bold tabular-nums">
+                    {stats.packagesToSettle}
+                  </span>
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 hover:bg-green-50"
+                  onClick={() => setIsPaymentsDialogOpen(true)}
+                >
+                  <Eye className="h-3.5 w-3.5 text-green-600" />
+                </Button>
+              </div>
+            </div>
+
           </Card>
 
         </div>
