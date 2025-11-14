@@ -150,9 +150,9 @@ export default function TrackingPage() {
         p.shipmentData?.shipmentStatus?.toLowerCase() === "entregada" ||
         p.shipmentData?.shipmentStatus?.toLowerCase() === "entregados"
       const hasPayment = p.shipmentData?.payment !== null
-      const paymentType = p.shipmentData?.payment?.type?.toLowerCase()
-      const isCOD = paymentType === "cod"
-      return isDelivered && hasPayment && isCOD
+      const paymentType = p.shipmentData?.payment?.type
+      const hasPaymentType = paymentType !== undefined && paymentType !== null
+      return isDelivered && hasPayment && hasPaymentType
     })
 
     const totalAmountToSettle = packagesToSettle.reduce(
