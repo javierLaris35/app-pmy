@@ -1111,10 +1111,18 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       const validTrackings = newShipments
         .filter(p => p.isValid)
         .map(p => p.trackingNumber);
-      
+
       const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
       const allSurplus = [...invalidNumbers, ...surplusFromValid];
-      
+
+      // Reproducir sonido si hay códigos sobrantes nuevos
+      const previousSurplus = surplusTrackings;
+      const newSurplusItems = allSurplus.filter(surplus => !previousSurplus.includes(surplus));
+
+      if (newSurplusItems.length > 0) {
+        playExpirationSound();
+      }
+
       setSurplusTrackings(allSurplus);
 
       // 4. CONSOLIDATED VALIDATION
