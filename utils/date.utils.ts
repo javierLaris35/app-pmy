@@ -117,3 +117,31 @@ export function getLastWeekRange(): { fromDate: string; toDate: string } {
     toDate: lastSunday.toISOString().slice(0, 10)
   }
 }
+
+/**
+ * Obtiene la fecha y hora actual en zona horaria de Hermosillo
+ * con una hora específica, en formato compatible con input datetime-local
+ *
+ * @param hour - Hora del día (0-23). Por defecto: 21 (9pm)
+ * @returns Fecha en formato YYYY-MM-DDTHH:MM
+ *
+ * @example
+ * getCurrentHermosilloDateTime() // "2025-01-16T21:00" (9pm hoy)
+ * getCurrentHermosilloDateTime(14) // "2025-01-16T14:00" (2pm hoy)
+ */
+export function getCurrentHermosilloDateTime(hour: number = 21): string {
+  const hermosillo = new Date().toLocaleString("en-US", {
+    timeZone: "America/Hermosillo",
+  });
+  const date = new Date(hermosillo);
+  date.setHours(hour, 0, 0, 0);
+
+  // Formatear para datetime-local: YYYY-MM-DDTHH:MM
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}

@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { searchPackageInfo } from "@/lib/services/shipments";
 import {SearchShipmentDto, ShipmentStatusType, Priority, ShipmentType} from "@/lib/types";
 import { toast } from "sonner";
+import { getCurrentHermosilloDateTime } from "@/utils/date.utils";
 
 type ModalMode = "search" | "create";
 
@@ -41,27 +42,6 @@ interface CorrectTrackingModalProps {
   }) => void;
   onCreate?: (data: ShipmentFormData) => void;
 }
-
-/**
- * Obtiene la fecha de hoy a las 9pm en zona horaria de Hermosillo
- * en formato compatible con input datetime-local (YYYY-MM-DDTHH:MM)
- */
-const getDefaultCommitDateTime = (): string => {
-  const hermosillo = new Date().toLocaleString("en-US", {
-    timeZone: "America/Hermosillo",
-  });
-  const date = new Date(hermosillo);
-  date.setHours(21, 0, 0, 0); // 9pm
-
-  // Formatear para datetime-local: YYYY-MM-DDTHH:MM
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
 
 export function CorrectTrackingModal({
   isOpen,
@@ -119,7 +99,7 @@ export function CorrectTrackingModal({
         ...prev,
         trackingNumber: scannedTrackingNumber,
         // Fecha por defecto: hoy a las 9pm en Hermosillo
-        commitDateTime: getDefaultCommitDateTime(),
+        commitDateTime: getCurrentHermosilloDateTime(), // 21 (9pm) es el default
         // Ciudad por defecto: nombre de la sucursal seleccionada
         recipientCity: subsidiaryName || "",
         // Tipo de envío siempre FEDEX
