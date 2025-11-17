@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
+import { useBrowserVoice } from "@/hooks/use-browser-voice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -379,18 +380,18 @@ const PackageItem = ({
         </div>
         
         <div className="flex flex-col items-end gap-2">
-          {needsData && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onCompleteData(pkg)}
-              disabled={isLoading}
-              className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"
-            >
-              Completar datos
-            </Button>
-          )}
-          
+          {/*{needsData && (*/}
+          {/*  <Button*/}
+          {/*    variant="outline"*/}
+          {/*    size="sm"*/}
+          {/*    onClick={() => onCompleteData(pkg)}*/}
+          {/*    disabled={isLoading}*/}
+          {/*    className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"*/}
+          {/*  >*/}
+          {/*    Completar datos*/}
+          {/*  </Button>*/}
+          {/*)}*/}
+
           {!pkg.isValid && (
             <Popover
               open={openPopover === pkg.trackingNumber}
@@ -569,6 +570,12 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  // Hook para text-to-speech
+  const { speak: speakMessage } = useBrowserVoice({
+    pitch: 0.8,
+    rate: 1.3,
+  });
 
   // Función para verificar si un paquete necesita datos
   const checkPackageNeedsData = useCallback((pkg: Shipment): boolean => {
@@ -942,7 +949,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       //No mostrar el Alert en lo que encuentrar más gente
       //setExpirationAlertOpen(true);
       
-      playExpirationSound() 
+      // playExpirationSound()
+      speakMessage("El paquete expira hoy")
+
 
       // Agregar estos paquetes al conjunto de mostrados
       const newShownPackages = new Set(shownExpiringPackages);
@@ -1243,7 +1252,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       const newSurplusItems = allSurplus.filter(surplus => !previousSurplus.includes(surplus));
 
       if (newSurplusItems.length > 0) {
-        playExpirationSound();
+        // playExpirationSound();
+        speakMessage("La guía no se encontró. Por favor, verifica.");
 
         // Abrir modal automáticamente con el primer surplus nuevo
         setTimeout(() => {
@@ -1407,7 +1417,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     if (validShipments.length === 0) {
       toast({
         title: "No hay paquetes válidos",
-        description: "No hay paquetes válidos para procesar la descarga.",
+        description: "No hay paquetes válidos para procesar el Desembarque.",
         variant: "destructive",
       });
       return;
@@ -1432,8 +1442,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       await handleSendEmail(newUnloading);
 
       toast({
-        title: "Descarga procesada exitosamente",
-        description: `Se procesaron ${validShipments.length} paquetes para descarga. Faltantes: ${missingPackages.length}, Sobrantes: ${surplusTrackings.length}`,
+        title: "Desembarque procesado exitosamente",
+        description: `Se procesaron ${validShipments.length} paquetes para el desembarque. Faltantes: ${missingPackages.length}, Sobrantes: ${surplusTrackings.length}`,
       });
 
       // Limpiar storage después de éxito
@@ -1443,8 +1453,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     } catch (error) {
       console.error("Error in handleUnloading:", error);
       toast({
-        title: "Error al procesar descarga",
-        description: "Hubo un problema al procesar la descarga de paquetes.",
+        title: "Error al procesar el desembarque",
+        description: "Hubo un problema al procesar el desembarque  de paquetes.",
         variant: "destructive",
       });
     } finally {
@@ -1520,7 +1530,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   <div className="p-2 rounded-lg bg-primary text-primary-foreground">
                     <PackageCheckIcon className="h-6 w-6"/>
                   </div>
-                  <span>Descarga de Paquetes</span>
+                  <span>Desembarque de Paquetes</span>
                   {shipments.length > 0 && (
                       <Badge variant="secondary" className="ml-2 text-sm">
                         {validShipments.length} válidos / {shipments.length} total
@@ -1528,7 +1538,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Procesa la descarga de paquetes de unidades de transporte
+                  Procesa el desembarque de paquetes de unidades de transporte
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">
@@ -1629,7 +1639,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Paquete no válido para descarga</p>
+                          <p>Paquete no válido para el Desembarque</p>
                         </TooltipContent>
                       </Tooltip>
 
@@ -1942,7 +1952,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   ) : (
                       <Send className="h-4 w-4"/>
                   )}
-                  Procesar descarga
+                  Procesar el desembarque
                   {packagesNeedingData.length > 0 && (
                     <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 text-xs">
                       {packagesNeedingData.length}
