@@ -45,7 +45,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <CommandPalette />
         <AddShipmentDialog />
       </main>
-      <Toaster />
+      <Toaster richColors/>
     </SidebarProvider>
   )
 }
