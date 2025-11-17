@@ -1,6 +1,7 @@
-import { generateDashboardKpis, generateKpis, getCharges, getShipments } from '@/lib/services/shipments';
-import { KpiData } from '@/lib/types';
+import { createShipmentInDesembarcos, generateDashboardKpis, generateKpis, getCharges, getShipments } from '@/lib/services/shipments';
+import { AddShipmentDto, KpiData } from '@/lib/types';
 import useSWR from 'swr';
+import useSWRMutation from 'swr/mutation';
 import qs from "query-string";
 
 export function useShipments(subsidiaryId?: string) {
@@ -66,4 +67,24 @@ export const useDashboardKpis = ({ from, to, subsidiaryId }) => {
     isError: !!error,
     mutate,
   }
+}
+
+export function useCreateShipmentInDesembarcos() {
+  const {
+    trigger: createShipment,
+    isMutating: isCreating,
+    error,
+  } = useSWRMutation(
+    'create-shipment-desembarcos',
+    async (_key, { arg }: { arg: AddShipmentDto }) => {
+      return await createShipmentInDesembarcos(arg);
+    }
+  );
+
+  return {
+    createShipment,
+    isCreating,
+    isError: !!error,
+    error,
+  };
 }

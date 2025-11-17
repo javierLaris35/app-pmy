@@ -187,6 +187,26 @@ export type Shipment = {
   isHighValue?: boolean
 }
 
+export type AddShipmentDto = {
+  trackingNumber: string
+  recipientName: string
+  recipientAddress: string
+  recipientCity: string
+  recipientZip: string
+  commitDate: string
+  commitTime: string
+  recipientPhone: string
+  status?: "recoleccion" | "en_ruta" | "entregado" | "no_entregado" | "desconocido"
+  payment?: string
+  priority?: "alta" | "media" | "baja"
+  consNumber?: string
+  isPartOfCharge?: boolean
+  isHighValue?: boolean
+  subsidiary?: {
+    id: string
+  }
+}
+
 export type Driver = {
   id: string
   name: string

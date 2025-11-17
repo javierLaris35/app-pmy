@@ -10,9 +10,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Loader2, Package, Search, X, Plus, User, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { searchPackageInfo } from "@/lib/services/shipments";
-import {SearchShipmentDto, ShipmentStatusType, Priority, ShipmentType} from "@/lib/types";
+import { SearchShipmentDto, ShipmentStatusType, Priority, ShipmentType, AddShipmentDto} from "@/lib/types";
 import { toast } from "sonner";
 import { getCurrentHermosilloDateTime } from "@/utils/date.utils";
+import { useCreateShipmentInDesembarcos } from "@/hooks/services/shipments/use-shipments";
 
 type ModalMode = "search" | "create";
 
@@ -35,6 +36,7 @@ interface CorrectTrackingModalProps {
   onClose: () => void;
   scannedTrackingNumber: string;
   subsidiaryName?: string | null;
+  subsidiaryId: string;
   onCorrect: (data: {
     originalTracking: string;
     correctedTracking: string;
@@ -48,6 +50,7 @@ export function CorrectTrackingModal({
   onClose,
   scannedTrackingNumber,
   subsidiaryName,
+  subsidiaryId,
   onCorrect,
   onCreate,
 }: CorrectTrackingModalProps) {
@@ -57,6 +60,9 @@ export function CorrectTrackingModal({
   const [searchLoading, setSearchLoading] = useState(false);
   const [packageInfo, setPackageInfo] = useState<SearchShipmentDto | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Hook para crear shipment
+  const { createShipment, isCreating, isError, error } = useCreateShipmentInDesembarcos();
 
   // Estado para el formulario de creación
   const [formData, setFormData] = useState<ShipmentFormData>({
@@ -73,11 +79,15 @@ export function CorrectTrackingModal({
     isHighValue: false,
   });
 
+  // Campo separado para confirmar el tracking number
+  const [confirmedTracking, setConfirmedTracking] = useState("");
+
   // Limpiar estado al abrir/cerrar
   useEffect(() => {
     if (!isOpen) {
       setMode("search");
       setCorrectedTracking("");
+      setConfirmedTracking("");
       setPackageInfo(null);
       setSearchError(null);
       setFormData({
@@ -107,8 +117,16 @@ export function CorrectTrackingModal({
         // Estado siempre EN_RUTA
         status: ShipmentStatusType.EN_RUTA,
       }));
+      setConfirmedTracking(scannedTrackingNumber);
     }
   }, [isOpen, scannedTrackingNumber, subsidiaryName]);
+
+  // Sincronizar correctedTracking con confirmedTracking
+  useEffect(() => {
+    if (correctedTracking) {
+      setConfirmedTracking(correctedTracking);
+    }
+  }, [correctedTracking]);
 
   // Búsqueda automática cuando se ingresa un tracking de 12 dígitos (solo en modo search)
   useEffect(() => {
@@ -198,34 +216,65 @@ export function CorrectTrackingModal({
     setLoading(true);
 
     try {
-      // Convertir fecha de Hermosillo a UTC
-      const commitDateTimeUTC = formData.commitDateTime
-        ? new Date(formData.commitDateTime).toISOString()
-        : "";
+      // Convertir commitDateTime a commitDate y commitTime separados
+      // SIN conversión de zona horaria - se mantiene la fecha local tal cual
+      const dateTime = new Date(formData.commitDateTime);
 
-      // Preparar datos para enviar, reemplazando campos vacíos con "-"
-      const dataToSend: ShipmentFormData = {
-        ...formData,
+      // Obtener fecha local (sin conversión a UTC)
+      const year = dateTime.getFullYear();
+      const month = String(dateTime.getMonth() + 1).padStart(2, '0');
+      const day = String(dateTime.getDate()).padStart(2, '0');
+      const commitDate = `${year}-${month}-${day}`; // YYYY-MM-DD
+
+      // Obtener hora local (sin conversión a UTC)
+      const hours = String(dateTime.getHours()).padStart(2, '0');
+      const minutes = String(dateTime.getMinutes()).padStart(2, '0');
+      const seconds = String(dateTime.getSeconds()).padStart(2, '0');
+      const commitTime = `${hours}:${minutes}:${seconds}`; // HH:MM:SS
+
+      // Preparar datos para el backend usando el tracking confirmado
+      const dataToBackend: AddShipmentDto = {
+        trackingNumber: confirmedTracking.trim(),
         recipientName: formData.recipientName.trim() || "-",
         recipientAddress: formData.recipientAddress.trim() || "-",
         recipientCity: formData.recipientCity.trim() || "-",
         recipientZip: formData.recipientZip.trim() || "-",
         recipientPhone: formData.recipientPhone.trim() || "-",
-        // Fecha convertida a UTC para almacenamiento
-        commitDateTime: commitDateTimeUTC,
+        commitDate,
+        commitTime,
+        status: formData.status as AddShipmentDto['status'],
+        priority: formData.priority as AddShipmentDto['priority'],
+        isHighValue: formData.isHighValue,
+        subsidiary: {
+          id: subsidiaryId
+        }
       };
 
-      console.log("Simulando creación de shipment:", dataToSend);
-      console.log("Fecha original (Hermosillo):", formData.commitDateTime);
-      console.log("Fecha convertida (UTC):", commitDateTimeUTC);
+      console.log("Creando shipment:", dataToBackend);
 
-      if (onCreate) {
-        onCreate(dataToSend);
+      const result = await createShipment(dataToBackend);
+
+      if (result.ok) {
+        toast.success("Shipment creado", {
+          description: `El paquete ${confirmedTracking} ha sido registrado correctamente.`
+        });
+
+        // Llamar onCreate si existe (para compatibilidad)
+        if (onCreate) {
+          onCreate(formData);
+        }
+
+        onClose();
+      } else {
+        toast.error("Error al crear shipment", {
+          description: result.message || "Ocurrió un error al crear el shipment."
+        });
       }
-
-      onClose();
     } catch (error) {
       console.error("Error al crear shipment:", error);
+      toast.error("Error", {
+        description: "No se pudo crear el shipment. Intenta de nuevo."
+      });
     } finally {
       setLoading(false);
     }
@@ -438,27 +487,36 @@ export function CorrectTrackingModal({
                 Información Básica
               </h3>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="trackingNumber">Número de Guía Escaneado</Label>
-                  <Input
-                    id="trackingNumber"
-                    value={formData.trackingNumber}
-                    disabled
-                    className="font-mono bg-muted"
-                  />
-                </div>
-
-                {/*
-                  CAMPOS OCULTOS - Por defecto siempre son los mismos valores:
-                  - Tipo de Envío: FEDEX (siempre)
-                  - Estado: EN_RUTA (siempre)
-                  - Fecha de Compromiso: Hoy a las 9pm Hermosillo (siempre)
-
-                  Estos campos se prellenan automáticamente al abrir la modal
-                  y no se muestran al usuario para simplificar la interfaz.
-                */}
+              <div className="space-y-2">
+                <Label htmlFor="confirmedTracking" className="text-sm font-medium flex items-center gap-2">
+                  Número de Tracking *
+                </Label>
+                <Input
+                  id="confirmedTracking"
+                  value={confirmedTracking}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "").slice(0, 12);
+                    setConfirmedTracking(value);
+                  }}
+                  placeholder="Escanea el número de tracking (12 dígitos)"
+                  className="font-mono"
+                  required
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  Si escribiste un código en "Buscar Tracking Correcto", aparecerá aquí. Puedes escanearlo de nuevo para confirmar.
+                </p>
               </div>
+
+              {/*
+                CAMPOS OCULTOS - Por defecto siempre son los mismos valores:
+                - Tipo de Envío: FEDEX (siempre)
+                - Estado: EN_RUTA (siempre)
+                - Fecha de Compromiso: Hoy a las 9pm Hermosillo (siempre)
+
+                Estos campos se prellenan automáticamente al abrir la modal
+                y no se muestran al usuario para simplificar la interfaz.
+              */}
             </div>
 
             {/* Información del Destinatario */}
@@ -544,8 +602,8 @@ export function CorrectTrackingModal({
                 <X className="h-4 w-4 mr-2" />
                 Cancelar
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? (
+              <Button type="submit" disabled={loading || isCreating}>
+                {(loading || isCreating) ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Creando...
