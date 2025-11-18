@@ -1,6 +1,6 @@
 import { format, toZonedTime } from 'date-fns-tz';
 import { axiosConfig } from "../axios-config";
-import { SearchShipmentDto, Shipment } from "../types";
+import { AddShipmentDto, SearchShipmentDto, Shipment } from "../types";
 
 const url = '/shipments'
 
@@ -31,8 +31,17 @@ const url = '/shipments'
   }
 
   const saveShipments = async (shipments: Shipment[]) => {
-      const response = await axiosConfig.post<Shipment[]>('/shipments', shipments);  
+      const response = await axiosConfig.post<Shipment[]>('/shipments', shipments);
       return response.data;
+  }
+
+  const createShipmentInDesembarcos = async (shipmentData: AddShipmentDto) => {
+    const response = await axiosConfig.post<{
+      ok: boolean
+      message: string
+      shipment?: Shipment
+    }>('/shipments/add-shipment', shipmentData);
+    return response.data;
   }
 
   const generateKpis = async() => {
@@ -229,6 +238,7 @@ export {
     getShipments,
     getShipmentById,
     saveShipments,
+    createShipmentInDesembarcos,
     generateKpis,
     generateDashboardKpis,
     getCharges,

@@ -843,7 +843,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       console.error("Error in handleUnloading:", error);
       toast({
         title: "Error al procesar descarga",
-        description: "Hubo un problema al procesar la descarga de paquetes.",
+        description: "Hubo un problema al procesar el Desembarque de paquetes.",
         variant: "destructive",
       });
     } finally {
@@ -933,7 +933,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   <div className="p-2 rounded-lg bg-primary text-primary-foreground">
                     <PackageCheckIcon className="h-6 w-6"/>
                   </div>
-                  <span>Descarga de Paquetes</span>
+                  <span>Desembarque de Paquetes</span>
                   {shipments.length > 0 && (
                       <Badge variant="secondary" className="ml-2 text-sm">
                         {validShipments.length} vÃ¡lidos / {shipments.length} total
@@ -941,7 +941,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Procesa la descarga de paquetes de unidades de transporte
+                  Procesa el Desembarque de paquetes de unidades de transporte
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">

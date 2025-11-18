@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
+import { useBrowserVoice } from "@/hooks/use-browser-voice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,6 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoaderWithOverlay } from "@/components/loader";
 import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAlertModal";
+import { CorrectTrackingModal } from "./correct-tracking-modal";
 
 // Añadir el nuevo modal para completar datos
 import {
@@ -378,18 +380,18 @@ const PackageItem = ({
         </div>
         
         <div className="flex flex-col items-end gap-2">
-          {needsData && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onCompleteData(pkg)}
-              disabled={isLoading}
-              className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"
-            >
-              Completar datos
-            </Button>
-          )}
-          
+          {/*{needsData && (*/}
+          {/*  <Button*/}
+          {/*    variant="outline"*/}
+          {/*    size="sm"*/}
+          {/*    onClick={() => onCompleteData(pkg)}*/}
+          {/*    disabled={isLoading}*/}
+          {/*    className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"*/}
+          {/*  >*/}
+          {/*    Completar datos*/}
+          {/*  </Button>*/}
+          {/*)}*/}
+
           {!pkg.isValid && (
             <Popover
               open={openPopover === pkg.trackingNumber}
@@ -560,9 +562,20 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [selectedPackageForData, setSelectedPackageForData] = useState<Shipment | null>(null);
   const [packagesNeedingData, setPackagesNeedingData] = useState<Shipment[]>([]);
 
+  // ESTADOS para el modal de corrección de tracking
+  const [correctTrackingModalOpen, setCorrectTrackingModalOpen] = useState(false);
+  const [selectedTrackingToCorrect, setSelectedTrackingToCorrect] = useState<string>("");
+  const [pendingSurplusQueue, setPendingSurplusQueue] = useState<string[]>([]); // Cola de surplus pendientes
+
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  // Hook para text-to-speech
+  const { speak: speakMessage } = useBrowserVoice({
+    pitch: 0.8,
+    rate: 1.3,
+  });
 
   // Función para verificar si un paquete necesita datos
   const checkPackageNeedsData = useCallback((pkg: Shipment): boolean => {
@@ -619,6 +632,110 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setSelectedPackageForData(null);
   }, []);
 
+  // FUNCIONES para corrección de tracking
+  const handleOpenCorrectTracking = useCallback((trackingNumber: string) => {
+    setSelectedTrackingToCorrect(trackingNumber);
+    setCorrectTrackingModalOpen(true);
+  }, []);
+
+  const handleCloseCorrectTracking = useCallback(() => {
+    setCorrectTrackingModalOpen(false);
+    setSelectedTrackingToCorrect("");
+  }, []);
+
+  const handleCorrectTracking = useCallback(async (data: {
+    originalTracking: string;
+    correctedTracking: string;
+    packageInfo: any;
+  }) => {
+    try {
+      // 1. Remover el tracking incorrecto de surplus
+      setSurplusTrackings(prev => prev.filter(t => t !== data.originalTracking));
+
+      // 2. Remover el tracking incorrecto de scannedPackages
+      setScannedPackages(prev => prev.filter(p => p.trackingNumber !== data.originalTracking));
+
+      // 3. Agregar el nuevo tracking a scannedPackages
+      const newPackage: PackageInfo = {
+        id: `corrected-${Date.now()}`,
+        trackingNumber: data.correctedTracking,
+        isValid: false,
+        isPendingValidation: true,
+        recipientName: data.packageInfo.recipient?.name,
+        recipientAddress: data.packageInfo.recipient?.address,
+        recipientPhone: data.packageInfo.recipient?.phoneNumber,
+      };
+
+      setScannedPackages(prev => [...prev, newPackage]);
+
+      toast({
+        title: "Tracking corregido",
+        description: `Se reemplazó ${data.originalTracking} por ${data.correctedTracking}. El paquete será validado automáticamente.`,
+      });
+
+      // 4. El efecto de validación automática se encargará de validar el nuevo tracking
+
+    } catch (error) {
+      console.error("Error corrigiendo tracking:", error);
+      toast({
+        title: "Error",
+        description: "Hubo un problema al corregir el tracking",
+        variant: "destructive",
+      });
+    }
+  }, [setScannedPackages, setSurplusTrackings, toast]);
+
+  const handleCreateShipment = useCallback((formData: any) => {
+    try {
+      console.log("📦 Creando nuevo shipment:", formData);
+
+      // 1. Remover del surplus
+      setSurplusTrackings(prev => prev.filter(t => t !== formData.trackingNumber));
+
+      // 2. Mapear prioridad del modal al string que espera PackageInfoForUnloading
+      let priority = "media"; // default
+      if (formData.priority === "URGENTE" || formData.priority === "ALTA") {
+        priority = "alta";
+      } else if (formData.priority === "MEDIA") {
+        priority = "media";
+      } else if (formData.priority === "BAJA") {
+        priority = "baja";
+      }
+
+      // 3. Crear el nuevo shipment con el tipo correcto PackageInfoForUnloading
+      const newShipment: PackageInfoForUnloading = {
+        id: `created-${Date.now()}`,
+        trackingNumber: formData.trackingNumber,
+        recipientName: formData.recipientName || undefined,
+        recipientAddress: formData.recipientAddress || undefined,
+        recipientPhone: formData.recipientPhone || undefined,
+        recipientCity: formData.recipientCity || undefined,
+        recipientZip: formData.recipientZip || undefined,
+        commitDateTime: formData.commitDateTime || undefined,
+        shipmentType: formData.shipmentType,
+        priority: priority as any, // Mapear a Priority type
+        isHighValue: formData.isHighValue || false,
+        isValid: true,
+      };
+
+      // 4. Agregar a la lista de shipments válidos
+      setShipments(prev => [...prev, newShipment]);
+
+      toast({
+        title: "Shipment creado",
+        description: `Se creó el shipment ${formData.trackingNumber} exitosamente.`,
+      });
+
+    } catch (error) {
+      console.error("Error creando shipment:", error);
+      toast({
+        title: "Error",
+        description: "Hubo un problema al crear el shipment",
+        variant: "destructive",
+      });
+    }
+  }, [setShipments, setSurplusTrackings, toast]);
+
   // Detectar estado de conexión
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -636,35 +753,48 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   }, []);
 
   // Revalidar paquetes offline cuando se recupera conexión
+  const prevIsOnlineRef = useRef(isOnline);
+
   useEffect(() => {
-    if (isOnline) {
-      const offlinePackages = shipments.filter(pkg => pkg.isOffline);
-      if (offlinePackages.length > 0 && selectedSubsidiaryId) {
-        toast({
-          title: "Revalidando paquetes",
-          description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
-        });
-        
-        offlinePackages.forEach(async (pkg) => {
-          try {
-            const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
-              [pkg.trackingNumber], 
-              selectedSubsidiaryId
-            );
-            
-            if (result.validatedShipments.length > 0) {
-              const validated = result.validatedShipments[0];
-              setShipments(prev => prev.map(prevPkg => 
-                prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
-              ));
+    // Solo ejecutar cuando cambia de offline a online
+    const wasOffline = !prevIsOnlineRef.current;
+    const isNowOnline = isOnline;
+
+    prevIsOnlineRef.current = isOnline;
+
+    if (wasOffline && isNowOnline && selectedSubsidiaryId) {
+      setShipments(currentShipments => {
+        const offlinePackages = currentShipments.filter(pkg => pkg.isOffline);
+
+        if (offlinePackages.length > 0) {
+          toast({
+            title: "Revalidando paquetes",
+            description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
+          });
+
+          offlinePackages.forEach(async (pkg) => {
+            try {
+              const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
+                [pkg.trackingNumber],
+                selectedSubsidiaryId
+              );
+
+              if (result.validatedShipments.length > 0) {
+                const validated = result.validatedShipments[0];
+                setShipments(prev => prev.map(prevPkg =>
+                  prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
+                ));
+              }
+            } catch (error) {
+              console.error("Error revalidando paquete offline:", error);
             }
-          } catch (error) {
-            console.error("Error revalidando paquete offline:", error);
-          }
-        });
-      }
+          });
+        }
+
+        return currentShipments;
+      });
     }
-  }, [isOnline, shipments, selectedSubsidiaryId, setShipments, toast]);
+  }, [isOnline, selectedSubsidiaryId, setShipments, toast]);
 
   // VALIDACIÓN AUTOMÁTICA
   useEffect(() => {
@@ -819,7 +949,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       //No mostrar el Alert en lo que encuentrar más gente
       //setExpirationAlertOpen(true);
       
-      playExpirationSound() 
+      // playExpirationSound()
+      speakMessage("El paquete expira hoy")
+
 
       // Agregar estos paquetes al conjunto de mostrados
       const newShownPackages = new Set(shownExpiringPackages);
@@ -1111,10 +1243,24 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       const validTrackings = newShipments
         .filter(p => p.isValid)
         .map(p => p.trackingNumber);
-      
+
       const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
       const allSurplus = [...invalidNumbers, ...surplusFromValid];
-      
+
+      // Reproducir sonido y abrir modal si hay códigos sobrantes nuevos
+      const previousSurplus = surplusTrackings;
+      const newSurplusItems = allSurplus.filter(surplus => !previousSurplus.includes(surplus));
+
+      if (newSurplusItems.length > 0) {
+        // playExpirationSound();
+        speakMessage("La guía no se encontró. Por favor, verifica.");
+
+        // Abrir modal automáticamente con el primer surplus nuevo
+        setTimeout(() => {
+          handleOpenCorrectTracking(newSurplusItems[0]);
+        }, 500); // Pequeño delay para que se actualice el UI primero
+      }
+
       setSurplusTrackings(allSurplus);
 
       // 4. CONSOLIDATED VALIDATION
@@ -1271,7 +1417,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     if (validShipments.length === 0) {
       toast({
         title: "No hay paquetes válidos",
-        description: "No hay paquetes válidos para procesar la descarga.",
+        description: "No hay paquetes válidos para procesar el Desembarque.",
         variant: "destructive",
       });
       return;
@@ -1296,8 +1442,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       await handleSendEmail(newUnloading);
 
       toast({
-        title: "Descarga procesada exitosamente",
-        description: `Se procesaron ${validShipments.length} paquetes para descarga. Faltantes: ${missingPackages.length}, Sobrantes: ${surplusTrackings.length}`,
+        title: "Desembarque procesado exitosamente",
+        description: `Se procesaron ${validShipments.length} paquetes para el desembarque. Faltantes: ${missingPackages.length}, Sobrantes: ${surplusTrackings.length}`,
       });
 
       // Limpiar storage después de éxito
@@ -1307,8 +1453,8 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     } catch (error) {
       console.error("Error in handleUnloading:", error);
       toast({
-        title: "Error al procesar descarga",
-        description: "Hubo un problema al procesar la descarga de paquetes.",
+        title: "Error al procesar el desembarque",
+        description: "Hubo un problema al procesar el desembarque  de paquetes.",
         variant: "destructive",
       });
     } finally {
@@ -1384,7 +1530,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   <div className="p-2 rounded-lg bg-primary text-primary-foreground">
                     <PackageCheckIcon className="h-6 w-6"/>
                   </div>
-                  <span>Descarga de Paquetes</span>
+                  <span>Desembarque de Paquetes</span>
                   {shipments.length > 0 && (
                       <Badge variant="secondary" className="ml-2 text-sm">
                         {validShipments.length} válidos / {shipments.length} total
@@ -1392,7 +1538,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Procesa la descarga de paquetes de unidades de transporte
+                  Procesa el desembarque de paquetes de unidades de transporte
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">
@@ -1493,7 +1639,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Paquete no válido para descarga</p>
+                          <p>Paquete no válido para el Desembarque</p>
                         </TooltipContent>
                       </Tooltip>
 
@@ -1713,11 +1859,23 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                             <ul className="space-y-2">
                               {surplusTrackings.map(tracking => (
                                   <li key={tracking}
-                                      className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50">
-                                    <span className="font-mono text-sm">{tracking}</span>
-                                    <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">
-                                      Sobrante
-                                    </Badge>
+                                      className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50 border border-amber-200">
+                                    <span className="font-mono text-sm font-medium">{tracking}</span>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleOpenCorrectTracking(tracking)}
+                                        disabled={isLoading}
+                                        className="text-xs h-7 bg-white hover:bg-amber-100"
+                                      >
+                                        <Package className="h-3 w-3 mr-1" />
+                                        Corregir
+                                      </Button>
+                                      <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">
+                                        Sobrante
+                                      </Badge>
+                                    </div>
                                   </li>
                               ))}
                             </ul>
@@ -1794,7 +1952,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
                   ) : (
                       <Send className="h-4 w-4"/>
                   )}
-                  Procesar descarga
+                  Procesar el desembarque
                   {packagesNeedingData.length > 0 && (
                     <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 text-xs">
                       {packagesNeedingData.length}
@@ -1835,7 +1993,17 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
           package={selectedPackageForData}
           onSave={handleSavePackageData}
         />
-        
+
+        {/* MODAL PARA CORREGIR TRACKING */}
+        <CorrectTrackingModal
+          isOpen={correctTrackingModalOpen}
+          onClose={handleCloseCorrectTracking}
+          scannedTrackingNumber={selectedTrackingToCorrect}
+          subsidiaryName={selectedSubsidiaryName}
+          onCorrect={handleCorrectTracking}
+          onCreate={handleCreateShipment}
+        />
+
         <ExpirationAlertModal
             isOpen={expirationAlertOpen}
             onClose={handleNextExpiring}
