@@ -15,6 +15,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Shipment } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
+import { getStatusBadge } from "@/utils/shipment-status.utils"
 
 interface PackageStats {
   total: number
@@ -252,25 +253,6 @@ const undeliveredPackagesColumns: ColumnDef<Shipment>[] = [
   },
 ]
 
-// Helper para obtener el badge del status
-const getStatusBadge = (status: string) => {
-  const statusLower = status.toLowerCase()
-
-  if (statusLower === "entregado" || statusLower === "entregada" || statusLower === "entregados") {
-    return <Badge className="bg-green-500 text-white whitespace-nowrap">Entregado</Badge>
-  }
-  if (statusLower === "en-ruta" || statusLower === "en ruta" || statusLower === "ruta") {
-    return <Badge className="bg-blue-500 text-white whitespace-nowrap">En Ruta</Badge>
-  }
-  if (statusLower === "en-bodega" || statusLower === "en bodega" || statusLower === "bodega") {
-    return <Badge className="bg-cyan-500 text-white whitespace-nowrap">En Bodega</Badge>
-  }
-  if (statusLower === "no_entregado" || statusLower === "no entregado" || statusLower === "no-entregado") {
-    return <Badge className="bg-red-500 text-white whitespace-nowrap">No Entregado</Badge>
-  }
-  return <Badge variant="outline" className="whitespace-nowrap">{status}</Badge>
-}
-
 // Columnas para la tabla de cobros a liquidar
 const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
   {
@@ -284,10 +266,19 @@ const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
   {
     id: "status",
     accessorFn: (row) => row.shipmentData.shipmentStatus,
-    header: "Status",
+    header: "Estado",
     cell: ({ row }) => {
-      const status = row.original.shipmentData.shipmentStatus
-      return status ? getStatusBadge(status) : <span className="text-sm text-muted-foreground">-</span>
+      const status = row.getValue("status") as string
+      if (!status) return <span className="text-sm text-muted-foreground">-</span>
+
+      const statusInfo = getStatusBadge(status)
+      const StatusIcon = statusInfo.icon
+      return (
+        <Badge variant={statusInfo.variant} className={`whitespace-nowrap ${statusInfo.color}`}>
+          <StatusIcon className="mr-1 h-3 w-3" />
+          {statusInfo.label}
+        </Badge>
+      )
     },
   },
   {
