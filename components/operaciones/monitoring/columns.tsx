@@ -5,47 +5,7 @@ import { Badge } from "../../ui/badge"
 import { MonitoringInfo } from "./shipment-tracking"
 import { formatDate } from "@/utils/date.utils"
 import { ShipmentHistoryModal } from "../envios/shipment-history-modal"
-
-const getStatusBadge = (status: string) => {
-  const variants = {
-    "entregado": { 
-      label: "Entregado", 
-      color: "bg-green-50 text-green-700 ring-green-600/20" as const,
-      variant: "outline" as const,
-      icon: Package
-    },
-    "no_entregado": { 
-      label: "No Entregado", 
-      color: "bg-red-50 text-red-700 ring-red-600/20" as const,
-      variant: "destructive" as const,
-      icon: XCircleIcon
-    },
-    "en_ruta": { 
-      label: "En Ruta", 
-      color: "bg-purple-50 text-purple-700 ring-purple-700/10" as const,
-      variant: "default" as const,
-      icon: Truck
-    },
-    "en_bodega": { 
-      label: "En Bodega", 
-      color: "bg-blue-50 text-blue-700 ring-blue-700/10" as const,
-      variant: "secondary" as const,
-      icon: Warehouse
-    }
-  } as Record<string, { label: string; color: string; variant: "secondary" | "default" | "outline" | "destructive"; icon: any }>
-
-  // Convertir el status a minúsculas para que coincida con las claves
-  const normalizedStatus = status.toLowerCase()
-  
-  return (
-    variants[normalizedStatus] || {
-      label: status || "Desconocido",
-      color: "bg-gray-50 text-gray-700 ring-gray-700/10",
-      variant: "secondary" as const,
-      icon: Package,
-    }
-  )
-}
+import { getStatusBadge } from "@/utils/shipment-status.utils"
 
 export const columns: ColumnDef<MonitoringInfo>[] = [
   {
