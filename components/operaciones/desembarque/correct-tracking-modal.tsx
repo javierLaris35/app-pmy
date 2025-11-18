@@ -36,7 +36,7 @@ interface CorrectTrackingModalProps {
   onClose: () => void;
   scannedTrackingNumber: string;
   subsidiaryName?: string | null;
-  subsidiaryId: string;
+  subsidiaryId?: string | null;
   onCorrect: (data: {
     originalTracking: string;
     correctedTracking: string;
@@ -213,6 +213,14 @@ export function CorrectTrackingModal({
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!subsidiaryId) {
+      toast.error("Error", {
+        description: "No se encontró la sucursal. Por favor, recarga la página."
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {

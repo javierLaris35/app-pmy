@@ -1999,6 +1999,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
           isOpen={correctTrackingModalOpen}
           onClose={handleCloseCorrectTracking}
           scannedTrackingNumber={selectedTrackingToCorrect}
+          subsidiaryId={selectedSubsidiaryId}
           subsidiaryName={selectedSubsidiaryName}
           onCorrect={handleCorrectTracking}
           onCreate={handleCreateShipment}
