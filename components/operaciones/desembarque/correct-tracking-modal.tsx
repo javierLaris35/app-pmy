@@ -43,6 +43,7 @@ interface CorrectTrackingModalProps {
     packageInfo: SearchShipmentDto;
   }) => void;
   onCreate?: (data: ShipmentFormData) => void;
+  handleValidatePackages:  () => void;
 }
 
 export function CorrectTrackingModal({
@@ -53,6 +54,7 @@ export function CorrectTrackingModal({
   subsidiaryId,
   onCorrect,
   onCreate,
+  handleValidatePackages
 }: CorrectTrackingModalProps) {
   const [mode, setMode] = useState<ModalMode>("search");
   const [correctedTracking, setCorrectedTracking] = useState("");
@@ -262,10 +264,17 @@ export function CorrectTrackingModal({
 
       const result = await createShipment(dataToBackend);
 
+
+
       if (result.ok) {
+
+        handleValidatePackages();
+
         toast.success("Shipment creado", {
           description: `El paquete ${confirmedTracking} ha sido registrado correctamente.`
         });
+
+
 
         // Llamar onCreate si existe (para compatibilidad)
         if (onCreate) {

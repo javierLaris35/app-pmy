@@ -948,9 +948,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setCurrentExpiringIndex(0);
       //No mostrar el Alert en lo que encuentrar más gente
       //setExpirationAlertOpen(true);
-      
-      // playExpirationSound()
+
       speakMessage("El paquete expira hoy")
+      playExpirationSound();
 
 
       // Agregar estos paquetes al conjunto de mostrados
@@ -2003,6 +2003,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
           subsidiaryName={selectedSubsidiaryName}
           onCorrect={handleCorrectTracking}
           onCreate={handleCreateShipment}
+          handleValidatePackages={handleValidatePackages}
         />
 
         <ExpirationAlertModal
