@@ -127,7 +127,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#cc0000',
     marginRight: 10,
-  }
+  },
+  // Nuevos estilos para la tabla de guías inválidas
+  invalidTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#ff9999',
+    padding: 4,
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  invalidTableRow: {
+    flexDirection: 'row',
+    borderBottom: '1px solid #ffcccc',
+    fontSize: 9,
+    padding: 4,
+    backgroundColor: '#fff0f0', // Fondo rojo muy claro para las filas inválidas
+  },
 });
 
 export const FedExPackageDispatchPDF = ({
@@ -280,16 +297,42 @@ export const FedExPackageDispatchPDF = ({
         {invalidTrackings && invalidTrackings.length > 0 && (
           <View style={styles.invalidSection}>
             <Text style={styles.invalidTitle}>
-              Guías Inválidas ({invalidTrackings.length})
+              Guías Inválidas - Completar Manualmente ({invalidTrackings.length})
             </Text>
-            <View style={styles.row}>
-              {invalidTrackings.map((tracking, index) => (
-                <Text style={styles.invalidRow} key={index}>
-                  <Text style={styles.invalidTracking}>{tracking}</Text>
-                  {index < invalidTrackings.length - 1 && ' • '}
-                </Text>
-              ))}
+            
+            {/* Cabecera de la tabla de guías inválidas (misma que la normal) */}
+            <View style={styles.invalidTableHeader}>
+              <Text style={{ width: 22 }}>[#]</Text>
+              <Text style={{ width: 60 }}>No. Guia</Text>
+              <Text style={{ width: 110 }}>Nombre</Text>
+              <Text style={{ width: 125 }}>Dirección</Text>
+              <Text style={{ width: 28 }}>CP</Text>
+              <Text style={{ width: 38 }}>Cobro</Text>
+              <Text style={{ width: 50 }}>Fecha</Text>
+              <Text style={{ width: 38 }}>Hora</Text>
+              <Text style={{ width: 50 }}>Celular</Text>
+              <Text style={{ width: 75 }}>Nombre y Firma</Text>
             </View>
+            
+            {/* Filas de guías inválidas - mismas columnas pero vacías */}
+            {invalidTrackings.map((tracking, index) => (
+              <View style={styles.invalidTableRow} key={index}>
+                <Text style={{ width: 22, fontWeight: 'bold', color: '#cc0000' }}>
+                  {packages.length + index + 1}
+                </Text>
+                <Text style={{ width: 60, fontWeight: 'bold', color: '#cc0000' }}>
+                  {tracking}
+                </Text>
+                <Text style={{ width: 110 }}></Text>
+                <Text style={{ width: 125 }}></Text>
+                <Text style={{ width: 28 }}></Text>
+                <Text style={{ width: 38 }}></Text>
+                <Text style={{ width: 50 }}></Text>
+                <Text style={{ width: 38 }}></Text>
+                <Text style={{ width: 50 }}></Text>
+                <Text style={{ width: 75 }}></Text>
+              </View>
+            ))}
           </View>
         )}
       </Page>
