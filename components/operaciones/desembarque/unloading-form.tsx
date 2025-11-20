@@ -1256,9 +1256,9 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         speakMessage("La guía no se encontró. Por favor, verifica.");
 
         // Abrir modal automáticamente con el primer surplus nuevo
-        setTimeout(() => {
+        /*setTimeout(() => {
           handleOpenCorrectTracking(newSurplusItems[0]);
-        }, 500); // Pequeño delay para que se actualice el UI primero
+        }, 500);*/ // Pequeño delay para que se actualice el UI primero
       }
 
       setSurplusTrackings(allSurplus);
