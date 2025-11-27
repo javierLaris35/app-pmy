@@ -404,7 +404,31 @@ export const FedExPackageDispatchPDF = ({
 
   const packagePages = splitPackagesIntoPages(packages);
   const invalidPages = splitInvalidTrackingsIntoPages(invalidTrackings);
-  const totalPages = Math.max(packagePages.length, invalidPages.length);
+
+  // SOLUCIÓN: Crear páginas separadas - primero válidos, luego inválidos
+  const allPages = [];
+
+  // 1. Primero agregar todas las páginas de paquetes válidos
+  packagePages.forEach((packagePage, index) => {
+    allPages.push({
+      type: 'valid',
+      data: packagePage,
+      pageIndex: index,
+      isFirstPage: index === 0
+    });
+  });
+
+  // 2. Luego agregar todas las páginas de trackings inválidos
+  invalidPages.forEach((invalidPage, index) => {
+    allPages.push({
+      type: 'invalid',
+      data: invalidPage,
+      pageIndex: packagePages.length + index,
+      isFirstPage: false // Nunca mostrar header en páginas de inválidos
+    });
+  });
+
+  const totalPages = allPages.length;
 
   // Componente de celda optimizado
   const TableCell = ({ children, width, style = {}, truncate = false, maxChars, ...props }: any) => (
@@ -417,10 +441,8 @@ export const FedExPackageDispatchPDF = ({
 
   return (
     <Document>
-      {Array.from({ length: totalPages }, (_, pageIndex) => {
-        const hasHeader = pageIndex === 0;
-        const currentPackagePage = packagePages[pageIndex] || [];
-        const currentInvalidPage = invalidPages[pageIndex] || [];
+      {allPages.map(({ type, data, pageIndex, isFirstPage }) => {
+        const hasHeader = isFirstPage;
         
         return (
           <Page key={pageIndex} size="LETTER" style={styles.page} orientation="landscape">
@@ -497,101 +519,111 @@ export const FedExPackageDispatchPDF = ({
               </>
             )}
 
-            <View style={styles.tableContainer}>
-              <View style={styles.tableHeader}>
-                <TableCell width={columnWidths.number}>[#]</TableCell>
-                <TableCell width={columnWidths.tracking}>NO. GUIA</TableCell>
-                <TableCell width={columnWidths.name}>NOMBRE</TableCell>
-                <TableCell width={columnWidths.address}>DIRECCIÓN</TableCell>
-                <TableCell width={columnWidths.zipCode}>CP</TableCell>
-                <TableCell width={columnWidths.payment}>COBRO</TableCell>
-                <TableCell width={columnWidths.date}>FECHA</TableCell>
-                {!isHermosillo && <TableCell width={columnWidths.time}>HORA</TableCell>}
-                <TableCell width={columnWidths.phone}>CELULAR</TableCell>
-                <TableCell width={80}>NOMBRE Y FIRMA</TableCell>
-              </View>
+            {type === 'valid' ? (
+              // TABLA DE PAQUETES VÁLIDOS
+              <View style={styles.tableContainer}>
+                <View style={styles.tableHeader}>
+                  <TableCell width={columnWidths.number}>[#]</TableCell>
+                  <TableCell width={columnWidths.tracking}>NO. GUIA</TableCell>
+                  <TableCell width={columnWidths.name}>NOMBRE</TableCell>
+                  <TableCell width={columnWidths.address}>DIRECCIÓN</TableCell>
+                  <TableCell width={columnWidths.zipCode}>CP</TableCell>
+                  <TableCell width={columnWidths.payment}>COBRO</TableCell>
+                  <TableCell width={columnWidths.date}>FECHA</TableCell>
+                  {!isHermosillo && <TableCell width={columnWidths.time}>HORA</TableCell>}
+                  <TableCell width={columnWidths.phone}>CELULAR</TableCell>
+                  <TableCell width={80}>NOMBRE Y FIRMA</TableCell>
+                </View>
 
-              {currentPackagePage.map((pkg, i) => {
-                // CALCULAR CORRECTAMENTE el índice global
-                let globalIndex = i;
-                for (let prevPage = 0; prevPage < pageIndex; prevPage++) {
-                  globalIndex += packagePages[prevPage].length;
-                }
-                
-                const icons = `${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
-                
-                const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
-                const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
-                const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
-                const hasPayment = pkg.payment?.amount != null;
-                
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const commitDateObj = new Date(pkg.commitDateTime);
-                commitDateObj.setHours(0, 0, 0, 0);
-                const isExpiringToday = commitDateObj.getTime() === today.getTime();
+                {data.map((pkg, i) => {
+                  // CALCULAR CORRECTAMENTE el índice global
+                  let globalIndex = i;
+                  for (let prevPage = 0; prevPage < pageIndex; prevPage++) {
+                    if (allPages[prevPage].type === 'valid') {
+                      globalIndex += allPages[prevPage].data.length;
+                    }
+                  }
+                  
+                  const icons = `${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
+                  
+                  const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
+                  const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
+                  const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
+                  const hasPayment = pkg.payment?.amount != null;
+                  
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const commitDateObj = new Date(pkg.commitDateTime);
+                  commitDateObj.setHours(0, 0, 0, 0);
+                  const isExpiringToday = commitDateObj.getTime() === today.getTime();
 
-                return (
-                  <View 
-                    style={[
-                      styles.tableRow,
-                      i % 2 === 0 && styles.tableRowEven,
-                      hasPayment && styles.paymentRow,
-                      isExpiringToday && styles.expiringTodayRow
-                    ]} 
-                    key={globalIndex}
-                  >
-                    <TableCell width={columnWidths.number} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                      {icons} {globalIndex + 1}
-                    </TableCell>
-                    <TableCell width={columnWidths.tracking} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                      {pkg.trackingNumber}
-                    </TableCell>
-                    {/* NOMBRE y DIRECCIÓN con truncado forzado y SIN salto de línea */}
-                    <TableCell 
-                      width={columnWidths.name} 
-                      style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
-                      truncate={true}
-                      maxChars={maxNameChars}
+                  return (
+                    <View 
+                      style={[
+                        styles.tableRow,
+                        i % 2 === 0 && styles.tableRowEven,
+                        hasPayment && styles.paymentRow,
+                        isExpiringToday && styles.expiringTodayRow
+                      ]} 
+                      key={globalIndex}
                     >
-                      {truncate(pkg.recipientName || '', 25)}
-                    </TableCell>
-                    <TableCell 
-                      width={columnWidths.address} 
-                      style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
-                      truncate={true}
-                      maxChars={maxAddressChars}
-                    >
-                      {truncate(pkg.recipientAddress || '', 30)}
-                    </TableCell>
-                    <TableCell width={columnWidths.zipCode} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                      {pkg.recipientZip || ''}
-                    </TableCell>
-                    <TableCell width={columnWidths.payment} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                      {hasPayment ? `${pkg.payment?.type} $${pkg.payment?.amount}` : ''}
-                    </TableCell>
-                    <TableCell width={columnWidths.date} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                      {commitDate}
-                    </TableCell>
-                    {!isHermosillo && (
-                      <TableCell width={columnWidths.time} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                        {commitTime}
+                      <TableCell width={columnWidths.number} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        {icons} {globalIndex + 1}
                       </TableCell>
-                    )}
-                    <TableCell width={columnWidths.phone} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                      {formatMexicanPhoneNumberWithOutMexicanLada(pkg.recipientPhone)}
-                    </TableCell>
-                    <TableCell width={columnWidths.signature} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
-                      {}
-                    </TableCell>
-                  </View>
-                );
-              })}
-            </View>
-
-            {currentInvalidPage.length > 0 && (
-              <View style={[styles.tableContainer, { borderColor: '#ff9999', marginTop: 2 }]}>
+                      <TableCell width={columnWidths.tracking} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        {pkg.trackingNumber}
+                      </TableCell>
+                      {/* NOMBRE y DIRECCIÓN con truncado forzado y SIN salto de línea */}
+                      <TableCell 
+                        width={columnWidths.name} 
+                        style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
+                        truncate={true}
+                        maxChars={maxNameChars}
+                      >
+                        {truncate(pkg.recipientName || '', 25)}
+                      </TableCell>
+                      <TableCell 
+                        width={columnWidths.address} 
+                        style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
+                        truncate={true}
+                        maxChars={maxAddressChars}
+                      >
+                        {truncate(pkg.recipientAddress || '', 30)}
+                      </TableCell>
+                      <TableCell width={columnWidths.zipCode} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        {pkg.recipientZip || ''}
+                      </TableCell>
+                      <TableCell width={columnWidths.payment} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        {hasPayment ? `${pkg.payment?.type} $${pkg.payment?.amount}` : ''}
+                      </TableCell>
+                      <TableCell width={columnWidths.date} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        {commitDate}
+                      </TableCell>
+                      {!isHermosillo && (
+                        <TableCell width={columnWidths.time} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                          {commitTime}
+                        </TableCell>
+                      )}
+                      <TableCell width={columnWidths.phone} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        {formatMexicanPhoneNumberWithOutMexicanLada(pkg.recipientPhone)}
+                      </TableCell>
+                      <TableCell width={columnWidths.signature} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        {}
+                      </TableCell>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              // TABLA DE TRACKINGS INVÁLIDOS (SOLO EN PÁGINAS SEPARADAS)
+              <View style={[styles.tableContainer, { borderColor: '#ff9999' }]}>
                 <View style={[styles.tableHeader, { backgroundColor: '#ff9999' }]}>
+                  <Text style={[styles.symbologyText, { color: 'white', fontSize: 10, width: '100%', textAlign: 'center' }]}>
+                    🚨 TRACKINGS INVÁLIDOS / NO ENCONTRADOS
+                  </Text>
+                </View>
+                
+                <View style={styles.tableHeader}>
                   <TableCell width={columnWidths.number}>[#]</TableCell>
                   <TableCell width={columnWidths.tracking}>NO. GUIA</TableCell>
                   <TableCell width={columnWidths.name}>NOMBRE</TableCell>
@@ -604,8 +636,8 @@ export const FedExPackageDispatchPDF = ({
                   <TableCell width={60}>NOMBRE Y FIRMA</TableCell>
                 </View>
 
-                {currentInvalidPage.map((tracking, index) => {
-                  const globalIndex = packages.length + index + (pageIndex * calculateRowsPerPage(false));
+                {data.map((tracking, index) => {
+                  const globalIndex = packages.length + index + ((pageIndex - packagePages.length) * calculateRowsPerPage(false));
                   return (
                     <View 
                       style={[
