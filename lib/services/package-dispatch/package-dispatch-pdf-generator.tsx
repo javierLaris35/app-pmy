@@ -150,9 +150,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
     borderBottomStyle: "solid",
-    fontSize: 7.5,
+    fontSize: 10,
     padding: 0.5,
-    minHeight: 10, // ALTURA MÍNIMA PARA MÁXIMAS FILAS
+    minHeight: 15, // ALTURA MÍNIMA PARA MÁXIMAS FILAS
     alignItems: 'center',
   },
   tableRowEven: { backgroundColor: colors.light },
@@ -234,10 +234,10 @@ interface FedExPackageDispatchPDFProps {
 const calculateRowsPerPage = (hasHeader: boolean): number => {
   if (hasHeader) {
     // Página 1 con header - espacio limitado
-    return 46; // Aproximadamente 48 paquetes en primera página
+    return 31; // Aproximadamente 48 paquetes en primera página
   } else {
     // Páginas sin header - mucho más espacio
-    return 57; // Aproximadamente 65 paquetes en páginas siguientes
+    return 38; // Aproximadamente 65 paquetes en páginas siguientes
   }
 };
 
@@ -291,7 +291,7 @@ const getColumnWidths = (isHermosillo: boolean) => {
     name: 125,
     address: 145,
     zipCode: 22,
-    payment: 45,
+    payment: 55,
     date: 42,
     time: 38,
     phone: 45,
@@ -305,7 +305,7 @@ const getColumnWidths = (isHermosillo: boolean) => {
       name: 135,
       address: 155,
       zipCode: 22,
-      payment: 35,
+      payment: 55,
       date: 42,
       time: 0,
       phone: 55,
