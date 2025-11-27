@@ -485,7 +485,7 @@ export const FedExPackageDispatchPDF = ({
                   </View>
                   <View style={styles.infoItem}>
                     <Text style={[styles.infoText, styles.infoLabel]}>MONTO</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>${packageStats.totalPaymentAmount.toFixed(2)}</Text>
+                    <Text style={[styles.infoText, styles.infoValue]}>${(isNaN(Number(packageStats.totalPaymentAmount)) ? 0 : Number(packageStats.totalPaymentAmount)).toFixed(2)}</Text>
                   </View>
                 </View>
 
