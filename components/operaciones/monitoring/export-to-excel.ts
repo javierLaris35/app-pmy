@@ -14,11 +14,11 @@ export async function exportToExcel(packages: MonitoringInfo[]) {
 
   // === ENCABEZADO GENERAL ===
   const titleRow = sheet.addRow(["📦 Seguimiento de Paquetes"]);
-  sheet.mergeCells(`A${titleRow.number}:R${titleRow.number}`);
+  sheet.mergeCells(`A${titleRow.number}:L${titleRow.number}`);
   titleRow.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   titleRow.alignment = { vertical: "middle", horizontal: "center" };
 
-  for (let col = 1; col <= 18; col++) {
+  for (let col = 1; col <= 12; col++) {
     sheet.getCell(titleRow.number, col).fill = {
       type: "pattern",
       pattern: "solid",
@@ -40,24 +40,18 @@ export async function exportToExcel(packages: MonitoringInfo[]) {
     "Ubicación Actual",
     "Fecha Compromiso",
     "Estado del Envío",
-    "Tipo de Envío",
+    "Fecha de Actualización",
+    "DEX Code",
     "Consolidado",
-    "Fecha de Consolidado",
     "Desembarque",
-    "Fecha de Desembarque",
     "Chofer Asignado",
-    "Vehículo",
-    "Placa del Vehículo",
-    "Estado de la Ruta",
-    "Fecha de Creación de Ruta",
-    "Sucursal",
     "Días en Bodega"
   ]);
 
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
 
-  for (let col = 1; col <= 18; col++) {
+  for (let col = 1; col <= 12; col++) {
     sheet.getCell(headerRow.number, col).fill = {
       type: "pattern",
       pattern: "solid",
@@ -96,23 +90,19 @@ export async function exportToExcel(packages: MonitoringInfo[]) {
       ubicacionActual, // CORREGIDO
       pkg.shipmentData.commitDateTime ? formatExcelDate(pkg.shipmentData.commitDateTime) : "N/A",
       estadoDelEnvio, // CORREGIDO
-      pkg.shipmentData.isCharge ? "Cargo" : "Paquete",
+      pkg.shipmentData.lastEventDate ? formatExcelDate(pkg.shipmentData.lastEventDate) : "N/A",
+      pkg.shipmentData.dexCode,
+      //pkg.shipmentData.isCharge ? "F2" : "Paquete",
       pkg.shipmentData.consolidated?.consNumber || "N/A",
-      pkg.shipmentData.consolidated?.date ? formatExcelDate(pkg.shipmentData.consolidated.date) : "N/A",
       pkg.shipmentData.unloading?.trackingNumber || "N/A",
-      pkg.shipmentData.unloading?.date ? formatExcelDate(pkg.shipmentData.unloading.date) : "N/A",
       pkg.packageDispatch?.driver || "No asignado",
-      pkg.packageDispatch?.vehicle?.name || "N/A",
-      pkg.packageDispatch?.vehicle?.plateNumber || "N/A",
-      pkg.packageDispatch?.status ? formatRouteStatus(pkg.packageDispatch.status) : "N/A",
-      pkg.packageDispatch?.createdAt ? formatExcelDate(pkg.packageDispatch.createdAt) : "N/A",
-      pkg.packageDispatch?.subsidiary?.name || "N/A",
-      diasEnBodega > 0 ? diasEnBodega.toString() : "N/A"
+      pkg.shipmentData.daysInWarehouse
+      //diasEnBodega > 0 ? diasEnBodega.toString() : "N/A"
     ]);
 
     // Filas alternadas en gris (solo si no debe resaltarse)
     if (index % 2 === 0 && !debeResaltarFilaRoja && !debeResaltarFilaNaranja) {
-      for (let col = 1; col <= 18; col++) {
+      for (let col = 1; col <= 12; col++) {
         sheet.getCell(row.number, col).fill = {
           type: "pattern",
           pattern: "solid",
@@ -131,7 +121,7 @@ export async function exportToExcel(packages: MonitoringInfo[]) {
       };
       
       // Centrar columnas específicas
-      if ([1, 6, 7, 9, 11, 15, 16, 18].includes(colNumber)) {
+      if ([1, 6, 7, 8, 9, 10, 12].includes(colNumber)) {
         cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
       } else {
         cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
@@ -207,7 +197,7 @@ export async function exportToExcel(packages: MonitoringInfo[]) {
         }
 
         // Color para días en bodega > 3 (solo si no está resaltada)
-        if (colNumber === 18 && diasEnBodega > 3) {
+        if (colNumber === 12 && diasEnBodega > 3) {
           cell.fill = {
             type: "pattern",
             pattern: "solid",
@@ -396,18 +386,12 @@ export async function exportToExcel(packages: MonitoringInfo[]) {
   sheet.getColumn(4).width = 20;  // Ubicación Actual
   sheet.getColumn(5).width = 18;  // Fecha Compromiso
   sheet.getColumn(6).width = 15;  // Estado del Envío
-  sheet.getColumn(7).width = 12;  // Tipo de Envío
-  sheet.getColumn(8).width = 15;  // Consolidado
-  sheet.getColumn(9).width = 18;  // Fecha de Consolidado
-  sheet.getColumn(10).width = 15; // Desembarque
-  sheet.getColumn(11).width = 18; // Fecha de Desembarque
-  sheet.getColumn(12).width = 20; // Chofer Asignado
-  sheet.getColumn(13).width = 15; // Vehículo
-  sheet.getColumn(14).width = 15; // Placa del Vehículo
-  sheet.getColumn(15).width = 18; // Estado de la Ruta
-  sheet.getColumn(16).width = 20; // Fecha de Creación de Ruta
-  sheet.getColumn(17).width = 20; // Sucursal
-  sheet.getColumn(18).width = 15; // Días en Bodega
+  sheet.getColumn(7).width = 18;  // Fecha Actualización
+  sheet.getColumn(8).width = 15;  // Dex Code
+  sheet.getColumn(9).width = 20; // Consolidado
+  sheet.getColumn(10).width = 18; // Desembarque
+  sheet.getColumn(11).width = 20; // Chofer Asignado
+  sheet.getColumn(12).width = 15; // Días en Bodega
 
   // Hoja de resumen
   summarySheet.getColumn(1).width = 30;
@@ -535,8 +519,8 @@ const formatShipmentStatus = (status: string): string => {
     'devuelto_a_fedex': 'Devuelto a FedEx',
     'devuelto': 'Devuelto',
     'pending': 'Pendiente',
-    'in_transit': 'En Tránsito',
-    'delivered': 'Entregado'
+    'delivered': 'Entregado',
+    'no_entregado': 'No Entregado'
   }
   return statusMap[status?.toLowerCase()] || status || 'Desconocido'
 }

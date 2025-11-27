@@ -46,6 +46,8 @@ import "driver.js/dist/driver.css"
 import { exportToExcel } from "./export-to-excel"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { MonitoringLayout } from "./monitoring-layout"
+import { ShipmentType } from "@/lib/types"
+import { getHistoryById } from "@/lib/services/shipments"
 
 export interface MonitoringInfo {
   shipmentData: {
@@ -70,6 +72,14 @@ export interface MonitoringInfo {
       type: string
       amount: number
     } | null
+    recipientName: string
+    recipientAddress: string
+    recipientPhone: string
+    recipientZip: string
+    shipmentType: ShipmentType
+    daysInWarehouse: string
+    lastEventDate: string
+    dexCode: string
   }
   packageDispatch?: {
     id: string
@@ -263,9 +273,52 @@ export default function TrackingPage() {
     setPackages([])
   }
 
-  const handleExportToExcel = () => {
-    exportToExcel(packages)
-  }
+  const getHistoryOfPackage = async (id: string, status: string) => {
+    let lastStatusDate = "";
+    let exceptionCode = "";
+
+    const history = await getHistoryById(id);
+
+    if (history && history.history && history.history.length > 0) {
+      lastStatusDate = history.history[0].date ?? "";
+
+      if (status.trim() === "no_entregado") {
+        exceptionCode = history.history[0].exceptionCode ? `DEX-${history.history[0].exceptionCode}` : "";
+      }
+    }
+
+    return { lastStatusDate, exceptionCode };
+  };
+
+
+  const handleExportToExcel = async () => {
+    setIsLoading(true); // 🔹 Inicia el loading global
+
+    try {
+      // Clonar para no mutar el estado original
+      const enrichedPackages = [...packages];
+
+      // Recorrer cada paquete y obtener su historial
+      for (const pkg of enrichedPackages) {
+        const { lastStatusDate, exceptionCode } = await getHistoryOfPackage(
+          pkg.shipmentData.id,
+          pkg.shipmentData.shipmentStatus
+        );
+
+        // Agregar los valores al paquete
+        pkg.shipmentData.lastEventDate = lastStatusDate;
+        pkg.shipmentData.dexCode = exceptionCode;
+      }
+
+      // Exportar con los datos enriquecidos
+      exportToExcel(enrichedPackages);
+
+    } catch (error) {
+      console.error("Error exporting excel:", error);
+    } finally {
+      setIsLoading(false); // 🔹 Finaliza el loading pase lo que pase
+    }
+  };
 
   const startTutorial = () => {
     const driverObj = driver({

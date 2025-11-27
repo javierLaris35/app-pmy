@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Card } from "@/components/ui/card"
-import { CheckCircle, DollarSign, Eye, Package, TrendingUp, XCircle } from "lucide-react"
+import { CheckCircle, DollarSign, Eye, Package, TrendingUp, XCircle, Download } from "lucide-react"
 import { Label, Pie, PieChart, Tooltip } from "recharts"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,9 +13,10 @@ import {
 } from "@/components/ui/dialog"
 import { DataTable } from "@/components/data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
-import { Shipment } from "@/lib/types"
+import { Shipment, ShipmentType } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { getStatusBadge } from "@/utils/shipment-status.utils"
+import { formatMexicanPhoneNumber } from "@/lib/utils"
 
 interface PackageStats {
   total: number
@@ -146,7 +147,15 @@ interface MonitoringInfo {
     payment: {
       type: string
       amount: number
-    } | null
+    } | null,
+    recipientName: string
+    recipientAddress: string
+    recipientPhone: string
+    recipientZip: string
+    shipmentType: ShipmentType
+    commitDateTime: string
+    daysInWarehouse: number
+    dexCode: string
   }
   packageDispatch?: {
     driver: string
@@ -203,40 +212,131 @@ const getEfficiencyStatus = (eficiencia: number) => {
   }
 }
 
+// Función para formatear fecha y hora en zona horaria de Hermosillo
+const formatearFechaHoraHermosillo = (fecha: string): string => {
+  try {
+    const date = new Date(fecha)
+    // Ajustar a zona horaria de Hermosillo (UTC-7)
+    const offset = -7 * 60 // Hermosillo UTC-7
+    const localDate = new Date(date.getTime() + (offset + date.getTimezoneOffset()) * 60000)
+    
+    const fechaStr = localDate.toLocaleDateString('es-MX', {
+      timeZone: 'America/Hermosillo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+    
+    const horaStr = localDate.toLocaleTimeString('es-MX', {
+      timeZone: 'America/Hermosillo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })
+    
+    return `${fechaStr} ${horaStr}`
+  } catch (error) {
+    console.error('Error formateando fecha y hora:', error)
+    return 'Fecha inválida'
+  }
+}
+
+// Función para exportar a Excel
+const exportToExcel = (data: any[], filename: string, sheetName: string) => {
+  import('xlsx').then((XLSX) => {
+    const worksheet = XLSX.utils.json_to_sheet(data)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+    
+    // Aplicar estilos a las columnas
+    const colWidths = data.length > 0 ? 
+      Object.keys(data[0]).map(() => ({ wch: 15 })) : []
+    worksheet['!cols'] = colWidths
+
+    // Estilo para el encabezado
+    if (worksheet['!ref']) {
+      const range = XLSX.utils.decode_range(worksheet['!ref'])
+      
+      // Aplicar estilos a los encabezados
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C })
+        if (worksheet[cellAddress]) {
+          worksheet[cellAddress].s = {
+            font: { bold: true, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: "FF6B6B" } },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: 'thin', color: { rgb: "FFFFFF" } },
+              left: { style: 'thin', color: { rgb: "FFFFFF" } },
+              bottom: { style: 'thin', color: { rgb: "FFFFFF" } },
+              right: { style: 'thin', color: { rgb: "FFFFFF" } }
+            }
+          }
+        }
+      }
+
+      // Aplicar formato de moneda para columnas de monto
+      for (let R = 1; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C })
+          if (worksheet[cellAddress] && worksheet[cellAddress].v) {
+            const cellValue = worksheet[cellAddress].v
+            // Si el valor parece ser un monto monetario
+            if (typeof cellValue === 'number' && cellValue > 0 && 
+                (worksheet[XLSX.utils.encode_cell({ r: 0, c: C })]?.v?.toLowerCase().includes('monto') || 
+                 worksheet[XLSX.utils.encode_cell({ r: 0, c: C })]?.v?.toLowerCase().includes('cobro'))) {
+              worksheet[cellAddress].s = {
+                numFmt: '"$"#,##0.00',
+                alignment: { horizontal: "right" }
+              }
+            } else if (cellValue === 0 && 
+                      (worksheet[XLSX.utils.encode_cell({ r: 0, c: C })]?.v?.toLowerCase().includes('monto') || 
+                       worksheet[XLSX.utils.encode_cell({ r: 0, c: C })]?.v?.toLowerCase().includes('cobro'))) {
+              worksheet[cellAddress].v = '' // Dejar vacío si es 0
+            }
+          }
+        }
+      }
+    }
+
+    XLSX.writeFile(workbook, `${filename}.xlsx`)
+  })
+}
+
 // Columnas para la tabla de paquetes no entregados
-const undeliveredPackagesColumns: ColumnDef<Shipment>[] = [
+const undeliveredPackagesColumns: ColumnDef<MonitoringInfo>[] = [
   {
     accessorKey: "trackingNumber",
     header: "Tracking",
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.trackingNumber}</span>
+      <span className="font-medium">{row.original.shipmentData.trackingNumber}</span>
     ),
   },
   {
     accessorKey: "recipientName",
     header: "Destinatario",
-    cell: ({ row }) => row.original.recipientName,
+    cell: ({ row }) => row.original.shipmentData.recipientName,
   },
   {
     accessorKey: "recipientAddress",
     header: "Dirección",
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">
-        {row.original.recipientAddress}
+        {row.original.shipmentData.recipientAddress}
       </span>
     ),
   },
   {
     accessorKey: "recipientPhone",
     header: "Teléfono",
-    cell: ({ row }) => row.original.recipientPhone || "-",
+    cell: ({ row }) => formatMexicanPhoneNumber(row.original.shipmentData.recipientPhone) || "-",
   },
   {
     accessorKey: "shipmentType",
     header: "Tipo",
     cell: ({ row }) => (
       <span className="uppercase text-xs font-medium">
-        {row.original.shipmentType || "-"}
+        {row.original.shipmentData.shipmentType || "-"}
       </span>
     ),
   },
@@ -245,9 +345,18 @@ const undeliveredPackagesColumns: ColumnDef<Shipment>[] = [
     header: "Días en Ruta",
     cell: ({ row }) => (
       <span className={`font-medium ${
-        (row.original.daysInRoute || 0) > 3 ? 'text-red-600' : 'text-yellow-600'
+        (row.original.shipmentData.daysInWarehouse || 0) > 3 ? 'text-red-600' : 'text-yellow-600'
       }`}>
-        {row.original.daysInRoute || 0} días
+        {row.original.shipmentData.daysInWarehouse || 0} días
+      </span>
+    ),
+  },
+  {
+    accessorKey: "dexCode",
+    header: "DEX",
+    cell: ({ row }) => (
+      <span className="uppercase text-xs font-medium">
+        {row.original.shipmentData.dexCode || "-"}
       </span>
     ),
   },
@@ -330,13 +439,33 @@ const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
 ]
 
 // Componente del modal de paquetes no entregados
-function UndeliveredPackagesDialog({ isOpen, onClose, count }: {
+function UndeliveredPackagesDialog({ isOpen, onClose, packages, count }: {
   isOpen: boolean
   onClose: () => void
+  packages: MonitoringInfo[]
   count: number
 }) {
-  const [packages, setPackages] = React.useState<Shipment[]>([])
+  console.log("🚀 ~ UndeliveredPackagesDialog ~ packages:", packages)
   const [isLoading, setIsLoading] = React.useState(false)
+
+  // Función para exportar paquetes no entregados
+  const handleExportUndelivered = () => {
+    const dataForExport = packages.map(pkg => ({
+      'No. Guia': pkg.shipmentData.trackingNumber,
+      'Destinatario': pkg.shipmentData.recipientName,
+      'Dirección': pkg.shipmentData.recipientAddress,
+      'Teléfono': pkg.shipmentData.recipientPhone || '',
+      'Ciudad': pkg.shipmentData.destination || '',
+      'Código Postal': pkg.shipmentData.recipientZip || '',
+      'Tipo Envío': pkg.shipmentData.shipmentType || '',
+      'Días en Bodega': pkg.shipmentData.daysInWarehouse || 0,
+      'Fecha Compromiso': pkg.shipmentData.commitDateTime ? formatearFechaHoraHermosillo(pkg.shipmentData.commitDateTime) : ''
+    }))
+    console.log("🚀 ~ handleExportUndelivered ~ packages:", packages)
+
+    const today = new Date().toISOString().split('T')[0]
+    exportToExcel(dataForExport, `paquetes_no_entregados_${today}`, 'Paquetes No Entregados')
+  }
 
   React.useEffect(() => {
     if (isOpen) {
@@ -360,7 +489,7 @@ function UndeliveredPackagesDialog({ isOpen, onClose, count }: {
           daysInRoute: Math.floor(Math.random() * 7) + 1,
         }))
 
-        setPackages(mockPackages)
+        //setPackages(mockPackages)
         setIsLoading(false)
       }, 800)
     }
@@ -368,27 +497,37 @@ function UndeliveredPackagesDialog({ isOpen, onClose, count }: {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <XCircle className="h-5 w-5 text-red-600" />
-            Paquetes No Entregados ({count})
-          </DialogTitle>
+      <DialogContent className="max-w-6xl flex flex-col">
+        <DialogHeader className="pb-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-600" />
+              Paquetes No Entregados ({count})
+            </DialogTitle>
+            <Button 
+              onClick={handleExportUndelivered} 
+              disabled={packages.length === 0}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Exportar a Excel
+            </Button>
+          </div>
         </DialogHeader>
 
-        <div className="mt-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-muted-foreground">Cargando paquetes...</div>
-            </div>
-          ) : (
-            <DataTable
-              columns={undeliveredPackagesColumns}
-              data={packages}
-              searchKey="trackingNumber"
-            />
-          )}
-        </div>
+        <div className="flex-1 overflow-hidden">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-muted-foreground">Cargando paquetes...</div>
+              </div>
+            ) : (
+              <DataTable
+                columns={undeliveredPackagesColumns}
+                data={packages}
+                searchKey="trackingNumber"
+              />
+            )}
+          </div>
       </DialogContent>
     </Dialog>
   )
@@ -401,27 +540,55 @@ function AllPaymentsDialog({ isOpen, onClose, packages, totalAmount }: {
   packages: MonitoringInfo[]
   totalAmount: number
 }) {
+  // Función para exportar todos los cobros
+  const handleExportAllPayments = () => {
+    const dataForExport = packages.map(pkg => ({
+      'No. Guia': pkg.shipmentData.trackingNumber,
+      'Estado': pkg.shipmentData.shipmentStatus,
+      'Destino': pkg.shipmentData.destination,
+      'Ubicación': pkg.shipmentData.ubication,
+      'Bodega': pkg.shipmentData.warehouse || '',
+      'Chofer': pkg.packageDispatch?.driver || '',
+      'Vehículo': pkg.packageDispatch?.vehicle?.plateNumber || '',
+      'Tipo de Cobro': pkg.shipmentData.payment?.type || '',
+      'Monto Cobro': pkg.shipmentData.payment?.amount || 0
+    }))
+
+    const today = new Date().toISOString().split('T')[0]
+    exportToExcel(dataForExport, `todos_los_cobros_${today}`, 'Todos los Cobros')
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pb-4">
-          <DialogTitle className="flex items-center gap-2 justify-between pt-2">
+      <DialogContent className="max-w-6xl flex flex-col">
+        <DialogHeader className="pb-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-blue-600" />
-              Todos los Cobros ({packages.length})
+              <DialogTitle>Todos los Cobros ({packages.length})</DialogTitle>
             </div>
-            <div className="text-2xl font-bold text-blue-600">
-              Total: ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="flex items-center gap-4">
+              <div className="text-2xl font-bold text-blue-600">
+                Total: ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <Button 
+                onClick={handleExportAllPayments} 
+                disabled={packages.length === 0}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Exportar
+              </Button>
             </div>
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
-        <div className="mt-4">
-          <DataTable
-            columns={paymentsToSettleColumns}
-            data={packages}
-            searchKey="trackingNumber"
-          />
+        <div className="flex-1 overflow-hidden">
+            <DataTable
+              columns={paymentsToSettleColumns}
+              data={packages}
+              searchKey="trackingNumber"
+            />
         </div>
       </DialogContent>
     </Dialog>
@@ -435,27 +602,55 @@ function PaymentsToSettleDialog({ isOpen, onClose, packages, totalAmount }: {
   packages: MonitoringInfo[]
   totalAmount: number
 }) {
+  // Función para exportar cobros a liquidar
+  const handleExportPaymentsToSettle = () => {
+    const dataForExport = packages.map(pkg => ({
+      'No. Guia': pkg.shipmentData.trackingNumber,
+      'Estado': pkg.shipmentData.shipmentStatus,
+      'Destino': pkg.shipmentData.destination,
+      'Ubicación': pkg.shipmentData.ubication,
+      'Bodega': pkg.shipmentData.warehouse || '',
+      'Chofer': pkg.packageDispatch?.driver || '',
+      'Vehículo': pkg.packageDispatch?.vehicle?.plateNumber || '',
+      'Tipo de Cobro': pkg.shipmentData.payment?.type || '',
+      'Monto Cobro': pkg.shipmentData.payment?.amount || 0
+    }))
+
+    const today = new Date().toISOString().split('T')[0]
+    exportToExcel(dataForExport, `cobros_a_liquidar_${today}`, 'Cobros a Liquidar')
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pb-4">
-          <DialogTitle className="flex items-center gap-2 justify-between pt-2">
+      <DialogContent className="max-w-6xl flex flex-col">
+        <DialogHeader className="pb-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-green-600" />
-              Cobros a Liquidar a FedEx ({packages.length})
+              <DialogTitle>Cobros a Liquidar a FedEx ({packages.length})</DialogTitle>
             </div>
-            <div className="text-2xl font-bold text-green-600">
-              Total: ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="flex items-center gap-4">
+              <div className="text-2xl font-bold text-green-600">
+                Total: ${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <Button 
+                onClick={handleExportPaymentsToSettle} 
+                disabled={packages.length === 0}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Exportar
+              </Button>
             </div>
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
-        <div className="mt-4">
-          <DataTable
-            columns={paymentsToSettleColumns}
-            data={packages}
-            searchKey="trackingNumber"
-          />
+        <div className="flex-1 overflow-hidden">
+            <DataTable
+              columns={paymentsToSettleColumns}
+              data={packages}
+              searchKey="trackingNumber"
+            />
         </div>
       </DialogContent>
     </Dialog>
@@ -470,6 +665,8 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
 
   // Filtrar todos los paquetes con pagos (sin importar el estado)
   const allPackagesWithPayment = packagesData.filter((p) => p.shipmentData?.payment)
+  const undeliveryPackages = packagesData.filter((p) => p.shipmentData.shipmentStatus === 'no_entregado')
+  console.log("🚀 ~ PackagesStatistics ~ packagesData:", packagesData)
 
   // Filtrar paquetes entregados con payment (para liquidar a FedEx)
   const packagesToSettle = packagesData.filter((p) => {
@@ -487,6 +684,7 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
       <UndeliveredPackagesDialog
         isOpen={isUndeliveredDialogOpen}
         onClose={() => setIsUndeliveredDialogOpen(false)}
+        packages={undeliveryPackages}
         count={stats.noEntregados}
       />
 
@@ -577,9 +775,6 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
               <Eye className="h-4 w-4" />
             </Button>
           </Card>
-
-
-
 
           {/* 🔹 Donut Chart ahora usa 2 columnas y 2 filas */}
           <Card className="md:col-span-2 xl:col-span-2 xl:row-span-2 flex flex-col rounded-xl shadow-sm p-4 md:p-6 border border-gray-100">
