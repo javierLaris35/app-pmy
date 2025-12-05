@@ -292,7 +292,7 @@ const getColumnWidths = (isHermosillo: boolean) => {
     payment: 63,
     date: 47,
     time: 38,
-    phone: 45,
+    phone: 50,
     signature: 40
   };
 
