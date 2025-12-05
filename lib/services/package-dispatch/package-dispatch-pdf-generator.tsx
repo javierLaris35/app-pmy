@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   // ESTILO ESPECIAL PARA EVITAR SALTO DE LÍNEA
   tableCellText: {
-    fontSize: 7.5,
+    fontSize: 9,
     lineHeight: 0.9, // LINE HEIGHT MÍNIMO
     flexWrap: 'nowrap', // EVITA SALTO DE LÍNEA
     overflow: 'hidden',
@@ -282,17 +282,15 @@ const splitInvalidTrackingsIntoPages = (invalidTrackings: string[]) => {
   return pages;
 };
 
-const getColumnWidths = (isHermosillo: boolean) => {
-  const totalWidth = 612 - 10; // 612 - padding (5*2)
-  
+const getColumnWidths = (isHermosillo: boolean) => {  
   const baseConfig = {
-    number: 26,
-    tracking: 55,
-    name: 125,
-    address: 145,
-    zipCode: 22,
-    payment: 55,
-    date: 42,
+    number: 30,
+    tracking: 65,
+    name: 135,
+    address: 155,
+    zipCode: 26,
+    payment: 63,
+    date: 47,
     time: 38,
     phone: 45,
     signature: 40
@@ -300,13 +298,13 @@ const getColumnWidths = (isHermosillo: boolean) => {
 
   if (isHermosillo) {
     return {
-      number: 26,
-      tracking: 55,
+      number: 30,
+      tracking: 65,
       name: 135,
       address: 155,
-      zipCode: 22,
-      payment: 55,
-      date: 42,
+      zipCode: 26,
+      payment: 63,
+      date: 47,
       time: 0,
       phone: 55,
       signature: 42
@@ -578,7 +576,7 @@ export const FedExPackageDispatchPDF = ({
                         width={columnWidths.name} 
                         style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
                         truncate={true}
-                        maxChars={maxNameChars}
+                        maxChars={22}
                       >
                         {truncate(pkg.recipientName || '', 25)}
                       </TableCell>
@@ -586,9 +584,9 @@ export const FedExPackageDispatchPDF = ({
                         width={columnWidths.address} 
                         style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
                         truncate={true}
-                        maxChars={maxAddressChars}
+                        maxChars={26}
                       >
-                        {truncate(pkg.recipientAddress || '', 30)}
+                        {truncate(pkg.recipientAddress || '', 28)}
                       </TableCell>
                       <TableCell width={columnWidths.zipCode} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
                         {pkg.recipientZip || ''}

@@ -30,20 +30,54 @@ export const formatMexicanPhoneNumber = (phone: string | null | undefined): stri
 };
 
 
-export const formatMexicanPhoneNumberWithOutMexicanLada = (phone: string | null | undefined): string => {
-    if (!phone) return "N/A";
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 10) {
-      return `${cleaned.slice(0, 3)}${cleaned.slice(3, 6)}${cleaned.slice(6)}`;
-    }
-    if (cleaned.length === 12 && cleaned.startsWith("52")) {
-      return `${cleaned.slice(2, 5)}${cleaned.slice(5, 8)}${cleaned.slice(8)}`;
-    }
-    if (cleaned.length === 13 && cleaned.startsWith("521")) {
-      return `${cleaned.slice(3, 6)}${cleaned.slice(6, 9)}${cleaned.slice(9)}`;
-    }
-    return phone;
+export const formatMexicanPhoneNumberWithOutMexicanLada = (
+  phone: string | null | undefined
+): string => {
+  if (!phone) return "N/A";
+
+  // Detectar "sin teléfono"
+  const normalized = phone.trim().toLowerCase();
+  if (
+    normalized === "sin teléfono" ||
+    normalized === "sin telefono" ||
+    normalized === "s/telefono" ||
+    normalized === "s/teléfono" ||
+    normalized === "s/tel" ||
+    normalized === "sin tel" ||
+    normalized === "not phone"
+  ) {
+    return "-";
+  }
+
+  // Limpiar todo lo que no sea dígito
+  let cleaned = phone.replace(/\D/g, "");
+
+  // Quitar prefijos internacionales comunes
+  if (cleaned.startsWith("001")) cleaned = cleaned.slice(3);
+  if (cleaned.startsWith("011")) cleaned = cleaned.slice(3);
+  if (cleaned.startsWith("052")) cleaned = cleaned.slice(3);
+  if (cleaned.startsWith("0052")) cleaned = cleaned.slice(4);
+  if (cleaned.startsWith("52")) cleaned = cleaned.slice(2);
+  if (cleaned.startsWith("521")) cleaned = cleaned.slice(3);
+
+  // Si después de limpiar no queda algo usable
+  if (cleaned.length < 7) return "-";
+
+  // Formatos válidos Mexicanos
+  if (cleaned.length === 10) {
+    return `${cleaned.slice(0, 3)}${cleaned.slice(3, 6)}${cleaned.slice(6)}`;
+  }
+
+  // Intento de interpretar como número más largo con prefijos raros
+  if (cleaned.length > 10) {
+    const last10 = cleaned.slice(-10);
+    return `${last10.slice(0, 3)}${last10.slice(3, 6)}${last10.slice(6)}`;
+  }
+
+  return phone;
 };
+
+
 
 export function mapToPackageInfo(
   shipments: any[] = [],

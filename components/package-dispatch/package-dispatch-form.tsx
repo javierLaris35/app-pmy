@@ -14,7 +14,6 @@ import { UnidadSelector } from "../selectors/unidad-selector";
 import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, Vehicles } from "@/lib/types";
 import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib/services/package-dispatchs";
 import { useAuthStore } from "@/store/auth.store";
-import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input";
 import { BarcodeScannerInput } from "../barcode-scanner-input";
@@ -25,6 +24,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
 
 type Props = {
   selectedSubsidiaryId: string | null;
