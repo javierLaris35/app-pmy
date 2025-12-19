@@ -163,14 +163,18 @@ const CompleteDataModal = ({ isOpen, onClose, package: pkg, onSave }: CompleteDa
   };
 
   return (
-    // asignar aria-describedby para evitar warning de accesibilidad
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md" aria-describedby="complete-data-desc">
+      <DialogContent 
+        className="sm:max-w-md" 
+        aria-describedby={pkg?.trackingNumber ? "complete-data-desc" : undefined}
+      >
         <DialogHeader>
           <DialogTitle>Completar datos del paquete</DialogTitle>
-          <DialogDescription id="complete-data-desc">
-            Complete la información del destinatario para el paquete <b>{pkg?.trackingNumber}</b>
-          </DialogDescription>
+          {pkg?.trackingNumber && (
+            <DialogDescription id="complete-data-desc">
+              Complete la información del destinatario para el paquete <b>{pkg.trackingNumber}</b>
+            </DialogDescription>
+          )}
         </DialogHeader>
         
         <div className="space-y-4 py-4">
@@ -242,7 +246,8 @@ const PackageItem = ({
   setOpenPopover: (value: string | null) => void;
   onCompleteData: (pkg: Shipment) => void;
 }) => {
-  const formatMexicanPhoneNumber = (phone: string): string => {
+  const formatMexicanPhoneNumber = (phone: string | null | undefined): string => {
+    if (!phone || typeof phone !== 'string') return "N/A";
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length === 10) {
       return `+52 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
@@ -373,7 +378,7 @@ const PackageItem = ({
             </div>
           )}
           
-          {!pkg.isValid && (
+          {!pkg.isValid && pkg.reason && (
             <div className="flex items-center gap-1 text-sm text-destructive">
               <AlertCircle className="w-4 w-4" />
               <span className="text-xs">{pkg.reason}</span>
@@ -458,8 +463,8 @@ const PackageItem = ({
 
 // Componente para mostrar paquetes faltantes
 const MissingPackageItem = ({ pkg }: { pkg: { trackingNumber: string; recipientName?: string | null; recipientAddress?: string | null; recipientPhone?: string | null; recipientZip?: string | null } }) => {
-  const formatMexicanPhoneNumber = (phone: string): string => {
-    if (!phone) return "N/A";
+  const formatMexicanPhoneNumber = (phone: string | null | undefined): string => {
+    if (!phone || typeof phone !== 'string') return "N/A";
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length === 10) {
       return `+52 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
@@ -666,18 +671,6 @@ export default function UnloadingForm({
   const findPackagesNeedingData = useCallback((shipmentsList: Shipment[]): Shipment[] => {
     return shipmentsList.filter(checkPackageNeedsData);
   }, [checkPackageNeedsData]);
-
-  // Efecto para actualizar la lista de paquetes que necesitan datos
-  /*useEffect(() => {
-    const packagesWithMissingData = findPackagesNeedingData(shipments);
-    setPackagesNeedingData(packagesWithMissingData);
-    
-    // Si hay paquetes que necesitan datos, mostrar el modal automáticamente
-    if (packagesWithMissingData.length > 0 && !completeDataModalOpen) {
-      setSelectedPackageForData(packagesWithMissingData[0]);
-      setCompleteDataModalOpen(true);
-    }
-  }, [shipments, findPackagesNeedingData, completeDataModalOpen]);*/
 
   // NUEVA FUNCIÓN para manejar el guardado de datos completados
   const handleSavePackageData = useCallback((trackingNumber: string, data: { recipientName: string; recipientAddress: string; recipientPhone: string }) => {
@@ -1214,7 +1207,6 @@ export default function UnloadingForm({
     [shipmentsArray]
   );
 
-
   // VALIDACIÓN AUTOMÁTICA
   useEffect(() => {
     if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
@@ -1325,18 +1317,27 @@ export default function UnloadingForm({
   }, [consolidatedValidation, updateMissingPackages, setShipments, setScannedPackages, setSurplusTrackings, setSelectedReasons]);
 
 
-  const filteredValidShipments = useMemo(() => validShipments.filter(pkg => {
-    const matchesSearch = pkg.trackingNumber.includes(searchTerm) ||
-      (pkg.recipientName && pkg.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredValidShipments = useMemo(() => {
+    if (!Array.isArray(validShipments)) return [];
+    
+    return validShipments.filter(pkg => {
+      // Validar que pkg exista
+      if (!pkg) return false;
+      
+      const matchesSearch = pkg.trackingNumber?.includes(searchTerm) ||
+        (pkg.recipientName && typeof pkg.recipientName === 'string' && 
+         pkg.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (pkg.recipientAddress && typeof pkg.recipientAddress === 'string' && 
+         pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
-    const matchesStatus = filterStatus === "all" ||
-      (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
-      (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
+      const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
+      const matchesStatus = filterStatus === "all" ||
+        (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
+        (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
 
-    return matchesSearch && matchesPriority && matchesStatus;
-  }), [validShipments, searchTerm, filterPriority, filterStatus]);
+      return matchesSearch && matchesPriority && matchesStatus;
+    });
+  }, [validShipments, searchTerm, filterPriority, filterStatus]);
 
   const canUnload = !!selectedUnidad && validShipments.length > 0;
 
@@ -1769,10 +1770,10 @@ export default function UnloadingForm({
                 </TabsList>
 
                 <TabsContent value="validos" className="space-y-3 mt-4">
-                  {filteredValidShipments.length > 0 ? (
+                  {Array.isArray(filteredValidShipments) && filteredValidShipments.length > 0 ? (
                     <ScrollArea className="h-[400px] rounded-md border">
                       <div className="grid grid-cols-1 divide-y">
-                        {filteredValidShipments.map((pkg) => (
+                        {filteredValidShipments.map((pkg) => pkg && (
                           <PackageItem key={pkg.trackingNumber} pkg={pkg} onRemove={handleRemovePackage} isLoading={isLoading} selectedReasons={selectedReasons} onSelectReason={handleSelectMissingTracking} openPopover={openPopover} setOpenPopover={setOpenPopover} onCompleteData={handleOpenCompleteData} />
                         ))}
                       </div>
@@ -1794,7 +1795,7 @@ export default function UnloadingForm({
                   {missingPackages.length > 0 ? (
                     <ScrollArea className="h-[300px] rounded-md border">
                       <div className="grid grid-cols-1 divide-y">
-                        {missingPackages.map((pkg, index) => <MissingPackageItem key={`${pkg.trackingNumber}-${index}`} pkg={pkg} />)}
+                        {missingPackages.map((pkg, index) => pkg && <MissingPackageItem key={`${pkg.trackingNumber}-${index}`} pkg={pkg} />)}
                       </div>
                     </ScrollArea>
                   ) : (
