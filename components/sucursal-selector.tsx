@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,9 @@ export function SucursalSelector({
   const [selectedSucursales, setSelectedSucursales] = useState<Subsidiary[]>([])
   const user = useAuthStore((state) => state.user)
 
+  // Evita aplicar el valor por defecto repetidas veces (previene loops)
+  const defaultAppliedRef = useRef(false)
+
   // 🧠 Memorizar selección basada en value
   useEffect(() => {
     if (!subsidiaries || subsidiaries.length === 0) return
@@ -48,12 +51,14 @@ export function SucursalSelector({
       const selected = subsidiaries.find((s) => s.id === value)
       if (selected) {
         setSelectedSucursales([selected])
-      } else if (!value) {
+      } else if (!value && !defaultAppliedRef.current) {
         const defaultSucursal =
           subsidiaries.find((s) => s.id === user?.subsidiary?.id) || subsidiaries[0]
         if (defaultSucursal) {
           setSelectedSucursales([defaultSucursal])
-          onValueChange(returnObject ? defaultSucursal : defaultSucursal.id)
+          // No disparamos onValueChange automáticamente para evitar ciclos.
+          // El padre debe decidir cuándo propagar el valor por defecto.
+          defaultAppliedRef.current = true
         }
       }
     }
@@ -62,6 +67,7 @@ export function SucursalSelector({
   // 🧩 Función para manejar selección
   const handleSelect = useCallback(
     (sucursal: Subsidiary) => {
+      console.log("[SucursalSelector] handleSelect ->", { sucursal, returnObject, multi })
       if (multi) {
         let updated: Subsidiary[]
         if (selectedSucursales.some((s) => s.id === sucursal.id)) {

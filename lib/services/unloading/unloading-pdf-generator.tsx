@@ -127,7 +127,7 @@ export const UnloadingPDFReport = ({
 
   const timeZone = 'America/Hermosillo';
   const currentDate = new Date();
-  const formattedDate = format(currentDate, 'yyyy-MM-dd', { timeZone });
+  const formattedDate = format(currentDate, 'dd/MM/yyyy HH:mm', { timeZone });
 
   const truncate = (text: string, maxLength: number): string => {
     if (!text) return '';
@@ -185,7 +185,7 @@ export const UnloadingPDFReport = ({
         {/* 🟤 Tabla principal con más espacio en Nombre y Dirección */}
         <View style={styles.tableHeader}>
           <Text style={{ width: 25 }}>[#]</Text>
-          <Text style={{ width: 63 }}>No. Guia</Text>
+          <Text style={{ width: 63 }}>No. Guía</Text>
           <Text style={{ width: 175 }}>Nombre</Text>
           <Text style={{ width: 185 }}>Dirección</Text>
           <Text style={{ width: 40 }}>C.P.</Text>
@@ -198,8 +198,8 @@ export const UnloadingPDFReport = ({
         {packages.map((pkg, i) => {
           const icons = `${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
           const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
-          const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
-          const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
+          const commitDate = format(zoned, 'dd/MM/yyyy', { timeZone });
+          const commitTime = format(zoned, 'HH:mm', { timeZone });
           const recipientName = pkg.recipientName ?? '';
           const recipientAddress = pkg.recipientAddress ?? '';
           const recipientZip = pkg.recipientZip ?? '';
@@ -214,7 +214,7 @@ export const UnloadingPDFReport = ({
               <Text style={{ width: 185 }}>{truncate(recipientAddress, 38)}</Text>
               <Text style={{ width: 40 }}>{recipientZip}</Text>
               <Text style={{ width: 55 }}>
-                {pkg.payment?.amount != null ? `${pkg.payment.type} $${pkg.payment.amount}` : ''}
+                {pkg.payment?.amount != null ? `${pkg.payment.type} ${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(pkg.payment.amount)}` : ''}
               </Text>
               <Text style={{ width: 55 }}>{commitDate}</Text>
               <Text style={{ width: 45 }}>{commitTime}</Text>
@@ -225,7 +225,7 @@ export const UnloadingPDFReport = ({
 
         {packagesMissing.length > 0 && (
           <View style={styles.trackingSection}>
-            <Text style={styles.subTitle}>* Guías Faltantes</Text>
+            <Text style={styles.subTitle}>* Guías faltantes</Text>
             {packagesMissing.map((missing, i) => (
               <View style={styles.trackingRow} key={`missing-${i}`}>
                 <Text style={{ width: 70 }}>{missing.trackingNumber}</Text>
@@ -240,7 +240,7 @@ export const UnloadingPDFReport = ({
 
         {packagesUnScanned.length > 0 && (
           <View style={styles.trackingSection}>
-            <Text style={styles.subTitle}>** Guías Sin Escaneo</Text>
+            <Text style={styles.subTitle}>** Guías sobrantes</Text>
             {packagesUnScanned.map((tracking, i) => (
               <View style={styles.trackingRow} key={`unscanned-${i}`}>
                 <Text>{tracking}</Text>

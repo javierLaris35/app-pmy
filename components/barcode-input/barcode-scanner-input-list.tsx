@@ -19,6 +19,7 @@ interface BarcodeScannerInputProps {
   hasErrors?: boolean;
   onPackagesChange?: (packages: PackageInfo[]) => void;
   onTrackingNumbersChange?: (trackingNumbers: string) => void;
+  onHasDueTomorrow?: (has: boolean) => void;
 }
 
 const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, BarcodeScannerInputProps>(
@@ -30,6 +31,7 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
       hasErrors = false,
       onPackagesChange,
       onTrackingNumbersChange,
+      onHasDueTomorrow,
     }: BarcodeScannerInputProps, ref) {
       const textareaRef = useRef<HTMLTextAreaElement>(null);
       const packagesListRef = useRef<HTMLUListElement>(null);
@@ -144,6 +146,20 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
         }
       };
 
+      // Función para verificar si un paquete vence mañana
+      const isDueTomorrow = (commitDateTime?: string | null): boolean => {
+        if (!commitDateTime) return false;
+        try {
+          const commitDate = new Date(commitDateTime);
+          const today = new Date();
+          const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+          return commitDate.toDateString() === tomorrow.toDateString();
+        } catch (error) {
+          console.error("Error parsing date for tomorrow check:", error);
+          return false;
+        }
+      };
+
       // Formatear fecha para mostrar
       const formatDate = (dateString?: string | null): string => {
         if (!dateString) return "";
@@ -162,6 +178,56 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
           return dateString;
         }
       };
+
+      // Sonido breve para paquetes que vencen mañana (tono naranja)
+      const playTomorrowSound = () => {
+        if (typeof window === "undefined") return;
+        try {
+          const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+          if (!AudioCtx) return;
+          const audioContext = new AudioCtx();
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.type = "sine";
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          const now = audioContext.currentTime;
+          osc.frequency.setValueAtTime(720, now);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.setValueAtTime(0, now + 0.12);
+          osc.start(now);
+          osc.stop(now + 0.14);
+        } catch (err) {
+          console.warn("playTomorrowSound error:", err);
+        }
+      };
+
+      const shownTomorrowRef = useRef<Set<string>>(new Set());
+
+      // Efecto para detectar paquetes que ahora vencen mañana y reproducir un tono una sola vez
+      useEffect(() => {
+        try {
+          const dueTomorrowNow = packages.filter(p => !p.isPendingValidation && isDueTomorrow(p.commitDateTime));
+
+          // Si hay paquetes que vencen mañana y antes no estaban marcados, reproducir sonido una vez por paquete
+          const newlyDueTomorrow = dueTomorrowNow.filter(p => !shownTomorrowRef.current.has(p.trackingNumber));
+          if (newlyDueTomorrow.length > 0) {
+            newlyDueTomorrow.forEach(p => shownTomorrowRef.current.add(p.trackingNumber));
+            playTomorrowSound();
+          }
+
+          // Informar al padre si actualmente hay paquetes que vencen mañana
+          if (typeof (arguments[0] as any) !== 'undefined') {
+            // noop to satisfy TS if needed
+          }
+
+          if (typeof (onHasDueTomorrow) !== 'undefined') {
+            onHasDueTomorrow(dueTomorrowNow.length > 0);
+          }
+        } catch (err) {
+          console.error("Error detecting tomorrow expirations:", err);
+        }
+      }, [packages, onHasDueTomorrow]);
 
       const handleKeyDown = useCallback(
           (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -226,8 +292,9 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
                             "flex flex-col p-2 rounded transition-all duration-200",
                             {
                               "bg-red-50 text-red-800 border border-red-200": dueToday && isValidated,
+                              "bg-amber-50 text-amber-800 border border-amber-200": isDueTomorrow(pkg.commitDateTime) && isValidated,
                               "bg-amber-50 text-amber-800 border border-amber-200": pkg.isPendingValidation,
-                              "bg-white hover:bg-gray-50 border border-gray-200": !dueToday && isValidated,
+                              "bg-white hover:bg-gray-50 border border-gray-200": !dueToday && !isDueTomorrow(pkg.commitDateTime) && isValidated,
                             }
                           )}
                         >
@@ -236,6 +303,9 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
                               <span className="font-mono text-sm font-medium">{pkg.trackingNumber}</span>
                               {dueToday && isValidated && (
                                 <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                              )}
+                              {isDueTomorrow(pkg.commitDateTime) && isValidated && (
+                                <Calendar className="h-4 w-4 text-amber-600 flex-shrink-0" />
                               )}
                               {pkg.isPendingValidation && (
                                 <span className="text-xs italic">Validando...</span>
@@ -248,10 +318,10 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
                                 className={classNames(
                                   "transition-colors flex-shrink-0 ml-2",
                                   {
-                                    "text-red-600 hover:text-red-800": dueToday && isValidated,
-                                    "text-amber-600 hover:text-amber-800": pkg.isPendingValidation,
-                                    "text-gray-400 hover:text-red-500": !dueToday && isValidated
-                                  }
+                                          "text-red-600 hover:text-red-800": dueToday && isValidated,
+                                          "text-amber-600 hover:text-amber-800": pkg.isPendingValidation || (isDueTomorrow(pkg.commitDateTime) && isValidated),
+                                          "text-gray-400 hover:text-red-500": !dueToday && !isDueTomorrow(pkg.commitDateTime) && isValidated
+                                        }
                                 )}
                               >
                                 <X size={14} />
@@ -265,13 +335,17 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
                               "flex items-center gap-1 mt-1 text-xs",
                               {
                                 "text-red-700 font-medium": dueToday,
-                                "text-gray-500": !dueToday
+                                "text-amber-700 font-medium": isDueTomorrow(pkg.commitDateTime),
+                                "text-gray-500": !dueToday && !isDueTomorrow(pkg.commitDateTime)
                               }
                             )}>
                               <Calendar className="h-3 w-3 flex-shrink-0" />
                               <span>{formatDate(pkg.commitDateTime)}</span>
                               {dueToday && (
                                 <span className="ml-1 font-semibold">(Vence hoy)</span>
+                              )}
+                              {isDueTomorrow(pkg.commitDateTime) && (
+                                <span className="ml-1 font-semibold">(Vence mañana)</span>
                               )}
                             </div>
                           )}

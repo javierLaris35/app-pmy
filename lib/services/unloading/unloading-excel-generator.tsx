@@ -35,7 +35,7 @@ export async function generateUnloadingExcelClient(
   // Fecha formateada
   const createdAt = format(
     toZonedTime(new Date(data.createdAt), timeZone),
-    "yyyy-MM-dd HH:mm"
+    "dd/MM/yyyy HH:mm"
   );
   const row2 = sheet.addRow([`Fecha: ${createdAt}`]);
   sheet.mergeCells(`A${row2.number}:I${row2.number}`);
@@ -80,7 +80,7 @@ export async function generateUnloadingExcelClient(
   // === DATOS (Shipments) ===
   data.shipments.forEach((pkg, index) => {
     const zonedDate = toZonedTime(new Date(pkg.commitDateTime), timeZone);
-    const commitDate = format(zonedDate, "yyyy-MM-dd");
+    const commitDate = format(zonedDate, "dd/MM/yyyy");
     const commitTime = format(zonedDate, "HH:mm:ss");
 
     const row = sheet.addRow([
@@ -90,7 +90,7 @@ export async function generateUnloadingExcelClient(
       pkg.recipientAddress || "",
       pkg.recipientZip || "",
       pkg.payment?.amount != null
-        ? `${pkg.payment?.type} $${pkg.payment.amount}`
+        ? `${pkg.payment?.type} ${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(pkg.payment.amount)}`
         : "",
       commitDate || "",
       commitTime || "",
@@ -127,7 +127,7 @@ export async function generateUnloadingExcelClient(
   // === Missing Trackings ===
   if (data.missingTrackings.length > 0) {
     sheet.addRow([]);
-    const title = sheet.addRow(["❌ Missing Trackings"]);
+    const title = sheet.addRow(["❌ Paquetes faltantes"]);
     sheet.mergeCells(`A${title.number}:I${title.number}`);
     title.font = { bold: true, color: { argb: "FFFFFF" } };
     title.alignment = { vertical: "middle", horizontal: "left" };
@@ -150,7 +150,7 @@ export async function generateUnloadingExcelClient(
   // === UnScanned Trackings ===
   if (data.unScannedTrackings.length > 0) {
     sheet.addRow([]);
-    const title = sheet.addRow(["📍 UnScanned Trackings"]);
+    const title = sheet.addRow(["📍 Guías sobrantes"]);
     sheet.mergeCells(`A${title.number}:I${title.number}`);
     title.font = { bold: true, color: { argb: "FFFFFF" } };
     title.alignment = { vertical: "middle", horizontal: "left" };
@@ -202,10 +202,7 @@ export async function generateUnloadingExcelClient(
 
     saveAs(
       blob,
-      `${data?.subsidiary?.name}--Desembarque--${createdAt.replace(
-        /\//g,
-        "-"
-      )}.xlsx`
+      `${data?.subsidiary?.name}--Desembarque--${createdAt.replace(/\//g, "-")}.xlsx`
     );
   }
 

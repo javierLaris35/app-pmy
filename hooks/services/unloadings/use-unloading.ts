@@ -3,22 +3,25 @@ import { Unloading } from "@/lib/types";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 
-export function useUnLoadings(subsidiaryId: string) {
-    const isValid = subsidiaryId;
+export function useUnLoadings(subsidiaryId: string | null) {
+    // Verificar que subsidiaryId sea una string válida
+    const isValid = subsidiaryId && typeof subsidiaryId === 'string' && subsidiaryId.length > 0;
     
     const { data, error, isLoading, mutate } = useSWR<Unloading[]>(
         isValid
           ? [`/unloadings`, subsidiaryId]
           : null,
-        ([, subsidiaryId]: [string, string]) => getUnloadings(subsidiaryId)
+        isValid 
+          ? ([, id]: [string, string]) => getUnloadings(id)
+          : null // Si no es válido, no pasar fetcher
     );
 
     return {
         unloadings: data || [],
-        isLoading,
+        isLoading: isValid ? isLoading : false,
         isError: !!error,
         mutate
-    }
+    };
 }
 
 export function useUnloadingById(id: string) {

@@ -35,6 +35,10 @@ export function NotFoundShipmentDetails({ shipments, trigger }: NotFoundShipment
       header: "Dirección",
     },
     {
+      accessorKey: "recipientZip",
+      header: "CP",
+    },
+    {
       accessorKey: "recipientPhone",
       header: "Teléfono",
     },
