@@ -5,4 +5,4 @@ export const axiosConfig = axios.create({
   //withCredentials: true, // si usas cookies
 });
 
-axiosConfig.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+//axiosConfig.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
