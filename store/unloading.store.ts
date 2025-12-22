@@ -79,6 +79,30 @@ export const useUnloadingStore = create<UnloadingState>()(
     }),
     {
       name: 'unloading-store',
+      version: 1,
+      merge: (persistedState, currentState) => {
+        const state = persistedState as Partial<UnloadingState>
+        return {
+          ...currentState,
+          ...state,
+          // Ensure arrays are always arrays, never undefined/null
+          scannedPackages: Array.isArray(state.scannedPackages) ? state.scannedPackages : [],
+          shipments: Array.isArray(state.shipments) ? state.shipments : [],
+          missingPackages: Array.isArray(state.missingPackages) ? state.missingPackages : [],
+          surplusTrackings: Array.isArray(state.surplusTrackings) ? state.surplusTrackings : [],
+          selectedConsolidatedIds: Array.isArray(state.selectedConsolidatedIds) ? state.selectedConsolidatedIds : [],
+          // Ensure objects are objects
+          selectedReasons: state.selectedReasons && typeof state.selectedReasons === 'object' ? state.selectedReasons : {},
+          // Ensure strings are strings
+          trackingNumbersRaw: typeof state.trackingNumbersRaw === 'string' ? state.trackingNumbersRaw : '',
+        }
+      },
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error('Failed to hydrate unloading store:', error)
+          localStorage.removeItem('unloading-store')
+        }
+      },
     }
   )
 )
