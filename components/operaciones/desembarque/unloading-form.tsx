@@ -750,10 +750,27 @@ export default function UnloadingForm({
   }, []);
 
   // FUNCIONES para corrección de tracking
+  // En la función que abre el modal
   const handleOpenCorrectTracking = useCallback((trackingNumber: string) => {
+    console.log("🔍 Abriendo modal con:", {
+      trackingNumber,
+      selectedSubsidiaryId,
+      selectedSubsidiaryName,
+      hasSubsidiaryId: !!selectedSubsidiaryId,
+      hasSubsidiaryName: !!selectedSubsidiaryName
+    });
+    
     setSelectedTrackingToCorrect(trackingNumber);
     setCorrectTrackingModalOpen(true);
-  }, []);
+  }, [selectedSubsidiaryId, selectedSubsidiaryName]);
+
+// En el render, antes del return
+console.log("🔍 UnloadingForm - Estado actual:", {
+  correctTrackingModalOpen,
+  selectedTrackingToCorrect,
+  selectedSubsidiaryId,
+  selectedSubsidiaryName
+});
 
   const handleCloseCorrectTracking = useCallback(() => {
     setCorrectTrackingModalOpen(false);
@@ -1544,7 +1561,7 @@ export default function UnloadingForm({
 
   const clearMissingPackages = useCallback(() => {
     try {
-      const missingKeys = missingPackages.map(p => p.trackingNumber);
+      const missingKeys = safeMissingPackages.map(p => p.trackingNumber);
       setMissingPackages([]);
       setSelectedReasons(prev => {
         const next = { ...prev };
@@ -1682,7 +1699,7 @@ export default function UnloadingForm({
         vehicle: selectedUnidad,
         subsidiary: { id: selectedSubsidiaryId, name: selectedSubsidiaryName || "Unknown" },
         shipments: validList.map(s => s.id),
-        missingTrackings: missingPackages.map(p => p.trackingNumber),
+        missingTrackings: safeMissingPackages.map(p => p.trackingNumber),
         unScannedTrackings: surplusTrackings,
         date: new Date().toISOString()
       };
@@ -1968,7 +1985,7 @@ export default function UnloadingForm({
                   {missingPackages.length > 0 ? (
                     <ScrollArea className="h-[300px] rounded-md border">
                       <div className="grid grid-cols-1 divide-y">
-                        {missingPackages.map((pkg, index) => pkg && <MissingPackageItem key={`${pkg.trackingNumber}-${index}`} pkg={pkg} />)}
+                        {safeMissingPackages.map((pkg, index) => pkg && <MissingPackageItem key={`${pkg.trackingNumber}-${index}`} pkg={pkg} />)}
                       </div>
                     </ScrollArea>
                   ) : (
@@ -1980,7 +1997,7 @@ export default function UnloadingForm({
                   {surplusTrackings.length > 0 ? (
                     <ScrollArea className="h-[300px] rounded-md border p-4">
                       <ul className="space-y-2">
-                        {surplusTrackings.map(tracking => (
+                        {safeSurplusTrackings.map(tracking => (
                           <li key={tracking} className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50 border border-amber-200">
                             <span className="font-mono text-sm font-medium">{tracking}</span>
                             <div className="flex items-center gap-2">
@@ -2040,7 +2057,15 @@ export default function UnloadingForm({
       </Card>
 
       <CompleteDataModal isOpen={completeDataModalOpen} onClose={handleCloseCompleteData} package={selectedPackageForData} onSave={handleSavePackageData} />
-      <CorrectTrackingModal isOpen={correctTrackingModalOpen} onClose={handleCloseCorrectTracking} scannedTrackingNumber={selectedTrackingToCorrect} subsidiaryId={selectedSubsidiaryId} subsidiaryName={selectedSubsidiaryName} onCorrect={handleCorrectTracking} onCreate={handleCreateShipment} handleValidatePackages={handleValidatePackages} />
+      <CorrectTrackingModal 
+        isOpen={correctTrackingModalOpen} 
+        onClose={handleCloseCorrectTracking} 
+        scannedTrackingNumber={selectedTrackingToCorrect} 
+        subsidiaryId={selectedSubsidiaryId} 
+        subsidiaryName={selectedSubsidiaryName} 
+        onCorrect={handleCorrectTracking} 
+        onCreate={handleCreateShipment} 
+        handleValidatePackages={handleValidatePackages} />
       <ExpirationAlertModal isOpen={expirationAlertOpen} onClose={handleNextExpiring} packages={expiringPackages} currentIndex={currentExpiringIndex} onNext={handleNextExpiring} onPrevious={handlePreviousExpiring} />
     </>
   );

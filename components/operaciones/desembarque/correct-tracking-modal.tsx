@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Loader2, Package, Search, X, Plus, User, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { searchPackageInfo } from "@/lib/services/shipments";
-import { SearchShipmentDto, ShipmentStatusType, Priority, ShipmentType, AddShipmentDto} from "@/lib/types";
+import { SearchShipmentDto, ShipmentStatusType, Priority, ShipmentType, AddShipmentDto } from "@/lib/types";
 import { toast } from "sonner";
 import { getCurrentHermosilloDateTime } from "@/utils/date.utils";
 import { useCreateShipmentInDesembarcos } from "@/hooks/services/shipments/use-shipments";
@@ -43,7 +43,7 @@ interface CorrectTrackingModalProps {
     packageInfo: SearchShipmentDto;
   }) => void;
   onCreate?: (data: ShipmentFormData) => void;
-  handleValidatePackages:  () => void;
+  handleValidatePackages: () => void;
 }
 
 export function CorrectTrackingModal({
@@ -84,6 +84,18 @@ export function CorrectTrackingModal({
   // Campo separado para confirmar el tracking number
   const [confirmedTracking, setConfirmedTracking] = useState("");
 
+  // Log para debug
+  useEffect(() => {
+    console.log("🔍 CorrectTrackingModal - Props recibidos:", {
+      isOpen,
+      scannedTrackingNumber,
+      subsidiaryId,
+      subsidiaryName,
+      hasSubsidiaryId: !!subsidiaryId,
+      hasSubsidiaryName: !!subsidiaryName
+    });
+  }, [isOpen, scannedTrackingNumber, subsidiaryId, subsidiaryName]);
+
   // Limpiar estado al abrir/cerrar
   useEffect(() => {
     if (!isOpen) {
@@ -106,20 +118,27 @@ export function CorrectTrackingModal({
         isHighValue: false,
       });
     } else {
-      // Prellenar valores por defecto cuando se abre la modal
+      // Cuando se abre, prellenar con datos por defecto
+      const defaultDateTime = getCurrentHermosilloDateTime();
+      
+      console.log("📝 Prellenando formulario con:", {
+        scannedTrackingNumber,
+        subsidiaryName,
+        defaultDateTime
+      });
+
       setFormData(prev => ({
         ...prev,
-        trackingNumber: scannedTrackingNumber,
-        // Fecha por defecto: hoy a las 9pm en Hermosillo
-        commitDateTime: getCurrentHermosilloDateTime(), // 21 (9pm) es el default
-        // Ciudad por defecto: nombre de la sucursal seleccionada
+        trackingNumber: scannedTrackingNumber || "",
+        commitDateTime: defaultDateTime || new Date().toISOString().slice(0, 16),
         recipientCity: subsidiaryName || "",
-        // Tipo de envío siempre FEDEX
         shipmentType: ShipmentType.FEDEX,
-        // Estado siempre EN_RUTA
         status: ShipmentStatusType.EN_RUTA,
       }));
-      setConfirmedTracking(scannedTrackingNumber);
+      
+      // También prellenar correctedTracking con el escaneado
+      setCorrectedTracking(scannedTrackingNumber || "");
+      setConfirmedTracking(scannedTrackingNumber || "");
     }
   }, [isOpen, scannedTrackingNumber, subsidiaryName]);
 
@@ -142,10 +161,12 @@ export function CorrectTrackingModal({
       try {
         setSearchLoading(true);
         setSearchError(null);
+        console.log("🔍 Buscando paquete con tracking:", correctedTracking);
         const data = await searchPackageInfo(correctedTracking.trim());
+        console.log("✅ Paquete encontrado:", data);
         setPackageInfo(data);
       } catch (error) {
-        console.error("Error buscando paquete:", error);
+        console.error("❌ Error buscando paquete:", error);
         setSearchError("No se encontró información del paquete. Verifica el número de tracking.");
         setPackageInfo(null);
       } finally {
@@ -188,6 +209,11 @@ export function CorrectTrackingModal({
   const handleSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log("🔍 Submitting search form:", {
+      correctedTracking,
+      packageInfo: !!packageInfo
+    });
+
     if (!correctedTracking || correctedTracking.length !== 12) {
       setSearchError("El número de tracking debe tener 12 dígitos");
       return;
@@ -200,6 +226,12 @@ export function CorrectTrackingModal({
 
     setLoading(true);
     try {
+      console.log("✅ Llamando onCorrect con:", {
+        originalTracking: scannedTrackingNumber,
+        correctedTracking: correctedTracking.trim(),
+        packageInfo
+      });
+      
       onCorrect({
         originalTracking: scannedTrackingNumber,
         correctedTracking: correctedTracking.trim(),
@@ -207,7 +239,10 @@ export function CorrectTrackingModal({
       });
       onClose();
     } catch (error) {
-      console.error("Error al corregir tracking:", error);
+      console.error("❌ Error al corregir tracking:", error);
+      toast.error("Error", {
+        description: "No se pudo corregir el tracking. Intenta de nuevo."
+      });
     } finally {
       setLoading(false);
     }
@@ -216,9 +251,33 @@ export function CorrectTrackingModal({
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log("🔍 handleCreateSubmit - Datos actuales:", {
+      formData,
+      confirmedTracking,
+      subsidiaryId,
+      subsidiaryName,
+      mode
+    });
+
+    // Validación exhaustiva
     if (!subsidiaryId) {
+      console.error("❌ Error: subsidiaryId es null o undefined");
+      toast.error("Error de sucursal", {
+        description: "No se pudo identificar la sucursal. Por favor, selecciona una sucursal primero."
+      });
+      return;
+    }
+
+    if (!confirmedTracking.trim()) {
       toast.error("Error", {
-        description: "No se encontró la sucursal. Por favor, recarga la página."
+        description: "El número de tracking es requerido."
+      });
+      return;
+    }
+
+    if (!/^\d{12}$/.test(confirmedTracking.trim())) {
+      toast.error("Error", {
+        description: "El número de tracking debe tener exactamente 12 dígitos."
       });
       return;
     }
@@ -227,24 +286,33 @@ export function CorrectTrackingModal({
 
     try {
       // Convertir commitDateTime a commitDate y commitTime separados
-      // SIN conversión de zona horaria - se mantiene la fecha local tal cual
       const dateTime = new Date(formData.commitDateTime);
 
-      // Obtener fecha local (sin conversión a UTC)
+      // Validar que la fecha sea válida
+      if (isNaN(dateTime.getTime())) {
+        toast.error("Error", {
+          description: "La fecha de compromiso no es válida."
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Obtener fecha local
       const year = dateTime.getFullYear();
       const month = String(dateTime.getMonth() + 1).padStart(2, '0');
       const day = String(dateTime.getDate()).padStart(2, '0');
-      const commitDate = `${year}-${month}-${day}`; // YYYY-MM-DD
+      const commitDate = `${year}-${month}-${day}`;
 
-      // Obtener hora local (sin conversión a UTC)
+      // Obtener hora local
       const hours = String(dateTime.getHours()).padStart(2, '0');
       const minutes = String(dateTime.getMinutes()).padStart(2, '0');
       const seconds = String(dateTime.getSeconds()).padStart(2, '0');
-      const commitTime = `${hours}:${minutes}:${seconds}`; // HH:MM:SS
+      const commitTime = `${hours}:${minutes}:${seconds}`;
 
-      // Preparar datos para el backend usando el tracking confirmado
+      // CORREGIDO: Datos completos para el backend
       const dataToBackend: AddShipmentDto = {
         trackingNumber: confirmedTracking.trim(),
+        shipmentType: formData.shipmentType as AddShipmentDto['shipmentType'],
         recipientName: formData.recipientName.trim() || "-",
         recipientAddress: formData.recipientAddress.trim() || "-",
         recipientCity: formData.recipientCity.trim() || "-",
@@ -256,40 +324,43 @@ export function CorrectTrackingModal({
         priority: formData.priority as AddShipmentDto['priority'],
         isHighValue: formData.isHighValue,
         subsidiary: {
-          id: subsidiaryId
+          id: subsidiaryId,
+          name: subsidiaryName || "Sucursal Desconocida"
         }
       };
 
-      console.log("Creando shipment:", dataToBackend);
+      console.log("📤 Enviando datos al backend:", dataToBackend);
 
       const result = await createShipment(dataToBackend);
-
-
+      console.log("📥 Respuesta del backend:", result);
 
       if (result.ok) {
-
+        console.log("✅ Shipment creado exitosamente");
+        
+        // Validar paquetes después de crear el shipment
+        console.log("🔄 Llamando handleValidatePackages...");
         handleValidatePackages();
 
         toast.success("Shipment creado", {
           description: `El paquete ${confirmedTracking} ha sido registrado correctamente.`
         });
 
-
-
         // Llamar onCreate si existe (para compatibilidad)
         if (onCreate) {
           onCreate(formData);
         }
 
+        // Cerrar el modal después de éxito
         onClose();
       } else {
+        console.error("❌ Error del backend:", result.message);
         toast.error("Error al crear shipment", {
           description: result.message || "Ocurrió un error al crear el shipment."
         });
       }
     } catch (error) {
-      console.error("Error al crear shipment:", error);
-      toast.error("Error", {
+      console.error("❌ Error excepcional al crear shipment:", error);
+      toast.error("Error del sistema", {
         description: "No se pudo crear el shipment. Intenta de nuevo."
       });
     } finally {
@@ -311,7 +382,7 @@ export function CorrectTrackingModal({
       if (!hasFoundCorrectTracking && !hasCreatedShipment) {
         toast.warning("Acción requerida", {
           description: "Debes encontrar el código de barras correcto o registrar la información del paquete antes de cerrar.",
-          duration: 5000, // 5 segundos para que el usuario lo note bien
+          duration: 5000,
         });
         return; // No cerrar la modal
       }
@@ -336,6 +407,14 @@ export function CorrectTrackingModal({
             }
           </DialogDescription>
         </DialogHeader>
+
+        {/* Información de debug (solo desarrollo) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="text-xs bg-gray-100 p-2 rounded">
+            <p>🔍 Debug: subsidiaryId = {subsidiaryId || 'null'}</p>
+            <p>🔍 Debug: subsidiaryName = {subsidiaryName || 'null'}</p>
+          </div>
+        )}
 
         <Alert variant="destructive" className="mt-4">
           <AlertCircle className="h-4 w-4" />
@@ -469,7 +548,7 @@ export function CorrectTrackingModal({
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                disabled={true}
+                disabled={loading || searchLoading}
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancelar
@@ -497,6 +576,18 @@ export function CorrectTrackingModal({
         {/* MODO CREACIÓN */}
         {mode === "create" && (
           <form onSubmit={handleCreateSubmit} className="space-y-6 mt-4">
+            {/* Información de la sucursal */}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-800">
+                📍 Sucursal: {subsidiaryName || "No seleccionada"}
+                {!subsidiaryId && (
+                  <span className="text-red-600 ml-2">
+                    ⚠️ Error: No hay ID de sucursal
+                  </span>
+                )}
+              </p>
+            </div>
+
             {/* Información Básica */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -524,16 +615,6 @@ export function CorrectTrackingModal({
                   Si escribiste un código en "Buscar Tracking Correcto", aparecerá aquí. Puedes escanearlo de nuevo para confirmar.
                 </p>
               </div>
-
-              {/*
-                CAMPOS OCULTOS - Por defecto siempre son los mismos valores:
-                - Tipo de Envío: FEDEX (siempre)
-                - Estado: EN_RUTA (siempre)
-                - Fecha de Compromiso: Hoy a las 9pm Hermosillo (siempre)
-
-                Estos campos se prellenan automáticamente al abrir la modal
-                y no se muestran al usuario para simplificar la interfaz.
-              */}
             </div>
 
             {/* Información del Destinatario */}
@@ -544,33 +625,36 @@ export function CorrectTrackingModal({
               </h3>
 
               <div className="space-y-2">
-                <Label htmlFor="recipientName">Nombre Completo</Label>
+                <Label htmlFor="recipientName">Nombre Completo *</Label>
                 <Input
                   id="recipientName"
                   value={formData.recipientName}
                   onChange={(e) => updateFormData("recipientName", e.target.value)}
                   placeholder="Nombre del destinatario"
+                  required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="recipientAddress">Dirección</Label>
+                <Label htmlFor="recipientAddress">Dirección *</Label>
                 <Input
                   id="recipientAddress"
                   value={formData.recipientAddress}
                   onChange={(e) => updateFormData("recipientAddress", e.target.value)}
                   placeholder="Calle, número, colonia"
+                  required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="recipientCity">Ciudad</Label>
+                  <Label htmlFor="recipientCity">Ciudad *</Label>
                   <Input
                     id="recipientCity"
                     value={formData.recipientCity}
                     onChange={(e) => updateFormData("recipientCity", e.target.value)}
                     placeholder="Ciudad"
+                    required
                   />
                 </div>
 
@@ -608,18 +692,29 @@ export function CorrectTrackingModal({
               </div>
             </div>
 
+            {/* Información oculta (valores por defecto) */}
+            <div className="hidden">
+              <p>Shipment Type: {formData.shipmentType}</p>
+              <p>Status: {formData.status}</p>
+              <p>Priority: {formData.priority}</p>
+              <p>Commit Date: {formData.commitDateTime}</p>
+            </div>
+
             {/* Botones */}
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                disabled={true}
+                disabled={loading || isCreating}
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancelar
               </Button>
-              <Button type="submit" disabled={loading || isCreating}>
+              <Button 
+                type="submit" 
+                disabled={loading || isCreating || !subsidiaryId || !confirmedTracking.trim()}
+              >
                 {(loading || isCreating) ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
