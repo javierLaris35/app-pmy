@@ -737,7 +737,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     setIsLoading(true);
     try {
       const payload = {
-        subsidiary: { id: selectedSubsidiaryId, name: subsidiaryName ?? "" },
+        subsidiary: { id: selectedSubsidiaryId, name:  selectedSubsidiaryName ?? "" },
         shipments: validPackages.filter(s => !s.isCharge).map(s => s.id),
         chargeShipments: validPackages.filter(s => s.isCharge).map(s => s.id),
         missingTrackings,
@@ -831,7 +831,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         month: "2-digit",
         year: "numeric",
       });
-      const pdfFileName = `INVENTARIO--${user?.subsidiary?.name}--${currentDate.replace(/\//g, "-")}.pdf`;
+      const pdfFileName = `INVENTARIO--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.pdf`;
       const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
 
       // Generar Excel
@@ -839,13 +839,13 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       const excelBlob = new Blob([excelBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const excelFileName = `INVENTARIO--${user?.subsidiary?.name}--${currentDate.replace(/\//g, "-")}.xlsx`;
+      const excelFileName = `INVENTARIO--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.xlsx`;
       const excelFile = new File([excelBlob], excelFileName, {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
       // Subir archivos
-      await uploadFiles(pdfFile, excelFile, user?.subsidiary?.name);
+      await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName);
 
     } catch (err) {
       console.error("Error enviando inventario:", err);
