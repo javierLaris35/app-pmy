@@ -597,6 +597,50 @@ export default function UnloadingForm({
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
+  const safeArray = <T,>(arr: T[] | undefined | null | any): T[] => {
+    if (Array.isArray(arr)) {
+      return arr;
+    }
+    console.warn("⚠️ safeArray: No es un array, devolviendo array vacío:", arr);
+    return [];
+  };
+
+  // Función helper para asegurar que trabajamos con objetos
+  const safeObject = <T extends object>(obj: T | undefined | null | any): T => {
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      return obj;
+    }
+    console.warn("⚠️ safeObject: No es un objeto, devolviendo objeto vacío:", obj);
+    return {} as T;
+  };
+
+  // Versiones seguras de todos los estados del store
+  const safeScannedPackages = useMemo(() => {
+    return safeArray(scannedPackages);
+  }, [scannedPackages]);
+
+  const safeShipments = useMemo(() => {
+    return safeArray(shipments);
+  }, [shipments]);
+
+  const safeMissingPackages = useMemo(() => {
+    return safeArray(missingPackages);
+  }, [missingPackages]);
+
+  const safeSurplusTrackings = useMemo(() => {
+    return safeArray(surplusTrackings);
+  }, [surplusTrackings]);
+
+  const safeSelectedReasons = useMemo(() => {
+    return safeObject(selectedReasons);
+  }, [selectedReasons]);
+
+  // Valid shipments usando las versiones seguras
+  const validShipments = useMemo(() => 
+    safeShipments.filter((p) => p.isValid), 
+    [safeShipments]
+  );
+
   // Sincronizar sucursal cuando el padre cambie su selección (aplicar sólo si cambió la id)
   useEffect(() => {
     if (!parentSubsidiaryId) return;
@@ -1147,53 +1191,134 @@ export default function UnloadingForm({
   // VALIDACIÓN (restaurada)
   const handleValidatePackages = useCallback(async () => {
     if (isLoading || isValidationPackages) return;
-    if (!selectedSubsidiaryId) { toast({ title: "Error", description: "Selecciona una sucursal antes de validar.", variant: "destructive" }); return; }
+    
+    if (!selectedSubsidiaryId) { 
+      toast({ 
+        title: "Error", 
+        description: "Selecciona una sucursal antes de validar.", 
+        variant: "destructive" 
+      }); 
+      return; 
+    }
 
-    const trackingNumbers = scannedPackages.map(p => p.trackingNumber);
+    // USAR safeScannedPackages aquí
+    const trackingNumbers = safeScannedPackages.map(p => p.trackingNumber);
     const validNumbers = trackingNumbers.filter(t => /^\d{12}$/.test(t));
     const invalidNumbers = trackingNumbers.filter(t => !/^\d{12}$/.test(t));
-    if (validNumbers.length === 0) { toast({ title: "Error", description: "No se ingresaron números válidos.", variant: "destructive" }); return; }
+    
+    if (validNumbers.length === 0) { 
+      toast({ 
+        title: "Error", 
+        description: "No se ingresaron números válidos.", 
+        variant: "destructive" 
+      }); 
+      return; 
+    }
 
     setIsValidationPackages(true);
     setIsLoading(true);
+    
     try {
-      const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(validNumbers, selectedSubsidiaryId);
-      if (barScannerInputRef.current?.updateValidatedPackages) barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
+      const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
+        validNumbers, 
+        selectedSubsidiaryId
+      );
+      
+      if (barScannerInputRef.current?.updateValidatedPackages) {
+        barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
+      }
+      
       setShipments(result.validatedShipments);
+      
       // expiración
       handleExpirationCheck(result.validatedShipments);
+      
       // faltantes
       const newMissing = updateMissingPackages(result.validatedShipments, result.consolidateds);
       setMissingPackages(newMissing);
+      
       // sobrantes: invalid + valid pero no encontrados
-      const validTrackings = result.validatedShipments.filter(p => p.isValid).map(p => p.trackingNumber);
+      const validTrackings = result.validatedShipments
+        .filter(p => p.isValid)
+        .map(p => p.trackingNumber);
+      
       const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
       const allSurplus = [...invalidNumbers, ...surplusFromValid];
-      const prevSurplus = surplusTrackings;
+      
+      // Asegurar que prevSurplus sea un array usando safeArray
+      const prevSurplus = safeArray(surplusTrackings);
       const newSurplusItems = allSurplus.filter(s => !prevSurplus.includes(s));
+      
       if (newSurplusItems.length > 0) {
         speakMessage("La guía no se encontró. Por favor, verifica.");
-        try { playSurplusSound(); } catch (err) { console.warn('playSurplusSound failed', err); }
+        try { 
+          playSurplusSound(); 
+        } catch (err) { 
+          console.warn('playSurplusSound failed', err); 
+        }
       }
+      
       setSurplusTrackings(allSurplus);
       setConsolidatedValidation(result.consolidateds || null);
-      toast({ title: "Validación completada", description: `✅ ${result.validatedShipments.filter(p => p.isValid).length} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes` });
+      
+      toast({ 
+        title: "Validación completada", 
+        description: `✅ ${result.validatedShipments.filter(p => p.isValid).length} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes` 
+      });
+      
     } catch (error) {
       console.error("Error validating packages:", error);
+      
       if (!isOnline) {
-        const offlinePackages = validNumbers.map(tn => ({ id: `offline-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, trackingNumber: tn, isValid: false, isOffline: true, reason: "Sin conexión - validar cuando se restablezca internet", createdAt: new Date() } as PackageInfoForUnloading));
-        setShipments(prev => [...prev, ...offlinePackages]);
+        const offlinePackages = validNumbers.map(tn => ({ 
+          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, 
+          trackingNumber: tn, 
+          isValid: false, 
+          isOffline: true, 
+          reason: "Sin conexión - validar cuando se restablezca internet", 
+          createdAt: new Date() 
+        } as PackageInfoForUnloading));
+        
+        setShipments(prev => [...safeArray(prev), ...offlinePackages]);
         setSurplusTrackings(invalidNumbers);
-        toast({ title: "Modo offline activado", description: `Se guardaron ${validNumbers.length} paquetes localmente.` });
+        
+        toast({ 
+          title: "Modo offline activado", 
+          description: `Se guardaron ${validNumbers.length} paquetes localmente.` 
+        });
       } else {
-        toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
+        toast({ 
+          title: "Error", 
+          description: "Hubo un problema al validar los paquetes.", 
+          variant: "destructive" 
+        });
       }
     } finally {
       setIsValidationPackages(false);
       setIsLoading(false);
-      setTimeout(() => { try { barScannerInputRef.current?.focus(); } catch {} }, 150);
+      setTimeout(() => { 
+        try { 
+          barScannerInputRef.current?.focus(); 
+        } catch {} 
+      }, 150);
     }
-  }, [isLoading, isValidationPackages, selectedSubsidiaryId, scannedPackages, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound]);
+  }, [
+    isLoading, 
+    isValidationPackages, 
+    selectedSubsidiaryId, 
+    safeScannedPackages,  // ✅ Ahora existe
+    speakMessage, 
+    surplusTrackings, 
+    updateMissingPackages, 
+    isOnline, 
+    setShipments, 
+    setMissingPackages, 
+    setSurplusTrackings, 
+    setConsolidatedValidation, 
+    handleExpirationCheck, 
+    toast, 
+    playSurplusSound
+  ]);
 
     // Normalizar arrays por seguridad (puede venir persistido malformado)
   const shipmentsArray = useMemo(() => 
@@ -1201,22 +1326,17 @@ export default function UnloadingForm({
     [shipments]
   );
 
-  // Valid shipments helpers para render y habilitaciones
-  const validShipments = useMemo(() => 
-    shipmentsArray.filter((p) => p.isValid), 
-    [shipmentsArray]
-  );
 
   // VALIDACIÓN AUTOMÁTICA
   useEffect(() => {
     if (
-      !Array.isArray(scannedPackages) ||
-      scannedPackages.length === 0 ||
+      !Array.isArray(safeScannedPackages) ||  // ✅ Usar safeScannedPackages
+      safeScannedPackages.length === 0 ||     // ✅ Usar safeScannedPackages
       isLoading ||
       !selectedSubsidiaryId
     ) return;
 
-    const trackingNumbers = scannedPackages
+    const trackingNumbers = safeScannedPackages  // ✅ Usar safeScannedPackages
       .map(pkg => pkg.trackingNumber)
       .join("\n");
 
@@ -1228,7 +1348,7 @@ export default function UnloadingForm({
     }, 500);
 
     return () => clearTimeout(handler);
-  }, [scannedPackages, selectedSubsidiaryId, isLoading, lastValidated]);
+  }, [safeScannedPackages, selectedSubsidiaryId, isLoading, lastValidated]);  // ✅ Usar safeScannedPackages
 
 
   // Efecto para debuggear missingPackages
@@ -1273,37 +1393,49 @@ export default function UnloadingForm({
   }));
 
   // FUNCIÓN CORREGIDA PARA MANEJAR RAZONES DE PAQUETES FALTANTES
-  const handleSelectMissingTracking = (id: string, value: string) => {
-    setSelectedReasons(prev => ({
-      ...prev,
+  const handleSelectMissingTracking = useCallback((id: string, value: string) => {
+    // Usar safeSelectedReasons
+    const newSelectedReasons = {
+      ...safeSelectedReasons,
       [id]: value
-    }));
+    };
+    setSelectedReasons(newSelectedReasons);
+
+    // Usar las versiones seguras
+    const currentMissingPackages = safeMissingPackages;
+    const currentSurplusTrackings = safeSurplusTrackings;
+    const currentScannedPackages = safeScannedPackages;
 
     // Limpiar primero de ambos arrays
-    setMissingPackages(prev => prev.filter(p => p.trackingNumber !== id));
-    setSurplusTrackings(prev => prev.filter(item => item !== id));
+    const newMissingPackages = currentMissingPackages.filter(p => p.trackingNumber !== id);
+    const newSurplusTrackings = currentSurplusTrackings.filter(item => item !== id);
 
-    // Lógica corregida para agregar solo cuando sea NOT_TRACKING
+    // Lógica para agregar según el motivo seleccionado
     if (value === TrackingNotFoundEnum.NOT_TRACKING) {
-      const existingPackage = scannedPackages.find(p => p.trackingNumber === id);
+      const existingPackage = currentScannedPackages.find(p => p.trackingNumber === id);
       if (existingPackage) {
-        setMissingPackages(prev => [
-          ...prev.filter(p => p.trackingNumber !== id), 
-          {
-            trackingNumber: id,
-            recipientName: existingPackage.recipientName,
-            recipientAddress: existingPackage.recipientAddress,
-            recipientPhone: existingPackage.recipientPhone
-          }
-        ]);
+        newMissingPackages.push({
+          trackingNumber: id,
+          recipientName: existingPackage.recipientName,
+          recipientAddress: existingPackage.recipientAddress,
+          recipientPhone: existingPackage.recipientPhone
+        });
       }
     } else if (value === TrackingNotFoundEnum.NOT_SCANNED) {
-      setSurplusTrackings(prev => [...prev.filter(item => item !== id), id]);
+      newSurplusTrackings.push(id);
     }
     // Para NOT_IN_CHARGE no se agrega a ningún array
 
+    // Actualizar estados
+    setMissingPackages(newMissingPackages);
+    setSurplusTrackings(newSurplusTrackings);
     setOpenPopover(null);
-  }
+    
+    toast({
+      title: "Motivo actualizado",
+      description: `Se asignó "${value}" a la guía ${id}`,
+    });
+  }, [safeSelectedReasons, safeMissingPackages, safeSurplusTrackings, safeScannedPackages, setSelectedReasons, setMissingPackages, setSurplusTrackings, toast]);
 
   // ELIMINAR PAQUETE (usado por la UI)
   const handleRemovePackage = useCallback((tn: string) => {
@@ -1356,11 +1488,29 @@ export default function UnloadingForm({
   // Limpieza de estados y storage
   const clearAllStorage = useCallback(() => {
     try {
-      ['unloading_unidad','unloading_scanned_packages','unloading_shipments','unloading_missing_packages','unloading_surplus_trackings','unloading_selected_reasons','unloading_tracking_raw','unloading_consolidated_validation','unloading_selected_consolidados','unloading_selected_consolidados_counts'].forEach(k => { try { window.localStorage.removeItem(k); } catch {} });
+      const keys = [
+        'unloading_unidad',
+        'unloading_scanned_packages',
+        'unloading_shipments', 
+        'unloading_missing_packages',
+        'unloading_surplus_trackings',
+        'unloading_selected_reasons',
+        'unloading_tracking_raw',
+        'unloading_consolidated_validation',
+        'unloading_selected_consolidados',
+        'unloading_selected_consolidados_counts'
+      ];
+      
+      keys.forEach(k => { 
+        try { 
+          window.localStorage.removeItem(k); 
+        } catch {} 
+      });
     } catch (err) {
       console.error("clearAllStorage error:", err);
     }
 
+    // Siempre establecer arrays vacíos, no null o undefined
     setSelectedUnidad(null);
     setScannedPackages([]);
     setShipments([]);
@@ -1373,9 +1523,24 @@ export default function UnloadingForm({
     setLastValidated("");
 
     try {
-      toast?.({ title: "Datos limpiados", description: "Se eliminaron los datos temporales." });
+      toast?.({ 
+        title: "Datos limpiados", 
+        description: "Se eliminaron los datos temporales." 
+      });
     } catch {}
-  }, [setScannedPackages, setShipments, setMissingPackages, setSurplusTrackings, setSelectedReasons, setTrackingNumbersRaw, setConsolidatedValidation, setSelectedConsolidatedIds, setLastValidated, setSelectedUnidad, toast]);
+  }, [
+    setScannedPackages, 
+    setShipments, 
+    setMissingPackages, 
+    setSurplusTrackings, 
+    setSelectedReasons, 
+    setTrackingNumbersRaw, 
+    setConsolidatedValidation, 
+    setSelectedConsolidatedIds, 
+    setLastValidated, 
+    setSelectedUnidad, 
+    toast
+  ]);
 
   const clearMissingPackages = useCallback(() => {
     try {
