@@ -25,14 +25,31 @@ export default function InventoryPageControl() {
   const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null)
 
   const { inventories, isError, isLoading, mutate } = useInventories(selectedSucursalId)
-  const user = useAuthStore((s) => s.user)
+  
 
+  // Obtener usuario y estado de hidratación
+  const user = useAuthStore((s) => s.user)
+  const hasHydrated = useAuthStore((s) => s.hasHydrated)
+  
+  // Determinar sucursal efectiva SOLO cuando auth esté hidratado
+  const effectiveSucursalId = hasHydrated ? (selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || null) : null
+  const effectiveSucursalName = hasHydrated ? (selectedSucursalName || user?.subsidiary?.name || user?.subsidiaryName || "") : ""
+  
+  // SOLUCIÓN: Solo inicializar la sucursal cuando auth esté hidratado
   useEffect(() => {
-    if (!selectedSucursalId && user?.subsidiaryId) {
+    if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
+      console.log("[UnloadingPage] Initializing with user subsidiary:", user.subsidiary.id, user.subsidiary.name)
+      setSelectedSucursalId(user.subsidiary.id)
+      setSelectedSucursalName(user.subsidiary.name || "")
+    }
+    
+    // También manejar el caso antiguo donde subsidiaryId y subsidiaryName son propiedades directas
+    if (hasHydrated && user?.subsidiaryId && !selectedSucursalId && !user?.subsidiary?.id) {
+      console.log("[UnloadingPage] Initializing with user subsidiary (legacy):", user.subsidiaryId, user.subsidiaryName)
       setSelectedSucursalId(user.subsidiaryId)
       setSelectedSucursalName(user.subsidiaryName || "")
     }
-  }, [user, selectedSucursalId])
+  }, [hasHydrated, user, selectedSucursalId])
 
   const handleSucursalChange = (id: string, name?: string) => {
     setSelectedSucursalId(id || null)
@@ -95,8 +112,19 @@ export default function InventoryPageControl() {
           <div className="flex items-center gap-4">
             <div className="w-[250px]">
               <SucursalSelector
-                value={selectedSucursalId ?? ""}
-                onValueChange={(id) => handleSucursalChange(id)}
+                value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
+                returnObject={true}
+                onValueChange={(val) => {
+                  console.log("[PackageDispatch] SucursalSelector onValueChange ->", val)
+                  if (typeof val === "string") {
+                    handleSucursalChange(val)
+                  } else if (Array.isArray(val)) {
+                    const first = val[0] as any
+                    handleSucursalChange(first?.id ?? "", first?.name ?? "")
+                  } else if (val && typeof val === "object") {
+                    handleSucursalChange((val as any).id, (val as any).name)
+                  }
+                }}
               />
             </div>
           </div>
@@ -153,8 +181,8 @@ export default function InventoryPageControl() {
           </DialogHeader>
 
           <InventoryForm
-            selectedSubsidiaryId={selectedSucursalId}
-            subsidiaryName={selectedSucursalName}
+            selectedSubsidiaryId={effectiveSucursalId}
+            subsidiaryName={effectiveSucursalName}
             onClose={() => setIsInventoryDialogOpen(false)}
             onSuccess={() => {
               mutate()

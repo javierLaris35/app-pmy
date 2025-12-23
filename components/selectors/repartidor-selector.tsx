@@ -15,42 +15,43 @@ interface RepartidorSelectorProps {
   selectedRepartidores: Driver[]
   onSelectionChange: (repartidores: Driver[]) => void
   disabled?: boolean
+  subsidiaryId?: string | null // Nueva prop opcional
 }
 
 export function RepartidorSelector({
   selectedRepartidores,
   onSelectionChange,
   disabled = false,
+  subsidiaryId, // Recibir subsidiaryId como prop
 }: RepartidorSelectorProps) {
   const [open, setOpen] = useState(false)
   const [repartidores, setRepartidores] = useState<Driver[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
   const user = useAuthStore((s) => s.user)
 
-  useEffect(() => {
-      if (user?.subsidiary) {
-        setSelectedSubsidirayId(user?.subsidiary.id || null)
-      }
-    }, [user, setSelectedSubsidirayId])
+  // Usar la subsidiaryId de la prop o la del usuario
+  const effectiveSubsidiaryId = subsidiaryId || user?.subsidiary?.id || null
 
   useEffect(() => {
-  if (!selectedSubsidiaryId) return;
-
-  const fetchDrivers = async () => {
-    try {
-      setIsLoading(true);
-      const drivers = await getDriversBySucursalId(selectedSubsidiaryId);
-      setRepartidores(drivers);
-    } catch (error) {
-      console.error("Error al obtener repartidores:", error);
-    } finally {
-      setIsLoading(false);
+    if (!effectiveSubsidiaryId) {
+      setRepartidores([]);
+      return;
     }
-  };
 
-  fetchDrivers();
-}, [selectedSubsidiaryId]);
+    const fetchDrivers = async () => {
+      try {
+        setIsLoading(true);
+        const drivers = await getDriversBySucursalId(effectiveSubsidiaryId);
+        setRepartidores(drivers);
+      } catch (error) {
+        console.error("Error al obtener repartidores:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDrivers();
+  }, [effectiveSubsidiaryId]); // Dependencia en effectiveSubsidiaryId
 
   const handleSelect = (repartidorId: string) => {
     const repartidor = repartidores.find((r) => r.id === repartidorId);
@@ -75,6 +76,28 @@ export function RepartidorSelector({
       .map((r) => r.name);
   };
 
+  // Función para limpiar selección cuando cambia la sucursal
+  useEffect(() => {
+    if (selectedRepartidores.length > 0) {
+      // Verificar si algún repartidor seleccionado pertenece a la sucursal actual
+      const invalidSelections = selectedRepartidores.filter(selected => {
+        return !repartidores.some(r => r.id === selected.id);
+      });
+
+      if (invalidSelections.length > 0) {
+        // Limpiar selecciones que no pertenecen a la sucursal actual
+        const validSelections = selectedRepartidores.filter(selected => 
+          repartidores.some(r => r.id === selected.id)
+        );
+        
+        if (validSelections.length !== selectedRepartidores.length) {
+          console.log(`[RepartidorSelector] Limpiando ${invalidSelections.length} selecciones de sucursal anterior`);
+          onSelectionChange(validSelections);
+        }
+      }
+    }
+  }, [repartidores, selectedRepartidores, onSelectionChange]);
+
   return (
     <div className="space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
@@ -84,12 +107,14 @@ export function RepartidorSelector({
             role="combobox"
             aria-expanded={open}
             className="w-full justify-between bg-transparent relative pr-8 min-h-9"
-            disabled={disabled || isLoading}
+            disabled={disabled || isLoading || !effectiveSubsidiaryId}
           >
             <div className="flex items-center gap-2 truncate">
               <User className="h-4 w-4 flex-shrink-0" />
               <span className="truncate">
-                {selectedRepartidores.length === 0
+                {!effectiveSubsidiaryId
+                  ? "Selecciona una sucursal primero"
+                  : selectedRepartidores.length === 0
                   ? "Seleccionar repartidores..."
                   : `${selectedRepartidores.length} repartidor(es) seleccionado(s)`}
               </span>
@@ -111,7 +136,11 @@ export function RepartidorSelector({
           <Command>
             <CommandInput placeholder="Buscar repartidor..." />
             <CommandList>
-              <CommandEmpty>No se encontraron repartidores.</CommandEmpty>
+              <CommandEmpty>
+                {!effectiveSubsidiaryId 
+                  ? "Selecciona una sucursal primero" 
+                  : "No se encontraron repartidores."}
+              </CommandEmpty>
               <CommandGroup className="max-h-64 overflow-y-auto">
                 {repartidores.map((repartidor) => (
                   <CommandItem 
@@ -149,6 +178,13 @@ export function RepartidorSelector({
               {name}
             </Badge>
           ))}
+        </div>
+      )}
+
+      {/* Debug info (opcional, solo en desarrollo) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="text-xs text-muted-foreground mt-1">
+          Sucursal: {effectiveSubsidiaryId ? effectiveSubsidiaryId.substring(0, 8) + "..." : "No seleccionada"}
         </div>
       )}
     </div>

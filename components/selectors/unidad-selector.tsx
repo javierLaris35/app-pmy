@@ -23,9 +23,10 @@ import { useAuthStore } from "@/store/auth.store"
 import { getVehiclesBySucursalId } from "@/lib/services/vehicles"
 
 interface UnidadSelectorProps {
-  selectedUnidad: Vehicles
-  onSelectionChange: (unidad: Vehicles) => void
+  selectedUnidad: Vehicles | undefined // Cambiar a opcional
+  onSelectionChange: (unidad: Vehicles | undefined) => void
   disabled?: boolean
+  subsidiaryId?: string | null
 }
 
 const getVehicleIcon = (type: Vehicles["type"]) => {
@@ -47,27 +48,40 @@ export function UnidadSelector({
   selectedUnidad,
   onSelectionChange,
   disabled = false,
+  subsidiaryId, // Nueva prop
 }: UnidadSelectorProps) {
   const [open, setOpen] = useState(false)
   const [unidades, setUnidades] = useState<Vehicles[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedSubsidiaryId, setSelectedSubsidirayId] = useState<string | null>(null)
   const user = useAuthStore((s) => s.user)
 
-  useEffect(() => {
-    if (user?.subsidiary) {
-      setSelectedSubsidirayId(user.subsidiary.id)
-    }
-  }, [user])
+  // Usar la subsidiaryId de la prop o la del usuario
+  const effectiveSubsidiaryId = subsidiaryId || user?.subsidiary?.id || null
 
   useEffect(() => {
-    if (!selectedSubsidiaryId) return
+    if (!effectiveSubsidiaryId) {
+      setUnidades([]);
+      // Si hay una unidad seleccionada y cambiamos de sucursal, limpiar la selección
+      if (selectedUnidad) {
+        onSelectionChange({} as Vehicles); // Enviar objeto vacío o null según tu tipo
+      }
+      return;
+    }
 
     const fetchUnidades = async () => {
       try {
         setIsLoading(true)
-        const data = await getVehiclesBySucursalId(selectedSubsidiaryId)
+        const data = await getVehiclesBySucursalId(effectiveSubsidiaryId)
         setUnidades(data)
+        
+        // Verificar si la unidad seleccionada pertenece a esta sucursal
+        if (selectedUnidad && selectedUnidad.id) {
+          const unidadPertenece = data.some(u => u.id === selectedUnidad.id);
+          if (!unidadPertenece) {
+            console.log(`[UnidadSelector] La unidad seleccionada no pertenece a esta sucursal, limpiando selección`);
+            onSelectionChange({} as Vehicles);
+          }
+        }
       } catch (error) {
         console.error("Error al obtener unidades:", error)
       } finally {
@@ -76,7 +90,7 @@ export function UnidadSelector({
     }
 
     fetchUnidades()
-  }, [selectedSubsidiaryId])
+  }, [effectiveSubsidiaryId, selectedUnidad, onSelectionChange])
 
   const handleSelect = (unidadId: string) => {
     const unidad = unidades.find((u) => u.id === unidadId)
@@ -88,9 +102,12 @@ export function UnidadSelector({
     setOpen(false)
   }
 
-  const selectedUnidadData = selectedUnidad
+  const selectedUnidadData = selectedUnidad && selectedUnidad.id
     ? unidades.find((u) => u.id === selectedUnidad.id)
     : undefined
+
+  // Determinar si hay unidad seleccionada válida
+  const hasValidSelection = selectedUnidad && selectedUnidad.id && selectedUnidadData;
 
   return (
     <div className="space-y-2">
@@ -101,13 +118,15 @@ export function UnidadSelector({
             role="combobox"
             aria-expanded={open}
             className="w-full justify-between bg-transparent"
-            disabled={disabled || isLoading}
+            disabled={disabled || isLoading || !effectiveSubsidiaryId}
           >
             <div className="flex items-center gap-2">
               <Truck className="h-4 w-4" />
-              {!selectedUnidad || !selectedUnidad.name
+              {!effectiveSubsidiaryId
+                ? "Selecciona una sucursal primero"
+                : !hasValidSelection
                 ? "Seleccionar unidad..."
-                : `${selectedUnidadData?.name || selectedUnidad.name} • ${selectedUnidadData?.code || selectedUnidad.code}`}
+                : `${selectedUnidadData.name} • ${selectedUnidadData.code}`}
             </div>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -117,7 +136,11 @@ export function UnidadSelector({
           <Command>
             <CommandInput placeholder="Buscar unidad..." />
             <CommandList>
-              <CommandEmpty>No se encontraron unidades.</CommandEmpty>
+              <CommandEmpty>
+                {!effectiveSubsidiaryId 
+                  ? "Selecciona una sucursal primero" 
+                  : "No se encontraron unidades."}
+              </CommandEmpty>
               <CommandGroup>
                 {unidades.map((unidad) => {
                   if (!unidad) return null
@@ -134,7 +157,7 @@ export function UnidadSelector({
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          selectedUnidad?.id === unidad.id ? "opacity-100" : "opacity-0"
+                          hasValidSelection && selectedUnidad.id === unidad.id ? "opacity-100" : "opacity-0"
                         )}
                       />
                       <div className="flex items-center justify-between w-full">
@@ -167,7 +190,7 @@ export function UnidadSelector({
         </PopoverContent>
       </Popover>
 
-      {selectedUnidadData && (
+      {hasValidSelection && (
         <div className="bg-muted p-3 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-lg">{getVehicleIcon(selectedUnidadData.type)}</span>
@@ -183,6 +206,13 @@ export function UnidadSelector({
             <div>Kms: {selectedUnidadData.kms}</div>
             <div>Capacidad: {selectedUnidadData.capacity} paquetes</div>
           </div>
+        </div>
+      )}
+
+      {/* Debug info (opcional, solo en desarrollo) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="text-xs text-muted-foreground mt-1">
+          Sucursal: {effectiveSubsidiaryId ? effectiveSubsidiaryId.substring(0, 8) + "..." : "No seleccionada"}
         </div>
       )}
     </div>

@@ -27,14 +27,29 @@ export default function PackageDispatchControl() {
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<PackageDispatch | null>(null);
 
   const { packageDispatchs, isError, isLoading, mutate } = usePackageDispatchs(selectedSucursalId)
+  // Obtener usuario y estado de hidratación
   const user = useAuthStore((s) => s.user)
-
+  const hasHydrated = useAuthStore((s) => s.hasHydrated)
+  
+  // Determinar sucursal efectiva SOLO cuando auth esté hidratado
+  const effectiveSucursalId = hasHydrated ? (selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || null) : null
+  const effectiveSucursalName = hasHydrated ? (selectedSucursalName || user?.subsidiary?.name || user?.subsidiaryName || "") : ""
+  
+  // SOLUCIÓN: Solo inicializar la sucursal cuando auth esté hidratado
   useEffect(() => {
-    if (!selectedSucursalId && user?.subsidiaryId) {
+    if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
+      console.log("[UnloadingPage] Initializing with user subsidiary:", user.subsidiary.id, user.subsidiary.name)
+      setSelectedSucursalId(user.subsidiary.id)
+      setSelectedSucursalName(user.subsidiary.name || "")
+    }
+    
+    // También manejar el caso antiguo donde subsidiaryId y subsidiaryName son propiedades directas
+    if (hasHydrated && user?.subsidiaryId && !selectedSucursalId && !user?.subsidiary?.id) {
+      console.log("[UnloadingPage] Initializing with user subsidiary (legacy):", user.subsidiaryId, user.subsidiaryName)
       setSelectedSucursalId(user.subsidiaryId)
       setSelectedSucursalName(user.subsidiaryName || "")
     }
-  }, [user, selectedSucursalId])
+  }, [hasHydrated, user, selectedSucursalId])
 
   const openDispatchDialog = () => {
     setIsDispatchDialogOpen(true)
@@ -106,6 +121,20 @@ export default function PackageDispatchControl() {
       : col
   );
 
+  // SOLUCIÓN: Mostrar loading mientras auth se hidrata
+  if (!hasHydrated) {
+    return (
+      <AppLayout>
+        <div className="flex h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Cargando información del usuario...</p>
+          </div>
+        </div>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout>
       <div className="space-y-4">
@@ -116,9 +145,24 @@ export default function PackageDispatchControl() {
           </div>
           <div className="flex items-center gap-4">
             <div className="w-[250px]">
-              <SucursalSelector
+              {/*<SucursalSelector
                 value={selectedSucursalId ?? ""}
                 onValueChange={(id, name) => handleSucursalChange(id, name)}
+              />*/}
+              <SucursalSelector
+                value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
+                returnObject={true}
+                onValueChange={(val) => {
+                  console.log("[PackageDispatch] SucursalSelector onValueChange ->", val)
+                  if (typeof val === "string") {
+                    handleSucursalChange(val)
+                  } else if (Array.isArray(val)) {
+                    const first = val[0] as any
+                    handleSucursalChange(first?.id ?? "", first?.name ?? "")
+                  } else if (val && typeof val === "object") {
+                    handleSucursalChange((val as any).id, (val as any).name)
+                  }
+                }}
               />
             </div>
           </div>
@@ -227,8 +271,8 @@ export default function PackageDispatchControl() {
           <DialogHeader>
           </DialogHeader>
           <PackageDispatchForm
-            selectedSubsidiaryId={selectedSucursalId}
-            subsidiaryName={selectedSucursalName}
+            selectedSubsidiaryId={effectiveSucursalId}
+            subsidiaryName={effectiveSucursalName}
             onClose={() => setIsDispatchDialogOpen(false)}
             onSuccess={() => {
               mutate()

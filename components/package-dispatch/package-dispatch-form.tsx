@@ -156,6 +156,35 @@ const PackageDispatchForm: React.FC<Props> = ({
   onClose,
   onSuccess,
 }) => {
+  useEffect(() => {
+    // Limpiar valores corruptos del localStorage
+    const cleanCorruptedStorage = () => {
+      try {
+        const keys = [
+          'dispatch_repartidores',
+          'dispatch_rutas',
+          'dispatch_unidad',
+          'dispatch_kms',
+          'dispatch_packages',
+          'dispatch_invalid_numbers',
+          'dispatch_tracking_raw'
+        ];
+
+        keys.forEach(key => {
+          const value = localStorage.getItem(key);
+          if (value === "undefined" || value === "null") {
+            console.log(`[PackageDispatchForm] Limpiando valor corrupto para clave: ${key}`);
+            localStorage.removeItem(key);
+          }
+        });
+      } catch (error) {
+        console.warn("Error limpiando localStorage corrupto:", error);
+      }
+    };
+
+    cleanCorruptedStorage();
+  }, []);
+
   // Estados del formulario con persistencia
   const [selectedRepartidores, setSelectedRepartidores] = useLocalStorage<Driver[]>(
     'dispatch_repartidores', 
@@ -316,26 +345,33 @@ const PackageDispatchForm: React.FC<Props> = ({
       'dispatch_tracking_raw'
     ];
 
-    keys.forEach(key => {
-      try {
-        window.localStorage.removeItem(key);
-      } catch (error) {
-        console.warn(`Error clearing ${key}:`, error);
-      }
+    // Usar Promise.all para limpiar de forma más robusta
+    const cleanupPromises = keys.map(key => {
+      return new Promise<void>((resolve) => {
+        try {
+          localStorage.removeItem(key);
+          resolve();
+        } catch (error) {
+          console.warn(`Error clearing ${key}:`, error);
+          resolve();
+        }
+      });
     });
 
-    // Resetear estados
-    setSelectedRepartidores([]);
-    setSelectedRutas([]);
-    setSelectedUnidad(undefined);
-    setSelectedKms("");
-    setPackages([]);
-    setInvalidNumbers([]);
-    setTrackingNumbersRaw("");
+    Promise.all(cleanupPromises).then(() => {
+      // Resetear estados de forma segura
+      setSelectedRepartidores([]);
+      setSelectedRutas([]);
+      setSelectedUnidad(undefined);
+      setSelectedKms("");
+      setPackages([]);
+      setInvalidNumbers([]);
+      setTrackingNumbersRaw("");
 
-    toast({
-      title: "Datos limpiados",
-      description: "Todos los datos locales han sido eliminados.",
+      toast({
+        title: "Datos limpiados",
+        description: "Todos los datos locales han sido eliminados.",
+      });
     });
   }, [
     setSelectedRepartidores,
@@ -621,7 +657,7 @@ const PackageDispatchForm: React.FC<Props> = ({
             <span>Sucursal: {selectedSubsidiaryName}</span>
           </div>
           
-          {(packages.length > 0 || selectedRepartidores.length > 0) && (
+          {(packages.length > 0 || selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad) && (
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -686,6 +722,7 @@ const PackageDispatchForm: React.FC<Props> = ({
               <div className="space-y-3">
                 <Label>Repartidores</Label>
                 <RepartidorSelector
+                  subsidiaryId={selectedSubsidiaryId}
                   selectedRepartidores={selectedRepartidores}
                   onSelectionChange={setSelectedRepartidores}
                   disabled={isLoading}
@@ -696,7 +733,12 @@ const PackageDispatchForm: React.FC<Props> = ({
               
               <div className="space-y-3">
                 <Label>Rutas</Label>
-                <RutaSelector selectedRutas={selectedRutas} onSelectionChange={setSelectedRutas} disabled={isLoading} />
+                <RutaSelector 
+                  selectedRutas={selectedRutas} 
+                  onSelectionChange={setSelectedRutas} 
+                  disabled={isLoading}
+                  subsidiaryId={selectedSubsidiaryId} // ← Esto es lo nuevo
+                />
               </div>
             </CardContent>
           </Card>
@@ -713,9 +755,10 @@ const PackageDispatchForm: React.FC<Props> = ({
               <div className="space-y-3">
                 <Label>Unidad de Transporte</Label>
                 <UnidadSelector
-                  selectedUnidad={selectedUnidad}
+                  selectedUnidad={selectedUnidad || {} as Vehicles} // Convertir undefined a objeto vacío
                   onSelectionChange={setSelectedUnidad}
                   disabled={isLoading}
+                  subsidiaryId={selectedSubsidiaryId}
                 />
               </div>
               

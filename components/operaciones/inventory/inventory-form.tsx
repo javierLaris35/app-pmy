@@ -266,7 +266,7 @@ const PackageItem = ({
   );
 };
 
-export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, onClose, onSuccess }: Props) {
+export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, subsidiaryName: propSubsidiaryName, onClose, onSuccess }: Props) {
   // Estados persistentes
   const [scannedPackages, setScannedPackages] = useLocalStorage<{trackingNumber: string}[]>(
     'inventory_scanned_packages', 
@@ -309,6 +309,15 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  // Determinar subsidiaria: primero la del prop, luego la del usuario
+  const selectedSubsidiaryId = useMemo(() => {
+    return propSubsidiaryId || user?.subsidiary?.id || null;
+  }, [propSubsidiaryId, user]);
+
+  const selectedSubsidiaryName = useMemo(() => {
+    return propSubsidiaryName || user?.subsidiary?.name || null;
+  }, [propSubsidiaryName, user]);
 
   // Detectar estado de conexión
   useEffect(() => {
@@ -904,7 +913,7 @@ export default function InventoryForm({ selectedSubsidiaryId, subsidiaryName, on
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
                 <MapPinIcon className="h-4 w-4" />
-                <span>Sucursal: {user?.subsidiary?.name}</span>
+                <span>Sucursal: {selectedSubsidiaryName}</span>
               </div>
               
               {(packages.length > 0) && (
