@@ -1209,10 +1209,17 @@ export default function UnloadingForm({
 
   // VALIDACIÓN AUTOMÁTICA
   useEffect(() => {
-    if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
-    
-    const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber).join("\n");
-    
+    if (
+      !Array.isArray(scannedPackages) ||
+      scannedPackages.length === 0 ||
+      isLoading ||
+      !selectedSubsidiaryId
+    ) return;
+
+    const trackingNumbers = scannedPackages
+      .map(pkg => pkg.trackingNumber)
+      .join("\n");
+
     if (trackingNumbers === lastValidated) return;
 
     const handler = setTimeout(() => {
@@ -1222,6 +1229,7 @@ export default function UnloadingForm({
 
     return () => clearTimeout(handler);
   }, [scannedPackages, selectedSubsidiaryId, isLoading, lastValidated]);
+
 
   // Efecto para debuggear missingPackages
   useEffect(() => {
