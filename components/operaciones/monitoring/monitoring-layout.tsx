@@ -10,6 +10,7 @@ interface MonitoringLayoutProps {
     title: string,
     icon: LucideIcon,
     selectionType: "consolidado" | "desembarque" | "ruta",
+    entityId: string,
     selectionData: any,
     stats: any,
     packagesData: any;
@@ -20,6 +21,7 @@ export function MonitoringLayout({
        icon: Icon,
        selectionType,
        selectionData,
+       entityId,
        stats,
        packagesData
    }: MonitoringLayoutProps) {
@@ -37,7 +39,7 @@ export function MonitoringLayout({
                     {/* Columna izquierda: Información y paquetes que vencen hoy */}
                     <div className="flex flex-col gap-4 h-full">
                         <SelectionInfo type={selectionType} data={selectionData}/>
-                        <ExpiringTodayCard packagesData={packagesData} />
+                        <ExpiringTodayCard packagesData={packagesData} entityType={selectionType} entityId={entityId}/>
                     </div>
 
                     {/* Columna derecha: Estadísticas */}

@@ -48,6 +48,22 @@ const updateDataFromFedexByPackageDispatchId = async(packageDispatchId: string) 
     return response.data;
 }
 
+const getShipmentsNo67ByConsolidated = async(consolidatedId: string) => {
+    const response = await axiosConfig.get(`${url}/consolidated/no-67/${consolidatedId}`);
+    return response.data;
+}
+
+const getShipmentsNo67ByUnloading = async(unloadingId: string) => {
+    const response = await axiosConfig.get(`${url}/unloading/no-67/${unloadingId}`);
+    return response.data;
+}
+
+const getShipmentsNo67ByPackageDispatch = async(packageDispatchId: string) => {
+    const response = await axiosConfig.get(`${url}/package-dispatch/no-67/${packageDispatchId}`);
+    return response.data;
+}
+
+
 
 export {
     getConsolidateds,
@@ -58,5 +74,8 @@ export {
     getInfoFromConsolidated,
     updateDataFromFedexByConsolidatedId,
     updateDataFromFedexByUnloadingId,
-    updateDataFromFedexByPackageDispatchId
+    updateDataFromFedexByPackageDispatchId,
+    getShipmentsNo67ByConsolidated,
+    getShipmentsNo67ByUnloading,
+    getShipmentsNo67ByPackageDispatch
 }

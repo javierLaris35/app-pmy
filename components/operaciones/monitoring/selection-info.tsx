@@ -40,12 +40,6 @@ export function SelectionInfo({ type, data }: SelectionInfoProps) {
               <p className="font-medium text-muted-foreground mb-1">Fecha</p>
               <p className="font-semibold text-base">{(data as ConsolidadoInfo).date}</p>
             </div>
-            <div className="text-sm">
-              <p className="font-medium text-muted-foreground mb-1">Estado</p>
-              <Badge variant="outline" className="mt-1 bg-gray-50 text-gray-600">
-                {(data as ConsolidadoInfo).estado}
-              </Badge>
-            </div>
           </>
         )}
 

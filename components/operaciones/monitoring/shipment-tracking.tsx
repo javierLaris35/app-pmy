@@ -320,7 +320,6 @@ export default function TrackingPage() {
     return { lastStatusDate, exceptionCode };
   };
 
-
   const handleExportToExcel = async () => {
     if (packages.length === 0) return
     setIsLoading(true) // inicia loading global
@@ -853,8 +852,7 @@ export default function TrackingPage() {
                            <p className="font-medium">Reporte de paquetes sin 67</p>
                            <p className="text-sm text-muted-foreground">Incluye paquetes cuyo código DEX no contiene '67' (o está vacío).</p>
                          </div>
--                        <Button onClick={generateSin67Report} disabled={isLoading || (reportScope === 'consolidado' && !selectedConsolidado) || (reportScope === 'desembarque' && !selectedDesembarque) || (reportScope === 'ruta' && !selectedRuta)}>Generar</Button>
-+                        <Button onClick={generateSin67Report} disabled={isLoading || isDateRangeInvalid || (reportScope === 'consolidado' && !selectedConsolidado) || (reportScope === 'desembarque' && !selectedDesembarque) || (reportScope === 'ruta' && !selectedRuta)}>Generar</Button>
+                         <Button onClick={generateSin67Report} disabled={isLoading || isDateRangeInvalid || (reportScope === 'consolidado' && !selectedConsolidado) || (reportScope === 'desembarque' && !selectedDesembarque) || (reportScope === 'ruta' && !selectedRuta)}>Generar</Button>
                        </div>
                      </div>
                    </div>
@@ -929,6 +927,7 @@ export default function TrackingPage() {
                title="Consolidado Seleccionado"
                icon={FileText}
                selectionType="consolidado"
+               entityId={selectedConsolidado}
                selectionData={{
                  consNumber: consolidateds.find((c) => c.id === selectedConsolidado)?.consNumber || "-",
                  date: consolidateds.find((c) => c.id === selectedConsolidado)?.date
@@ -946,6 +945,7 @@ export default function TrackingPage() {
                title="Desembarque Seleccionado"
                icon={Ship}
                selectionType="desembarque"
+               entityId={selectedDesembarque}
                selectionData={{
                  trackingNumber: unloadings.find((d) => d.id === selectedDesembarque)?.trackingNumber || "-",
                  date: unloadings.find((d) => d.id === selectedDesembarque)?.date
@@ -962,6 +962,7 @@ export default function TrackingPage() {
              <MonitoringLayout
                title="Ruta Seleccionada"
                icon={Car}
+               entityId={selectedRuta}
                selectionType="ruta"
                selectionData={{
                  driver: packageDispatchs.find((r) => r.id === selectedRuta)?.driver || "-",
