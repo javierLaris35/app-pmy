@@ -9,7 +9,7 @@ import {
 } from "react";
 import classNames from "classnames";
 import { Label } from "@/components/ui/label";
-import { Scan, X, AlertCircle, Calendar } from "lucide-react";
+import { Scan, X, AlertCircle, Calendar, Copy, Check } from "lucide-react";
 import { PackageInfo } from "@/lib/types";
 
 export interface BarcodeScannerInputHandle {
@@ -53,6 +53,8 @@ const BarcodeScannerInputComponent = forwardRef<
 
   const [currentScan, setCurrentScan] = useState("");
   const [packages, setPackages] = useState<PackageInfo[]>([]);
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<NodeJS.Timeout>();
 
   /* ===================== Helpers ===================== */
 
@@ -101,6 +103,45 @@ const BarcodeScannerInputComponent = forwardRef<
     });
 
     return { dueTodayCount: today, dueTomorrowCount: tomorrow, notFoundCount: notFound };
+  }, [packages]);
+
+  /* ===================== Función para Copiar ===================== */
+
+  const copyAllTrackingNumbers = useCallback(async () => {
+    if (packages.length === 0) return;
+    
+    // Copiar solo los números de guía, uno por línea
+    const trackingNumbers = packages
+      .map(p => p.trackingNumber)
+      .join("\n");
+    
+    try {
+      await navigator.clipboard.writeText(trackingNumbers);
+      setCopied(true);
+      
+      // Limpiar timeout anterior si existe
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      
+      // Resetear después de 2 segundos
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+      
+    } catch (err) {
+      console.error("Error al copiar:", err);
+      // Fallback para navegadores antiguos
+      const textArea = document.createElement("textarea");
+      textArea.value = trackingNumbers;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      
+      setCopied(true);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    }
   }, [packages]);
 
   /* ===================== Imperative API ===================== */
@@ -153,6 +194,15 @@ const BarcodeScannerInputComponent = forwardRef<
 
     onHasDueTomorrow?.(dueTomorrow.length > 0);
   }, [packages]);
+
+  // Limpiar timeout al desmontar
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   /* ===================== Input ===================== */
 
@@ -218,9 +268,37 @@ const BarcodeScannerInputComponent = forwardRef<
           {label}
         </Label>
 
-        <span className="text-sm text-gray-600">
-          Guías: <strong>{packages.length}</strong>
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-600">
+            Guías: <strong>{packages.length}</strong>
+          </span>
+          
+          {/* Botón para copiar todas las guías */}
+          {packages.length > 0 && (
+            <button
+              onClick={copyAllTrackingNumbers}
+              disabled={disabled}
+              className={classNames(
+                "flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors",
+                copied
+                  ? "bg-green-100 text-green-700 border border-green-200"
+                  : "bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200"
+              )}
+              title={copied ? "¡Copiado!" : "Copiar todas las guías al portapapeles"}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>{packages.length}</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -277,6 +355,7 @@ const BarcodeScannerInputComponent = forwardRef<
                       <button
                         onClick={() => removePackage(index)}
                         className="text-gray-400 hover:text-red-500"
+                        title="Eliminar guía"
                       >
                         <X size={14} />
                       </button>
