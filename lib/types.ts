@@ -529,6 +529,7 @@ export interface PackageInfoForUnloading {
   charge?: Charge,
   isValid: boolean,
   reason?: string,
+  isPendingValidation?: boolean,
   payment?: {
     amount: string
     type: PaymentTypeEnum
@@ -555,6 +556,7 @@ export interface PackageInfo {
   charge?: Charge,
   isValid: boolean,
   reason?: string,
+  isPendingValidation?: boolean,
   payment?: {
     amount: string
     type: PaymentTypeEnum

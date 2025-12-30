@@ -764,13 +764,13 @@ export default function UnloadingForm({
     setCorrectTrackingModalOpen(true);
   }, [selectedSubsidiaryId, selectedSubsidiaryName]);
 
-// En el render, antes del return
-console.log("🔍 UnloadingForm - Estado actual:", {
-  correctTrackingModalOpen,
-  selectedTrackingToCorrect,
-  selectedSubsidiaryId,
-  selectedSubsidiaryName
-});
+  // En el render, antes del return
+  console.log("🔍 UnloadingForm - Estado actual:", {
+    correctTrackingModalOpen,
+    selectedTrackingToCorrect,
+    selectedSubsidiaryId,
+    selectedSubsidiaryName
+  });
 
   const handleCloseCorrectTracking = useCallback(() => {
     setCorrectTrackingModalOpen(false);
@@ -797,7 +797,7 @@ console.log("🔍 UnloadingForm - Estado actual:", {
         isPendingValidation: true,
         recipientName: data.packageInfo.recipient?.name,
         recipientAddress: data.packageInfo.recipient?.address,
-        recipientPhone: data.packageInfo.recipient?.phoneNumber,
+        recipientPhone: data.packageInfo.recipient?.phoneNumber
       };
 
       setScannedPackages(prev => [...prev, newPackage]);
