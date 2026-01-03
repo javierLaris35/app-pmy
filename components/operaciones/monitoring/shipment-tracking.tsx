@@ -37,6 +37,8 @@ import {
   updateDataFromFedexByPackageDispatchId,
   updateDataFromFedexByConsolidatedId,
   updateDataFromFedexByUnloadingId,
+  generateReportPending,
+  generateReportNo67,
 } from "@/lib/services/monitoring/monitoring"
 import { useAuthStore } from "@/store/auth.store"
 import { Loader, LoaderWithOverlay } from "@/components/loader"
@@ -629,62 +631,126 @@ export default function TrackingPage() {
 
   // Reporte: pendientes (no entregados)
   const generatePendingReport = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      let reportPackages = await getPackagesForScope(reportScope)
-      reportPackages = filterPackagesByDateRange(reportPackages, reportStartDate, reportEndDate)
-      const pending = reportPackages.filter((p) => {
-        const st = p.shipmentData?.shipmentStatus?.toLowerCase() || ""
-        return !(st === "entregado" || st === "entregada" || st === "entregados")
-      })
-      const unique = Array.from(new Map(pending.map((p) => [p.shipmentData.id, p])).values())
+      // Función para formatear fecha
+      const formatDate = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
 
-      if (includeHistoryInReport) {
-        await Promise.all(unique.map(async (pkg) => {
-          try {
-            const { lastStatusDate, exceptionCode } = await getHistoryOfPackage(pkg.shipmentData.id, pkg.shipmentData.shipmentStatus)
-            pkg.shipmentData.lastEventDate = lastStatusDate
-            pkg.shipmentData.dexCode = exceptionCode
-          } catch (err) {
-            console.error(`Error enriching package ${pkg.shipmentData.id}:`, err)
-          }
-        }))
+      // Determinar sucursal
+      const subsidiaryIdToUse = selectedSubsidiaryId || user?.subsidiary?.id;
+      
+      if (!subsidiaryIdToUse) {
+        alert("Por favor, selecciona una sucursal primero");
+        setIsLoading(false);
+        return;
       }
 
-      exportToExcel(unique)
-      setIsReportsOpen(false)
+      // Convertir fechas
+      const startDateStr = reportStartDate ? formatDate(reportStartDate) : undefined;
+      const endDateStr = reportEndDate ? formatDate(reportEndDate) : undefined;
+      
+      console.log("Generando reporte con:", {
+        subsidiaryId: subsidiaryIdToUse,
+        startDate: startDateStr,
+        endDate: endDateStr
+      });
+
+      // Generar reporte
+      const blob = await generateReportPending(
+        subsidiaryIdToUse, 
+        startDateStr, 
+        endDateStr
+      );
+
+      // Descargar
+      const url = window.URL.createObjectURL(
+        new Blob([blob], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nombre del archivo
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `pendientes_${subsidiaryIdToUse}_${timestamp}.xlsx`;
+      
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setIsReportsOpen(false);
     } catch (err) {
-      console.error("Error generating pending report:", err)
+      console.error('Error generating pending report:', err);
+      alert("Error al generar el reporte");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Reporte: paquetes sin 67 (no contienen '67' en dexCode)
   const generateSin67Report = async () => {
     setIsLoading(true)
     try {
-      let reportPackages = await getPackagesForScope(reportScope)
-      reportPackages = filterPackagesByDateRange(reportPackages, reportStartDate, reportEndDate)
-      const sin67 = reportPackages.filter((p) => {
-        const code = p.shipmentData?.dexCode || ""
-        return !code.includes("67")
-      })
-      const unique = Array.from(new Map(sin67.map((p) => [p.shipmentData.id, p])).values())
+      const formatDate = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
 
-      if (includeHistoryInReport) {
-        await Promise.all(unique.map(async (pkg) => {
-          try {
-            const { lastStatusDate, exceptionCode } = await getHistoryOfPackage(pkg.shipmentData.id, pkg.shipmentData.shipmentStatus)
-            pkg.shipmentData.lastEventDate = lastStatusDate
-            pkg.shipmentData.dexCode = exceptionCode
-          } catch (err) {
-            console.error(`Error enriching package ${pkg.shipmentData.id}:`, err)
-          }
-        }))
+      // Determinar sucursal
+      const subsidiaryIdToUse = selectedSubsidiaryId || user?.subsidiary?.id;
+      
+      if (!subsidiaryIdToUse) {
+        alert("Por favor, selecciona una sucursal primero");
+        setIsLoading(false);
+        return;
       }
 
-      exportToExcel(unique)
+      // Convertir fechas
+      const startDateStr = reportStartDate ? formatDate(reportStartDate) : undefined;
+      const endDateStr = reportEndDate ? formatDate(reportEndDate) : undefined;
+      
+      console.log("Generando reporte con:", {
+        subsidiaryId: subsidiaryIdToUse,
+        startDate: startDateStr,
+        endDate: endDateStr
+      });
+
+      // Generar reporte
+      const blob = await generateReportNo67(
+        subsidiaryIdToUse
+      );
+
+      // Descargar
+      const url = window.URL.createObjectURL(
+        new Blob([blob], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nombre del archivo
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `sin_67_${subsidiaryIdToUse}_${timestamp}.xlsx`;
+      
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
       setIsReportsOpen(false)
     } catch (err) {
       console.error("Error generating sin-67 report:", err)

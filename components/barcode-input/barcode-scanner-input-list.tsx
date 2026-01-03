@@ -377,6 +377,12 @@ const BarcodeScannerInputComponent = forwardRef<
                   })}>
                     <Calendar className="h-3 w-3" />
                     {formatDate(pkg.commitDateTime)}
+                    {isDueToday(pkg.commitDateTime) && (
+                      <span className="ml-1 font-semibold">(Vence hoy)</span>
+                    )}
+                    {isDueTomorrow(pkg.commitDateTime) && (
+                      <span className="ml-1 font-semibold">(Vence mañana)</span>
+                    )}
                   </div>
                 )}
 

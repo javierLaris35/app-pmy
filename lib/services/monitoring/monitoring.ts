@@ -63,7 +63,25 @@ const getShipmentsNo67ByPackageDispatch = async(packageDispatchId: string) => {
     return response.data;
 }
 
+const generateReportNo67 = async (subsidiaryId: string) => {
+    const reponse = await axiosConfig.get(`shipments/report-no67/${subsidiaryId}`,
+    {
+        responseType: 'blob',
+    }
+    );
+    return reponse.data;
+}
 
+const generateReportPending = async (subsidiaryId: string, startDate: string, endDate: string) => {
+  const response = await axiosConfig.get(
+    `shipments/pendings/excel?subsidiaryId=${subsidiaryId}&startDate=${startDate}&endDate=${endDate}`,
+    {
+      responseType: 'blob',
+    }
+  );
+
+  return response.data;
+};
 
 export {
     getConsolidateds,
@@ -77,5 +95,7 @@ export {
     updateDataFromFedexByPackageDispatchId,
     getShipmentsNo67ByConsolidated,
     getShipmentsNo67ByUnloading,
-    getShipmentsNo67ByPackageDispatch
+    getShipmentsNo67ByPackageDispatch,
+    generateReportNo67,
+    generateReportPending
 }
