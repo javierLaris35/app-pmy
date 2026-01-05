@@ -72,9 +72,21 @@ const generateReportNo67 = async (subsidiaryId: string) => {
     return reponse.data;
 }
 
-const generateReportPending = async (subsidiaryId: string, startDate: string, endDate: string) => {
+const generateReportPending = async (subsidiaryId: string) => {
   const response = await axiosConfig.get(
-    `shipments/pendings/excel?subsidiaryId=${subsidiaryId}&startDate=${startDate}&endDate=${endDate}`,
+    `shipments/pendings/excel?subsidiaryId=${subsidiaryId}`,
+    {
+      responseType: 'blob',
+    }
+  );
+
+  return response.data;
+};
+
+
+const generateReportInventory67 = async (subsidiaryId: string) => {
+  const response = await axiosConfig.get(
+    `${url}/inventory-67/${subsidiaryId}/excel`,
     {
       responseType: 'blob',
     }
@@ -97,5 +109,6 @@ export {
     getShipmentsNo67ByUnloading,
     getShipmentsNo67ByPackageDispatch,
     generateReportNo67,
-    generateReportPending
+    generateReportPending,
+    generateReportInventory67
 }

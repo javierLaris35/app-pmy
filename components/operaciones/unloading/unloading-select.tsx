@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { formatDateToShortDate } from "@/utils/date.utils"
+import { Badge } from "@/components/ui/badge"
 
 export interface Desembarque {
   id: string
@@ -59,12 +60,19 @@ export function UnloadingSelect({
             <PackageCheckIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
             {selectedDesembarque ? (
               <div className="flex flex-col min-w-0 flex-1 text-left">
-                <span className="font-medium truncate">
-                  {selectedDesembarque.trackingNumber}
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium truncate">
+                    {selectedDesembarque.trackingNumber}
+                  </span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatDateToShortDate(selectedDesembarque.date)}
+                  </span>
+                </div>
+
                 <span className="text-sm text-muted-foreground truncate flex items-center gap-2">
                   <Truck className="h-4 w-4 shrink-0 opacity-70" />
-                  {selectedDesembarque.vehicle?.name || "Sin vehículo"} • {selectedDesembarque.numberOfPackages} paquetes
+                  {selectedDesembarque.vehicle?.name || "Sin vehículo"} •{" "}
+                  {selectedDesembarque.numberOfPackages} paquetes
                 </span>
               </div>
             ) : (
@@ -98,21 +106,49 @@ export function UnloadingSelect({
                     onValueChange?.(currentValue === value ? "" : currentValue)
                     setOpen(false)
                   }}
-                  className="flex items-start gap-3 px-3 py-3 cursor-pointer"
+                  className={cn(
+                    "group flex items-start gap-3 rounded-md px-3 py-3 cursor-pointer",
+                    "hover:bg-muted/60 transition-colors",
+                  )}
                 >
-                  <Check className={cn("h-4 w-4 shrink-0 mt-1", value === desembarque.id ? "opacity-100" : "opacity-0")} />
-                  <div className="flex flex-col gap-1 flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <PackageCheckIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                      <span className="font-medium">{desembarque.trackingNumber}</span>
+                  <Check
+                    className={cn(
+                      "mt-1 h-4 w-4 shrink-0",
+                      value === desembarque.id ? "opacity-100 text-primary" : "opacity-0",
+                    )}
+                  />
+
+                  <PackageCheckIcon className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                    {/* Header: tracking + fecha */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold truncate">
+                        {desembarque.trackingNumber}
+                      </span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {formatDateToShortDate(desembarque.date)}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{formatDateToShortDate(desembarque.date)}</span>
-                      <span>•</span>
-                      <Truck className="h-4 w-4 opacity-70" />
-                      <span>{desembarque.vehicle?.name || "Sin vehículo"}</span>
-                      <span>•</span>
-                      <span>{desembarque.numberOfPackages} paquetes</span>
+
+                    {/* Metadata */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Unidad */}
+                      <Badge
+                        className="flex items-center gap-1 text-xs
+                          bg-blue-100 text-blue-700 border border-blue-200"
+                      >
+                        <Truck className="h-3.5 w-3.5" />
+                        {desembarque.vehicle?.name || "Sin vehículo"}
+                      </Badge>
+
+                      {/* Paquetes */}
+                      <Badge
+                        variant="secondary"
+                        className="text-xs"
+                      >
+                        📦 {desembarque.numberOfPackages} paquetes
+                      </Badge>
                     </div>
                   </div>
                 </CommandItem>

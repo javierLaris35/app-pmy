@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronDown, Truck, Search } from "lucide-react"
+import { Check, ChevronDown, Truck, Search, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
@@ -111,33 +111,67 @@ export function PackageDispatchSelect({
                     onValueChange?.(currentValue === value ? "" : currentValue)
                     setOpen(false)
                   }}
-                  className="flex items-center gap-3 px-3 py-3 cursor-pointer"
+                  className={cn(
+                    "group flex items-start gap-3 rounded-md px-3 py-3 cursor-pointer",
+                    "hover:bg-muted/60 transition-colors",
+                  )}
                 >
-                  <Check className={cn("h-4 w-4 shrink-0", value === ruta.id ? "opacity-100" : "opacity-0")} />
-                  <Truck className="h-5 w-5 shrink-0 text-muted-foreground" />
-                  <div className="flex flex-col gap-1 flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{ruta.trackingNumber}</span>
-                      <Badge variant="secondary" className={cn("text-xs", getEstadoColor(ruta.status))}>
+                  <Check
+                    className={cn(
+                      "mt-1 h-4 w-4 shrink-0",
+                      value === ruta.id ? "opacity-100 text-primary" : "opacity-0",
+                    )}
+                  />
+
+                  <Truck className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold truncate">
+                        {ruta.trackingNumber}
+                      </span>
+
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "flex items-center gap-1 text-xs",
+                          getEstadoColor(ruta.status),
+                        )}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
                         {ruta.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+
+                    {/* Driver + vehicle */}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                       <span>{ruta.driver}</span>
                       <span>•</span>
-                      <span>{ruta.vehicle.name}</span>
+                      <span>
+                        {ruta.vehicle.name} ({ruta.vehicle.plateNumber})
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{ruta.vehicle.plateNumber}</span>
-                      <span>•</span>
-                      <span>{ruta.normalPackages} paquetes normales</span>
-                      <span>•</span>
-                      <span>{ruta.f2Packages} paquetes F2</span>
-                      <span>•</span>
-                      <span>{ruta.route}</span>
+
+                    {/* Packages */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        📦 {ruta.normalPackages} normales
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 border border-green-200">
+                        ⚡ {ruta.f2Packages} F2
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1 text-xs"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        {ruta.route}
+                      </Badge>
                     </div>
                   </div>
-                </CommandItem>
+</CommandItem>
+
               ))}
             </CommandGroup>
           </CommandList>

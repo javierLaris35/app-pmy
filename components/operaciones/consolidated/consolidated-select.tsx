@@ -69,11 +69,32 @@ export function ConsolidadoSelect({
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <IconTruckLoading className="h-4 w-4 shrink-0 text-muted-foreground" />
             {selectedConsolidado ? (
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="font-medium truncate">{selectedConsolidado.consNumber}</span>
-                <span className="text-muted-foreground text-sm truncate">
-                  {/*{selectedConsolidado.origen} → {selectedConsolidado.destino}*/}
-                </span>
+              <div className="flex flex-col min-w-0 flex-1 text-left">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium truncate">
+                    {selectedConsolidado.consNumber || "Sin Cons Number"}
+                  </span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatShortDate(selectedConsolidado.date)}
+                  </span>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <Badge
+                    className="text-xs bg-slate-100 text-slate-700 border border-slate-200"
+                  >
+                    {selectedConsolidado.type.toUpperCase()}
+                  </Badge>
+
+                  <Badge
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    📦 {selectedConsolidado.numberOfPackages} paquetes
+                  </Badge>
+                </div>
               </div>
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
@@ -104,25 +125,44 @@ export function ConsolidadoSelect({
                     onValueChange?.(currentValue === value ? "" : currentValue)
                     setOpen(false)
                   }}
-                  className="flex items-center gap-3 px-3 py-3 cursor-pointer"
+                  className={cn(
+                    "group flex items-start gap-3 rounded-md px-3 py-3 cursor-pointer",
+                    "hover:bg-muted/60 transition-colors",
+                  )}
                 >
-                  <Check className={cn("h-4 w-4 shrink-0", value === consolidado.id ? "opacity-100" : "opacity-0")} />
-                  <IconTruckLoading className="h-5 w-5 shrink-0 text-muted-foreground" />
-                  <div className="flex flex-col gap-1 flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{consolidado.consNumber === '' ? 'Sin Cons Number' : consolidado.consNumber}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {consolidado.type.toLocaleUpperCase()}
-                      </Badge>
+                  <Check
+                    className={cn(
+                      "mt-1 h-4 w-4 shrink-0",
+                      value === consolidado.id ? "opacity-100 text-primary" : "opacity-0",
+                    )}
+                  />
+
+                  <IconTruckLoading className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold truncate">
+                        {consolidado.consNumber || "Sin Cons Number"}
+                      </span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {formatShortDate(consolidado.date)}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      {/*<span>
-                        {consolidado.origen} → {consolidado.destino}
-                      </span>*/}
-                      <span>•</span>
-                      <span>{consolidado.numberOfPackages} paquetes</span>
-                      <span>•</span>
-                      <span>{formatShortDate(consolidado.date)}</span>
+
+                    {/* Badges */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        className="text-xs bg-slate-100 text-slate-700 border border-slate-200"
+                      >
+                        {consolidado.type.toUpperCase()}
+                      </Badge>
+                      <Badge
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          📦 {consolidado.numberOfPackages} paquetes
+                        </Badge>
                     </div>
                   </div>
                 </CommandItem>

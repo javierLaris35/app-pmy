@@ -39,9 +39,10 @@ import {
   updateDataFromFedexByUnloadingId,
   generateReportPending,
   generateReportNo67,
+  generateReportInventory67,
 } from "@/lib/services/monitoring/monitoring"
 import { useAuthStore } from "@/store/auth.store"
-import { Loader, LoaderWithOverlay } from "@/components/loader"
+import { LoaderWithOverlay } from "@/components/loader"
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { driver } from "driver.js"
 import "driver.js/dist/driver.css"
@@ -60,10 +61,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { format, addDays, subDays } from "date-fns"
+import { format } from "date-fns"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export interface MonitoringInfo {
   shipmentData: {
@@ -131,12 +130,8 @@ interface PackageStats {
 
 export default function TrackingPage() {
   const formatDateForInput = (d?: Date | null) => (d ? format(d, "yyyy-MM-dd") : "")
-  // Control de popovers para acelerar selección
-  const [isStartPopoverOpen, setIsStartPopoverOpen] = useState(false)
-  const [isEndPopoverOpen, setIsEndPopoverOpen] = useState(false)
-  // modal reports
+    // modal reports
   const [isReportsOpen, setIsReportsOpen] = useState(false)
-  const [includeHistoryInReport, setIncludeHistoryInReport] = useState(true)
   const [viewMode, setViewMode] = useState<"table" | "stats">("table")
   const [selectedConsolidado, setSelectedConsolidado] = useState<string>("")
   const [selectedDesembarque, setSelectedDesembarque] = useState<string>("")
@@ -154,6 +149,9 @@ export default function TrackingPage() {
   const [reportScope, setReportScope] = useState<'current' | 'consolidado' | 'desembarque' | 'ruta' | 'all'>('current')
   const [reportStartDate, setReportStartDate] = useState<Date | null>(null)
   const [reportEndDate, setReportEndDate] = useState<Date | null>(null)
+
+  type ReportType = "pending" | "sin67" | "ultimoInventarioSin67";
+  const [selectedReport, setSelectedReport] = useState<ReportType | "">("");
 
   // Validación: inicio no puede ser posterior al fin
   const isDateRangeInvalid = !!(reportStartDate && reportEndDate && reportStartDate > reportEndDate)
@@ -559,76 +557,6 @@ export default function TrackingPage() {
     })
   }
 
-  // Genera el reporte según el alcance seleccionado, enriquece con historial y exporta
-  const generateReport = async () => {
-    setIsLoading(true)
-    try {
-      let reportPackages: MonitoringInfo[] = []
-
-      if (reportScope === 'current') {
-        reportPackages = packages
-      } else if (reportScope === 'consolidado' && selectedConsolidado) {
-        reportPackages = await getInfoFromConsolidated(selectedConsolidado)
-      } else if (reportScope === 'desembarque' && selectedDesembarque) {
-        reportPackages = await getInfoFromUnloading(selectedDesembarque)
-      } else if (reportScope === 'ruta' && selectedRuta) {
-        reportPackages = await getInfoFromPackageDispatch(selectedRuta)
-      } else if (reportScope === 'all') {
-        const [consolidatedPkgs, unloadingPkgs, dispatchPkgs] = await Promise.all([
-          Promise.all(consolidateds.map((c) => getInfoFromConsolidated(c.id))),
-          Promise.all(unloadings.map((d) => getInfoFromUnloading(d.id))),
-          Promise.all(packageDispatchs.map((r) => getInfoFromPackageDispatch(r.id))),
-        ])
-        reportPackages = [...consolidatedPkgs.flat(), ...unloadingPkgs.flat(), ...dispatchPkgs.flat()]
-      } else {
-        reportPackages = packages
-      }
-
-      // Aplicar filtro por rango de fechas si aplica
-      reportPackages = filterPackagesByDateRange(reportPackages, reportStartDate, reportEndDate)
-
-      // Deduplicar por shipment id
-      const unique = Array.from(new Map(reportPackages.map((p) => [p.shipmentData.id, p])).values())
-
-      // Enriquecer con historial en paralelo
-      await Promise.all(
-        unique.map(async (pkg) => {
-          try {
-            const { lastStatusDate, exceptionCode } = await getHistoryOfPackage(pkg.shipmentData.id, pkg.shipmentData.shipmentStatus)
-            pkg.shipmentData.lastEventDate = lastStatusDate
-            pkg.shipmentData.dexCode = exceptionCode
-          } catch (err) {
-            console.error(`Error enriching package ${pkg.shipmentData.id}:`, err)
-          }
-        })
-      )
-
-      // Exporta el reporte
-      exportToExcel(unique)
-    } catch (err) {
-      console.error("Error generating report:", err)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Helper: obtiene paquetes según alcance
-  const getPackagesForScope = async (scope: typeof reportScope) : Promise<MonitoringInfo[]> => {
-    if (scope === 'current') return packages
-    if (scope === 'consolidado' && selectedConsolidado) return await getInfoFromConsolidated(selectedConsolidado)
-    if (scope === 'desembarque' && selectedDesembarque) return await getInfoFromUnloading(selectedDesembarque)
-    if (scope === 'ruta' && selectedRuta) return await getInfoFromPackageDispatch(selectedRuta)
-    if (scope === 'all') {
-      const [consolidatedPkgs, unloadingPkgs, dispatchPkgs] = await Promise.all([
-        Promise.all(consolidateds.map((c) => getInfoFromConsolidated(c.id))),
-        Promise.all(unloadings.map((d) => getInfoFromUnloading(d.id))),
-        Promise.all(packageDispatchs.map((r) => getInfoFromPackageDispatch(r.id))),
-      ])
-      return [...consolidatedPkgs.flat(), ...unloadingPkgs.flat(), ...dispatchPkgs.flat()]
-    }
-    return packages
-  }
-
   // Reporte: pendientes (no entregados)
   const generatePendingReport = async () => {
     setIsLoading(true);
@@ -759,6 +687,89 @@ export default function TrackingPage() {
     }
   }
 
+  const generateInvetory67Report = async () => {
+    setIsLoading(true);
+    try {
+      const subsidiaryIdToUse = selectedSubsidiaryId || user?.subsidiary?.id;
+
+      if (!subsidiaryIdToUse) {
+        alert("Por favor, selecciona una sucursal primero");
+        setIsLoading(false);
+        return;
+      }
+
+      const blob = await generateReportInventory67(subsidiaryIdToUse);
+
+      // Descargar
+      const url = window.URL.createObjectURL(
+        new Blob([blob], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nombre del archivo
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `ultimo_inventario_sin_67${subsidiaryIdToUse}_${timestamp}.xlsx`;
+      
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const getReportLabel = (report?: ReportType | "") => {
+    switch (report) {
+      case "pending":
+        return "Reporte de pendientes";
+      case "sin67":
+        return "Paquetes sin código 67";
+      case "ultimoInventarioSin67":
+        return "Último inventario sin 67";
+      default:
+        return "";
+    }
+  };
+
+  const getSubsidiaryLabel = () => {
+    return selectedSubsidiaryName || "Sucursal no seleccionada";
+  };
+
+  const handleGenerateReport = async () => {
+    switch (selectedReport) {
+      case "pending":
+        await generatePendingReport();
+        break;
+
+      case "sin67":
+        await generateSin67Report();
+        break;
+
+      case "ultimoInventarioSin67":
+        await generateInvetory67Report();
+        break;
+
+      default:
+        console.warn("Reporte no soportado");
+    }
+  };  
+
+  const handleSucursalChange = (id: string, name?: string) => {
+    console.log("[ShipmentsTracking] handleSucursalChange -> id:", id, "name:", name)
+    setSelectedSubsidiaryId(id || null)
+    setSelectedSubsidiaryName(name || "")
+  }
+
+
+
   return (
     <AppLayout>
       <div className="p-4 md:p-6">
@@ -777,8 +788,19 @@ export default function TrackingPage() {
               </Button>
               <div>
                 <SucursalSelector
-                  value={selectedSubsidiaryId}
-                  onValueChange={setSelectedSubsidiaryId}
+                  value={selectedSubsidiaryId || user?.subsidiary?.id || user?.subsidiaryId || ""}
+                  returnObject={true}
+                  onValueChange={(val) => {
+                  console.log("[ShipmentTracking] SucursalSelector onValueChange ->", val)
+                  if (typeof val === "string") {
+                    handleSucursalChange(val)
+                  } else if (Array.isArray(val)) {
+                    const first = val[0] as any
+                    handleSucursalChange(first?.id ?? "", first?.name ?? "")
+                  } else if (val && typeof val === "object") {
+                    handleSucursalChange((val as any).id, (val as any).name)
+                  }
+                }}
                 />
               </div>
               <Button onClick={handleExportToExcel} disabled={packages.length === 0 || isLoading}>
@@ -791,143 +813,77 @@ export default function TrackingPage() {
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">Reportes</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-4xl w-full"> {/* modal más grande */}
-                   <DialogHeader>
-                     <DialogTitle>Reportes</DialogTitle>
-                     <DialogDescription>Selecciona un reporte y parámetros. Puedes aplicar alcance y rango de fechas.</DialogDescription>
-                   </DialogHeader>
 
-                   <div className="grid gap-4 mt-4">
-                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                       <div>
-                         <Label>Alcance</Label>
-                         <select value={reportScope} onChange={(e) => setReportScope(e.target.value as any)} className="w-full rounded border px-2 py-1">
-                           <option value="current">Paquetes actuales</option>
-                           <option value="consolidado">Consolidado seleccionado</option>
-                           <option value="desembarque">Desembarque seleccionado</option>
-                           <option value="ruta">Ruta seleccionada</option>
-                           <option value="all">Todos</option>
-                         </select>
-                       </div>
-                       <div>
-                         <Label>Fecha inicio</Label>
-                         <Popover open={isStartPopoverOpen} onOpenChange={setIsStartPopoverOpen}>
-                           <PopoverTrigger asChild>
-                             <Button variant="outline" size="sm" className="w-full text-left">
-                               {reportStartDate ? format(reportStartDate, "dd/MM/yyyy") : "Seleccionar fecha"}
-                             </Button>
-                           </PopoverTrigger>
-                           <PopoverContent className="w-auto p-0">
-                             <Calendar
-                               mode="single"
-                               selected={reportStartDate || undefined}
-                               onSelect={(d) => {
-                                 setReportStartDate(d ? (d as Date) : null)
-                                 setIsStartPopoverOpen(false) // cierra al seleccionar
-                               }}
-                             />
-                           </PopoverContent>
-                         </Popover>
-                       </div>
- 
-                       <div>
-                         <Label>Fecha fin</Label>
-                         <Popover open={isEndPopoverOpen} onOpenChange={setIsEndPopoverOpen}>
-                           <PopoverTrigger asChild>
-                             <Button variant="outline" size="sm" className="w-full text-left">
-                               {reportEndDate ? format(reportEndDate, "dd/MM/yyyy") : "Seleccionar fecha"}
-                             </Button>
-                           </PopoverTrigger>
-                           <PopoverContent className="w-auto p-0">
-                             <Calendar
-                               mode="single"
-                               selected={reportEndDate || undefined}
-                               onSelect={(d) => {
-                                 setReportEndDate(d ? (d as Date) : null)
-                                 setIsEndPopoverOpen(false) // cierra al seleccionar
-                               }}
-                             />
-                           </PopoverContent>
-                         </Popover>
-                       </div>
-                     </div>
- 
-                     {/* Presets rápidos para selección */}
-                     <div className="flex gap-2 mt-2">
-                       <Button size="sm" variant="ghost" onClick={() => {
-                         const today = new Date()
-                         setReportStartDate(today)
-                         setReportEndDate(today)
-                         setIsStartPopoverOpen(false)
-                         setIsEndPopoverOpen(false)
-                       }}>Hoy</Button>
-                       <Button size="sm" variant="ghost" onClick={() => {
-                         const today = new Date()
-                         setReportStartDate(subDays(today, 6))
-                         setReportEndDate(today)
-                         setIsStartPopoverOpen(false)
-                         setIsEndPopoverOpen(false)
-                       }}>Últimos 7 días</Button>
-                       <Button size="sm" variant="ghost" onClick={() => {
-                         const today = new Date()
-                         setReportStartDate(subDays(today, 29))
-                         setReportEndDate(today)
-                         setIsStartPopoverOpen(false)
-                         setIsEndPopoverOpen(false)
-                       }}>Últimos 30 días</Button>
-                     </div>
-                   </div>
- 
-                   {isDateRangeInvalid && (
-                     <div className="text-sm text-red-600 mt-2">
-                       Rango de fechas inválido: la fecha inicio debe ser anterior o igual a la fecha fin.
-                     </div>
-                   )}
- 
-                   <div className="flex items-center gap-3">
-                     <Checkbox id="includeHistory" checked={includeHistoryInReport} onCheckedChange={(v) => setIncludeHistoryInReport(!!v)} />
-                     <Label htmlFor="includeHistory">Incluir historial</Label>
-                   </div>
+                <DialogContent className="max-w-xl w-full">
+                  <DialogHeader>
+                    <DialogTitle>Reportes</DialogTitle>
+                    <DialogDescription>
+                      Selecciona el reporte que deseas generar.
+                    </DialogDescription>
+                  </DialogHeader>
 
-                   <div className="grid gap-3">
-                     <div className="p-3 border rounded">
-                       <div className="flex items-center justify-between">
-                         <div>
-                           <p className="font-medium">Reporte de pendientes</p>
-                           <p className="text-sm text-muted-foreground">Incluye todos los paquetes no entregados según el alcance seleccionado.</p>
-                         </div>
-                         {/* Mantener un único botón con validación de rango */}
-                         <Button
-                           onClick={generatePendingReport}
-                           disabled={
-                             isLoading ||
-                             isDateRangeInvalid ||
-                             (reportScope === "consolidado" && !selectedConsolidado) ||
-                             (reportScope === "desembarque" && !selectedDesembarque) ||
-                             (reportScope === "ruta" && !selectedRuta)
-                           }
-                         >
-                           Generar
-                         </Button>
-                       </div>
-                     </div>
+                  {/* Selector de reporte */}
+                  <div className="grid gap-3 mt-4">
+                    <Label>Tipo de reporte</Label>
 
-                     <div className="p-3 border rounded">
-                       <div className="flex items-center justify-between">
-                         <div>
-                           <p className="font-medium">Reporte de paquetes sin 67</p>
-                           <p className="text-sm text-muted-foreground">Incluye paquetes cuyo código DEX no contiene '67' (o está vacío).</p>
-                         </div>
-                         <Button onClick={generateSin67Report} disabled={isLoading || isDateRangeInvalid || (reportScope === 'consolidado' && !selectedConsolidado) || (reportScope === 'desembarque' && !selectedDesembarque) || (reportScope === 'ruta' && !selectedRuta)}>Generar</Button>
-                       </div>
-                     </div>
-                   </div>
- 
-                   <DialogFooter>
-                     <Button variant="ghost" onClick={() => setIsReportsOpen(false)}>Cerrar</Button>
-                   </DialogFooter>
-                 </DialogContent>
-               </Dialog>
+                    <Select
+                      value={selectedReport}
+                      onValueChange={(v) => setSelectedReport(v as any)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un reporte" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Reporte de pendientes</SelectItem>
+                        <SelectItem value="sin67">Paquetes sin código 67</SelectItem>
+                        <SelectItem value="ultimoInventarioSin67">
+                          Último inventario sin 67
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {selectedReport && (
+                      <div className="mt-3 rounded-md border bg-muted/40 p-3 text-sm">
+                        <p className="font-medium text-foreground">
+                          Se generará el siguiente reporte:
+                        </p>
+
+                        <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+                          <li>
+                            <strong>Reporte:</strong>{" "}
+                            {getReportLabel(selectedReport)}
+                          </li>
+                          <li>
+                            <strong>Sucursal:</strong>{" "}
+                            {getSubsidiaryLabel()}
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  <DialogFooter className="mt-6 flex justify-between">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setIsReportsOpen(false)}
+                    >
+                      Cerrar
+                    </Button>
+
+                    <Button
+                      onClick={handleGenerateReport}
+                      disabled={
+                        isLoading ||
+                        !selectedReport ||
+                        (reportScope === "consolidado" && !selectedConsolidado) ||
+                        (reportScope === "desembarque" && !selectedDesembarque) ||
+                        (reportScope === "ruta" && !selectedRuta)
+                      }
+                    >
+                      Generar reporte
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
              </div>
            </div>
 
