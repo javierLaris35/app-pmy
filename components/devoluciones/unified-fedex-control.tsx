@@ -17,7 +17,6 @@ import { useDevolutions } from "@/hooks/services/devolutions/use-devolutions"
 import { useAuthStore } from "@/store/auth.store"
 import UnifiedCollectionReturnForm from "./unified-collection-return-form"
 
-
 export default function UpdatedFedExControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
@@ -40,28 +39,24 @@ export default function UpdatedFedExControl() {
       setSelectedSucursalId(user.subsidiary.id ?? null)
       setSelectedSucursalName(user.subsidiary.name || "")
     }
-  }, [user, selectedSucursalId, setSelectedSucursalId])
-
+  }, [user, selectedSucursalId])
 
   useEffect(() => {
     if (selectedSucursalId) {
       mutate()
       devolutionMutate()
     }
-  }, [selectedSucursalId])
+  }, [selectedSucursalId, mutate, devolutionMutate])
 
-  // Open unified dialog
   const openUnifiedDialog = () => {
     setIsUnifiedDialogOpen(true)
   }
 
-  // Handle subsidiary selection
   const handleSucursalChange = (id: string, name?: string) => {
     setSelectedSucursalId(id || null)
     setSelectedSucursalName(name || "")
   }
 
-  // Columnas para Recolecciones
   const collectionColumns = [
     createSelectColumn<Collection>(),
     createSortableColumn<Collection>(
@@ -106,7 +101,6 @@ export default function UpdatedFedExControl() {
     ),
   ]
 
-  // Columnas para Devoluciones
   const devolutionColumns = [
     createSelectColumn<Devolution>(),
     createSortableColumn<Devolution>(
@@ -162,110 +156,136 @@ export default function UpdatedFedExControl() {
               returnObject={true}
               onValueChange={(value) => {
                 const sucursal = value as Subsidiary
-                  < Package className = "h-4 w-4 text-muted-foreground" />
-            </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Total Devoluciones</p>
-              <div className="text-lg font-bold">{devolutions.length}</div>
-            </div>
-            <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Completadas</p>
-              <div className="text-lg font-bold">
-                {collections.filter(c => c.status === 'completed').length +
-                  devolutions.filter(d => d.status === 'completed').length}
-              </div>
-            </div>
-            <CheckIcon className="h-4 w-4 text-muted-foreground" />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Action Area */}
-      <div className="flex items-center justify-between bg-muted/50 p-4 rounded-lg border">
-        <div className="space-y-1">
-          <h3 className="font-medium">Proceso Unificado</h3>
-          <p className="text-sm text-muted-foreground">
-            Inicie el proceso de recolección y devolución simultánea.
-          </p>
+                handleSucursalChange(sucursal.id, sucursal.name)
+              }}
+            />
+          </div>
         </div>
-        <Button
-          onClick={openUnifiedDialog}
-          disabled={!selectedSucursalId}
-        >
-          <FileText className="mr-2 h-4 w-4" />
-          Iniciar Proceso
-        </Button>
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Total Recolecciones</p>
+                <div className="text-lg font-bold">{collections.length}</div>
+              </div>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Pendientes</p>
+                <div className="text-lg font-bold">
+                  {collections.filter(c => c.status === 'pending').length +
+                    devolutions.filter(d => d.status === 'pending').length}
+                </div>
+              </div>
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Total Devoluciones</p>
+                <div className="text-lg font-bold">{devolutions.length}</div>
+              </div>
+              <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Completadas</p>
+                <div className="text-lg font-bold">
+                  {collections.filter(c => c.status === 'completed').length +
+                    devolutions.filter(d => d.status === 'completed').length}
+                </div>
+              </div>
+              <CheckIcon className="h-4 w-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Action Area */}
+        <div className="flex items-center justify-between bg-muted/50 p-4 rounded-lg border">
+          <div className="space-y-1">
+            <h3 className="font-medium">Proceso Unificado</h3>
+            <p className="text-sm text-muted-foreground">
+              Inicie el proceso de recolección y devolución simultánea.
+            </p>
+          </div>
+          <Button
+            onClick={openUnifiedDialog}
+            disabled={!selectedSucursalId}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Iniciar Proceso
+          </Button>
+        </div>
+
+        {/* Main Content Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="recolecciones">
+              Recolecciones
+              <Badge variant="secondary" className="ml-2">{collections.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="devoluciones">
+              Devoluciones
+              <Badge variant="secondary" className="ml-2">{devolutions.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="recolecciones" className="space-y-4">
+            {selectedSucursalId ? (
+              <DataTable columns={collectionColumns} data={collections} bordered={false} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[200px] text-center p-8 border rounded-md bg-muted/10">
+                <p className="text-muted-foreground">
+                  Seleccione una sucursal para ver las recolecciones
+                </p>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="devoluciones" className="space-y-4">
+            {selectedSucursalId ? (
+              <DataTable columns={devolutionColumns} data={devolutions} bordered={false} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[200px] text-center p-8 border rounded-md bg-muted/10">
+                <p className="text-muted-foreground">
+                  Seleccione una sucursal para ver las devoluciones
+                </p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="recolecciones">
-            Recolecciones
-            <Badge variant="secondary" className="ml-2">{collections.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="devoluciones">
-            Devoluciones
-            <Badge variant="secondary" className="ml-2">{devolutions.length}</Badge>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="recolecciones" className="space-y-4">
-          {selectedSucursalId ? (
-            <DataTable columns={collectionColumns} data={collections} bordered={false} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-[200px] text-center p-8 border rounded-md bg-muted/10">
-              <p className="text-muted-foreground">
-                Seleccione una sucursal para ver las recolecciones
-              </p>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="devoluciones" className="space-y-4">
-          {selectedSucursalId ? (
-            <DataTable columns={devolutionColumns} data={devolutions} bordered={false} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-[200px] text-center p-8 border rounded-md bg-muted/10">
-              <p className="text-muted-foreground">
-                Seleccione una sucursal para ver las devoluciones
-              </p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div >
-
-      {/* Unified Dialog */ }
-  < Dialog open={isUnifiedDialogOpen} onOpenChange={setIsUnifiedDialogOpen} >
-    <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>Proceso Unificado de Recolecciones y Devoluciones</DialogTitle>
-        <DialogDescription>
-          Procesa recolecciones y devoluciones simultáneamente. Al finalizar se generará automáticamente el
-          documento PDF.
-        </DialogDescription>
-      </DialogHeader>
-      <UnifiedCollectionReturnForm
-        selectedSubsidiaryId={selectedSucursalId}
-        subsidiaryName={selectedSucursalName}
-        onClose={() => setIsUnifiedDialogOpen(false)}
-        onSuccess={() => {
-          setIsUnifiedDialogOpen(false)
-          mutate()
-          devolutionMutate()
-        }}
-      />
-    </DialogContent>
-  </Dialog >
-    </AppLayout >
+      {/* Unified Dialog */}
+      <Dialog open={isUnifiedDialogOpen} onOpenChange={setIsUnifiedDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Proceso Unificado de Recolecciones y Devoluciones</DialogTitle>
+            <DialogDescription>
+              Procesa recolecciones y devoluciones simultáneamente. Al finalizar se generará automáticamente el
+              documento PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <UnifiedCollectionReturnForm
+            selectedSubsidiaryId={selectedSucursalId}
+            subsidiaryName={selectedSucursalName}
+            onClose={() => setIsUnifiedDialogOpen(false)}
+            onSuccess={() => {
+              setIsUnifiedDialogOpen(false)
+              mutate()
+              devolutionMutate()
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
   )
 }

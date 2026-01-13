@@ -13,6 +13,8 @@ import DashboardWelcomeClient from "@/components/welcome-dashboard/DashboardWelc
 
 const inter = Inter({ subsets: ["latin"] })
 
+const year = new Date().getFullYear();
+
 export const metadata: Metadata = {
   title: "PMY App",
   description: "Sistema de gestión financiera para Paquetería & Mensajería Del Yaqui",
@@ -21,7 +23,7 @@ export const metadata: Metadata = {
     apple: "/logo-no-fondo.png",
     shortcut: "/logo-no-fondo.png",
   },
-  authors: [{ name: "Paquetería del Yaqui © 2026" }],
+  authors: [{ name: `Paquetería del Yaqui © ${year}` }],
 }
 
 export default function RootLayout({
