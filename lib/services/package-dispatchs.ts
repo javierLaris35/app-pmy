@@ -13,7 +13,6 @@ const getPackageDispatchById = async (id: string) => {
     return response.data;
 }
 
-
 const savePackageDispatch = async (packageDispatch: DispatchFormData) => {
     const response = await axiosConfig.post<PackageDispatch>(url, packageDispatch);
     return response.data;
@@ -24,6 +23,10 @@ const validateTrackingNumber = async (trackingNumber: string, subsidiaryId: stri
     return response.data;
 }   
 
+const getShipmensByDispatchId = async (dispatchId: string) => {
+    const response = await axiosConfig.get<PackageDispatch>(`${url}/info/${dispatchId}`);
+    return response.data;
+}
 
 export async function uploadPDFile(
     pdfFile: File,
@@ -64,4 +67,5 @@ export {
     savePackageDispatch,
     getPackageDispatchById,
     validateTrackingNumber,
+    getShipmensByDispatchId
 }

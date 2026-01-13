@@ -1,14 +1,23 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { PackageDispatch, PackageInfo} from "@/lib/types" // Ajusta según tu modelo real
+import { PackageDispatch, PackageDispatchResponse, PackageInfo} from "@/lib/types" // Ajusta según tu modelo real
 import { Button } from "@/components/ui/button"
 import { Eye, Sheet } from "lucide-react"
-import { Badge } from "../ui/badge"
+import { Badge, BadgeProps } from "../ui/badge"
 import { Tooltip, TooltipContent } from "../ui/tooltip"
 import { TooltipTrigger } from "@radix-ui/react-tooltip"
 import { mapToPackageInfo } from "@/lib/utils"
+import { ro } from "date-fns/locale"
 
-export const columns: ColumnDef<PackageDispatch>[] = [
+const statusMap: Record<string, { label: string; variant: BadgeProps["variant"] }> = {
+  Pendiente: { label: "Pendiente", variant: "secondary" },
+  "En tránsito": { label: "En tránsito", variant: "default" },
+  Entregado: { label: "Entregado", variant: "success" },
+  Devuelto: { label: "Devuelto", variant: "destructive" },
+  Completada: { label: "Completada", variant: "success" },
+};
+
+export const columns: ColumnDef<PackageDispatchResponse>[] = [
   // Columna de selección
   {
     id: "select",
@@ -41,31 +50,29 @@ export const columns: ColumnDef<PackageDispatch>[] = [
     accessorKey: "drivers",
     header: "Chofer",
     cell: ({ row }) => {
-      const drivers = row.original.drivers;
+      const driverName = row.original.driverName;
 
-      if (!drivers || drivers.length === 0) return "Sin Chofer";
+      if (!driverName) return "Sin Chofer";
 
       return (
         <span className="font-mono">
-          {drivers[0]?.name ?? "Sin Nombre"}
+          {driverName}
         </span>
       );
     },
   },
   // Dirección
   {
-    accessorKey: "shipments",
+    accessorKey: "totalPackages",
     header: "Paquetes",
     cell: ({ row }) => {
-        const shipments = row.original.shipments;
-        const chargeShipments = row.original.chargeShipments
-        const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(shipments, chargeShipments)
+        const totalPackages = row.original.totalPackages;
         
-        if (!packageDispatchShipments || packageDispatchShipments.length === 0) return "Sin paquetes";
+        if (totalPackages === 0) return "Sin paquetes";
 
         return (
           <span className="font-mono">
-            {packageDispatchShipments.length} paquete{packageDispatchShipments.length > 1 ? "s" : ""}
+            {totalPackages} paquete{totalPackages > 1 ? "s" : ""}
           </span>
         );
 
@@ -90,41 +97,19 @@ export const columns: ColumnDef<PackageDispatch>[] = [
     },
   },
   {
-  accessorKey: "status",
-  header: "Estatus",
-  cell: ({ row }) => {
-    const statusMap = {
-      PENDING: { label: "Pendiente", variant: "secondary" as const },
-      IN_TRANSIT: { label: "En Tránsito", variant: "default" as const },
-      DELIVERED: { label: "Entregado", variant: "default" as const },
-      RETURNED: { label: "Devuelto", variant: "destructive" as const },
-      COMPLETED: { label: "Completada", variant: "success" as const }
-    };
-
-    const statusKey = row.original.status as keyof typeof statusMap;
-    const status = statusMap[statusKey] || statusMap.PENDING;
-
-    return <Badge variant={status.variant}>{status.label}</Badge>;
-    },
-  },
-
-  {
-    accessorKey: "estimatedDelivery",
-    header: "Entrega Estimada",
+    accessorKey: "status",
+    header: "Estatus",
     cell: ({ row }) => {
-      const rawValue = row.getValue("estimatedDelivery");
-      const date = rawValue ? new Date(rawValue as string) : null;
+      const rawStatus = row.original.status;
 
-      const formatted = date
-        ? date.toLocaleString("es-MX", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          })
-        : "N/A";
+      const status =
+        statusMap[rawStatus] ?? {
+          label: rawStatus ?? "Desconocido",
+          variant: "outline",
+        };
 
-      return <div className="font-medium">{formatted}</div>;
-    },
+      return <Badge variant={status.variant}>{status.label}</Badge>;
+    }
   },
   // Acciones
   {

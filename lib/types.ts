@@ -219,7 +219,7 @@ export type Driver = {
 export enum PackageDispatchStatus {
   PENDING = 'pendiente',
   IN_PROGRESS = 'en_progreso',
-  COMPLETED = 'completada',
+  COMPLETED = 'Completada',
   CANCELLED = 'cancelada'
 }
 
@@ -454,6 +454,16 @@ export interface PackageDispatch {
   kms: string
 }
 
+export interface PackageDispatchResponse {
+  id: string
+  trackingNumber: string
+  status: PackageDispatchStatus
+  driverName: string;
+  totalPackages: number;
+  vehicle: Vehicles
+  createdAt?: string
+}
+
 export interface DispatchFormData {
   drivers: Driver[]
   routes: Route[]
@@ -563,6 +573,8 @@ export interface PackageInfo {
   }
   lastHistory?: StatusHistory
   status?: ShipmentStatusType
+  exceptionCode?: string
+  statusHistory?: StatusHistory[]
 }
 
 export interface SearchShipmentDto {

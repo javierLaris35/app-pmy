@@ -4,12 +4,12 @@ import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Send, Package, Truck, Eye, Sheet, StampIcon } from "lucide-react"
+import { Send, Package, Truck, Eye, Sheet, StampIcon, Lock } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
 import PackageDispatchForm from "./package-dispatch-form"
-import type { PackageDispatch } from "@/lib/types"
+import { PackageDispatchStatus, type PackageDispatch } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
 import { columns } from "./columns"
@@ -24,7 +24,7 @@ export default function PackageDispatchControl() {
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isRouteClouserDialogOpen, setIsRouteClouserDialogOpen] = useState(false);
-  const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<PackageDispatch | null>(null);
+  const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
 
   const { packageDispatchs, isError, isLoading, mutate } = usePackageDispatchs(selectedSucursalId)
   // Obtener usuario y estado de hidratación
@@ -56,14 +56,25 @@ export default function PackageDispatchControl() {
   }
 
   const openDetailsDialog = (packageDispatch: PackageDispatch) => {
-      setSelectedPackageDispatch(packageDispatch);
+      setSelectedPackageDispatch(packageDispatch.id);
       setIsDetailsDialogOpen(true);
   };
 
+    // 🔒 PROTECCIÓN: no permitir cerrar si ya está COMPLETADA
   const openRouteClouserDialog = (packageDispatch: PackageDispatch) => {
-      setSelectedPackageDispatch(packageDispatch);
-      setIsRouteClouserDialogOpen(true);
-  };
+    if (packageDispatch.status == PackageDispatchStatus.COMPLETED) {
+      
+      console.warn(
+        "[PackageDispatch] Intento de cerrar una salida ya COMPLETADA",
+        packageDispatch.id
+      )
+      return
+    }
+
+    setSelectedPackageDispatch(packageDispatch.id)
+    setIsRouteClouserDialogOpen(true)
+  }
+
 
   const handleSucursalChange = (id: string, name?: string) => {
     setSelectedSucursalId(id || null)
@@ -74,52 +85,70 @@ export default function PackageDispatchControl() {
     return await generateDispatchExcelClient(packageDispatch);
   }
 
-  const updatedColumns = columns.map((col) =>
+const updatedColumns = columns.map((col) =>
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) => (
-            <div className="flex gap-3">
-              <Button
-                variant="ghost"
-                className="h-8 w-8 p-0"
-                onClick={() => openDetailsDialog(row.original)}
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="default"
-                    className="h-8 w-8 p-0 text-white bg-green-900"
-                    onClick={() => handleExcelFileCreation(row.original)}
-                  >
-                    <Sheet className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Generar Excel
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="default"
-                    className="h-8 w-8 p-0 text-white bg-red-900"
-                    onClick={() => openRouteClouserDialog(row.original)}
-                  >
-                    <StampIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Cierre de Ruta
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          ),
+          cell: ({ row }) => {
+            const isCompleted =
+              row.original.status === PackageDispatchStatus.COMPLETED
+
+            return (
+              <div className="flex gap-3">
+                <Button
+                  variant="ghost"
+                  className="h-8 w-8 p-0"
+                  onClick={() => openDetailsDialog(row.original)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="default"
+                      className="h-8 w-8 p-0 text-white bg-green-900"
+                      onClick={() =>
+                        handleExcelFileCreation(row.original)
+                      }
+                    >
+                      <Sheet className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Generar Excel</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant="default"
+                        className={`h-8 w-8 p-0 text-white ${
+                          isCompleted
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-red-900"
+                        }`}
+                        disabled={isCompleted}
+                        onClick={() =>
+                          openRouteClouserDialog(row.original)
+                        }
+                      >
+                        <Lock className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isCompleted
+                      ? "Esta salida ya fue cerrada"
+                      : "Cierre de Ruta"}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )
+          },
         }
       : col
-  );
+  )
 
   // SOLUCIÓN: Mostrar loading mientras auth se hidrata
   if (!hasHydrated) {
@@ -311,7 +340,7 @@ export default function PackageDispatchControl() {
           </DialogHeader>
           {selectedPackageDispatch && (
               <ClosePackageDisptach
-              dispatch={selectedPackageDispatch}
+              dispatchId={selectedPackageDispatch}
               onClose={() => setIsRouteClouserDialogOpen(false)}
               onSuccess={() => {
                 mutate()

@@ -1,3 +1,4 @@
+// app/layout.tsx (modificado)
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
@@ -6,7 +7,9 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import HistoryTracker from "@/app/HistoryTracker";
 import { Suspense } from "react"
-import { CommandPalette } from "@/components/search-packages/search-package"
+import DashboardWelcomeClient from "@/components/welcome-dashboard/DashboardWelcomeClient"
+
+
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -18,7 +21,7 @@ export const metadata: Metadata = {
     apple: "/logo-no-fondo.png",
     shortcut: "/logo-no-fondo.png",
   },
-  authors: [{ name: "Paquetería del Yaqui © 2025" }],
+  authors: [{ name: "Paquetería del Yaqui © 2026" }],
 }
 
 export default function RootLayout({
@@ -35,6 +38,8 @@ export default function RootLayout({
                 <Suspense fallback={null}>
                   {children}
                 </Suspense>
+                {/* Agregar el componente cliente que manejará la lógica de auth */}
+                <DashboardWelcomeClient />
             </TooltipProvider>
         </ThemeProvider>
       </body>
