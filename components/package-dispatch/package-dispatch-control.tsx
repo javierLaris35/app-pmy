@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator"
 import PackageDispatchDetails from "./package-dispatch-details"
 import ClosePackageDisptach from "./close-package-dispatch-form"
+import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
 
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
@@ -82,7 +83,8 @@ export default function PackageDispatchControl() {
   }
 
   const handleExcelFileCreation = async (packageDispatch: PackageDispatch) => {
-    return await generateDispatchExcelClient(packageDispatch);
+    const dispatch = await getShipmensByDispatchId(packageDispatch.id);
+    return await generateDispatchExcelClient(dispatch);
   }
 
 const updatedColumns = columns.map((col) =>
