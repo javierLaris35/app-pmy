@@ -450,10 +450,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-row  justify-end space-x-2">
-          <div className="space-y-2">
+          {/*<div className="space-y-2">
             <Label>Fecha (opcional)</Label>
             <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-          </div>
+          </div>*/}
           <div className="space-y-2">
             <Label>Repartidores</Label>
             <RepartidorSelector
