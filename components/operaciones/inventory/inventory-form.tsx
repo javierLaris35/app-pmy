@@ -37,7 +37,7 @@ import {
   validateTrackingNumbers,
   uploadFiles
 } from "@/lib/services/inventories";
-import { InventoryReport, InventoryPackage as InventoryPackageType, InventoryRequest, PackageInfo, Shipment, ChargeShipment, Inventory } from "@/lib/types";
+import { InventoryPackage as InventoryPackageType, InventoryRequest, PackageInfo, Inventory } from "@/lib/types";
 import { BarcodeScannerInput, BarcodeScannerInputHandle } from "@/components/barcode-input/barcode-scanner-input-list";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -46,13 +46,17 @@ import { InventoryPDFReport } from "@/lib/services/inventory/inventory-pdf-gener
 import { pdf } from "@react-pdf/renderer";
 import { generateInventoryExcel } from "@/lib/services/inventory/inventory-excel-generator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoaderWithOverlay } from "@/components/loader";
-import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAlertModal";
+import { ExpirationAlertModal } from "@/components/ExpirationAlertModal";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Hook useLocalStorage
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -111,6 +115,13 @@ enum TrackingNotFoundEnum {
   NOT_SCANNED = "Guia sin escaneo",
   NOT_TRACKING = "Guia faltante",
   NOT_IN_CHARGE = "No Llego en la Carga"
+}
+
+// Tipos de inventario
+enum InventoryType {
+  INITIAL = "initial",      // Inventario Inicial
+  DEX = "dex",             // Inventario DEX
+  FINAL = "final"          // Inventario Final
 }
 
 // Types para manejo de expiración
@@ -288,6 +299,11 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     'inventory_selected_reasons', 
     {}
   );
+  // Estado para el tipo de inventario
+  const [inventoryType, setInventoryType] = useLocalStorage<InventoryType>(
+    'inventory_type',
+    InventoryType.INITIAL
+  );
 
   // Estados regulares
   const [isLoading, setIsLoading] = useState(false);
@@ -305,6 +321,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
   const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
+  const [shownExpiringPackages, setShownExpiringPackages] = useState<Set<string>>(new Set());
 
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
   const { toast } = useToast();
@@ -318,6 +335,154 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
   const selectedSubsidiaryName = useMemo(() => {
     return propSubsidiaryName || user?.subsidiary?.name || null;
   }, [propSubsidiaryName, user]);
+
+  // Función para verificar días hasta expiración (desde desembarque)
+  const getDaysUntilExpiration = useCallback((commitDateTime?: string | null) => {
+    if (!commitDateTime) return -1;
+    const commitDate = new Date(commitDateTime);
+    const today = new Date();
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const commitOnly = new Date(commitDate.getFullYear(), commitDate.getMonth(), commitDate.getDate());
+    const diffMs = commitOnly.getTime() - todayOnly.getTime();
+    return Math.round(diffMs / (1000 * 60 * 60 * 24));
+  }, []);
+
+  // Sonido para paquetes que expiran hoy (desde desembarque)
+  const playExpirationSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioContext = new AudioCtx();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.type = "square";
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      const now = audioContext.currentTime;
+      oscillator.frequency.setValueAtTime(1000, now);
+      gainNode.gain.setValueAtTime(0.2, now);
+      gainNode.gain.setValueAtTime(0, now + 0.1);
+      oscillator.frequency.setValueAtTime(1000, now + 0.15);
+      gainNode.gain.setValueAtTime(0.2, now + 0.15);
+      gainNode.gain.setValueAtTime(0, now + 0.25);
+
+      oscillator.start(now);
+      oscillator.stop(now + 0.3);
+    } catch (err) {
+      console.warn("playExpirationSound error:", err);
+    }
+  }, []);
+
+  // Sonido para paquetes que expiran mañana (desde desembarque)
+  const playTomorrowExpirationSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioContext = new AudioCtx();
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = "sine";
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      const now = audioContext.currentTime;
+      osc.frequency.setValueAtTime(700, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.setValueAtTime(0, now + 0.12);
+      osc.start(now);
+      osc.stop(now + 0.14);
+    } catch (err) {
+      console.warn("playTomorrowExpirationSound error:", err);
+    }
+  }, []);
+
+  // Sonido para guías inválidas o no encontradas (desde desembarque)
+  const playInvalidSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioContext = new AudioCtx();
+      const now = audioContext.currentTime;
+
+      // Primer tono (ping alto)
+      const o1 = audioContext.createOscillator();
+      const g1 = audioContext.createGain();
+      o1.type = 'triangle';
+      o1.frequency.setValueAtTime(880, now);
+      g1.gain.setValueAtTime(0.15, now);
+      o1.connect(g1);
+      g1.connect(audioContext.destination);
+      o1.start(now);
+      o1.stop(now + 0.09);
+
+      // Segundo tono (ping más bajo) separado ligeramente
+      const o2 = audioContext.createOscillator();
+      const g2 = audioContext.createGain();
+      const t2 = now + 0.12;
+      o2.type = 'triangle';
+      o2.frequency.setValueAtTime(660, t2);
+      g2.gain.setValueAtTime(0.15, t2);
+      o2.connect(g2);
+      g2.connect(audioContext.destination);
+      o2.start(t2);
+      o2.stop(t2 + 0.12);
+    } catch (err) {
+      console.warn("playInvalidSound error:", err);
+    }
+  }, []);
+
+  // Función para manejar la detección de expiración (desde desembarque)
+  const handleExpirationCheck = useCallback((newPackages: PackageInfo[]) => {
+    const expiringToday: ExpiringPackage[] = [];
+    const expiringTomorrow: ExpiringPackage[] = [];
+
+    newPackages.forEach(pkg => {
+      if (!pkg.isValid || !pkg.commitDateTime) return;
+      const days = getDaysUntilExpiration(pkg.commitDateTime);
+      if (days === 0 && !shownExpiringPackages.has(pkg.trackingNumber)) {
+        expiringToday.push({
+          trackingNumber: pkg.trackingNumber,
+          recipientName: pkg.recipientName || undefined,
+          recipientAddress: pkg.recipientAddress || undefined,
+          commitDateTime: pkg.commitDateTime || undefined,
+          daysUntilExpiration: 0,
+          priority: pkg.priority || undefined
+        });
+      } else if (days === 1 && !shownExpiringPackages.has(pkg.trackingNumber)) {
+        expiringTomorrow.push({
+          trackingNumber: pkg.trackingNumber,
+          recipientName: pkg.recipientName || undefined,
+          recipientAddress: pkg.recipientAddress || undefined,
+          commitDateTime: pkg.commitDateTime || undefined,
+          daysUntilExpiration: 1,
+          priority: pkg.priority || undefined
+        });
+      }
+    });
+
+    if (expiringToday.length > 0) {
+      setExpiringPackages(expiringToday);
+      setCurrentExpiringIndex(0);
+      // Reproducir sonido de expiración hoy
+      playExpirationSound();
+      const newShown = new Set(shownExpiringPackages);
+      expiringToday.forEach(p => newShown.add(p.trackingNumber));
+      setShownExpiringPackages(newShown);
+    }
+
+    if (expiringTomorrow.length > 0) {
+      setExpiringPackages(expiringTomorrow);
+      setCurrentExpiringIndex(0);
+      // Reproducir sonido de expiración mañana
+      playTomorrowExpirationSound();
+      const newShown = new Set(shownExpiringPackages);
+      expiringTomorrow.forEach(p => newShown.add(p.trackingNumber));
+      setShownExpiringPackages(newShown);
+    }
+  }, [getDaysUntilExpiration, shownExpiringPackages, setShownExpiringPackages, playExpirationSound, playTomorrowExpirationSound]);
 
   // Detectar estado de conexión
   useEffect(() => {
@@ -365,6 +530,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
               } else if (Array.isArray(result.packages)) {
                 validatedPackages = result.packages;
               } else {
+                // Si no es un array, intentar convertirlo
                 validatedPackages = Object.values(result).filter(item => 
                   item && typeof item === 'object' && 'trackingNumber' in item
                 ) as PackageInfo[];
@@ -467,7 +633,8 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       'inventory_packages',
       'inventory_missing_trackings',
       'inventory_unscanned_trackings',
-      'inventory_selected_reasons'
+      'inventory_selected_reasons',
+      'inventory_type'
     ];
 
     keys.forEach(key => {
@@ -484,6 +651,9 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     setMissingTrackings([]);
     setUnScannedTrackings([]);
     setSelectedReasons({});
+    setInventoryType(InventoryType.INITIAL);
+    // Limpiar también los paquetes mostrados para expiración
+    setShownExpiringPackages(new Set());
 
     toast({
       title: "Datos limpiados",
@@ -494,7 +664,8 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     setPackages,
     setMissingTrackings,
     setUnScannedTrackings,
-    setSelectedReasons
+    setSelectedReasons,
+    setInventoryType
   ]);
 
   // Funciones para manejo de expiración
@@ -515,16 +686,6 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       console.error("Error checking package expiration:", error, pkg);
       return false;
     }
-  }, []);
-
-  const getDaysUntilExpiration = useCallback((commitDateTime: string) => {
-    const commitDate = new Date(commitDateTime);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    commitDate.setHours(0, 0, 0, 0);
-
-    const timeDiff = commitDate.getTime() - today.getTime();
-    return Math.ceil(timeDiff / (1000 * 3600 * 24));
   }, []);
 
   const handleNextExpiring = useCallback(() => {
@@ -637,26 +798,19 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       setMissingTrackings(invalidNumbers);
       setUnScannedTrackings([]);
 
-      // Detectar paquetes que expiran hoy
-      const todayExpiringPackages: ExpiringPackage[] = newValidPackages
-        .filter((pkg: PackageInfo) => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
-        .map((pkg: PackageInfo) => ({
-          trackingNumber: pkg.trackingNumber,
-          recipientName: pkg.recipientName || undefined,
-          recipientAddress: pkg.recipientAddress || undefined,
-          commitDateTime: pkg.commitDateTime || undefined,
-          daysUntilExpiration: pkg.commitDateTime ? getDaysUntilExpiration(pkg.commitDateTime) : 0,
-          priority: pkg.priority || undefined
-        }));
+      // Detectar paquetes que expiran hoy/mañana y reproducir sonidos
+      handleExpirationCheck(newValidPackages);
 
-      if (todayExpiringPackages.length > 0) {
-        setExpiringPackages(todayExpiringPackages);
-        setCurrentExpiringIndex(0);
-        setExpirationAlertOpen(true);
+      // Detectar paquetes inválidos y reproducir sonido
+      const invalidCount = newValidPackages.filter((p: PackageInfo) => !p.isValid).length;
+      const invalidNumbersCount = invalidNumbers.length;
+      
+      if (invalidCount + invalidNumbersCount > 0) {
+        // Reproducir sonido para guías inválidas/no encontradas
+        playInvalidSound();
       }
 
       const validCount = newValidPackages.filter((p: PackageInfo) => p.isValid).length;
-      const invalidCount = newValidPackages.filter((p: PackageInfo) => !p.isValid).length;
 
       toast({
         title: "Validación completada",
@@ -720,7 +874,13 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
   const handleRemovePackage = useCallback((trackingNumber: string) => {
     setPackages(prev => prev.filter(p => p.trackingNumber !== trackingNumber));
     setScannedPackages(prev => prev.filter(p => p.trackingNumber !== trackingNumber));
-  }, [setPackages, setScannedPackages]);
+    // Remover también del set de paquetes mostrados para expiración
+    setShownExpiringPackages(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(trackingNumber);
+      return newSet;
+    });
+  }, [setPackages, setScannedPackages, setShownExpiringPackages]);
 
   const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
 
@@ -742,12 +902,16 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         chargeShipments: validPackages.filter(s => s.isCharge).map(s => s.id),
         missingTrackings,
         inventoryDate: new Date().toISOString(),
-        unScannedTrackings
+        unScannedTrackings,
+        inventoryType: inventoryType,  // Agregar el tipo de inventario
       } as InventoryRequest;
 
       const saved = await saveInventory(payload);
       await handleSendEmail(saved)
-      toast({ title: "Inventario guardado", description: "Inventario guardado con éxito." });
+      toast({ 
+        title: "Inventario guardado", 
+        description: `Inventario ${getInventoryTypeLabel(inventoryType)} guardado con éxito.` 
+      });
 
       // Limpiar storage después de éxito
       clearAllStorage();
@@ -758,6 +922,20 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       toast({ title: "Error", description: "Hubo un problema al guardar el inventario.", variant: "destructive" });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Función para obtener el label del tipo de inventario
+  const getInventoryTypeLabel = (type: InventoryType): string => {
+    switch (type) {
+      case InventoryType.INITIAL:
+        return "Inicial";
+      case InventoryType.DEX:
+        return "DEX";
+      case InventoryType.FINAL:
+        return "Final";
+      default:
+        return "Inicial";
     }
   };
 
@@ -777,6 +955,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         chargeShipments: chargeShipments,
         missingTrackings,
         unScannedTrackings,
+        inventoryType: inventoryType,  // Agregar el tipo de inventario
       };
       const blob = await pdf(<InventoryPDFReport report={report} />).toBlob();
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
@@ -806,6 +985,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         chargeShipments: chargeShipments,
         missingTrackings,
         unScannedTrackings,
+        inventoryType: inventoryType,  // Agregar el tipo de inventario
       };
       await generateInventoryExcel(report, true);
     } catch (err) {
@@ -825,13 +1005,14 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
       window.open(blobUrl, "_blank");
 
-      // Nombre de archivo para PDF
+      // Nombre de archivo para PDF incluyendo el tipo de inventario
       const currentDate = new Date().toLocaleDateString("es-ES", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       });
-      const pdfFileName = `INVENTARIO--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.pdf`;
+      const inventoryTypeLabel = getInventoryTypeLabel(inventoryType);
+      const pdfFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.pdf`;
       const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
 
       // Generar Excel
@@ -839,7 +1020,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       const excelBlob = new Blob([excelBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const excelFileName = `INVENTARIO--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.xlsx`;
+      const excelFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.xlsx`;
       const excelFile = new File([excelBlob], excelFileName, {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
@@ -871,6 +1052,14 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       return matchesSearch && matchesPriority && matchesStatus;
     });
   }, [validPackages, searchTerm, filterPriority, filterStatus]);
+
+  // Función para probar sonidos (opcional)
+  const testSounds = () => {
+    console.log("Probando sonidos...");
+    playExpirationSound();
+    setTimeout(() => playTomorrowExpirationSound(), 500);
+    setTimeout(() => playInvalidSound(), 1000);
+  };
 
   return (
     <>
@@ -910,10 +1099,44 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
               <CardDescription>Escanea paquetes y valida su estatus en el sistema</CardDescription>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
                 <MapPinIcon className="h-4 w-4" />
                 <span>Sucursal: {selectedSubsidiaryName}</span>
+              </div>
+              
+              {/* Select para el tipo de inventario */}
+              <div className="flex items-center gap-2">
+                <Select
+                  value={inventoryType}
+                  onValueChange={(value: InventoryType) => setInventoryType(value)}
+                  disabled={isLoading || packages.length > 0}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Tipo de inventario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={InventoryType.INITIAL}>Inventario Inicial</SelectItem>
+                    <SelectItem value={InventoryType.DEX}>Inventario DEX</SelectItem>
+                    <SelectItem value={InventoryType.FINAL}>Inventario Final</SelectItem>
+                  </SelectContent>
+                </Select>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="cursor-help">
+                        <CircleAlertIcon className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        <strong>Inventario Inicial:</strong> Al inicio del turno<br/>
+                        <strong>Inventario DEX:</strong> Después de envíos DEX<br/>
+                        <strong>Inventario Final:</strong> Al final del turno
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               
               {(packages.length > 0) && (
@@ -979,7 +1202,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
                     className="w-full gap-2"
                   >
                     {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Guardar Inventario
+                    Guardar Inventario {getInventoryTypeLabel(inventoryType)}
                   </Button>
 
                   <TooltipProvider>
@@ -1006,6 +1229,16 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
                   >
                     <X className="h-4 w-4" /> Cancelar
                   </Button>
+
+                  {/* Botón para probar sonidos (opcional, puedes quitarlo después) */}
+                  {/* <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={testSounds}
+                    className="w-full gap-2 text-xs"
+                  >
+                    Probar Sonidos
+                  </Button> */}
                 </CardContent>
               </Card>
             </div>
@@ -1025,7 +1258,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
                         <div>
                           <h3 className="text-lg font-semibold">Paquetes Validados</h3>
                           <p className="text-sm text-muted-foreground">
-                            {packages.length} paquetes procesados
+                            Tipo: <span className="font-medium">{getInventoryTypeLabel(inventoryType)}</span> • {packages.length} paquetes procesados
                           </p>
                         </div>
                       </div>
