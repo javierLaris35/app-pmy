@@ -1,32 +1,31 @@
-import { ArrowUpDown, History, Package, Truck, Warehouse, XCircleIcon } from "lucide-react"
-import { Button } from "../../ui/button"
+"use client"
+
+import { History, Package, Truck, Warehouse, XCircleIcon } from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
-import { Badge } from "../../ui/badge"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { MonitoringInfo } from "./shipment-tracking"
 import { formatDate } from "@/utils/date.utils"
 import { ShipmentHistoryModal } from "../envios/shipment-history-modal"
 import { getStatusBadge } from "@/utils/shipment-status.utils"
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+
 
 export const columns: ColumnDef<MonitoringInfo>[] = [
   {
     id: "trackingNumber",
     accessorFn: (row) => row.shipmentData.trackingNumber,
     header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="-ml-4"
-      >
-        Tracking
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+      <DataTableColumnHeader column={column} title="Tracking" />
     ),
     cell: ({ row }) => <div className="font-medium">{row.getValue("trackingNumber")}</div>,
   },
   {
     id: "status",
     accessorFn: (row) => row.shipmentData.shipmentStatus,
-    header: "Estado",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Estado" />
+    ),
     cell: ({ row }) => {
       const status = row.getValue("status") as string
       const statusInfo = getStatusBadge(status)
@@ -40,18 +39,20 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
     },
   },
   {
-    accessorKey: "commitDateTime",
-      header: "Fecha de Vencimiento",
-      cell: ({ row }) => {
-        const rawValue = formatDate(row.original.shipmentData.commitDateTime).toString();
-        return (
-        <span className="font-medium">{rawValue}</span>
-        )
-      },
+    id: "commitDateTime",
+    accessorFn: (row) => row.shipmentData.commitDateTime,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Fecha Vencimiento" />
+    ),
+    cell: ({ row }) => {
+      const date = row.getValue("commitDateTime") as string;
+      return <span className="font-medium">{formatDate(date)}</span>
+    },
   },
   {
     id: "location",
     header: "Ubicación",
+    accessorFn: (row) => row.shipmentData.shipmentStatus, // Necesario para que sea ocultable
     cell: ({ row }) => {
       const pkg = row.original
       const status = pkg.shipmentData.shipmentStatus.toLowerCase()
@@ -106,7 +107,9 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
   {
     id: "driver",
     accessorFn: (row) => row.packageDispatch?.driver,
-    header: "Chofer",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Chofer" />
+    ),
     cell: ({ row }) => {
       const pkg = row.original
       if (pkg.packageDispatch?.driver && pkg.packageDispatch?.vehicle) {
@@ -121,67 +124,29 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
     },
   },
   {
-    id: "unloading",
-    header: "Desembarque",
-    cell: ({ row }) => {
-      const pkg = row.original
-      if (pkg.shipmentData.unloading) {
-        return (
-          <div className="text-sm">
-            <p className="font-medium">{pkg.shipmentData.unloading.trackingNumber}</p>
-            <p className="text-xs text-muted-foreground">
-              {new Date(pkg.shipmentData.unloading.date).toLocaleDateString()}
-            </p>
-          </div>
-        )
-      }
-      return <span className="text-sm text-muted-foreground">-</span>
-    },
-  },
-  {
-    id: "consolidated",
-    header: "Consolidado",
-    cell: ({ row }) => {
-      const pkg = row.original
-      if (pkg.shipmentData.consolidated) {
-        return (
-          <div className="text-sm">
-            <p className="font-medium">{pkg.shipmentData.consolidated.consNumber}</p>
-            <p className="text-xs text-muted-foreground">
-              {new Date(pkg.shipmentData.consolidated.date).toLocaleDateString()}
-            </p>
-          </div>
-        )
-      }
-      return <span className="text-sm text-muted-foreground">-</span>
-    },
-  },
-  {
     id: "destination",
     accessorFn: (row) => row.shipmentData.destination,
     header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="-ml-4"
-      >
-        Destino
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+      <DataTableColumnHeader column={column} title="Destino" />
     ),
     cell: ({ row }) => <div className="text-sm">{row.getValue("destination")}</div>,
   },
   {
-    id: "isCharge",
+    id: "isChargePackage", // Sincronizado con el Toolbar
     accessorFn: (row) => row.shipmentData.isCharge,
-    header: "Es Carga",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Carga" />
+    ),
     cell: ({ row }) => (
-      <div className="text-sm">{row.getValue("isCharge") ? "Sí" : "No"}</div>
+      <div className="text-sm">{row.getValue("isChargePackage") ? "Sí" : "No"}</div>
     ),
   },
   {
     id: "payment",
-    header: "Pago",
+    accessorFn: (row) => row.shipmentData.payment?.amount,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Pago" />
+    ),
     cell: ({ row }) => {
       const pkg = row.original
       if (pkg.shipmentData.payment) {

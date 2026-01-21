@@ -2,97 +2,95 @@
 
 import { Cross2Icon } from "@radix-ui/react-icons"
 import type { Table } from "@tanstack/react-table"
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DataTableViewOptions } from "./data-table-view-options"
-
-import { priorities, statuses, shipmentTypes, subsidiaries } from "@/lib/data"
+import { statuses, subsidiaries } from "@/lib/data" 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter"
 import { Switch } from "../ui/switch"
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>
   setGlobalFilter: (value: string) => void
-  searchKey?: string
-  filters?: {
-    columnId: string
-    title: string
-    options: { label: string; value: string }[]
-  }[]
 }
 
 export function DataTableToolbar<TData>({ table, setGlobalFilter }: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0
+  const isFiltered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter
 
-  // Mapa de opciones de filtro por columna
-  const filterOptions: Record<string, { title: string; options: { label: string; value: string }[] }> = {
-    status: { title: "Estatus", options: statuses },
-    priority: { title: "Prioridad", options: priorities },
-    shipmentType: { title: "Tipo", options: shipmentTypes },
-    subsidiary: { title: "Sucursal", options: subsidiaries },
-  }
-
-  // Obtener columnas disponibles
-  const availableColumns = table.getAllColumns().reduce((acc, column) => {
-    if (column.id in filterOptions) {
-      acc[column.id] = filterOptions[column.id]
-    }
-    return acc
-  }, {} as Record<string, { title: string; options: { label: string; value: string }[] }>)
-
-  // Validar si existe la columna de isChargePackage
-  const chargeColumn = table.getAllColumns().find(col => col.id === 'isChargePackage');
-
-  const isHighValueColumn = table.getAllColumns().find(col => col.id === 'isHighValue');
+  // --- SOLUCIÓN AL ERROR ---
+  // En lugar de table.getColumn("id"), usamos getAllColumns().find()
+  // Esto devuelve undefined si no existe, pero NO rompe la aplicación.
+  const allColumns = table.getAllColumns()
+  const chargeColumn = allColumns.find((col) => col.id === "isChargePackage")
+  const highValueColumn = allColumns.find((col) => col.id === "isHighValue")
+  const statusColumn = allColumns.find((col) => col.id === "status")
+  const subsidiaryColumn = allColumns.find((col) => col.id === "subsidiary")
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between gap-2">
       <div className="flex flex-1 items-center space-x-2">
         <Input
           placeholder="Buscar..."
-          value={table.getState().globalFilter ?? ""}
+          value={(table.getState().globalFilter as string) ?? ""}
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="h-8 w-[150px] lg:w-[250px]"
         />
-        {Object.entries(availableColumns).map(([columnId, { title, options }]) => (
+
+        {/* Filtro de Estatus - Solo si la columna existe */}
+        {statusColumn && (
           <DataTableFacetedFilter
-            key={columnId}
-            column={table.getColumn(columnId)}
-            title={title}
-            options={options}
+            column={statusColumn}
+            title="Estatus"
+            options={statuses}
           />
-        ))}
-        {chargeColumn  && (
-          <div className="flex items-center space-x-2 px-2">
+        )}
+
+        {/* Filtro de Sucursal - Solo si la columna existe */}
+        {subsidiaryColumn && (
+          <DataTableFacetedFilter
+            column={subsidiaryColumn}
+            title="Sucursal"
+            options={subsidiaries}
+          />
+        )}
+
+        {/* Switch de Carga - Solo si la columna existe */}
+        {chargeColumn && (
+          <div className="flex items-center space-x-2 px-2 border-l">
             <Switch
-              id="filter-charge"
-              checked={table.getColumn("isChargePackage")?.getFilterValue() === true}
-              onCheckedChange={(checked) =>
-                table.getColumn("isChargePackage")?.setFilterValue(checked ? true : undefined)
-              }
+              id="sw-charge"
+              checked={chargeColumn.getFilterValue() === true}
+              onCheckedChange={(v) => chargeColumn.setFilterValue(v ? true : undefined)}
             />
-            <label htmlFor="filter-charge" className="text-sm">
-              Solo carga
+            <label htmlFor="sw-charge" className="text-xs font-medium cursor-pointer">
+              Carga
             </label>
           </div>
         )}
-        {isHighValueColumn  && (
-          <div className="flex items-center space-x-2 px-2">
+
+        {/* Switch de High Value - Solo si la columna existe (en Monitoreo no aparecerá) */}
+        {highValueColumn && (
+          <div className="flex items-center space-x-2 px-2 border-l">
             <Switch
-              id="filter-charge"
-              checked={table.getColumn("isHighValue")?.getFilterValue() === true}
-              onCheckedChange={(checked) =>
-                table.getColumn("isHighValue")?.setFilterValue(checked ? true : undefined)
-              }
+              id="sw-highvalue"
+              checked={highValueColumn.getFilterValue() === true}
+              onCheckedChange={(v) => highValueColumn.setFilterValue(v ? true : undefined)}
             />
-            <label htmlFor="filter-charge" className="text-sm">
-              Solo high value
+            <label htmlFor="sw-highvalue" className="text-xs font-medium cursor-pointer">
+              High Value
             </label>
           </div>
         )}
+
         {isFiltered && (
-          <Button variant="ghost" onClick={() => table.resetColumnFilters()} className="h-8 px-2 lg:px-3">
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              table.resetColumnFilters()
+              setGlobalFilter("")
+            }} 
+            className="h-8 px-2 lg:px-3"
+          >
             Borrar
             <Cross2Icon className="ml-2 h-4 w-4" />
           </Button>

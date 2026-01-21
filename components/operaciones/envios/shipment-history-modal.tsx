@@ -44,6 +44,7 @@ interface ShipmentHistory {
 
 interface ShipmentHistoryModalProps {
   shipmentId: string
+  isCharge?: boolean
   trackingNumber: string
   trigger: React.ReactNode
 }
@@ -109,7 +110,7 @@ const translateStatus = (status: string): string => {
   return translated
 }
 
-export function ShipmentHistoryModal({ shipmentId, trackingNumber, trigger }: ShipmentHistoryModalProps) {
+export function ShipmentHistoryModal({ shipmentId, trackingNumber, trigger, isCharge }: ShipmentHistoryModalProps) {
   const [history, setHistory] = useState<ShipmentHistory | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -119,7 +120,7 @@ export function ShipmentHistoryModal({ shipmentId, trackingNumber, trigger }: Sh
       setIsLoading(true)
       setError(null)
       try {
-        const data = await getHistoryById(shipmentId)
+        const data = await getHistoryById(shipmentId, isCharge ?? false)
         setHistory(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar el historial")

@@ -235,6 +235,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     }
 
     const newDevolutions = results.filter((r) => !devolutions.some((d) => d.trackingNumber === r.trackingNumber))
+    
+    console.log("🚀 ~ handleValidateDevolutions ~ newDevolutions:", newDevolutions)
 
     setDevolutions((prev) => [...prev, ...newDevolutions])
     setInvalidDevolutions(invalids)

@@ -548,11 +548,24 @@ export function getResumenFinanciero(subsidiaryId: string, fechaInicio: Date, fe
 }
 
 export const statuses = [
-  { label: "En Ruta", value: "en_ruta" },
-  { label: "Entregado", value: "entregado" },
-  { label: "Pendiente", value: "pendiente" },
-  { label: "No Entegado", value: "no_entregado" },
-]
+  { label: 'Pendiente', value: 'pendiente' },
+  { label: 'Recolección', value: 'recoleccion' },
+  { label: 'Recibido en bodega', value: 'recibido_en_bodega' },
+  { label: 'En bodega', value: 'en_bodega' },
+  { label: 'En ruta', value: 'en_ruta' },
+  { label: 'Estación FedEx', value: 'estacion_fedex' },
+  { label: 'Retenido por FedEx', value: 'retenido_por_fedex' },
+  { label: 'Es ocurre', value: 'es_ocurre' },
+  { label: 'Llegado después', value: 'llegado_despues' },
+  { label: 'Dirección incorrecta', value: 'direccion_incorrecta' },
+  { label: 'Cliente no disponible', value: 'cliente_no_disponible' },
+  { label: 'No entregado', value: 'no_entregado' },
+  { label: 'Rechazado', value: 'rechazado' },
+  { label: 'Devuelto a FedEx', value: 'devuelto_a_fedex' },
+  { label: 'Entregado', value: 'entregado' },
+  { label: 'Desconocido', value: 'desconocido' },
+];
+
 
 export const priorities = [
   { label: "Alta", value: "alta" },

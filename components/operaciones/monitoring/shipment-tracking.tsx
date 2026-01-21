@@ -299,12 +299,12 @@ export default function TrackingPage() {
     setPackages([])
   }
 
-  const getHistoryOfPackage = async (id: string, status: string) => {
+  const getHistoryOfPackage = async (id: string, status: string, isCharge: boolean) => {
     let lastStatusDate = "";
     let exceptionCode = "";
 
     try {
-      const history = await getHistoryById(id);
+      const history = await getHistoryById(id, isCharge);
 
       if (history && history.history && history.history.length > 0) {
         lastStatusDate = history.history[0].date ?? "";
@@ -331,14 +331,19 @@ export default function TrackingPage() {
         shipmentData: { ...p.shipmentData },
         packageDispatch: p.packageDispatch ? { ...p.packageDispatch } : undefined,
       }))
+      
+      console.log("🚀 ~ handleExportToExcel ~ enrichedPackages:", enrichedPackages)
 
       // Obtener historiales en paralelo
       await Promise.all(
         enrichedPackages.map(async (pkg) => {
+          console.log(`Package is charge: ${pkg.shipmentData.isCharge}`);
+
           try {
             const { lastStatusDate, exceptionCode } = await getHistoryOfPackage(
               pkg.shipmentData.id,
-              pkg.shipmentData.shipmentStatus
+              pkg.shipmentData.shipmentStatus,
+              pkg.shipmentData.isCharge
             )
             pkg.shipmentData.lastEventDate = lastStatusDate
             pkg.shipmentData.dexCode = exceptionCode

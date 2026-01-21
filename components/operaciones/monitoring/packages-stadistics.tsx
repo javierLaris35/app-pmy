@@ -445,7 +445,7 @@ function UndeliveredPackagesDialog({ isOpen, onClose, packages, count }: {
   packages: MonitoringInfo[]
   count: number
 }) {
-  console.log("🚀 ~ UndeliveredPackagesDialog ~ packages:", packages)
+  
   const [isLoading, setIsLoading] = React.useState(false)
 
   // Función para exportar paquetes no entregados
@@ -461,39 +461,11 @@ function UndeliveredPackagesDialog({ isOpen, onClose, packages, count }: {
       'Días en Bodega': pkg.shipmentData.daysInWarehouse || 0,
       'Fecha Compromiso': pkg.shipmentData.commitDateTime ? formatearFechaHoraHermosillo(pkg.shipmentData.commitDateTime) : ''
     }))
-    console.log("🚀 ~ handleExportUndelivered ~ packages:", packages)
+    
 
     const today = new Date().toISOString().split('T')[0]
     exportToExcel(dataForExport, `paquetes_no_entregados_${today}`, 'Paquetes No Entregados')
   }
-
-  React.useEffect(() => {
-    if (isOpen) {
-      // Petición ficticia para obtener los paquetes no entregados
-      setIsLoading(true)
-
-      // Simulamos una petición con setTimeout
-      setTimeout(() => {
-        // Datos ficticios de paquetes no entregados
-        const mockPackages: Shipment[] = Array.from({ length: count }, (_, i) => ({
-          id: `pkg-${i + 1}`,
-          trackingNumber: `TRK${String(i + 1).padStart(6, '0')}`,
-          recipientName: `Cliente ${i + 1}`,
-          recipientAddress: `Calle ${i + 1}, Col. Centro`,
-          recipientCity: "Ciudad de México",
-          recipientZip: "01000",
-          commitDateTime: new Date().toISOString(),
-          recipientPhone: `555-${String(i + 1).padStart(4, '0')}`,
-          status: "no_entregado" as const,
-          shipmentType: i % 2 === 0 ? "fedex" : "dhl" as "fedex" | "dhl",
-          daysInRoute: Math.floor(Math.random() * 7) + 1,
-        }))
-
-        //setPackages(mockPackages)
-        setIsLoading(false)
-      }, 800)
-    }
-  }, [isOpen, count])
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -663,10 +635,21 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
   const [isPaymentsDialogOpen, setIsPaymentsDialogOpen] = React.useState(false)
   const efficiencyStatus = getEfficiencyStatus(stats.eficiencia)
 
+  const UNDELIVERED_STATUSES = [
+  'no_entregado',
+  'rechazado',
+  'direccion_incorrecta',
+  'cliente_no_disponible'
+];
+
   // Filtrar todos los paquetes con pagos (sin importar el estado)
   const allPackagesWithPayment = packagesData.filter((p) => p.shipmentData?.payment)
-  const undeliveryPackages = packagesData.filter((p) => p.shipmentData.shipmentStatus === 'no_entregado')
+  const undeliveryPackages = packagesData.filter((p) => 
+    UNDELIVERED_STATUSES.includes(p.shipmentData.shipmentStatus.toLowerCase())
+  );
   console.log("🚀 ~ PackagesStatistics ~ packagesData:", packagesData)
+  console.log("🚀 ~ PackagesStatistics ~ undeliveryPackages:", undeliveryPackages)
+  
 
   // Filtrar paquetes entregados con payment (para liquidar a FedEx)
   const packagesToSettle = packagesData.filter((p) => {

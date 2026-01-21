@@ -229,8 +229,8 @@ const url = '/shipments'
     return response.data;
   }
 
-  export const getHistoryById = async (id: string) => {
-    const response = await axiosConfig.get(`${url}/history/${id}`);
+  export const getHistoryById = async (id: string, isCharge: boolean) => {
+    const response = await axiosConfig.get(`${url}/history/${id}?isCharge=${isCharge}`);
     return response.data;
   }
 
