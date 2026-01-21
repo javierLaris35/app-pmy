@@ -166,7 +166,7 @@ export default function ClosePackageDispatch({
       
       if (status === 'entregado' || status === 'delivered') {
         delivered.push(pkg);
-      } else if (status === 'no_entregado' || status === 'no entregado' || status === 'not_delivered') {
+      } else if (status === 'no_entregado' || status === 'rechazado' || status === 'direccion_incorrecta' || status === 'cliente_no_disponible') {
         notDelivered.push(pkg);
         returned.push({
           ...pkg,
