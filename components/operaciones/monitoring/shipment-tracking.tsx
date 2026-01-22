@@ -166,7 +166,7 @@ export default function TrackingPage() {
       p.shipmentData?.shipmentStatus?.toLowerCase() === "en ruta"
     ).length
     const enBodega = packages.filter((p) =>
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "en-bodega" ||
+      p.shipmentData?.shipmentStatus?.toLowerCase() === "en_bodega" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "en bodega" ||
       p.shipmentData?.shipmentStatus?.toLowerCase() === "bodega"
     ).length
