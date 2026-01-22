@@ -260,24 +260,29 @@ export interface Charge {
 export interface Consolidated {
   id: string;
   date: string;
-  type: "Ordinaria" | "Aereo" | "Carga";
+  // Ajustado para coincidir con los strings que manejas en el queryBuilder ('ordinario', 'aereo')
+  type: "ordinario" | "aereo" | "Carga" | string; 
   numberOfPackages: number;
   subsidiaryId: string;
   subsidiary: {
-      id: string;
-      name: string;
+    id: string;
+    name: string;
   };
   shipmentCounts?: {
-    total: number; 
+    total: number;
     en_ruta: number;
+    en_bodega: number;      // Nuevo: Paquetes en sucursal
     entregado: number;
-    no_entregado: number;
+    dex03: number;          // Dirección incorrecta
+    dex07: number;          // Rechazado
+    dex08: number;          // Cliente no disponible
     other: number;
-  }
-  isCompleted: boolean;
+  };
+  // Nota: isConsolidatedComplete es el nombre que usamos en el DTO del backend
+  isConsolidatedComplete: boolean; 
   consNumber: string;
   efficiency: number;
-  shipments: Shipment[];
+  shipments: any[]; // O el tipo Shipment[] que tengas definido
 }
 
 export interface SubsidiaryMetrics {
