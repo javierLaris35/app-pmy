@@ -404,14 +404,44 @@ export default function ClosePackageDispatch({
     return today === target;
   };
 
-  const hasOtherPackagesDueToday = (otherPackages: PackageInfo[]) => {
-    return otherPackages.some(
-      pkg =>
-        pkg.commitDateTime &&
-        isTodayInHermosillo(pkg.commitDateTime)
-    );
+  const isYesterdayInHermosillo = (utcDate?: string | Date) => {
+    if (!utcDate) return false;
+
+    const date = new Date(utcDate);
+
+    const formatter = new Intl.DateTimeFormat("es-MX", {
+      timeZone: "America/Hermosillo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    // Hoy en Hermosillo
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const yesterdayFormatted = formatter.format(yesterday);
+    const target = formatter.format(date);
+
+    return yesterdayFormatted === target;
   };
-  
+
+  const hasOtherPackagesDueToday = (
+    otherPackages: PackageInfo[]
+  ) => {
+    const dispatchWasYesterday = isYesterdayInHermosillo(dispatch?.createdAt);
+
+    return otherPackages.some(pkg => {
+      if (!pkg.commitDateTime) return false;
+
+      const dueToday = isTodayInHermosillo(pkg.commitDateTime);
+
+      // 🔒 Solo bloquea si vence hoy y el dispatch NO fue ayer
+      return dueToday && !dispatchWasYesterday;
+    });
+  };
+    
   const handleUpdateFedex = async () => { 
     try {
       setIsLoading(true);
