@@ -8,7 +8,7 @@ export function usePackageDispatchs(subsidiaryId: string) {
     
     const { data, error, isLoading, mutate } = useSWR<PackageDispatch[]>(
         isValid
-          ? [`/package-dispatchs`, subsidiaryId]
+          ? [`/package-dispatchs/subsidiary`, subsidiaryId]
           : null,
         ([, subsidiaryId]: [string, string]) => getPackageDispatchs(subsidiaryId)
     );

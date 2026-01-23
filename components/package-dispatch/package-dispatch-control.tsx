@@ -56,13 +56,15 @@ export default function PackageDispatchControl() {
     setIsDispatchDialogOpen(true)
   }
 
-  const openDetailsDialog = (packageDispatch: PackageDispatch) => {
-      setSelectedPackageDispatch(packageDispatch.id);
+  const openDetailsDialog = (packageDispatchId: string) => {
+      setSelectedPackageDispatch(packageDispatchId);
       setIsDetailsDialogOpen(true);
   };
 
     // 🔒 PROTECCIÓN: no permitir cerrar si ya está COMPLETADA
   const openRouteClouserDialog = (packageDispatch: PackageDispatch) => {
+    console.log("🚀 ~ openRouteClouserDialog ~ packageDispatch:", packageDispatch)
+
     if (packageDispatch.status == PackageDispatchStatus.COMPLETED) {
       
       console.warn(

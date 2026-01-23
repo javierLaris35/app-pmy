@@ -4,7 +4,7 @@ import { ChargeShipment, DispatchFormData, PackageDispatch, PackageInfo, Shipmen
 const url = '/package-dispatchs'
 
 const getPackageDispatchs = async (subsidiaryId: string) => {
-    const response = await axiosConfig.get<PackageDispatch[]>(`${url}/${subsidiaryId}`);
+    const response = await axiosConfig.get<PackageDispatch[]>(`${url}/subsidiary/${subsidiaryId}`);
     return response.data;
 }
 
