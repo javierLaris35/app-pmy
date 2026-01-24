@@ -1,10 +1,10 @@
 import { axiosConfig } from "../axios-config"
-import { ConsolidatedDetails, Consolidateds, PackageInfo, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types"
+import { ConsolidatedDetails, Consolidateds, PackageInfo, Unloading, UnloadingFormData, UnloadingResponse, ValidTrackingAndConsolidateds } from "@/lib/types"
 
 const url = '/unloadings'
 
 const getUnloadings = async (subsidiaryId: string) => {
-    const response = await axiosConfig.get<Unloading[]>(`${url}/${subsidiaryId}`);
+    const response = await axiosConfig.get<UnloadingResponse[]>(`${url}/subsidiary/${subsidiaryId}`);
     return response.data;
 }
 

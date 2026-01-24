@@ -1,12 +1,12 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Unloading} from "@/lib/types" // Ajusta según tu modelo real
+import { UnloadingResponse} from "@/lib/types" // Ajusta según tu modelo real
 import { Button } from "@/components/ui/button"
 import { Eye, Sheet } from "lucide-react"
 import { Tooltip, TooltipContent } from "@/components/ui/tooltip"
 import { TooltipTrigger } from "@radix-ui/react-tooltip"
 
-export const columns: ColumnDef<Unloading>[] = [
+export const columns: ColumnDef<UnloadingResponse>[] = [
   // Columna de selección
   {
     id: "select",
@@ -39,28 +39,28 @@ export const columns: ColumnDef<Unloading>[] = [
     header: "Unidad",
     cell: ({ row }) => <span className="font-medium">{row.original?.vehicle?.name}</span>,
   },
-
-    {
-    accessorKey: "shipments",
+  {
+    accessorKey: "totalPackages", // O puedes usar "shipments"
     header: "Paquetes",
     cell: ({ row }) => {
-        const shipments = row.original.shipments;
-        
-        if (!shipments || shipments.length === 0) return (
-          <span className="font-mono">
-            0 Paquetes 
-          </span>
-        );
+      // Sumamos los dos tipos de paquetes que enviamos desde el backend
+      const total = (row.original.shipments || 0) + (row.original.chargeShipments || 0);
 
+      if (total === 0) {
         return (
-          <span className="font-mono">
-            {shipments.length} paquete{shipments.length > 1 ? "s" : ""}
+          <span className="text-gray-400 font-mono">
+            0 Paquetes
           </span>
         );
+      }
 
+      return (
+        <span className="font-semibold font-mono">
+          {total} paquete{total !== 1 ? "s" : ""}
+        </span>
+      );
     },
   },
-
   {
     accessorKey: "missingTrackings",
     header: "Guias Faltates",

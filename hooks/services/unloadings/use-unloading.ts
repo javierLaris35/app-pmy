@@ -1,5 +1,5 @@
 import { getUnloadingById, getUnloadings, saveUnloading } from "@/lib/services/unloadings";
-import { Unloading } from "@/lib/types";
+import { Unloading, UnloadingResponse } from "@/lib/types";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 
@@ -7,9 +7,9 @@ export function useUnLoadings(subsidiaryId: string | null) {
     // Verificar que subsidiaryId sea una string válida
     const isValid = subsidiaryId && typeof subsidiaryId === 'string' && subsidiaryId.length > 0;
     
-    const { data, error, isLoading, mutate } = useSWR<Unloading[]>(
+    const { data, error, isLoading, mutate } = useSWR<UnloadingResponse[]>(
         isValid
-          ? [`/unloadings`, subsidiaryId]
+          ? [`/unloadings/subsidiary/`, subsidiaryId]
           : null,
         isValid 
           ? ([, id]: [string, string]) => getUnloadings(id)

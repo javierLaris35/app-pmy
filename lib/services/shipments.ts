@@ -66,48 +66,52 @@ const url = '/shipments'
     subsidiaryId: string,
     consNumber: string = '',
     consDate?: string,
-    isAereo?: boolean,
+    isAereo: boolean = false,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('subsidiaryId', subsidiaryId);
-    formData.append('consNumber', consNumber || '');
-    formData.append('isAereo', String(isAereo ?? false));
+    formData.append('consNumber', consNumber);
+    formData.append('isAereo', String(isAereo));
 
-    // Convert consDate to UTC and format as ISO 8601
     if (consDate) {
       try {
         const parsedDate = new Date(consDate);
-        if (isNaN(parsedDate.getTime())) {
-          throw new Error('Invalid consDate format');
-        }
-        // Convert to UTC and format as ISO 8601 (e.g., 2025-07-10T02:00:00Z)
         const utcDate = toZonedTime(parsedDate, 'UTC');
         const formattedDate = format(utcDate, "yyyy-MM-dd'T'HH:mm:ss'Z'", { timeZone: 'UTC' });
         formData.append('consDate', formattedDate);
       } catch (error) {
-        console.error('Error formatting consDate:', error);
-        throw new Error('Invalid consDate format. Please use a valid date (e.g., YYYY-MM-DD).');
+        console.error('Error formatting date:', error);
       }
     }
 
-    const response= await axiosConfig.post('/shipments/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          console.log('Progreso:', percent);
-          onProgress(percent);
-        }
-      },
-    });
+    try {
+      const response = await axiosConfig.post('/shipments/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+          }
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      const data = error.response?.data;
+      
+      // Lógica para extraer el mensaje real oculto tras el "apiMessage: E"
+      // Buscamos en: data.response.message (que es donde NestJS puso el error real)
+      const serverMessage = data?.response?.message || data?.message || error.message;
+      
+      // Si el mensaje es un array (común en validaciones de NestJS), lo unimos con saltos de línea
+      const finalMessage = Array.isArray(serverMessage) 
+        ? serverMessage.join('\n') 
+        : serverMessage;
 
-    return response.data;
+      throw new Error(finalMessage);
+    }
   }
-
   export async function uploadHighValueShipments(file: File,
     subsidiaryId: string,
     consNumber: string = "",

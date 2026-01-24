@@ -626,6 +626,19 @@ export interface Unloading {
   createdAt: string;
 }
 
+export interface UnloadingResponse {
+  id: string;
+  trackingNumber: string;
+  vehicle?: Vehicles;
+  subsidiary?: Subsidiary;
+  shipments?: number;
+  chargeShipments?: number;
+  missingTrackings: string[];
+  unScannedTrackings: string[];
+  date: string;
+  createdAt: string;
+}
+
 export interface UnloadingFormData {
   id?: string;
   vehicle?: Vehicles;
