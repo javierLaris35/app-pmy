@@ -160,60 +160,84 @@ export default function TrackingPage() {
 
   
   const calculateStats = (packages: MonitoringInfo[]): PackageStats => {
-    const total = packages.length
-    const enRuta = packages.filter((p) =>
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "en_ruta" ||
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "en ruta"
-    ).length
-    const enBodega = packages.filter((p) =>
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "en_bodega" ||
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "en bodega" ||
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "bodega"
-    ).length
-    const entregados = packages.filter((p) =>
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" ||
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "entregada" ||
-      p.shipmentData?.shipmentStatus?.toLowerCase() === "entregados"
-    ).length
-    const noEntregados = total - entregados - enRuta - enBodega
-    const porcentajeEntrega = total > 0 ? (entregados / total) * 100 : 0
-    const porcentajeNoEntrega = total > 0 ? (noEntregados / total) * 100 : 0
-    const eficiencia = total > 0 ? (entregados / total) * 100 : 0
-    const packagesWithPayment = packages.filter((p) => p.shipmentData?.payment).length
-    const totalPaymentAmount = packages
-      .filter((p) => p.shipmentData?.payment)
-      .reduce((sum, p) => sum + (p.shipmentData.payment?.amount || 0), 0)
+    // 1. Estatus que NO influyen en las métricas operativas
+    const statusIgnorados = [
+      "entregado_por_fedex",
+      "estacion_fedex",
+      "recoleccion",
+      "retorno_abandono_fedex",
+      "acargo_de_fedex",
+    ];
 
-    const packagesToSettle = packages.filter((p) => {
-      const isDelivered = p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" ||
-        p.shipmentData?.shipmentStatus?.toLowerCase() === "entregada" ||
-        p.shipmentData?.shipmentStatus?.toLowerCase() === "entregados"
-      const hasPayment = p.shipmentData?.payment !== null
-      const paymentType = p.shipmentData?.payment?.type
-      const hasPaymentType = paymentType !== undefined && paymentType !== null
-      return isDelivered && hasPayment && hasPaymentType
-    })
+    const packagesFiltrados = packages.filter((p) => {
+      const status = p.shipmentData?.shipmentStatus || "";
+      const isIgnored = statusIgnorados.includes(status);
+      
+      if (isIgnored) {
+        console.log(`Excluido de métricas: ${p.shipmentData?.trackingNumber} (${status})`);
+      }
+      
+      return !isIgnored;
+    });
+
+    const total = packagesFiltrados.length;
+
+    // 2. En Ruta: Solo tu operación activa
+    const enRuta = packagesFiltrados.filter(p => 
+      p.shipmentData?.shipmentStatus === "en_ruta"
+    ).length;
+
+    // 3. Entregados: Solo éxito local
+    const entregados = packagesFiltrados.filter(p => 
+      p.shipmentData?.shipmentStatus === "entregado"
+    ).length;
+
+    // 4. Bodega: Stock físico real
+    const enBodega = packagesFiltrados.filter(p => 
+      p.shipmentData?.shipmentStatus === "en_bodega" || 
+      p.shipmentData?.shipmentStatus === "pendiente" ||
+      p.shipmentData?.shipmentStatus === "desconocido"
+    ).length;
+
+    // 5. No Entregados: Solo fallos operativos que requieren atención
+    const noEntregados = packagesFiltrados.filter((p) => {
+      const s = p.shipmentData?.shipmentStatus;
+      return (
+        s === "no_entregado" ||
+        s === "rechazado" ||
+        s === "cliente_no_disponible" ||
+        s === "direccion_incorrecta"
+      );
+    }).length;
+
+    // Proporciones
+    const porcentajeEntrega = total > 0 ? (entregados / total) * 100 : 0;
+    const porcentajeNoEntrega = total > 0 ? (noEntregados / total) * 100 : 0;
+
+    // Liquidación de Caja
+    const packagesToSettle = packagesFiltrados.filter(p => 
+      p.shipmentData?.shipmentStatus === "entregado" && p.shipmentData?.payment?.type
+    );
 
     const totalAmountToSettle = packagesToSettle.reduce(
-      (sum, p) => sum + (p.shipmentData.payment?.amount || 0),
-      0
-    )
+      (sum, p) => sum + (p.shipmentData.payment?.amount || 0), 0
+    );
 
     return {
       total,
       enRuta,
       enBodega,
       entregados,
-      noEntregados: Math.max(0, noEntregados),
+      noEntregados,
       porcentajeEntrega,
       porcentajeNoEntrega,
-      eficiencia,
-      packagesWithPayment,
-      totalPaymentAmount,
+      eficiencia: porcentajeEntrega,
+      packagesWithPayment: packagesFiltrados.filter(p => p.shipmentData?.payment).length,
+      totalPaymentAmount: packagesFiltrados.reduce((sum, p) => sum + (p.shipmentData?.payment?.amount || 0), 0),
       packagesToSettle: packagesToSettle.length,
       totalAmountToSettle,
-    }
-  }
+    };
+  };
 
   const statsInfo = calculateStats(packages)
 
