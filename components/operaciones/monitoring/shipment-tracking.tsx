@@ -206,6 +206,7 @@ export default function TrackingPage() {
         s === "no_entregado" ||
         s === "rechazado" ||
         s === "cliente_no_disponible" ||
+        s === "cambio_fecha_solicitado" ||
         s === "direccion_incorrecta"
       );
     }).length;
