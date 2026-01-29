@@ -129,7 +129,8 @@ interface PackageStats {
 }
 
 export default function TrackingPage() {
-  const formatDateForInput = (d?: Date | null) => (d ? format(d, "yyyy-MM-dd") : "")
+  const user = useAuthStore((s) => s.user)
+
     // modal reports
   const [isReportsOpen, setIsReportsOpen] = useState(false)
   const [viewMode, setViewMode] = useState<"table" | "stats">("table")
@@ -155,12 +156,11 @@ export default function TrackingPage() {
 
   // Validación: inicio no puede ser posterior al fin
   const isDateRangeInvalid = !!(reportStartDate && reportEndDate && reportStartDate > reportEndDate)
-
-  const user = useAuthStore((s) => s.user)
-
+  
+  const effectiveSubsidiaryId = selectedSubsidiaryId || user?.subsidiary?.id
   
   const calculateStats = (packages: MonitoringInfo[]): PackageStats => {
-    // 1. Estatus que NO influyen en las métricas operativas
+    // 1. Definición de grupos de estados (Normalizados)
     const statusIgnorados = [
       "entregado_por_fedex",
       "estacion_fedex",
@@ -169,59 +169,55 @@ export default function TrackingPage() {
       "acargo_de_fedex",
     ];
 
+    const statusNoEntregados = [
+      "no_entregado",
+      "rechazado",
+      "cliente_no_disponible",
+      "cambio_fecha_solicitado",
+      "direccion_incorrecta",
+      "cliente_no_encontrado"
+    ];
+
+    // 2. Filtrado inicial: Solo lo que pertenece a nuestra operación local
     const packagesFiltrados = packages.filter((p) => {
-      const status = p.shipmentData?.shipmentStatus || "";
-      const isIgnored = statusIgnorados.includes(status);
-      
-      if (isIgnored) {
-        console.log(`Excluido de métricas: ${p.shipmentData?.trackingNumber} (${status})`);
-      }
-      
-      return !isIgnored;
+      const status = p.shipmentData?.shipmentStatus?.toLowerCase().trim() || "";
+      return !statusIgnorados.includes(status);
     });
 
     const total = packagesFiltrados.length;
 
-    // 2. En Ruta: Solo tu operación activa
+    // 3. Conteos específicos sobre la data filtrada
     const enRuta = packagesFiltrados.filter(p => 
-      p.shipmentData?.shipmentStatus === "en_ruta"
+      p.shipmentData?.shipmentStatus?.toLowerCase().trim() === "en_ruta"
     ).length;
 
-    // 3. Entregados: Solo éxito local
     const entregados = packagesFiltrados.filter(p => 
-      p.shipmentData?.shipmentStatus === "entregado"
+      p.shipmentData?.shipmentStatus?.toLowerCase().trim() === "entregado"
     ).length;
 
-    // 4. Bodega: Stock físico real
-    const enBodega = packagesFiltrados.filter(p => 
-      p.shipmentData?.shipmentStatus === "en_bodega" || 
-      p.shipmentData?.shipmentStatus === "pendiente" ||
-      p.shipmentData?.shipmentStatus === "desconocido"
-    ).length;
-
-    // 5. No Entregados: Solo fallos operativos que requieren atención
-    const noEntregados = packagesFiltrados.filter((p) => {
-      const s = p.shipmentData?.shipmentStatus;
-      return (
-        s === "no_entregado" ||
-        s === "rechazado" ||
-        s === "cliente_no_disponible" ||
-        s === "cambio_fecha_solicitado" ||
-        s === "direccion_incorrecta"
-      );
+    const enBodega = packagesFiltrados.filter(p => {
+      const s = p.shipmentData?.shipmentStatus?.toLowerCase().trim();
+      return s === "en_bodega" || s === "pendiente";
     }).length;
 
-    // Proporciones
+    // 4. Conteo de Incidencias (Aquí es donde deben salir tus 8)
+    const noEntregados = packagesFiltrados.filter((p) => {
+      const s = p.shipmentData?.shipmentStatus?.toLowerCase().trim() || "";
+      return statusNoEntregados.includes(s);
+    }).length;
+  
+    // 5. Cálculos de proporciones y KPIs
     const porcentajeEntrega = total > 0 ? (entregados / total) * 100 : 0;
     const porcentajeNoEntrega = total > 0 ? (noEntregados / total) * 100 : 0;
 
-    // Liquidación de Caja
-    const packagesToSettle = packagesFiltrados.filter(p => 
-      p.shipmentData?.shipmentStatus === "entregado" && p.shipmentData?.payment?.type
-    );
+    // 6. Liquidación de Caja (Solo entregados que tienen un pago registrado)
+    const packagesToSettle = packagesFiltrados.filter(p => {
+      const s = p.shipmentData?.shipmentStatus?.toLowerCase().trim();
+      return s === "entregado" && p.shipmentData?.payment?.amount && p.shipmentData?.payment?.amount > 0;
+    });
 
     const totalAmountToSettle = packagesToSettle.reduce(
-      (sum, p) => sum + (p.shipmentData.payment?.amount || 0), 0
+      (sum, p) => sum + (Number(p.shipmentData.payment?.amount) || 0), 0
     );
 
     return {
@@ -233,8 +229,8 @@ export default function TrackingPage() {
       porcentajeEntrega,
       porcentajeNoEntrega,
       eficiencia: porcentajeEntrega,
-      packagesWithPayment: packagesFiltrados.filter(p => p.shipmentData?.payment).length,
-      totalPaymentAmount: packagesFiltrados.reduce((sum, p) => sum + (p.shipmentData?.payment?.amount || 0), 0),
+      packagesWithPayment: packagesFiltrados.filter(p => (p.shipmentData?.payment?.amount ?? 0) > 0).length,
+      totalPaymentAmount: packagesFiltrados.reduce((sum, p) => sum + (Number(p.shipmentData?.payment?.amount) || 0), 0),
       packagesToSettle: packagesToSettle.length,
       totalAmountToSettle,
     };
@@ -246,16 +242,11 @@ export default function TrackingPage() {
     setIsLoading(true)
     try {
       const [consolidatedData, unloadingsData, packageDispathData] = await Promise.all([
-        getConsolidateds(selectedSubsidiaryId || user?.subsidiary?.id),
-        getUnloadings(selectedSubsidiaryId || user?.subsidiary?.id),
-        getPackageDispatchs(selectedSubsidiaryId || user?.subsidiary?.id),
+        getConsolidateds(effectiveSubsidiaryId),
+        getUnloadings(effectiveSubsidiaryId),
+        getPackageDispatchs(effectiveSubsidiaryId),
       ])
-      console.log("Initial data:", {
-        consolidatedData,
-        unloadingsData,
-        packageDispathData,
-        subsidiaryId: selectedSubsidiaryId || user?.subsidiary?.id,
-      })
+
       // Evitar duplicar setState (ya se asigna una vez)
       setConsolidateds(consolidatedData || [])
       setUnloadings(unloadingsData || [])
@@ -481,10 +472,10 @@ export default function TrackingPage() {
   }, [selectedRuta, selectedConsolidado, selectedDesembarque])
 
   useEffect(() => {
-    if (selectedSubsidiaryId) {
+    if (effectiveSubsidiaryId) {
       fetchInitialData()
     }
-  }, [selectedSubsidiaryId])
+  }, [effectiveSubsidiaryId])
 
   const filteredPackages = packages
 
@@ -598,11 +589,8 @@ export default function TrackingPage() {
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
       };
-
-      // Determinar sucursal
-      const subsidiaryIdToUse = selectedSubsidiaryId || user?.subsidiary?.id;
       
-      if (!subsidiaryIdToUse) {
+      if (!effectiveSubsidiaryId) {
         alert("Por favor, selecciona una sucursal primero");
         setIsLoading(false);
         return;
@@ -613,14 +601,14 @@ export default function TrackingPage() {
       const endDateStr = reportEndDate ? formatDate(reportEndDate) : undefined;
       
       console.log("Generando reporte con:", {
-        subsidiaryId: subsidiaryIdToUse,
+        subsidiaryId: effectiveSubsidiaryId,
         startDate: startDateStr,
         endDate: endDateStr
       });
 
       // Generar reporte
       const blob = await generateReportPending(
-        subsidiaryIdToUse, 
+        effectiveSubsidiaryId, 
         startDateStr, 
         endDateStr
       );
@@ -637,7 +625,7 @@ export default function TrackingPage() {
       
       // Nombre del archivo
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      link.download = `pendientes_${subsidiaryIdToUse}_${timestamp}.xlsx`;
+      link.download = `pendientes_${effectiveSubsidiaryId}_${timestamp}.xlsx`;
       
       document.body.appendChild(link);
       link.click();
@@ -720,15 +708,13 @@ export default function TrackingPage() {
   const generateInvetory67Report = async () => {
     setIsLoading(true);
     try {
-      const subsidiaryIdToUse = selectedSubsidiaryId || user?.subsidiary?.id;
-
-      if (!subsidiaryIdToUse) {
+      if (!effectiveSubsidiaryId) {
         alert("Por favor, selecciona una sucursal primero");
         setIsLoading(false);
         return;
       }
 
-      const blob = await generateReportInventory67(subsidiaryIdToUse);
+      const blob = await generateReportInventory67(effectiveSubsidiaryId);
 
       // Descargar
       const url = window.URL.createObjectURL(
@@ -742,7 +728,7 @@ export default function TrackingPage() {
       
       // Nombre del archivo
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      link.download = `ultimo_inventario_sin_67${subsidiaryIdToUse}_${timestamp}.xlsx`;
+      link.download = `ultimo_inventario_sin_67${effectiveSubsidiaryId}_${timestamp}.xlsx`;
       
       document.body.appendChild(link);
       link.click();
@@ -818,7 +804,7 @@ export default function TrackingPage() {
               </Button>
               <div>
                 <SucursalSelector
-                  value={selectedSubsidiaryId || user?.subsidiary?.id || user?.subsidiaryId || ""}
+                  value={effectiveSubsidiaryId || user?.subsidiary?.id || user?.subsidiaryId || ""}
                   returnObject={true}
                   onValueChange={(val) => {
                   console.log("[ShipmentTracking] SucursalSelector onValueChange ->", val)
@@ -989,6 +975,7 @@ export default function TrackingPage() {
                }}
                packagesData={filteredPackages}
                stats={statsInfo}
+               subsidiaryId={effectiveSubsidiaryId}
              />
            )}
 
@@ -1006,6 +993,7 @@ export default function TrackingPage() {
                  estado: "Procesado",
                }}
                packagesData={filteredPackages}
+               subsidiaryId={effectiveSubsidiaryId}
                stats={statsInfo}
              />
            )}
@@ -1022,6 +1010,7 @@ export default function TrackingPage() {
                  estado: "En Progreso",
                }}
                packagesData={filteredPackages}
+               subsidiaryId={effectiveSubsidiaryId}
                stats={statsInfo}
              />
            )}

@@ -16,11 +16,17 @@ import { Charge, ChargeShipment } from "@/lib/types";
 import { ChargeShipmentDetailDialog } from "@/components/modals/charge-shipment-detail-dialog";
 import { useCharges } from "@/hooks/services/shipments/use-shipments";
 import {withAuth} from "@/hoc/withAuth";
+import { useAuthStore } from "@/store/auth.store";
 
 function ChargesWithKpis() {
-  const { charges, isLoading, mutate } = useCharges();
+    const user = useAuthStore((s) => s.user)
     const [selectedShipments, setSelectedShipments] = useState<ChargeShipment[] | null>(null);
     const [selectedSucursalId, setSelectedSucursalId] = useState<string | undefined>(undefined)
+
+    const effectiveSubsidiaryId = selectedSucursalId || user?.subsidiary?.id
+
+    
+    const { charges, isLoading, mutate } = useCharges(effectiveSubsidiaryId);
 
 
     if (!charges || isLoading) {

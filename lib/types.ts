@@ -96,31 +96,45 @@ export type KpiData = {
 }
 
 export type NewIncome = {
-  date: string
+  date: string;
   fedex: {
-    pod: number
-    dex: number
-    total: number
-    totalIncome: string
-  }
+    pod: number;
+    dex07: number; // Especificado
+    dex08: number; // Especificado
+    total: number;
+    totalIncome: string;
+  };
   dhl: {
-    ba: number
-    ne: number
-    total: number
-    totalIncome: string
-  }
-  collections: number
-  cargas: number
-  total: number
-  totalIncome: string
+    ba: number;
+    ne: number;
+    total: number;
+    totalIncome: string;
+  };
+  collections: number;
+  cargas: number;
+  total: number;
+  totalIncome: string;
+  lastWeekValue?: number; // Para la comparación en la tabla
   items: {
-    type: string
-    trackingNumber: string
-    shipmentType: string
-    status: string
-    date: string
-    cost: number
-  }[]
+    type: string;
+    trackingNumber: string;
+    shipmentType: string;
+    status: string;
+    date: string;
+    cost: number;
+    commitDateTime?: string;
+  }[];
+};
+
+// Interfaz para la respuesta global del backend
+export interface IncomesResponse {
+  current: NewIncome[];
+  lastWeekTotal: number;
+  chartData: {
+    name: string;
+    actual: number;
+    pasada: number;
+  }[];
 }
 
 export type UserRole = 'admin' | 'user' | 'auxiliar' | 'superamin' | 'bodega' | 'subadmin';
@@ -405,6 +419,10 @@ export type ReturnValidaton = {
   id: string;
   trackingNumber: string;
   status: string;
+  recipientName: string;
+  recipientAddress: string;
+  recipientPhone: string;
+  recipientZip: string;
   subsidiaryId: string;    // Nuevo campo
   subsidiaryName: string;  // Existente
   hasIncome: boolean;

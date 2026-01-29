@@ -14,6 +14,7 @@ interface MonitoringLayoutProps {
     selectionData: any,
     stats: any,
     packagesData: any;
+    subsidiaryId?: string;
 }
 
 export function MonitoringLayout({
@@ -23,8 +24,11 @@ export function MonitoringLayout({
        selectionData,
        entityId,
        stats,
-       packagesData
+       packagesData, 
+       subsidiaryId
    }: MonitoringLayoutProps) {
+
+    console.log("🚀 ~ MonitoringLayout ~ subsidiaryId:", subsidiaryId)
 
     return (
         <Card className="p-4">
@@ -39,7 +43,12 @@ export function MonitoringLayout({
                     {/* Columna izquierda: Información y paquetes que vencen hoy */}
                     <div className="flex flex-col gap-4 h-full">
                         <SelectionInfo type={selectionType} data={selectionData}/>
-                        <ExpiringTodayCard packagesData={packagesData} entityType={selectionType} entityId={entityId}/>
+                        <ExpiringTodayCard 
+                            packagesData={packagesData} 
+                            entityType={selectionType} 
+                            entityId={entityId}
+                            subsidiaryId={subsidiaryId}
+                            />
                     </div>
 
                     {/* Columna derecha: Estadísticas */}

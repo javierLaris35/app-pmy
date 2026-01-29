@@ -797,7 +797,9 @@ export default function UnloadingForm({
         isPendingValidation: true,
         recipientName: data.packageInfo.recipient?.name,
         recipientAddress: data.packageInfo.recipient?.address,
-        recipientPhone: data.packageInfo.recipient?.phoneNumber
+        recipientPhone: data.packageInfo.recipient?.phoneNumber,
+        commitDateTime: data.packageInfo.commitDateTime,
+        priority: Priority.ALTA
       };
 
       setScannedPackages(prev => [...prev, newPackage]);

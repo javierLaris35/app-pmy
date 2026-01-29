@@ -189,13 +189,29 @@ export const sidebarMenu = {
   ]
 }
 
+export const SHIPMENT_REASONS = {
+  direccion_incorrecta: "DEX03 - Dirección Incorrecta",
+  rechazado: "DEX07 - Rechazado por Cliente",
+  cliente_no_disponible: "DEX08 - Cliente no disponible",
+  cambio_fecha_solicitado: "DEX17 - Cambio Fecha Solicitado",
+  llegado_despues: "STAT31 - Llegado Después",
+  estacion_fedex: "STAT41 - Estación FedEx",
+  retorno_abandonono_fedex: "STAT14 - Retorno/Abandono",
+  es_ocurre: "HP - 015A (Es Ocurre)",
+  en_bodega: "67 - Desembarque en Bodega",
+  devuelto_a_fedex: "Devolución a FedEx",
+  no_entregado: "No Entregado (General)",
+}
+
 
 export const SHIPMENT_STATUS_MAP: Record<string, string> = {
   "03": "DEX03",
   "07": "DEX07",
   "08": "DEX08",
-  "GF": "GUIA FRAUDE",
+  "17": "DEX17",
   "12": "DEX12",
+  "14": "DEX14 - STAT14",
+  "GF": "GUIA FRAUDE"
 };
 
 

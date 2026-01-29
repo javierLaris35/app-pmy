@@ -18,15 +18,19 @@ export function useShipments(subsidiaryId?: string) {
   }
 }
 
-export function useCharges() {
-    const { data, error, isLoading, mutate } = useSWR('/shipments/charges', getCharges);
+export function useCharges(subsidiaryId: string) {
+  // 2. Solo ejecutamos si hay un subsidiaryId
+  const { data, error, isLoading, mutate } = useSWR(
+    subsidiaryId ? `/shipments/charges/${subsidiaryId}` : null, 
+    getCharges
+  );
 
-    return {
-        charges: data,
-        isLoading,
-        isError: !!error,
-        mutate,
-    };
+  return {
+    charges: data || [], // Evitamos que sea undefined
+    isLoading,
+    isError: !!error,
+    mutate,
+  };
 }
 
 export function useKpiData(date: string, subsidiaryId?: string) {

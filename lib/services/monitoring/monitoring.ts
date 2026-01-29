@@ -48,18 +48,18 @@ const updateDataFromFedexByPackageDispatchId = async(packageDispatchId: string) 
     return response.data;
 }
 
-const getShipmentsNo67ByConsolidated = async(consolidatedId: string) => {
-    const response = await axiosConfig.get(`${url}/consolidated/no-67/${consolidatedId}`);
+const getShipmentsNo67ByConsolidated = async(consolidatedId: string, subsidiaryId: string) => {
+    const response = await axiosConfig.get(`${url}/consolidated/no-67/${consolidatedId}?subsidiaryId=${subsidiaryId}`);
     return response.data;
 }
 
-const getShipmentsNo67ByUnloading = async(unloadingId: string) => {
-    const response = await axiosConfig.get(`${url}/unloading/no-67/${unloadingId}`);
+const getShipmentsNo67ByUnloading = async(unloadingId: string, subsidiaryId: string) => {
+    const response = await axiosConfig.get(`${url}/unloading/no-67/${unloadingId}?subsidiaryId=${subsidiaryId}`);
     return response.data;
 }
 
-const getShipmentsNo67ByPackageDispatch = async(packageDispatchId: string) => {
-    const response = await axiosConfig.get(`${url}/package-dispatch/no-67/${packageDispatchId}`);
+const getShipmentsNo67ByPackageDispatch = async(packageDispatchId: string, subsidiaryId: string) => {
+    const response = await axiosConfig.get(`${url}/package-dispatch/no-67/${packageDispatchId}?subsidiaryId=${subsidiaryId}`);
     return response.data;
 }
 

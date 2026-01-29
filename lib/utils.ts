@@ -190,3 +190,11 @@ export function mapToPackageInfoComplete(
 
   return [...normalPackages, ...chargePackages];
 }
+
+export const parseCurrency = (val: string | number): number => {
+  if (typeof val === "number") return val;
+  if (!val) return 0;
+  // Elimina $, comas y espacios antes de convertir
+  const cleanValue = val.replace(/[$,\s]/g, "");
+  return parseFloat(cleanValue) || 0;
+};

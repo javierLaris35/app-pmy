@@ -1,69 +1,43 @@
 "use client"
 
-import type * as React from "react"
 import { MainSidebar } from "@/components/main-sidebar"
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Badge } from "./ui/badge"
-import { Button } from "./ui/button"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { AppSidebar } from "./sidebar"
-import { SidebarProvider, SidebarTrigger } from "./ui/sidebar"
+import { Separator } from "./ui/separator"
 
-interface AppLayoutProps {
-  children: React.ReactNode
-}
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  const user = { name: "Juan", lastName: "Pérez", email: "juan.perez@delyaqui.com.mx", role: "admin" }
 
-const user = {
-  name: "Juan",
-  lastName: "Pérez",
-  email: "juan.perez@delyaqui.com.mx",
-  role: "admin",
-}
-
-export function AppLayout({ children }: AppLayoutProps) {
-  const router = useRouter();
-  const { toast } = useToast()
-
-  const handleLogout = async () => { 
-    try {
-      //await logout()
-      router.push("/login")
-    } catch (error) {
-      console.error("Error al cerrar sesión:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo cerrar sesión correctamente",
-        variant: "destructive",
-      })
-    }
-  }
- 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <MainSidebar user={user} onLogout={handleLogout}/>
-      <div className="flex flex-col flex-1 md:pl-64">
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-white px-4 shadow-sm">
-          <div className="hidden md:block">
-            
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {user.name ? `${user.name} ${user.lastName || ""}` : user.email}
-              </span>
-              {user.role === "admin" && (
-                <Badge variant="secondary" className="text-xs">
-                  Admin
+    <SidebarProvider>
+      <div className="flex h-screen w-full bg-white">
+        <MainSidebar user={user} onLogout={() => {}} />
+        
+        <SidebarInset className="flex flex-col bg-slate-50/50">
+          <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b bg-white/80 px-6 backdrop-blur-md">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger className="text-slate-500 hover:text-emerald-600 transition-colors" />
+              <Separator orientation="vertical" className="h-6" />
+              <div className="flex items-center gap-2">
+                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 transition-none capitalize px-3 py-0.5 rounded-full text-[11px] font-bold">
+                  Sucursal Obregón
                 </Badge>
-              )}
+              </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout} className="hidden md:flex">
-              Cerrar Sesión
-            </Button>
-          </div>
-        </header>
-        <main className="flex-1 p-4 md:p-6 overflow-auto">{children}</main>
+
+            <div className="flex items-center gap-4">
+               <div className="hidden sm:flex flex-col items-end leading-none">
+                  <span className="text-sm font-bold text-slate-900">{user.name}</span>
+                  <span className="text-[10px] text-slate-400 font-medium uppercase tracking-tighter">{user.role}</span>
+               </div>
+            </div>
+          </header>
+
+          <main className="flex-1 p-0 overflow-y-auto">
+             {children}
+          </main>
+        </SidebarInset>
       </div>
-    </div>
-    )
+    </SidebarProvider>
+  )
 }

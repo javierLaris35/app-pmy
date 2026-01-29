@@ -1,650 +1,321 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useState, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
+import { 
+  Truck, XCircle, Download, RefreshCw, ScanBarcode, 
+  Plus, Loader2, CheckCircle, Package, RotateCcw
+} from "lucide-react"
+
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import classNames from "classnames"
-import { AlertCircle, Trash2, Package, RotateCcw, FileText, Download, Undo2Icon } from "lucide-react"
-import { saveCollections, validateCollection } from "@/lib/services/collections"
-import { saveDevolutions, validateDevolution, uploadFiles } from "@/lib/services/devolutions"
-import { DevolutionCard } from "../devoluciones/devolution-card"
-import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { toast } from "sonner"
-import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
-import { BarcodeScannerInput } from "../barcode-scanner-input"
+import { cn } from "@/lib/utils"
+
+import { DataTable } from "@/components/data-table/data-table" 
+import { getUndeliveredShipments, validateDevolution, saveDevolutions, uploadFiles } from "@/lib/services/devolutions"
+import { validateCollection, saveCollections } from "@/lib/services/collections"
+import { BarcodeScannerInput } from "../barcode-input/barcode-scanner-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
-import { Input } from "../ui/input"
+import { getUnifiedColumns } from "./columns"
+
+// PDF & Excel
 import { EnhancedFedExPDF } from "@/lib/services/pdf-generator"
 import { pdf } from "@react-pdf/renderer"
 import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator"
 
-// Types
-export type Collection = {
-  trackingNumber: string
-  subsidiary: { id: string }
-  status: string | null
-  date: string
-  isPickUp: boolean
-}
-
-export type LastStatus = {
-  type: string
-  exceptionCode: string | null
-}
-
-export type Devolution = {
-  id: string
-  trackingNumber: string
-  subsidiaryName: string
-  date: string
-  hasIncome: boolean
-  status: string
-  lastStatus: LastStatus | null
-  reason: string
-}
-
-type Props = {
-  selectedSubsidiaryId: string | null
-  subsidiaryName?: string
-  onClose: () => void
-  onSuccess: () => void
-}
-
 const VALIDATION_REGEX = /^\d{12}$/
 
-const UnifiedCollectionReturnForm: React.FC<Props> = ({
-  selectedSubsidiaryId,
-  subsidiaryName = "NAVOJOA",
-  onClose,
-  onSuccess,
-}) => {
-  // Common states
-  const [activeTab, setActiveTab] = useState("collections")
-  const [isLoading, setIsLoading] = useState(false)
-  const [progress, setProgress] = useState(0)
+export default function UnifiedCollectionReturnForm({ selectedSubsidiaryId, subsidiaryName, onClose, onSuccess }: any) {
+  const [activeTab, setActiveTab] = useState("devolutions")
+  const [loading, setLoading] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [enableCollections, setEnableCollections] = useState(false)
+  const [lastScannedCode, setLastScannedCode] = useState("")
+  
+  const [devolutions, setDevolutions] = useState<any[]>([])
+  const [collections, setCollections] = useState<any[]>([])
+  const [selectedDrivers, setSelectedDrivers] = useState<any[]>([])
+  const [selectedVehicle, setSelectedVehicle] = useState<any>(null)
 
-  // Collection states
-  const [collectionTrackingRaw, setCollectionTrackingRaw] = useState("")
-  const [collections, setCollections] = useState<Collection[]>([])
-  const [invalidCollections, setInvalidCollections] = useState<string[]>([])
-  const [hasValidatedCollections, setHasValidatedCollections] = useState(false)
+  // Color Café Institucional
+  const brandCoffee = "bg-[#3d2b1f]"; // Ajusta este HEX a tu café exacto
 
-  // Devolution states
-  const [devolutionTrackingRaw, setDevolutionTrackingRaw] = useState("")
-  const [devolutions, setDevolutions] = useState<ReturnValidaton[]>([])
-  const [invalidDevolutions, setInvalidDevolutions] = useState<string[]>([])
-  const [hasValidatedDevolutions, setHasValidatedDevolutions] = useState(false)
-
-  const [selectedDrivers, setSelectedDrivers] = useState<Driver[]>([])
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicles>()
-  const [selectedDate, setSelectedDate] = useState<string>("");
-
-  useEffect(() => {
-    const preventZoom = (e: WheelEvent) => {
-      if (e.ctrlKey) e.preventDefault()
-    }
-    const preventKeyZoom = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "0"].includes(e.key)) {
-        e.preventDefault()
-      }
-    }
-    window.addEventListener("wheel", preventZoom, { passive: false })
-    window.addEventListener("keydown", preventKeyZoom)
-    return () => {
-      window.removeEventListener("wheel", preventZoom)
-      window.removeEventListener("keydown", preventKeyZoom)
-    }
-  }, [])
-
-  // Collection handlers
-  const checkCollectionInfo = async (trackingNumber: string): Promise<{ isPickUp: boolean; status: string | null }> => {
+  // 1. CARGA INICIAL
+  const loadInitialData = useCallback(async () => {
+    if (!selectedSubsidiaryId) return
     try {
-      const res = await validateCollection(trackingNumber)
-      return { isPickUp: res.isPickUp, status: res.status }
-    } catch (err) {
-      console.error(`Error consultando info del tracking ${trackingNumber}`, err)
-      return { isPickUp: false, status: null }
-    }
-  }
-
-  const handleValidateCollections = async () => {
-    if (!selectedSubsidiaryId) {
-      toast("Selecciona una sucursal antes de validar.")
-      return
-    }
-
-    const lines = collectionTrackingRaw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-
-    const uniqueLines = Array.from(new Set(lines))
-    const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn))
-    const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn))
-
-    if (validNumbers.length === 0) {
-      toast("No se ingresaron números válidos.")
-      return
-    }
-
-    setIsLoading(true)
-    setProgress(0)
-
-    const results: Collection[] = []
-    
-    for (let i = 0; i < validNumbers.length; i++) {
-      const tn = validNumbers[i]
-      const info = await checkCollectionInfo(tn)
-      results.push({
-        trackingNumber: tn,
-        subsidiary: { id: selectedSubsidiaryId },
-        status: info.status,
-        date: selectedDate ?? "",
-        isPickUp: info.isPickUp,
-      })
-      setProgress(Math.round(((i + 1) / validNumbers.length) * 100))
-    }
-
-    const newCollections = results.filter((r) => !collections.some((c) => c.trackingNumber === r.trackingNumber))
-
-    setCollections((prev) => [...prev, ...newCollections])
-    setInvalidCollections(invalids)
-    setHasValidatedCollections(true)
-    setCollectionTrackingRaw("")
-    setProgress(0)
-    setIsLoading(false)
-
-    toast(`Se agregaron ${newCollections.length} recolecciones. Números inválidos: ${invalids.length}`)
-  }
-
-  // Devolution handlers
-  const checkDevolutionInfo = async (trackingNumber: string): Promise<Devolution> => {
-    try {
-      const res = await validateDevolution(trackingNumber)
-      const status =
-        res.lastStatus?.exceptionCode && SHIPMENT_STATUS_MAP[res.lastStatus.exceptionCode]
-          ? res.lastStatus.exceptionCode
-          : res.status || (res.lastStatus?.type ?? "")
-      const reason =
-        res.lastStatus?.exceptionCode && DEVOLUTION_REASON_MAP[res.lastStatus.exceptionCode]
-          ? DEVOLUTION_REASON_MAP[res.lastStatus.exceptionCode]
-          : ""
-
-      return {
-        id: res.id,
-        trackingNumber: res.trackingNumber,
-        status,
-        subsidiaryName: res.subsidiaryName,
-        hasIncome: res.hasIncome,
-        date: selectedDate,
-        lastStatus: res.lastStatus || null,
-        reason,
-      }
-    } catch (err) {
-      console.error(`Error consultando info del tracking ${trackingNumber}`, err)
-      return {
-        id: "",
-        trackingNumber,
-        status: "",
-        subsidiaryName: "",
-        hasIncome: false,
-        lastStatus: null,
-        reason: "",
-      }
-    }
-  }
-
-  const handleValidateDevolutions = async () => {
-    if (!selectedSubsidiaryId) {
-      toast("Selecciona una sucursal antes de validar.")
-      return
-    }
-
-    const lines = devolutionTrackingRaw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-    const uniqueLines = Array.from(new Set(lines))
-    const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn))
-    const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn))
-
-    if (validNumbers.length === 0) {
-      toast("No se ingresaron números válidos.")
-      return
-    }
-
-    setIsLoading(true)
-    setProgress(0)
-    const results: Devolution[] = []
-
-    for (let i = 0; i < validNumbers.length; i++) {
-      const tn = validNumbers[i]
-      const info = await checkDevolutionInfo(tn)
-      results.push(
-        { ...info,
-          date: selectedDate ?? ""
-        }
-      )
-      setProgress(Math.round(((i + 1) / validNumbers.length) * 100))
-    }
-
-    const newDevolutions = results.filter((r) => !devolutions.some((d) => d.trackingNumber === r.trackingNumber))
-    
-    console.log("🚀 ~ handleValidateDevolutions ~ newDevolutions:", newDevolutions)
-
-    setDevolutions((prev) => [...prev, ...newDevolutions])
-    setInvalidDevolutions(invalids)
-    setHasValidatedDevolutions(true)
-    setDevolutionTrackingRaw("")
-    setProgress(0)
-    setIsLoading(false)
-
-    toast(`Se agregaron ${newDevolutions.length} devoluciones. Números inválidos: ${invalids.length}`)
-  }
-
-  // Remove handlers
-  const handleRemoveCollection = (trackingNumber: string) => {
-    setCollections((prev) => prev.filter((c) => c.trackingNumber !== trackingNumber))
-  }
-
-  const handleRemoveDevolution = useCallback((trackingNumber: string) => {
-    setDevolutions((prev) => prev.filter((d) => d.trackingNumber !== trackingNumber))
-  }, [])
-
-  // Devolution status handlers
-  const handleChangeDevolutionStatus = useCallback((index: number, newStatus: string) => {
-    console.log(`Index: ${index}, newStatus: ${newStatus}`)
-
-    setDevolutions((prev) =>
-      prev.map((item, i) =>
-        i === index
-          ? {
-              ...item,
-              status: newStatus,
-              reason: "",
-              lastStatus: {
-                ...item.lastStatus,
-                exceptionCode: newStatus
-              }
-            }
-          : item,
-      ),
-    )
-  }, [])
-
-  const handleDevolutionReasonChange = useCallback((index: number, newReason: string) => {
-    setDevolutions((prev) => prev.map((item, i) => (i === index ? { ...item, reason: newReason } : item)))
-  }, [])
-
-  // PDF Generation
-  const generatePDF = async () => {
-    try {
-      setIsLoading(true)
-
-      const blob= await pdf(<EnhancedFedExPDF 
-        key={Date.now()}
-        collections={collections}
-        devolutions={devolutions}
-        subsidiaryName={subsidiaryName}
-        />).toBlob()
-
-      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-      window.open(blobUrl, '_blank');
-
-      await generateFedExExcel(collections, devolutions, subsidiaryName)
-
-      toast("El documento ha sido descargado exitosamente.")
+      setLoading(true)
+      const now = new Date().toISOString().split('T')[0]
+      const data = await getUndeliveredShipments(selectedSubsidiaryId, now)
+      setDevolutions(data || [])
     } catch (error) {
-      console.error("Error generating PDF:", error)
-      toast("No se pudo generar el PDF.")
+      toast.error("Error al sincronizar datos")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
+  }, [selectedSubsidiaryId])
+
+  useEffect(() => { loadInitialData() }, [loadInitialData])
+
+  // 2. PROCESAMIENTO ROBUSTO
+  const processTrackingCode = useCallback(async (code: string) => {
+    // Extraer solo los números y asegurar que sean 12
+    const cleanCode = code.replace(/\D/g, "").trim();
+    
+    if (cleanCode.length !== 12) return;
+
+    // Evitar que se valide si ya se está validando la misma guía
+    if (validating && lastScannedCode === cleanCode) return;
+
+    setValidating(true);
+    try {
+      if (activeTab === "devolutions") {
+        if (devolutions.some(d => d.trackingNumber === cleanCode)) {
+          toast.warning(`Guía ${cleanCode} ya está en lista`);
+          return;
+        }
+        const res = await validateDevolution(cleanCode);
+        if (res) {
+          setDevolutions(prev => {
+            // Verificamos el duplicado justo antes de insertar usando 'prev' (el estado más actual)
+            if (prev.some(d => d.trackingNumber === cleanCode)) return prev;
+            return [{ ...res, id: res.id || cleanCode }, ...prev];
+          });
+          toast.success(`Guía ${cleanCode} agregada`);
+        }
+      } else {
+        if (collections.some(c => c.trackingNumber === cleanCode)) {
+          toast.warning(`Recolección ${cleanCode} ya escaneada`);
+          return;
+        }
+        const res = await validateCollection(cleanCode);
+        setCollections(prev => {
+          if (prev.some(c => c.trackingNumber === cleanCode)) return prev;
+          return [{ 
+            trackingNumber: cleanCode, 
+            status: res.status || "PICK UP", 
+            isPickUp: true,
+            subsidiary: { id: selectedSubsidiaryId } 
+          }, ...prev];
+        });
+        toast.success(`Recolección ${cleanCode} lista`);
+      }
+    } catch (error) {
+      toast.error(`Error con guía ${cleanCode}`);
+    } finally {
+      setValidating(false);
+    }
+  }, [activeTab, devolutions, collections, validating, lastScannedCode, selectedSubsidiaryId]);
+
+  const habndlePdfDownload = async () => {
+    setLoading(true)  
+    try {
+      if (!selectedDrivers.length || !selectedVehicle) {
+        toast.error("Selecciona Chofer y Unidad antes de finalizar")
+        return
+      }
       
+      const currentDate = new Date().toLocaleDateString("es-ES").replace(/\//g, "-")
+      const blob = await pdf(<EnhancedFedExPDF collections={collections} devolutions={devolutions} subsidiaryName={subsidiaryName} />).toBlob()
+      const pdfFile = new File([blob], `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`, { type: 'application/pdf' })
+      const excelBuffer = await generateFedExExcel(collections, devolutions, subsidiaryName)
+      const excelFile = new File([excelBuffer], `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+
+      window.open(URL.createObjectURL(blob), '_blank')
+    } catch (error) {
+      toast.error("Error al generar PDF")
+    } finally {
+      setLoading(false)
+    }   
   }
 
-  const handleSendEmail = async () => {
-    //CREAMOS el PDF
-    const blob= await pdf(<EnhancedFedExPDF 
-      key={Date.now()}
-      collections={collections}
-      devolutions={devolutions}
-      subsidiaryName={subsidiaryName}
-      />).toBlob()
-
-    const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-    window.open(blobUrl, '_blank');
-
-    const currentDate = new Date().toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-    });
-
-    const fileName = `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`;
-    const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
-
-    const excelBuffer = await generateFedExExcel(collections, devolutions, subsidiaryName, false)
-    const excelBlob = new Blob([excelBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    const excelFileName = `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.xlsx`;
-    const excelFile = new File([excelBlob], excelFileName, {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-
-    await uploadFiles(pdfFile, excelFile, subsidiaryName)
-
-  }
-
-  // Unified save
-  const handleUnifiedSave = async () => {
-    if (!selectedSubsidiaryId) {
-      toast("Por favor selecciona una sucursal antes de guardar.")
+  // 4. GUARDADO Y PDF (Lógica Original)
+  const handleFinalSave = async () => {
+    if (!selectedDrivers.length || !selectedVehicle) {
+      toast.error("Selecciona Chofer y Unidad antes de finalizar")
       return
     }
 
-    if(selectedDrivers.length === 0) {
-      toast("No hay choferes seleccionados, es necesario seleccionar almenos uno para continuar.")
-      return
-    }
-
-    if(!selectedVehicle) {
-      toast("No ha seccionado el vehículoe, es necesario seleccionar uno para continuar.")
-      return
-    }
-
-    if (collections.length === 0 && devolutions.length === 0) {
-      toast("No hay elementos validados para guardar.")
-      return
-    }
-
-    // Validate devolutions have reasons where required
-    const missingExceptionCode = devolutions.some((d) => {
-      // Solo validamos si no tiene un código de excepción
-      console.log("🚀 ~ missingExceptionCode ~ d:", d)
-
-      const hasNoExceptionCode = !d.lastStatus?.exceptionCode;
-      
-      console.log(`\n🔍 Validando devolución ${d.trackingNumber}:`);
-      console.log(`- Estado: ${d.status}`);
-      console.log(`- Código excepción: ${d.lastStatus?.exceptionCode || 'N/A'}`);
-      console.log(`¿Falta código de excepción?: ${hasNoExceptionCode ? '❌ SÍ' : '✅ NO'}`);
-      
-      return hasNoExceptionCode;
-    });
-
-    console.log(`\n📢 Resultado final:`);
-    console.log(`¿Hay devoluciones sin código de excepción?: ${missingExceptionCode ? 'SÍ' : 'NO'}`);
-
-
-    if (missingExceptionCode) {
-      toast("Por favor selecciona un motivo para todas las devoluciones que lo requieran.")
-      return
-    }
-
-    setIsLoading(true)
-
+    setLoading(true)
     try {
       const promises = []
-
-      // Save collections if any
-      if (collections.length > 0) {
-        promises.push(saveCollections(collections))
-      }
-
-      // Save devolutions if any
+      if (collections.length > 0) promises.push(saveCollections(collections))
       if (devolutions.length > 0) {
-        const devolutionsToSave = devolutions.map((d) => ({
+        const toSave = devolutions.map(d => ({
           trackingNumber: d.trackingNumber,
           subsidiary: { id: selectedSubsidiaryId },
-          status: d.status || undefined,
-          reason: d.lastStatus.exceptionCode || undefined,
+          status: d.status,
+          reason: d.lastStatus?.exceptionCode
         }))
-        promises.push(saveDevolutions(devolutionsToSave))
+        promises.push(saveDevolutions(toSave))
       }
 
       await Promise.all(promises)
+      
+      // Generar PDF y Excel
+      const blob = await pdf(<EnhancedFedExPDF collections={collections} devolutions={devolutions} subsidiaryName={subsidiaryName} />).toBlob()
+      const excelBuffer = await generateFedExExcel(collections, devolutions, subsidiaryName, false)
+      
+      const currentDate = new Date().toLocaleDateString("es-ES").replace(/\//g, "-")
+      const pdfFile = new File([blob], `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`, { type: 'application/pdf' })
+      const excelFile = new File([excelBuffer], `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 
-      toast(`Se guardaron ${collections.length} recolecciones y ${devolutions.length} devoluciones.`)
-
-      // Generate PDF after successful save
-      //TODO agregar al email la unidad y el chofer que lleba los paquetes
-      await handleSendEmail()
-      // Reset form
-      setCollections([])
-      setDevolutions([])
-      setInvalidCollections([])
-      setInvalidDevolutions([])
-      setHasValidatedCollections(false)
-      setHasValidatedDevolutions(false)
-
-      onSuccess()
+      await uploadFiles(pdfFile, excelFile, subsidiaryName)
+      window.open(URL.createObjectURL(blob), '_blank')
+      
+      toast.success("Operación finalizada con éxito")
+      onSuccess?.()
+      onClose()
     } catch (error) {
-      console.error(error)
-      toast("Hubo un problema al guardar los datos.")
+      toast.error("Error al procesar el guardado")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const totalItems = collections.length + devolutions.length
-  const hasValidatedItems = hasValidatedCollections || hasValidatedDevolutions
+  const columns = useMemo(() => getUnifiedColumns((id) => {
+    if (activeTab === "devolutions") setDevolutions(p => p.filter(d => (d.id || d.trackingNumber) !== id))
+    else setCollections(p => p.filter(c => c.trackingNumber !== id))
+  }), [activeTab])
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Undo2Icon className="h-5 w-5" />
-          Control Unificado de Paquetes para Devoluciones y Recolecciones.
-          {totalItems > 0 && (
-            <Badge variant="secondary" className="ml-2">
-              {totalItems} elementos
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex flex-row  justify-end space-x-2">
-          {/*<div className="space-y-2">
-            <Label>Fecha (opcional)</Label>
-            <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-          </div>*/}
-          <div className="space-y-2">
-            <Label>Repartidores</Label>
-            <RepartidorSelector
-              selectedRepartidores={selectedDrivers}
-              onSelectionChange={setSelectedDrivers}
-              disabled={isLoading}
-            />
+    <div className="flex flex-col h-[90vh] w-full rounded-xl overflow-hidden">
+      
+      {/* HEADER CAFÉ */}
+      <header className={cn(brandCoffee, "text-white px-6 py-4 flex justify-between items-center shrink-0")}>
+        <div className="flex items-center gap-4">
+          <div className="bg-primary p-2 rounded-lg"><Truck size={20} /></div>
+          <div>
+            <h2 className="font-black text-sm uppercase tracking-tighter">Devoluciones / Recolecciones</h2>
+            <p className="text-[10px] text-white/50 font-bold uppercase">{subsidiaryName} • {new Date().toLocaleDateString()}</p>
           </div>
-          <div className="space-y-2">
-            <Label>Unidad de Transporte</Label>
-            <UnidadSelector
-              selectedUnidad={selectedVehicle}
-              onSelectionChange={setSelectedVehicle}
-              disabled={isLoading}
-            />
-          </div>
-        </div> 
-
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="collections" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Recolecciones ({collections.length})
-            </TabsTrigger>
-            <TabsTrigger value="devolutions" className="flex items-center gap-2">
-              <RotateCcw className="h-4 w-4" />
-              Devoluciones ({devolutions.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="collections" className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <BarcodeScannerInput 
-                onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)} 
-              />
-            </div>
-
-            <Button onClick={handleValidateCollections} disabled={isLoading} className="w-full">
-              {isLoading ? "Procesando..." : "Validar recolecciones"}
-            </Button>
-
-            {invalidCollections.length > 0 && (
-              <div className="mt-4 text-red-600 font-semibold">
-                <AlertCircle className="inline-block mr-2" />
-                Números inválidos (no se agregaron):
-                <ul className="list-disc ml-6 mt-1">
-                  {invalidCollections.map((tn) => (
-                    <li key={tn}>{tn}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {collections.length > 0 && (
-              <div className="mt-6 space-y-4">
-                <h3 className="text-lg font-semibold">Recolecciones validadas</h3>
-                <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
-                  <ul className="divide-y divide-gray-300">
-                    {collections.map(({ trackingNumber, status }) => (
-                      <li key={trackingNumber} className="flex justify-between items-center px-4 py-2 hover:bg-gray-50">
-                        <div>
-                          <span className="font-medium">{trackingNumber}</span>
-                          {status ? (
-                            <span
-                              className={classNames(
-                                "ml-2 text-sm font-semibold px-2 py-0.5 rounded",
-                                status.toLowerCase() === "pick up"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-yellow-100 text-yellow-800",
-                              )}
-                            >
-                              {status}
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-sm font-semibold px-2 py-0.5 rounded bg-red-100 text-red-800">
-                              Sin estatus
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => handleRemoveCollection(trackingNumber)}
-                          title="Eliminar"
-                          className="text-red-600 hover:text-red-800"
-                          disabled={isLoading}
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="devolutions" className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <BarcodeScannerInput 
-                onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)} 
-              />
-            </div>
-
-            <Button onClick={handleValidateDevolutions} disabled={isLoading} className="w-full">
-              {isLoading ? "Procesando..." : "Validar devoluciones"}
-            </Button>
-
-            {invalidDevolutions.length > 0 && (
-              <div className="mt-4 text-red-600 font-semibold">
-                <AlertCircle className="inline-block mr-2" />
-                Números inválidos (no se agregaron):
-                <ul className="list-disc ml-6 mt-1">
-                  {invalidDevolutions.map((tn) => (
-                    <li key={tn}>{tn}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {devolutions.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
-                {devolutions.map((item, index) => (
-                  <DevolutionCard
-                    key={`dev-card-${item.trackingNumber}-${index}`}
-                    item={item}
-                    index={index}
-                    isLoading={isLoading}
-                    handleChangeStatus={handleChangeDevolutionStatus}
-                    handleReasonChange={handleDevolutionReasonChange}
-                    handleRemove={handleRemoveDevolution}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        {isLoading && (
-          <div className="space-y-2">
-            <Label>Progreso de validación</Label>
-            <Progress value={progress} className="h-3" />
-          </div>
-        )}
-
-        {/* Action buttons */}
-        <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
-          <Button
-            onClick={handleUnifiedSave}
-            disabled={isLoading || !hasValidatedItems || totalItems === 0}
-            className="flex-1"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Guardar todo y generar PDF
-          </Button>
-          <Button onClick={generatePDF} disabled={totalItems === 0} variant="outline" className="flex-1 bg-transparent">
-            <FileText className="mr-2 h-4 w-4" />
-            Solo generar PDF
-          </Button>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
         </div>
 
-        {/* Summary */}
-        {totalItems > 0 && (
-          <div className="bg-muted p-4 rounded-lg">
-            <h4 className="font-semibold mb-2">Resumen</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Recolecciones:</span>
-                <span className="ml-2 font-medium">{collections.length}</span>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center space-x-3 bg-white/5 px-4 py-2 rounded-lg border border-white/10">
+            <Label className="text-[9px] font-black uppercase text-slate-300">Modo Recolección</Label>
+            <Switch checked={enableCollections} onCheckedChange={(v) => { setEnableCollections(v); if(v) setActiveTab("collections")}} className="data-[state=checked]:bg-secondary" />
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-white/40 hover:text-white hover:bg-white/10">
+            <XCircle size={22} />
+          </Button>
+        </div>
+      </header>
+
+      {/* TOOLBAR */}
+      <div className="px-6 py-4 bg-white border-b flex gap-4 items-center shrink-0">
+        <div className="flex-1 max-w-xs"><RepartidorSelector selectedRepartidores={selectedDrivers} onSelectionChange={setSelectedDrivers} subsidiaryId={selectedSubsidiaryId} /></div>
+        <div className="flex-1 max-w-xs"><UnidadSelector selectedUnidad={selectedVehicle} onSelectionChange={setSelectedVehicle} /></div>
+        
+        <div className="h-10 w-px bg-slate-100 mx-2" />
+
+        <Sheet onOpenChange={() => setLastScannedCode("")}>
+          <SheetTrigger asChild>
+            <Button className="bg-primary hover:bg-primary/90 text-white font-black text-[10px] uppercase tracking-widest gap-2 h-10 px-6">
+              <ScanBarcode size={18} /> Escanear Guía
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className={cn(brandCoffee, "w-[400px] sm:w-[540px] border-l-white/10 p-0 text-white")}>
+            <div className="p-8 h-full flex flex-col">
+              <SheetHeader className="mb-8">
+                <SheetTitle className="text-2xl font-black text-white uppercase flex items-center gap-3">
+                  <div className="p-3 bg-primary rounded-xl"><ScanBarcode /></div>
+                  Captura de Guías
+                </SheetTitle>
+              </SheetHeader>
+              
+              <div className="space-y-6">
+                <div className="bg-white/5 p-8 rounded-[2rem] border border-white/10 backdrop-blur-md">
+                  <Label className="text-xs font-black uppercase text-primary mb-4 block">Esperando lectura de código...</Label>
+                  <div className="[&_input]:text-black [&_textarea]:text-black">
+                    <BarcodeScannerInput 
+                      onTrackingNumbersChange={async (val) => {
+                        const rawValue = Array.isArray(val) ? val[val.length - 1] : val;
+                        const foundCodes = rawValue.match(/\d{12}/g);
+                        
+                        if (foundCodes) {
+                          for (const code of foundCodes) {
+                            setLastScannedCode(code);
+                            await processTrackingCode(code);
+                          }
+                        } else {
+                          setLastScannedCode(rawValue.trim());
+                        }
+                      }} 
+                    />
+                  </div>
+                  <p className="mt-4 text-[10px] text-white/40 italic">El sistema procesará automáticamente al detectar 12 dígitos.</p>
+                </div>
+
+                <div className="p-8 bg-white/5 border border-white/10 rounded-[2rem]">
+                  <p className="text-[10px] font-black text-white/40 uppercase mb-2">Última lectura:</p>
+                  <p className="text-4xl font-mono font-black text-secondary tracking-tighter">
+                    {lastScannedCode || "--- --- ---"}
+                  </p>
+                  {validating && <div className="mt-4 flex items-center gap-2 text-primary font-bold animate-pulse"><Loader2 className="animate-spin" /> VALIDANDO...</div>}
+                </div>
               </div>
-              <div>
-                <span className="text-muted-foreground">Devoluciones:</span>
-                <span className="ml-2 font-medium">{devolutions.length}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Total:</span>
-                <span className="ml-2 font-medium">{totalItems}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Sucursal:</span>
-                <span className="ml-2 font-medium">{subsidiaryName}</span>
+
+              <div className="mt-auto p-6 bg-primary/10 rounded-2xl border border-primary/20">
+                <p className="text-xs font-bold text-primary uppercase">Sesión actual</p>
+                <p className="text-4xl font-black">{activeTab === 'devolutions' ? devolutions.length : collections.length} Paquetes</p>
               </div>
             </div>
+          </SheetContent>
+        </Sheet>
+
+        <Button variant="outline" onClick={loadInitialData} disabled={loading} className="ml-auto text-[10px] font-black uppercase h-10">
+          <RefreshCw className={cn("mr-2 h-3 w-3 text-primary", loading && "animate-spin")} /> Sincronizar
+        </Button>
+      </div>
+
+      {/* ÁREA DE TABLA */}
+      <main className="flex-1 min-h-0 bg-white flex flex-col overflow-hidden">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+          <div className="px-6 border-b shrink-0 bg-slate-50/50">
+            <TabsList className="h-14 bg-transparent gap-8 p-0">
+              <TabsTrigger value="devolutions" className="h-14 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-xs font-black uppercase">
+                Retornos <Badge className="ml-2 bg-primary text-white">{devolutions.length}</Badge>
+              </TabsTrigger>
+              {enableCollections && (
+                <TabsTrigger value="collections" className="h-14 rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:text-secondary text-xs font-black uppercase">
+                  Recolecciones <Badge className="ml-2 bg-secondary text-white">{collections.length}</Badge>
+                </TabsTrigger>
+              )}
+            </TabsList>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <TabsContent value="devolutions" className="flex-1 min-h-0 p-4 overflow-auto">
+            <DataTable columns={columns} data={devolutions} />
+          </TabsContent>
+
+          <TabsContent value="collections" className="flex-1 min-h-0 p-4 overflow-auto">
+            <DataTable columns={columns} data={collections} />
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {/* FOOTER CAFÉ */}
+      <footer className={cn(brandCoffee, "px-6 py-4 border-t border-white/10 flex justify-between items-center shrink-0")}>
+        <div className="text-[10px] font-black text-white/30 uppercase tracking-widest italic"></div>
+        <div className="flex gap-4">
+          <Button variant="ghost" onClick={onClose} className="text-white/60">Cancelar</Button>
+          <Button onClick={habndlePdfDownload} > PDF & Excel </Button>
+          <Button 
+            onClick={handleFinalSave}
+            disabled={loading || (devolutions.length === 0 && collections.length === 0)}
+            className="bg-primary hover:bg-primary/90 text-white text-[10px] font-black uppercase px-8 h-10"
+          >
+            {loading ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+            Finalizar Operación
+          </Button>
+        </div>
+      </footer>
+    </div>
   )
 }
-
-export default UnifiedCollectionReturnForm

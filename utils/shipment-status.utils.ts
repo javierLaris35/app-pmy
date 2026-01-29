@@ -72,6 +72,7 @@ export enum ShipmentStatus {
   LLEGADO_DESPUES = 'llegado_despues',
   DIRECCION_INCORRECTA = 'direccion_incorrecta',
   CLIENTE_NO_DISPONIBLE = 'cliente_no_disponible',
+  CAMBIO_FECHA_SOLICITADO = 'cambio_fecha_solicitado'
 }
 
 
@@ -187,6 +188,11 @@ const STATUS_BADGE_MAP: Record<ShipmentStatus, StatusBadgeInfo> = {
     label: 'Cliente No Disponible',
   },
 
+  [ShipmentStatus.CAMBIO_FECHA_SOLICITADO]: {
+    ...BADGES.ERROR,
+    label: 'Cambio de Fecha Solicitado',
+  },
+
   [ShipmentStatus.RETENIDO_POR_FEDEX]: {
     ...BADGES.WARNING,
     label: 'Retenido por FedEx',
@@ -248,3 +254,27 @@ export const getStatusBadge = (status: string): StatusBadgeInfo => {
     BADGES.NEUTRAL
   )
 }
+
+
+export const STATUS_TO_DEX_CODE: Record<string, string> = {
+  "03": "DEX03",
+  "07": "DEX07",
+  "08": "DEX08",
+  "12": "DEX12",
+  "GF": "GUIA FRAUDE",
+  DEX03: "DEX03",
+  DEX07: "DEX07",
+  DEX08: "DEX08",
+  NO_ENTREGADO: "DEX03",
+  RECHAZADO: "DEX07",
+  CAMBIO_FECHA_SOLICITADO: "DEX17",
+  CLIENTE_NO_DISPONIBLE: "DEX08",
+  DIRECCION_INCORRECTA: "DEX03",
+  PENDIENTE: "DEX08",
+  ENTREGADO: "",
+  "direccion_incorrecta": "DEX03",
+  "RECHAZO DE PAQUETES": "DEX07",
+  "DOMICILIO CERRADO": "DEX08",
+  "VISITA FALLIDA": "DEX08",
+  "cambio_fecha_solicitado": "DEX17"
+};

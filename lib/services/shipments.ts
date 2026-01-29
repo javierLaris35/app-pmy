@@ -25,8 +25,8 @@ const url = '/shipments'
     return response.data;
   }
 
-  const getCharges = async () => {
-    const response = await axiosConfig.get('/shipments/charges');
+  const getCharges = async (url: string) => {
+    const response = await axiosConfig.get(url);
     return response.data;
   }
 
@@ -237,6 +237,14 @@ const url = '/shipments'
     const response = await axiosConfig.get(`${url}/history/${id}?isCharge=${isCharge}`);
     return response.data;
   }
+
+  export const getFedexTrackingInfo = async (trackingNumbers: string[]) => {
+    const response = await axiosConfig.post(
+      `${url}/fedex-direct`,  // Asegúrate que la ruta coincida con tu controller
+      { trackingNumbers }  // Esto va como body en POST
+    );
+    return response.data;
+  };
 
 export {
     getShipments,

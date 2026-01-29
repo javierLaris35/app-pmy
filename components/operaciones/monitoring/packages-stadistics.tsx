@@ -639,7 +639,8 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
   'no_entregado',
   'rechazado',
   'direccion_incorrecta',
-  'cliente_no_disponible'
+  'cliente_no_disponible',
+  'cambio_fecha_solicitado'
 ];
 
   // Filtrar todos los paquetes con pagos (sin importar el estado)

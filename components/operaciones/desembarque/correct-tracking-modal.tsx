@@ -680,6 +680,25 @@ export function CorrectTrackingModal({
                 />
               </div>
 
+              {/* FECHA DE COMPROMISO (NUEVO CAMPO VISIBLE) */}
+              <div className="space-y-2">
+                <Label htmlFor="commitDateTime" className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-500" />
+                  Fecha y Hora de Entrega *
+                </Label>
+                <Input
+                  id="commitDateTime"
+                  type="datetime-local"
+                  value={formData.commitDateTime}
+                  onChange={(e) => updateFormData("commitDateTime", e.target.value)}
+                  required
+                  className="w-full"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  La prioridad ({formData.priority}) se calculará según esta fecha.
+                </p>
+              </div>
+
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="isHighValue"

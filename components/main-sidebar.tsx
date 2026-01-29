@@ -1,132 +1,123 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { BarChart3, Home, LogOut, Menu, Package, PieChart, Settings, X } from "lucide-react"
+import React, { useState, useEffect } from "react"
 import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { LogOut, User as UserIcon, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { User } from "@/lib/types"
 import { navItems } from "@/lib/constants"
-
-interface NavItem {
-  title: string
-  href: string
-  icon: React.ReactNode
-}
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarGroup,
+} from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
 
 interface MainSidebarProps {
-  user: User
+  user: {
+    name: string
+    lastName?: string
+    email: string
+    role: string
+  }
   onLogout: () => void
 }
 
-export function MainSidebar({user, onLogout}: MainSidebarProps) {
+export function MainSidebar({ user, onLogout }: MainSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const [isMobileOpen, setIsMobileOpen] = useState(false)
-  const [isMounted, setIsMounted] = useState(false) 
+  const [isMounted, setIsMounted] = useState(false)
 
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  const handleNavigation = (href: string) => {
-    router.push(href)
-    setIsMobileOpen(false)
-  }
-
-  // Renderizado condicional para evitar errores de hidratación
-  if (!isMounted) {
-    return null
-  }
+  useEffect(() => { setIsMounted(true) }, [])
+  if (!isMounted) return null
 
   return (
-    <>
-      {/* Botón de menú móvil */}
-      <div className="flex md:hidden">
-        <Button variant="ghost" size="icon" onClick={() => setIsMobileOpen(true)} className="mr-2">
-          <Menu className="h-6 w-6" />
-          <span className="sr-only">Abrir menú</span>
-        </Button>
-      </div>
-
-      {/* Sidebar móvil */}
-      <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
-        <SheetContent side="left" className="p-0 w-[280px] border-r">
-          <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between p-4 border-b">
-              <div className="flex items-center gap-2">
-                <Image src="/logo.png" alt="Logo Del Yaqui" width={40} height={40} />
-                <span className="text-lg font-semibold">Del Yaqui</span>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setIsMobileOpen(false)}>
-                <X className="h-5 w-5" />
-                <span className="sr-only">Cerrar menú</span>
-              </Button>
-            </div>
-            <div className="flex-1 px-2 py-4">
-              <nav className="flex flex-col gap-1">
-                {navItems.map((item) => (
-                  <Button
-                    key={item.href}
-                    variant={pathname === item.href ? "secondary" : "ghost"}
-                    className={cn("justify-start w-full", pathname === item.href ? "font-medium" : "")}
-                    onClick={() => handleNavigation(item.href)}
-                  >
-                    {item.icon}
-                    <span className="ml-2">{item.title}</span>
-                  </Button>
-                ))}
-              </nav>
-            </div>
-            <div className="p-4 border-t">
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={onLogout}
-              >
-                <LogOut className="mr-2 h-5 w-5" />
-                Cerrar Sesión
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Sidebar escritorio */}
-      <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r bg-background">
-        <div className="flex flex-col flex-1">
-          <div className="flex justify-center items-center py-6">
-            <Image src="/logo.png" alt="Logo Del Yaqui" width={160} height={160} />
-          </div>
-
-          <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
-            <nav className="flex-1 px-3 space-y-1">
-              {navItems.map((item) => {
-                const isActive = pathname === item.href
-                const Icon = item.icon  // <- esto es clave
-
-                return (
-                  <Button
-                    key={item.href}
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={cn("justify-start w-full", isActive ? "font-medium" : "")}
-                    onClick={() => handleNavigation(item.href)}
-                  >
-                    <Icon className="h-5 w-5" /> {/* aquí usamos el icono */}
-                    <span className="ml-2">{item.title}</span>
-                  </Button>
-                )
-              })}
-            </nav>
+    <Sidebar collapsible="icon" className="border-r border-slate-200 bg-white">
+      <SidebarHeader className="h-20 flex items-center justify-center border-b border-slate-50">
+        <div className="relative flex items-center justify-center w-full px-4 group-data-[collapsible=icon]:px-0">
+          <Image 
+            src="/logo.png" 
+            alt="Logo Del Yaqui" 
+            width={140} 
+            height={40} 
+            className="group-data-[collapsible=icon]:hidden transition-all"
+          />
+          <div className="hidden group-data-[collapsible=icon]:flex size-10 items-center justify-center bg-emerald-600 rounded-xl shadow-lg shadow-emerald-200">
+             <span className="text-white font-black text-sm">DY</span>
           </div>
         </div>
-      </div>
-    </>
+      </SidebarHeader>
+
+      <SidebarContent className="gap-0 pt-4 px-2">
+        <SidebarGroup>
+          <SidebarMenu className="gap-1.5">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href
+              const Icon = item.icon
+
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    isActive={isActive}
+                    onClick={() => router.push(item.href)}
+                    className={cn(
+                      "group relative flex items-center h-11 px-3 rounded-lg transition-all duration-300",
+                      isActive 
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-100" 
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    )}
+                  >
+                    <Icon className={cn("size-5 transition-transform group-hover:scale-110", isActive ? "text-white" : "text-slate-400")} />
+                    <span className="font-semibold text-sm ml-3 group-data-[collapsible=icon]:hidden">
+                      {item.title}
+                    </span>
+                    
+                    {/* Indicador visual de activo */}
+                    {isActive && (
+                      <ChevronRight className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
+                    )}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="p-4 border-t border-slate-50 bg-slate-50/50">
+        <div className="flex flex-col gap-4">
+          {/* User Card */}
+          <div className="flex items-center gap-3 px-2 group-data-[collapsible=icon]:hidden bg-white p-2 rounded-xl border border-slate-200/50 shadow-sm">
+            <div className="size-9 rounded-lg bg-emerald-100 flex items-center justify-center border border-emerald-200">
+              <UserIcon className="size-5 text-emerald-700" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold text-slate-800 truncate leading-none mb-1">
+                {user.name} {user.lastName}
+              </span>
+              <span className="text-[10px] text-slate-500 truncate">
+                {user.email}
+              </span>
+            </div>
+          </div>
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onLogout}
+            className="w-full justify-start text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg group-data-[collapsible=icon]:justify-center transition-colors"
+          >
+            <LogOut className="size-4 mr-3 group-data-[collapsible=icon]:mr-0" />
+            <span className="font-semibold text-xs group-data-[collapsible=icon]:hidden">Cerrar Sesión</span>
+          </Button>
+        </div>
+      </SidebarFooter>
+    </Sidebar>
   )
 }
