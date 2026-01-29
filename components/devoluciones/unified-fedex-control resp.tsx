@@ -15,7 +15,7 @@ import type { Collection, Devolution, Subsidiary } from "@/lib/types"
 import { useCollections } from "@/hooks/services/collections/use-collections"
 import { useDevolutions } from "@/hooks/services/devolutions/use-devolutions"
 import { useAuthStore } from "@/store/auth.store"
-import UnifiedCollectionReturnForm from "./unified-collection-return-form"
+import UnifiedCollectionReturnForm from "./unified-collection-return-form-new"
 
 export default function UpdatedFedExControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
