@@ -175,7 +175,8 @@ export default function TrackingPage() {
       "cliente_no_disponible",
       "cambio_fecha_solicitado",
       "direccion_incorrecta",
-      "cliente_no_encontrado"
+      "cliente_no_encontrado",
+      "devuelto_a_fedex",
     ];
 
     // 2. Filtrado inicial: Solo lo que pertenece a nuestra operación local

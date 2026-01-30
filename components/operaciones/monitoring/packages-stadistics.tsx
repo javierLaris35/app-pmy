@@ -640,7 +640,8 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
   'rechazado',
   'direccion_incorrecta',
   'cliente_no_disponible',
-  'cambio_fecha_solicitado'
+  'cambio_fecha_solicitado',
+  'devuelto_a_fedex'
 ];
 
   // Filtrar todos los paquetes con pagos (sin importar el estado)
