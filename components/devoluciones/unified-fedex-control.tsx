@@ -266,26 +266,24 @@ export default function UpdatedFedExControl() {
 
       {/* Unified Dialog */}
       <Dialog open={isUnifiedDialogOpen} onOpenChange={setIsUnifiedDialogOpen}>
-        <DialogContent className="max-w-[95vw] w-[1400px] h-[95vh] p-0 overflow-hidden border-none bg-transparent">
-          
-          {/* Agregamos esto para cumplir con Radix/Accesibilidad sin arruinar tu diseño */}
+        <DialogContent className="max-w-[95vw] w-[1400px] max-h-[95vh] p-0 overflow-hidden flex flex-col">
           <DialogHeader className="sr-only">
             <DialogTitle>Consola de Operación Logística</DialogTitle>
-            <DialogDescription>
-              Interfaz para el escaneo y validación de retornos y recolecciones.
-            </DialogDescription>
           </DialogHeader>
 
-          <UnifiedCollectionReturnForm
-            selectedSubsidiaryId={selectedSucursalId}
-            subsidiaryName={selectedSucursalName}
-            onClose={() => setIsUnifiedDialogOpen(false)}
-            onSuccess={() => {
-              setIsUnifiedDialogOpen(false);
-              mutate();
-              devolutionMutate();
-            }}
-          />
+          {/* Contenedor con scroll para el formulario */}
+          <div className="flex-1 overflow-y-auto p-1">
+            <UnifiedCollectionReturnForm
+              selectedSubsidiaryId={selectedSucursalId}
+              subsidiaryName={selectedSucursalName}
+              onClose={() => setIsUnifiedDialogOpen(false)}
+              onSuccess={() => {
+                setIsUnifiedDialogOpen(false);
+                mutate();
+                devolutionMutate();
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </AppLayout>
