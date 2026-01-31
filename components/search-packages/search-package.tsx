@@ -40,6 +40,7 @@ export function CommandPalette() {
       setLoading(true)
       try {
         const data = await searchPackageInfo(search.trim())
+        console.log("🚀 ~ CommandPalette ~ data:", data)
         const finalData = data ? (Array.isArray(data) ? data : [data]) : []
         setResults(finalData)
       } catch { setResults([]) } finally { setLoading(false) }
@@ -222,7 +223,7 @@ export function CommandPalette() {
                         <div className="flex flex-col gap-1">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Operador / Ruta</p>
                           <span className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                            {item.route ? item.route.driver.name : "PENDIENTE"}
+                            {item.route ? `${item.route.driver.name} - ${item.route.trackingNumber}` : "PENDIENTE"}
                           </span>
                         </div>
                       </div>
@@ -244,7 +245,7 @@ export function CommandPalette() {
           <div className="bg-slate-900 p-4 flex justify-between items-center">
              <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">PMY App - v2.0</span>
              <span className="text-[9px] font-bold text-white/50 italic flex items-center gap-1">
-               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/> SISTEMA ACTIVO
+               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/>
              </span>
           </div>
         </DialogContent>
