@@ -63,6 +63,7 @@ import {
 } from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { formatDateToShortDate, formatShortDate } from "@/utils/date.utils"
 
 export interface MonitoringInfo {
   shipmentData: {
@@ -970,7 +971,7 @@ export default function TrackingPage() {
                selectionData={{
                  consNumber: consolidateds.find((c) => c.id === selectedConsolidado)?.consNumber || "-",
                  date: consolidateds.find((c) => c.id === selectedConsolidado)?.date
-                   ? new Date(consolidateds.find((c) => c.id === selectedConsolidado)!.date).toLocaleDateString()
+                   ? formatShortDate(consolidateds.find((c) => c.id === selectedConsolidado)!.date)
                    : "-",
                  estado: "Activo",
                }}
@@ -989,7 +990,7 @@ export default function TrackingPage() {
                selectionData={{
                  trackingNumber: unloadings.find((d) => d.id === selectedDesembarque)?.trackingNumber || "-",
                  date: unloadings.find((d) => d.id === selectedDesembarque)?.date
-                   ? new Date(unloadings.find((d) => d.id === selectedDesembarque)!.date).toLocaleDateString()
+                   ? formatShortDate(unloadings.find((d) => d.id === selectedDesembarque)!.date)
                    : "-",
                  estado: "Procesado",
                }}
