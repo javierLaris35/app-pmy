@@ -161,12 +161,21 @@ export default function ClosePackageDispatch({
     const other: PackageInfo[] = [];
     const returned: PackageInfo[] = [];
 
+    const notDeliveredStatuses = [
+      'no_entregado',
+      'rechazado',
+      'direccion_incorrecta',
+      'cliente_no_disponible',
+      'cambio_fecha_solicitado',
+      'devuelto_a_fedex'
+    ];
+
     shipments.forEach(pkg => {
       const status = pkg.status?.toLowerCase() || 'desconocido';
       
       if (status === 'entregado' || status === 'delivered') {
         delivered.push(pkg);
-      } else if (status === 'no_entregado' || status === 'rechazado' || status === 'direccion_incorrecta' || status === 'cliente_no_disponible' || status === 'cambio_fecha_solicitado') {
+      } else if (notDeliveredStatuses.includes(status)) {
         notDelivered.push(pkg);
         returned.push({
           ...pkg,
