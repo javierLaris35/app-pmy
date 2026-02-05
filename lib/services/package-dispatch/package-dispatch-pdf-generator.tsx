@@ -21,7 +21,7 @@ const colors = {
   accent: "#ff6b6b",
   light: "#f8f9fa",
   dark: "#212529",
-  border: "#dee2e6",
+  border: "#000000",
   success: "#40c057",
   warning: "#fd7e14",
   info: "#17a2b8",
