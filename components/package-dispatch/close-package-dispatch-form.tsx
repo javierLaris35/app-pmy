@@ -2,8 +2,6 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
-  StampIcon,
-  Package,
   X,
   Send,
   Loader2,
@@ -20,9 +18,9 @@ import {
   Route,
   BarChart3,
   Lock,
-  RefreshCcwDotIcon,
   RefreshCwIcon,
   AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +33,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn, mapToPackageInfo, mapToPackageInfoComplete } from "@/lib/utils";
+import { cn, mapToPackageInfoComplete } from "@/lib/utils";
 import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
 import { useAuthStore } from "@/store/auth.store";
 import { save, uploadFiles } from "@/lib/services/route-closure";
@@ -226,6 +224,33 @@ export default function ClosePackageDispatch({
   }, [actualKms, dispatch]);
 
   const kmsTraveled = calculateKmsTraveled();
+
+  const handlePdf = async () => { 
+    const collectionsForPdf = collectionsRaw.split("\n")
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+
+
+    console.log("🚀 ~ handlePdf ~ notDeliveredPackages:", notDeliveredPackages)
+    console.log("🚀 ~ handlePdf ~ deliveredPackages:", deliveredPackages)
+    
+      // Generar PDF
+      const blob = await pdf(
+        <RouteClosurePDF 
+          key={Date.now()}
+          returnedPackages={notDeliveredPackages}
+          
+          packageDispatch={dispatch!}
+          actualKms={actualKms}
+          collections={collectionsForPdf}
+          podPackages={deliveredPackages}
+          
+        />
+      ).toBlob();
+
+      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+      window.open(blobUrl, '_blank');
+  }
 
   // Función para enviar email con PDF y Excel
   const handleSendEmail = async (routeClosure: RouteClosure) => {
@@ -1103,6 +1128,17 @@ export default function ClosePackageDispatch({
           <X className="h-5 w-5 mr-2" />
           Cancelar
         </Button>
+
+        { process.env.NODE_ENV === 'development' && (
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handlePdf}
+          >
+            <FileText className="h-5 w-5 mr-2" />
+            PDF
+          </Button>
+        )}
 
         <Button
           onClick={handleCloseRoute}

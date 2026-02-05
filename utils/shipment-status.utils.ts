@@ -255,6 +255,11 @@ export const getStatusBadge = (status: string): StatusBadgeInfo => {
   )
 }
 
+export const STATUS_TO_CODE: Record<string, string> = {
+  "direccion_incorrecta": "03",
+  "cliente_no_disponible": "08",
+  "rechazado": "07",
+  }
 
 export const STATUS_TO_DEX_CODE: Record<string, string> = {
   "03": "DEX03",

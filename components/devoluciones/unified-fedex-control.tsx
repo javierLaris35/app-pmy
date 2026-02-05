@@ -18,12 +18,13 @@ import { useAuthStore } from "@/store/auth.store"
 import UnifiedCollectionReturnForm from "./unified-collection-return-form"
 
 export default function UpdatedFedExControl() {
-  const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
+  const user = useAuthStore((s) => s.user)
+
+  const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(user?.subsidiary?.id ?? null);
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
   const [activeTab, setActiveTab] = useState("recolecciones")
   const [isUnifiedDialogOpen, setIsUnifiedDialogOpen] = useState(false)
-  const user = useAuthStore((s) => s.user)
-
+  
   const { collections, isLoading, isError, mutate } = useCollections(selectedSucursalId ?? "")
   const {
     devolutions,
@@ -33,13 +34,11 @@ export default function UpdatedFedExControl() {
   } = useDevolutions(selectedSucursalId ?? "")
 
   useEffect(() => {
-    console.log("🚀 ~ useEffect ~ user:", user)
-
-    if (!selectedSucursalId && user?.subsidiary) {
-      setSelectedSucursalId(user.subsidiary.id ?? null)
-      setSelectedSucursalName(user.subsidiary.name || "")
+    if (user?.subsidiary?.id && !selectedSucursalId) {
+      setSelectedSucursalId(user.subsidiary.id);
+      setSelectedSucursalName(user.subsidiary.name || "");
     }
-  }, [user, selectedSucursalId])
+  }, [user]);
 
   useEffect(() => {
     if (selectedSucursalId) {
@@ -52,10 +51,13 @@ export default function UpdatedFedExControl() {
     setIsUnifiedDialogOpen(true)
   }
 
-  const handleSucursalChange = (id: string, name?: string) => {
-    setSelectedSucursalId(id || null)
-    setSelectedSucursalName(name || "")
-  }
+  const handleSucursalChange = (sucursal: Subsidiary | null) => {
+    const newId = sucursal?.id ?? null;
+    setSelectedSucursalId(newId);
+    setSelectedSucursalName(sucursal?.name ?? "");
+    
+    // Forzamos una revalidación inmediata
+  };
 
   const collectionColumns = [
     createSelectColumn<Collection>(),
@@ -154,10 +156,7 @@ export default function UpdatedFedExControl() {
             <SucursalSelector
               value={selectedSucursalId ?? ""}
               returnObject={true}
-              onValueChange={(value) => {
-                const sucursal = value as Subsidiary
-                handleSucursalChange(sucursal.id, sucursal.name)
-              }}
+              onValueChange={(s) => handleSucursalChange(s as Subsidiary)}
             />
           </div>
         </div>
@@ -274,6 +273,7 @@ export default function UpdatedFedExControl() {
           {/* Contenedor con scroll para el formulario */}
           <div className="flex-1 overflow-y-auto p-1">
             <UnifiedCollectionReturnForm
+              key={selectedSucursalId}
               selectedSubsidiaryId={selectedSucursalId}
               subsidiaryName={selectedSucursalName}
               onClose={() => setIsUnifiedDialogOpen(false)}

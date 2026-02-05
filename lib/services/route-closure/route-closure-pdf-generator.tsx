@@ -258,23 +258,29 @@ export const RouteClosurePDF = ({
 
   const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(packageDispatch.shipments, packageDispatch.chargeShipments);
 
+  const notDeliveredPackageStatus = [
+    "direccion_incorrecta",
+    "cliente_no_disponible",
+    "rechazado",
+    "devuelto_a_fedex"
+  ]
+
   const validReturns = returnedPackages.filter((p) => p.isValid);
   const originalCount = packageDispatchShipments?.length || 0;
-  const deliveredCount = originalCount - validReturns.length;
   const returnRate =
-    originalCount > 0 ? (validReturns.length / originalCount) * 100 : 0;
+    originalCount > 0 ? (returnedPackages.length / originalCount) * 100 : 0;
   const podDeliveredCount = podPackages?.length || 0;
 
-  const dex03Count = validReturns.filter(
+  const dex03Count = returnedPackages.filter(
     (p) => p.lastHistory?.exceptionCode === "03"
   ).length;
-  const dex07Count = validReturns.filter(
+  const dex07Count = returnedPackages.filter(
     (p) => p.lastHistory?.exceptionCode === "07"
   ).length;
-  const dex08Count = validReturns.filter(
+  const dex08Count = returnedPackages.filter(
     (p) => p.lastHistory?.exceptionCode === "08"
   ).length;
-  const dex12Count = validReturns.filter(
+  const dex12Count = returnedPackages.filter(
     (p) => p.lastHistory?.exceptionCode === "12"
   ).length;
 
@@ -364,9 +370,9 @@ export const RouteClosurePDF = ({
           <View style={styles.leftColumn}>
             {/* Paquetes devueltos */}
             <Text style={styles.sectionTitle}>
-              DEVUELTOS ({validReturns.length})
+              DEVUELTOS ({returnedPackages.length})
             </Text>
-            {validReturns.length > 0 ? (
+            {returnedPackages.length > 0 ? (
               <View style={styles.tableContainer}>
                 <View style={styles.tableHeader}>
                   <Text style={{ width: "60%" }}>GUÍA</Text>
@@ -382,7 +388,7 @@ export const RouteClosurePDF = ({
                   >
                     <Text style={{ width: "60%" }}>{p.trackingNumber}</Text>
                     <Text style={{ width: "40%" }}>
-                      {p.lastHistory?.exceptionCode || "N/A"}
+                      {p.status || "N/A"}
                     </Text>
                   </View>
                 ))}
@@ -513,7 +519,7 @@ export const RouteClosurePDF = ({
               </View>
               <View style={styles.statBox}>
                 <Text style={styles.statTitle}>ENTREGAS EFECTIVAS</Text>
-                <Text style={styles.statValue}>{deliveredCount}</Text>
+                <Text style={styles.statValue}>{podDeliveredCount}</Text>
               </View>
             </View>
             <View style={styles.statBox}>

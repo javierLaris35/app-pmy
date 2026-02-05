@@ -50,7 +50,7 @@ export type Devolution = {
 }
 
 type Props = {
-  selectedSubsidiaryId: string | null
+  selectedSubsidiaryId: string
   subsidiaryName?: string
   onClose: () => void
   onSuccess: () => void
@@ -64,6 +64,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   onClose,
   onSuccess,
 }) => {
+
+  console.log("🚀 ~ UnifiedCollectionReturnForm ~ selectedSubsidiaryId:", selectedSubsidiaryId)
   // Common states
   const [activeTab, setActiveTab] = useState("collections")
   const [isLoading, setIsLoading] = useState(false)
@@ -84,6 +86,17 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   const [selectedDrivers, setSelectedDrivers] = useState<Driver[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicles>()
   const [selectedDate, setSelectedDate] = useState<string>("");
+
+  // Agrega este useEffect después de tus declaraciones de useState
+useEffect(() => {
+  // Cuando la sucursal cambie, reseteamos los selectores dependientes
+  setSelectedDrivers([]);
+  setSelectedVehicle(undefined);
+  
+  // Opcional: Si quieres limpiar también las listas de paquetes al cambiar de sucursal
+  // setCollections([]);
+  // setDevolutions([]);
+}, [selectedSubsidiaryId]);
 
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => {
@@ -461,6 +474,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
             <RepartidorSelector
               selectedRepartidores={selectedDrivers}
               onSelectionChange={setSelectedDrivers}
+              subsidiaryId={selectedSubsidiaryId}
               disabled={isLoading}
             />
           </div>
@@ -469,6 +483,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
             <UnidadSelector
               selectedUnidad={selectedVehicle}
               onSelectionChange={setSelectedVehicle}
+              subsidiaryId={selectedSubsidiaryId}
               disabled={isLoading}
             />
           </div>
