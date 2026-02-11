@@ -27,7 +27,8 @@ export const exportIncomesToExcel = (incomes: NewIncome[]) => {
     (day.items || []).map(item => ({
       Fecha_Contable: day.date,
       Tracking: item.trackingNumber,
-      Tipo: item.shipmentType,
+      Tipo: item.type,
+      Courier: item.shipmentType,
       Estatus: item.status,
       Costo: item.cost,
       Fecha_Evento: item.date
