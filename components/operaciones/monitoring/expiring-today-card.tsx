@@ -88,9 +88,13 @@ export function ExpiringTodayCard({
   const backupId = packagesData?.[0]?.shipmentData?.subsidiaryId || (packagesData?.[0] as any)?.packageDispatch?.subsidiaryId;
   const activeSubsidiaryId = subsidiaryId || backupId;
 
-  const SPECIAL_SUBSIDIARY_ID = "040483fc-4322-4ce0-b124-cc5b6d2a9cee".toLowerCase().trim();
+  const SPECIAL_SUBSIDIARY_ID = [
+    "040483fc-4322-4ce0-b124-cc5b6d2a9cee", //Hermosillo Ruta EXp
+    "6a6434fb-b0ba-4560-b273-c10b58288deb"  //Huatabampo 
+  ].map( id => id.toLowerCase().trim()) 
+    
   const currentIdClean = String(activeSubsidiaryId || "").toLowerCase().trim();
-  const isSpecialSubsidiary = currentIdClean === SPECIAL_SUBSIDIARY_ID;
+  const isSpecialSubsidiary = SPECIAL_SUBSIDIARY_ID.includes(currentIdClean);
   const labelCode = isSpecialSubsidiary ? "44" : "67";
 
   // Debug en consola para rastrear de donde viene el ID
