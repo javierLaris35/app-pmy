@@ -61,9 +61,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { format } from "date-fns"
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { formatDateToShortDate, formatShortDate } from "@/utils/date.utils"
+import { formatShortDate } from "@/utils/date.utils"
 
 export interface MonitoringInfo {
   shipmentData: {

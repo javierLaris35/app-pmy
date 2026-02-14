@@ -10,8 +10,8 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import { format } from "date-fns-tz";
-import { PackageInfo, PackageDispatch } from "@/lib/types";
-import { mapToPackageInfo } from "@/lib/utils";
+import { PackageInfo, PackageDispatch, ShipmentStatusType } from "@/lib/types";
+import { getDexCode, mapToPackageInfo } from "@/lib/utils";
 
 Font.register({ family: "Helvetica", src: undefined });
 
@@ -253,32 +253,25 @@ export const RouteClosurePDF = ({
   const formattedDate = format(currentDate, "yyyy-MM-dd", { timeZone });
   const formattedTime = format(currentDate, "HH:mm:ss", { timeZone });
 
-  const { subsidiary, vehicle, shipments, drivers, routes, createdAt, kms } =
+  const { subsidiary, vehicle, shipments, chargeShipments, drivers, routes, createdAt, kms } =
     packageDispatch;
 
-  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(packageDispatch.shipments, packageDispatch.chargeShipments);
-
-  const notDeliveredPackageStatus = [
-    "direccion_incorrecta",
-    "cliente_no_disponible",
-    "rechazado",
-    "devuelto_a_fedex"
-  ]
+  const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(shipments, chargeShipments);
 
   const validReturns = returnedPackages.filter((p) => p.isValid);
+    
   const originalCount = packageDispatchShipments?.length || 0;
-  const returnRate =
-    originalCount > 0 ? (returnedPackages.length / originalCount) * 100 : 0;
+  const returnRate = originalCount > 0 ? (returnedPackages.length / originalCount) * 100 : 0;
   const podDeliveredCount = podPackages?.length || 0;
 
   const dex03Count = returnedPackages.filter(
-    (p) => p.lastHistory?.exceptionCode === "03"
+    (p) => p.status === ShipmentStatusType.DIRECCION_INCORRECTA
   ).length;
   const dex07Count = returnedPackages.filter(
-    (p) => p.lastHistory?.exceptionCode === "07"
+    (p) => p.status === ShipmentStatusType.RECHAZADO
   ).length;
   const dex08Count = returnedPackages.filter(
-    (p) => p.lastHistory?.exceptionCode === "08"
+    (p) => p.status === ShipmentStatusType.CLIENTE_NO_DISPONIBLE
   ).length;
   const dex12Count = returnedPackages.filter(
     (p) => p.lastHistory?.exceptionCode === "12"
@@ -388,7 +381,7 @@ export const RouteClosurePDF = ({
                   >
                     <Text style={{ width: "60%" }}>{p.trackingNumber}</Text>
                     <Text style={{ width: "40%" }}>
-                      {p.status || "N/A"}
+                      {getDexCode(p.status) || "N/A"}
                     </Text>
                   </View>
                 ))}
