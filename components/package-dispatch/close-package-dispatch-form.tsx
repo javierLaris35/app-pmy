@@ -171,7 +171,7 @@ export default function ClosePackageDispatch({
     shipments.forEach(pkg => {
       const status = pkg.status?.toLowerCase() || 'desconocido';
       
-      if (status === 'entregado' || status === 'delivered') {
+      if (status === 'entregado') {
         delivered.push(pkg);
       } else if (notDeliveredStatuses.includes(status)) {
         notDelivered.push(pkg);

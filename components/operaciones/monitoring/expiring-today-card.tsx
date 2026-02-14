@@ -18,32 +18,10 @@ import {
   getShipmentsNo67ByUnloading 
 } from "@/lib/services/monitoring/monitoring"
 import * as XLSX from 'xlsx'
+import { getLabelShipmentStatus } from "@/lib/utils"
+import { MonitoringInfo } from "@/lib/types"
 
 // --- INTERFACES ---
-
-interface MonitoringInfo {
-  shipmentData: {
-    id: string
-    trackingNumber: string
-    ubication: string
-    warehouse?: string
-    destination: string
-    shipmentStatus: string
-    commitDateTime: string
-    payment: {
-      type: string
-      amount: number
-    } | null
-    subsidiaryId?: string // Añadido para detección automática
-  }
-  packageDispatch?: {
-    driver: string
-    vehicle: {
-      plateNumber: string
-    }
-    subsidiaryId?: string // Añadido para detección automática
-  }
-}
 
 interface ShipmentNo67 {
   trackingNumber: string
@@ -96,16 +74,6 @@ export function ExpiringTodayCard({
   const currentIdClean = String(activeSubsidiaryId || "").toLowerCase().trim();
   const isSpecialSubsidiary = SPECIAL_SUBSIDIARY_ID.includes(currentIdClean);
   const labelCode = isSpecialSubsidiary ? "44" : "67";
-
-  // Debug en consola para rastrear de donde viene el ID
-  React.useEffect(() => {
-    console.log("🔍 MONITORING SUBSIDIARY CHECK:", {
-      propId: subsidiaryId,
-      backupId: backupId,
-      finalUsed: currentIdClean,
-      labelCode
-    });
-  }, [subsidiaryId, backupId, currentIdClean, labelCode]);
 
   // --- FUNCIONES DE UTILIDAD ---
 
@@ -189,12 +157,20 @@ export function ExpiringTodayCard({
   // --- EXPORTACIÓN ---
 
   const handleExportTodayToExcel = () => {
+    
     const data = expiringToday.map(pkg => ({
       'No. Guia': pkg.shipmentData.trackingNumber,
-      'Estado': pkg.shipmentData.shipmentStatus,
+      'Destinatario': pkg.shipmentData.recipientName || '',
+      'Dirección': pkg.shipmentData.recipientAddress || '',
+      'CP': pkg.shipmentData.recipientZip || '',
+      'Destino': pkg.shipmentData.destination,
+      'Chofer/Vehículo': `${pkg.packageDispatch?.driver} - ${pkg.packageDispatch?.vehicle?.plateNumber}` || '',
+      'Estado': getLabelShipmentStatus(pkg.shipmentData.shipmentStatus),
+      'Cobro': `${pkg.shipmentData.payment?.type} $${pkg.shipmentData.payment?.amount.toFixed(2)}` || 0,
       'Fecha Compromiso': formatearFechaHoraHermosillo(pkg.shipmentData.commitDateTime),
       'Días en Bodega': calcularDiasEnBodega(pkg.shipmentData.commitDateTime, pkg.shipmentData.shipmentStatus)
     }))
+    
     const worksheet = XLSX.utils.json_to_sheet(data)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Vencen Hoy')

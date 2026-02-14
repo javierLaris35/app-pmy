@@ -198,3 +198,42 @@ export const parseCurrency = (val: string | number): number => {
   const cleanValue = val.replace(/[$,\s]/g, "");
   return parseFloat(cleanValue) || 0;
 };
+
+
+const STATUS_SHIPMENT_PARSED: Record<string, string> = {
+  recoleccion: "Recolección",
+  recibido_en_bodega: "Recibido en Bodega",
+  pendiente: "Pendiente",
+  en_ruta: "En Ruta", //
+  en_transito: "En Transito", // SALIDA A RUTA
+  entregado: "Entregado",
+  no_entregado: "No Entregado", //PUEDE QUE SE ELIMINE
+  desconocido: "Desconocido",
+  rechazado: "Rechazado", // DEX07
+  devuelto_a_fedex: "Devuelto a Fedex", // DEVOLUCION A FEDEX
+  es_ocurre: "Es Ocurre", //HP - 015A
+  en_bodega: "En Bodega", // DESEMBARQUE - 67
+  retorno_abandono_fedex: "Retorno/Abandono Fedex", //STAT14
+  estacion_fedex: "Estación Fedex", //STAT41
+  llegado_despues: "Llegado Después",//STAT31
+  direccion_incorrecta: "Dirección Incorrecta", //DEX03
+  cliente_no_disponible: "Cliente No Disponible", //DEX08
+  cambio_fecha_solicitado: "Cambio de Fecha Solicitado", //DEX17
+  acargo_de_fedex: "A Cargo de Fedex", // OD
+  entregado_por_fedex: "Entregado por Fedex",
+}
+
+export const getLabelShipmentStatus = (status: string): string | null => {
+  return STATUS_SHIPMENT_PARSED[status] ?? null;
+}
+
+
+const NOT_DELIVERED_STATUS_MAP: Record<string, string> = {
+  direccion_incorrecta: "DEX03",
+  cliente_no_disponible: "DEX08",
+  rechazado: "DEX07",
+};
+
+export const getDexCode = (status: string): string | null => {
+  return NOT_DELIVERED_STATUS_MAP[status] ?? null;
+};

@@ -335,12 +335,25 @@ export enum ShipmentType {
 
 export enum ShipmentStatusType {
   RECOLECCION = 'recoleccion',
+  RECIBIDO_EN_BODEGA = 'recibido_en_bodega',
   PENDIENTE = 'pendiente',
-  EN_RUTA = 'en_ruta',
+  EN_RUTA = 'en_ruta', //
+  EN_TRANSITO = 'en_transito', // SALIDA A RUTA
   ENTREGADO = 'entregado',
-  NO_ENTREGADO = 'no_entregado',
+  NO_ENTREGADO = 'no_entregado', //PUEDE QUE SE ELIMINE
   DESCONOCIDO = 'desconocido',
-  RECHAZADO = 'rechazado'
+  RECHAZADO = 'rechazado', // DEX07
+  DEVUELTO_A_FEDEX = 'devuelto_a_fedex', // DEVOLUCION A FEDEX
+  ES_OCURRE = 'es_ocurre', //HP - 015A
+  EN_BODEGA = 'en_bodega', // DESEMBARQUE - 67
+  RETORNO_ABANDONO_FEDEX = 'retorno_abandono_fedex', //STAT14
+  ESTACION_FEDEX = 'estacion_fedex', //STAT41
+  LLEGADO_DESPUES = 'llegado_despues',//STAT31
+  DIRECCION_INCORRECTA = 'direccion_incorrecta', //DEX03
+  CLIENTE_NO_DISPONIBLE = 'cliente_no_disponible', //DEX08
+  CAMBIO_FECHA_SOLICITADO = 'cambio_fecha_solicitado', //DEX17
+  ACARGO_DE_FEDEX = 'acargo_de_fedex', // OD
+  ENTREGADO_POR_FEDEX = 'entregado_por_fedex',
 }
 
 export enum Priority {
@@ -791,3 +804,32 @@ export type InventoryPackage = {
     amount: number;
   };
 };
+
+export interface MonitoringInfo {
+  shipmentData: {
+    id: string
+    trackingNumber: string
+    ubication: string
+    warehouse?: string
+    destination: string
+    shipmentStatus: string
+    payment: {
+      type: string
+      amount: number
+    } | null,
+    recipientName: string
+    recipientAddress: string
+    recipientPhone: string
+    recipientZip: string
+    shipmentType: ShipmentType
+    commitDateTime: string
+    daysInWarehouse: number
+    dexCode: string
+  }
+  packageDispatch?: {
+    driver: string
+    vehicle: {
+      plateNumber: string
+    }
+  }
+}

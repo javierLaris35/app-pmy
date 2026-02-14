@@ -28,8 +28,6 @@ export function MonitoringLayout({
        subsidiaryId
    }: MonitoringLayoutProps) {
 
-    console.log("🚀 ~ MonitoringLayout ~ subsidiaryId:", subsidiaryId)
-
     return (
         <Card className="p-4">
             <CardHeader className="p-0 pb-4">

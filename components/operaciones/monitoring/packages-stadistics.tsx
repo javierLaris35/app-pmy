@@ -13,10 +13,12 @@ import {
 } from "@/components/ui/dialog"
 import { DataTable } from "@/components/data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
-import { Shipment, ShipmentType } from "@/lib/types"
+import { MonitoringInfo } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { getStatusBadge } from "@/utils/shipment-status.utils"
-import { formatMexicanPhoneNumber } from "@/lib/utils"
+import { formatMexicanPhoneNumber, getLabelShipmentStatus } from "@/lib/utils"
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 interface PackageStats {
   total: number
@@ -136,35 +138,6 @@ function PackagesDonutChart({ stats }: PackagesDonutChartProps) {
   )
 }
 
-interface MonitoringInfo {
-  shipmentData: {
-    id: string
-    trackingNumber: string
-    ubication: string
-    warehouse?: string
-    destination: string
-    shipmentStatus: string
-    payment: {
-      type: string
-      amount: number
-    } | null,
-    recipientName: string
-    recipientAddress: string
-    recipientPhone: string
-    recipientZip: string
-    shipmentType: ShipmentType
-    commitDateTime: string
-    daysInWarehouse: number
-    dexCode: string
-  }
-  packageDispatch?: {
-    driver: string
-    vehicle: {
-      plateNumber: string
-    }
-  }
-}
-
 interface PackagesStatisticsProps {
   stats: PackageStats
   packagesData: MonitoringInfo[]
@@ -242,7 +215,7 @@ const formatearFechaHoraHermosillo = (fecha: string): string => {
 }
 
 // Función para exportar a Excel
-const exportToExcel = (data: any[], filename: string, sheetName: string) => {
+const exportToExcelResp = (data: any[], filename: string, sheetName: string) => {
   import('xlsx').then((XLSX) => {
     const worksheet = XLSX.utils.json_to_sheet(data)
     const workbook = XLSX.utils.book_new()
@@ -302,6 +275,113 @@ const exportToExcel = (data: any[], filename: string, sheetName: string) => {
     XLSX.writeFile(workbook, `${filename}.xlsx`)
   })
 }
+
+/**
+ * Exporta datos a Excel con formato profesional, filtros y auto-ajuste.
+ * @param data - Arreglo de objetos con los datos
+ * @param filename - Nombre del archivo (sin extensión)
+ * @param sheetName - Nombre de la pestaña
+ */
+export const exportToExcel = async (data: any[], filename: string, sheetName: string) => {
+  if (!data || data.length === 0) return;
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet(sheetName);
+
+  // 1. Configurar Headers Dinámicos
+  const columnKeys = Object.keys(data[0]);
+  worksheet.columns = columnKeys.map(key => ({
+    header: key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toUpperCase(),
+    key: key,
+  }));
+
+  // 2. Agregar Datos
+  worksheet.addRows(data);
+
+  // 3. APLICAR FILTRADO AUTOMÁTICO
+  // Esto activa las "flechitas" de filtro en cada columna
+  worksheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: columnKeys.length },
+  };
+
+  // 4. Estilos de Encabezado (Fila 1)
+  const headerRow = worksheet.getRow(1);
+  headerRow.height = 25;
+
+  headerRow.eachCell((cell) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF2C3E50' } // Gris oscuro profesional (Slate)
+    };
+    cell.font = {
+      bold: true,
+      color: { argb: 'FFFFFF' },
+      size: 11
+    };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+  });
+
+  // 5. Estilos del Cuerpo y Formatos Especiales
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // Saltamos encabezado
+
+    row.eachCell((cell, colNumber) => {
+      const headerText = worksheet.getColumn(colNumber).header?.toLowerCase() || '';
+      
+      // Alineación centrada por defecto para todo
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      
+      // Bordes sutiles para las filas
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: 'F2F2F2' } }
+      };
+
+      // Detección automática de columnas monetarias
+      const isMonetary = ['monto', 'cobro', 'precio', 'total', 'costo', 'income', 'value'].some(word => 
+        headerText.includes(word)
+      );
+
+      if (isMonetary && typeof cell.value === 'number') {
+        cell.numFmt = '"$"#,##0.00';
+        cell.alignment = { vertical: 'middle', horizontal: 'right' }; // Dinero a la derecha
+      }
+
+      // Estilo para números de guía (para que no se corten o conviertan a científica)
+      if (headerText.includes('tracking') || headerText.includes('guia')) {
+        cell.numFmt = '@'; // Formato de texto
+      }
+    });
+  });
+
+  // 6. Auto-ajuste de Columnas (Inteligente)
+  worksheet.columns.forEach(column => {
+    let maxColumnLength = 0;
+    column.eachCell!({ includeEmpty: true }, (cell) => {
+      const cellValue = cell.value ? cell.value.toString() : '';
+      maxColumnLength = Math.max(maxColumnLength, cellValue.length);
+    });
+    column.width = maxColumnLength < 15 ? 15 : maxColumnLength + 5;
+  });
+
+  // 7. Congelar la fila superior (Freeze Pane)
+  // Útil para que al hacer scroll hacia abajo, el filtro siga visible
+  worksheet.views = [
+    { state: 'frozen', xSplit: 0, ySplit: 1 }
+  ];
+
+  // 8. Generar y Descargar
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  saveAs(blob, `${filename}.xlsx`);
+};
 
 // Columnas para la tabla de paquetes no entregados
 const undeliveredPackagesColumns: ColumnDef<MonitoringInfo>[] = [
@@ -373,36 +453,34 @@ const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
     ),
   },
   {
-    id: "status",
-    accessorFn: (row) => row.shipmentData.shipmentStatus,
-    header: "Estado",
-    cell: ({ row }) => {
-      const status = row.getValue("status") as string
-      if (!status) return <span className="text-sm text-muted-foreground">-</span>
-
-      const statusInfo = getStatusBadge(status)
-      const StatusIcon = statusInfo.icon
-      return (
-        <Badge variant={statusInfo.variant} className={`whitespace-nowrap ${statusInfo.color}`}>
-          <StatusIcon className="mr-1 h-3 w-3" />
-          {statusInfo.label}
-        </Badge>
-      )
-    },
+    id: "name",
+    accessorFn: (row) => row.shipmentData.recipientName,
+    header: "Destinatario",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.shipmentData.recipientName || "-"}</span>
+    ),
+  },
+  {
+    id: "address",
+    accessorFn: (row) => row.shipmentData.recipientAddress,
+    header: "Dirección",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.shipmentData.recipientAddress || "-"}</span>
+    ),
+  },
+  {
+    id: "zip",
+    accessorFn: (row) => row.shipmentData.recipientZip,
+    header: "CP",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.shipmentData.recipientZip || "-"}</span>
+    ),
   },
   {
     id: "destination",
     accessorFn: (row) => row.shipmentData.destination,
     header: "Destino",
     cell: ({ row }) => row.original.shipmentData.destination || "-",
-  },
-  {
-    id: "warehouse",
-    accessorFn: (row) => row.shipmentData.warehouse,
-    header: "Bodega",
-    cell: ({ row }) => (
-      <span className="text-sm">{row.original.shipmentData.warehouse || "-"}</span>
-    ),
   },
   {
     id: "driver",
@@ -419,6 +497,24 @@ const paymentsToSettleColumns: ColumnDef<MonitoringInfo>[] = [
         )
       }
       return <span className="text-sm text-muted-foreground">-</span>
+    },
+  },
+  {
+    id: "status",
+    accessorFn: (row) => row.shipmentData.shipmentStatus,
+    header: "Estado",
+    cell: ({ row }) => {
+      const status = row.getValue("status") as string
+      if (!status) return <span className="text-sm text-muted-foreground">-</span>
+
+      const statusInfo = getStatusBadge(status)
+      const StatusIcon = statusInfo.icon
+      return (
+        <Badge variant={statusInfo.variant} className={`whitespace-nowrap ${statusInfo.color}`}>
+          <StatusIcon className="mr-1 h-3 w-3" />
+          {statusInfo.label}
+        </Badge>
+      )
     },
   },
   {
@@ -516,14 +612,13 @@ function AllPaymentsDialog({ isOpen, onClose, packages, totalAmount }: {
   const handleExportAllPayments = () => {
     const dataForExport = packages.map(pkg => ({
       'No. Guia': pkg.shipmentData.trackingNumber,
-      'Estado': pkg.shipmentData.shipmentStatus,
+      'Destinatario': pkg.shipmentData.recipientName || '',
+      'Dirección': pkg.shipmentData.recipientAddress || '',
+      'CP': pkg.shipmentData.recipientZip || '',
       'Destino': pkg.shipmentData.destination,
-      'Ubicación': pkg.shipmentData.ubication,
-      'Bodega': pkg.shipmentData.warehouse || '',
-      'Chofer': pkg.packageDispatch?.driver || '',
-      'Vehículo': pkg.packageDispatch?.vehicle?.plateNumber || '',
-      'Tipo de Cobro': pkg.shipmentData.payment?.type || '',
-      'Monto Cobro': pkg.shipmentData.payment?.amount || 0
+      'Chofer/Vehículo': `${pkg.packageDispatch?.driver} - ${pkg.packageDispatch?.vehicle?.plateNumber}` || '',
+      'Estado': getLabelShipmentStatus(pkg.shipmentData.shipmentStatus),
+      'Cobro': `${pkg.shipmentData.payment?.type} $${pkg.shipmentData.payment?.amount.toFixed(2)}` || 0,
     }))
 
     const today = new Date().toISOString().split('T')[0]
@@ -578,14 +673,13 @@ function PaymentsToSettleDialog({ isOpen, onClose, packages, totalAmount }: {
   const handleExportPaymentsToSettle = () => {
     const dataForExport = packages.map(pkg => ({
       'No. Guia': pkg.shipmentData.trackingNumber,
-      'Estado': pkg.shipmentData.shipmentStatus,
+      'Destinatario': pkg.shipmentData.recipientName || '',
+      'Dirección': pkg.shipmentData.recipientAddress || '',
+      'CP': pkg.shipmentData.recipientZip || '',
       'Destino': pkg.shipmentData.destination,
-      'Ubicación': pkg.shipmentData.ubication,
-      'Bodega': pkg.shipmentData.warehouse || '',
-      'Chofer': pkg.packageDispatch?.driver || '',
-      'Vehículo': pkg.packageDispatch?.vehicle?.plateNumber || '',
-      'Tipo de Cobro': pkg.shipmentData.payment?.type || '',
-      'Monto Cobro': pkg.shipmentData.payment?.amount || 0
+      'Chofer/Vehículo': `${pkg.packageDispatch?.driver} - ${pkg.packageDispatch?.vehicle?.plateNumber}` || '',
+      'Estado': getLabelShipmentStatus(pkg.shipmentData.shipmentStatus),
+      'Cobro': `${pkg.shipmentData.payment?.type} $${pkg.shipmentData.payment?.amount.toFixed(2)}` || 0,
     }))
 
     const today = new Date().toISOString().split('T')[0]
@@ -649,10 +743,7 @@ export function PackagesStatistics({ stats, packagesData }: PackagesStatisticsPr
   const undeliveryPackages = packagesData.filter((p) => 
     UNDELIVERED_STATUSES.includes(p.shipmentData.shipmentStatus.toLowerCase())
   );
-  console.log("🚀 ~ PackagesStatistics ~ packagesData:", packagesData)
-  console.log("🚀 ~ PackagesStatistics ~ undeliveryPackages:", undeliveryPackages)
   
-
   // Filtrar paquetes entregados con payment (para liquidar a FedEx)
   const packagesToSettle = packagesData.filter((p) => {
     const isDelivered = p.shipmentData?.shipmentStatus?.toLowerCase() === "entregado" ||
