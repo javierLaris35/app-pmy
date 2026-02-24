@@ -16,8 +16,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getFedexStatus } from "@/lib/services/consolidated";
 import { withAuth } from "@/hoc/withAuth";
 import { columns } from "./columns";
+import { useAuthStore } from "@/store/auth.store";
 
 function ConsolidatedWithKpis() {
+  const user = useAuthStore((s) => s.user);
+
   const today = new Date()
   const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
   const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
@@ -27,8 +30,10 @@ function ConsolidatedWithKpis() {
     to: endDayOfMonth,
   })
 
+  const effectiveSubsidiaryId = selectedSucursalId || user?.subsidiary?.id
+
   const { consolidateds, isLoading, mutate } = useConsolidated(
-    selectedSucursalId, 
+    effectiveSubsidiaryId, 
     dateRange.from, 
     dateRange.to
   );
