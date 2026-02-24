@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import { MonitoringInfo } from "./shipment-tracking";
+import { MonitoringInfo } from "./shipment-tracking-resp20-02";
 import { getHistoryById } from "@/lib/services/shipments";
 
 // ===============================================================
