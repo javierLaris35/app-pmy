@@ -17,17 +17,17 @@ import {
 } from "lucide-react";
 import { ConsolidatedDto } from "@/lib/types"; 
 import { ConsolidatedDetailDialog } from "@/components/modals/consolidated-shipment-detail-dialog";
+import { formatShortDate } from "@/utils/date.utils";
 
 export const columns: ColumnDef<ConsolidatedDto>[] = [
   {
     accessorKey: "date",
     header: "Fecha",
     cell: ({ row }) => {
-      const date = new Date(row.original.date);
       return (
         <div className="flex flex-col min-w-[100px]">
           <span className="font-bold text-base text-slate-900 leading-none mb-1">
-            {date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            { formatShortDate(row.original.date) }
           </span>
           <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-tighter">
             {row.original.consNumber}
@@ -205,7 +205,7 @@ export const columns: ColumnDef<ConsolidatedDto>[] = [
             </div>
           </div>
 
-          <div className="space-y-0.5 bg-slate-50 p-1 rounded border border-dashed border-slate-200">
+          <div className="space-y-0.5 p-1">
             <div className="flex justify-between items-center text-[10px]">
               <span className="flex items-center gap-1 font-medium text-emerald-600 uppercase">
                 <TrendingUp className="h-3 w-3" /> Efec. Entrega: {porcEfectividadEntrega}%
