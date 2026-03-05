@@ -30,6 +30,7 @@ interface ShipmentNo67 {
   recipientCity: string
   recipientZip: string
   currentStatus: string
+  commitDateTime: string
   statusHistoryCount: string
   exceptionCodes: string[]
   firstStatusDate: string
@@ -68,7 +69,8 @@ export function ExpiringTodayCard({
 
   const SPECIAL_SUBSIDIARY_ID = [
     "040483fc-4322-4ce0-b124-cc5b6d2a9cee", //Hermosillo Ruta EXp
-    "6a6434fb-b0ba-4560-b273-c10b58288deb"  //Huatabampo 
+    "6a6434fb-b0ba-4560-b273-c10b58288deb", //Huatabampo 
+    "b45cbb94-84e0-481f-bbf8-75642b601230" // Hermosillo 
   ].map( id => id.toLowerCase().trim()) 
     
   const currentIdClean = String(activeSubsidiaryId || "").toLowerCase().trim();
@@ -180,10 +182,12 @@ export function ExpiringTodayCard({
   const handleExportNon67ToExcel = () => {
     if (!packagesWithout67?.shipments) return
     const data = packagesWithout67.shipments.map(s => ({
-      'No. Guía': s.trackingNumber,
-      'Destinatario': s.recipientName,
-      'Estado Actual': s.currentStatus,
-      'Último Status': s.lastStatusDate ? formatearFechaHoraHermosillo(s.lastStatusDate) : ''
+      'No. Guia': s.trackingNumber,
+      'Destinatario': s.recipientName || '',
+      'Dirección': s.recipientAddress || '',
+      'CP': s.recipientZip || '',
+      'Estado': getLabelShipmentStatus(s.currentStatus),
+      'Fecha Compromiso': formatearFechaHoraHermosillo(s.commitDateTime),
     }))
     const worksheet = XLSX.utils.json_to_sheet(data)
     const workbook = XLSX.utils.book_new()
