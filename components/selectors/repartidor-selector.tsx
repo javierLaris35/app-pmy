@@ -180,13 +180,6 @@ export function RepartidorSelector({
           ))}
         </div>
       )}
-
-      {/* Debug info (opcional, solo en desarrollo) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-muted-foreground mt-1">
-          Sucursal: {effectiveSubsidiaryId ? effectiveSubsidiaryId.substring(0, 8) + "..." : "No seleccionada"}
-        </div>
-      )}
     </div>
   )
 }

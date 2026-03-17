@@ -120,7 +120,9 @@ export function ShipmentHistoryModal({ shipmentId, trackingNumber, trigger, isCh
       setIsLoading(true)
       setError(null)
       try {
+        console.log("🚀 ~ fetchHistory ~ isCharge:", isCharge)
         const data = await getHistoryById(shipmentId, isCharge ?? false)
+        
         setHistory(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar el historial")

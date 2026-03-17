@@ -83,7 +83,6 @@ const generateReportPending = async (subsidiaryId: string) => {
   return response.data;
 };
 
-
 const generateReportInventory67 = async (subsidiaryId: string) => {
   const response = await axiosConfig.get(
     `${url}/inventory-67/${subsidiaryId}/excel`,
@@ -94,6 +93,16 @@ const generateReportInventory67 = async (subsidiaryId: string) => {
 
   return response.data;
 };
+
+const getPackageDispatchsByDriverAndDateRange = async (driverId: string, startDate: string, endDate: string) => {
+    const response = await axiosConfig.get(`${url}/package-dispatch/driver?driverId=${driverId}&startDate=${startDate}&endDate=${endDate}`);
+    return response.data;
+}
+
+const getPackageDispatchsByDateRange = async (startDate: string, endDate: string) => {
+    const response = await axiosConfig.get(`${url}/package-dispatch/date-range?startDate=${startDate}&endDate=${endDate}`);
+    return response.data;
+}
 
 export {
     getConsolidateds,
@@ -110,5 +119,7 @@ export {
     getShipmentsNo67ByPackageDispatch,
     generateReportNo67,
     generateReportPending,
-    generateReportInventory67
+    generateReportInventory67,
+    getPackageDispatchsByDriverAndDateRange,
+    getPackageDispatchsByDateRange
 }

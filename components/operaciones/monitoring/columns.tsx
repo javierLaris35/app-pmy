@@ -73,7 +73,7 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
           <div className="text-sm">
             <div className="flex items-center gap-1">
               <Warehouse className="h-3 w-3 text-muted-foreground" />
-              <span className="font-medium">{pkg.shipmentData.subsidiary?.name || "Bodega"}</span>
+              <span className="font-medium">{pkg.shipmentData.ubication|| "Bodega"}</span>
             </div>
           </div>
         )
@@ -86,7 +86,7 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
               <span className="font-medium">Entregado</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              {pkg.shipmentData.deliveryDate ? new Date(pkg.shipmentData.deliveryDate).toLocaleDateString() : ""}
+              {pkg.shipmentData.commitDateTime ? new Date(pkg.shipmentData.commitDateTime).toLocaleDateString() : ""}
             </p>
           </div>
         )
@@ -169,6 +169,7 @@ export const columns: ColumnDef<MonitoringInfo>[] = [
           <ShipmentHistoryModal
             shipmentId={pkg.shipmentData.id}
             trackingNumber={pkg.shipmentData.trackingNumber}
+            isCharge={pkg.shipmentData.isCharge}
             trigger={
               <Button variant="ghost" className="h-8 w-8 p-0">
                 <History className="h-4 w-4" />
