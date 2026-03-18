@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { ShipmentStatusType } from "@/lib/types"
 
 interface ConsolidadoInfo {
   consNumber: string
@@ -18,7 +19,8 @@ interface DesembarqueInfo {
 interface RutaInfo {
   driver: string
   vehicle: string
-  estado: string
+  estado: ShipmentStatusType
+  date: string
 }
 
 interface SelectionInfoProps {
@@ -67,6 +69,10 @@ export function SelectionInfo({ type, data }: SelectionInfoProps) {
             <div className="text-sm">
               <p className="font-medium text-muted-foreground mb-1">Chofer</p>
               <p className="font-semibold text-base">{(data as RutaInfo).driver}</p>
+            </div>
+            <div className="text-sm">
+              <p className="font-medium text-muted-foreground mb-1">Fecha</p>
+              <p className="font-semibold text-base">{(data as RutaInfo).createdAt}</p>
             </div>
             <div className="text-sm">
               <p className="font-medium text-muted-foreground mb-1">Vehículo</p>

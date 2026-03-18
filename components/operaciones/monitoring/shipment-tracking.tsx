@@ -80,6 +80,7 @@ import {
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
+import { formatDateToShortDate } from "@/utils/date.utils"
 
 export interface MonitoringInfo {
   shipmentData: {
@@ -793,7 +794,7 @@ export default function TrackingPage() {
              <>
                {selectedConsolidado && <MonitoringLayout title="Consolidado Seleccionado" icon={FileText} selectionType="consolidado" entityId={selectedConsolidado} selectionData={{ consNumber: consolidateds.find((c) => c.id === selectedConsolidado)?.consNumber || "-", date: "-", estado: "Activo" }} packagesData={filteredPackages} stats={statsInfo} subsidiaryId={effectiveSubsidiaryId} />}
                {selectedDesembarque && <MonitoringLayout title="Desembarque Seleccionado" icon={Ship} selectionType="desembarque" entityId={selectedDesembarque} selectionData={{ trackingNumber: unloadings.find((d) => d.id === selectedDesembarque)?.trackingNumber || "-", date: "-", estado: "Procesado" }} packagesData={filteredPackages} subsidiaryId={effectiveSubsidiaryId} stats={statsInfo} />}
-               {selectedRuta && <MonitoringLayout title="Ruta Seleccionada" icon={Car} entityId={selectedRuta} selectionType="ruta" selectionData={{ driver: packageDispatchs.find((r) => r.id === selectedRuta)?.driver?.name || packageDispatchs.find((r) => r.id === selectedRuta)?.driver || "-", vehicle: "-", estado: "En Progreso" }} packagesData={filteredPackages} subsidiaryId={effectiveSubsidiaryId} stats={statsInfo} />}
+               {selectedRuta && <MonitoringLayout title="Ruta Seleccionada" icon={Car} entityId={selectedRuta} selectionType="ruta" selectionData={{ driver: packageDispatchs.find((r) => r.id === selectedRuta)?.driver?.name || packageDispatchs.find((r) => r.id === selectedRuta)?.driver || "-", vehicle: packageDispatchs.find((r) => r.id === selectedRuta)?.vehicle?.name || "-", estado: packageDispatchs.find((r) => r.id === selectedRuta)?.status || "-", date: formatDateToShortDate(packageDispatchs.find((r) => r.id === selectedRuta)?.createdAt) }} packagesData={filteredPackages} subsidiaryId={effectiveSubsidiaryId} stats={statsInfo} />}
                
                {isHistoryMode && packages.length > 0 && (
                  <MonitoringLayout 

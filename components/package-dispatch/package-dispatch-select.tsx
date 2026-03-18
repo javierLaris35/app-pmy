@@ -21,6 +21,7 @@ export interface Ruta {
   status: "En Ruta" | "Completada" | "En Progreso" | "Cancelada"
   date: string
   route: string
+  createdAt: string
 }
 
 interface RutaSelectProps {
