@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
+import { formatDateToShortDate } from "@/utils/date.utils"
 
 export interface Ruta {
   id: string
@@ -78,7 +79,11 @@ export function PackageDispatchSelect({
             <Truck className="h-4 w-4 shrink-0 text-muted-foreground" />
             {selectedRuta ? (
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="font-medium truncate">{selectedRuta.trackingNumber}</span>
+                <span className="font-medium truncate">
+                  {selectedRuta.trackingNumber}
+                  <span> • </span>
+                  <span className="text-sm text-muted-foreground">{formatDateToShortDate(selectedRuta.createdAt)}</span>
+                </span>
                 <span className="text-muted-foreground text-sm truncate">
                   {selectedRuta.driver} • {selectedRuta.vehicle.plateNumber}
                 </span>
@@ -131,6 +136,8 @@ export function PackageDispatchSelect({
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold truncate">
                         {ruta.trackingNumber}
+                        <span> • </span>
+                        <span className="text-sm text-muted-foreground">{formatDateToShortDate(ruta.createdAt)}</span>
                       </span>
 
                       <Badge

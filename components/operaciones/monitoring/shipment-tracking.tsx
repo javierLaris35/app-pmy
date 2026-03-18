@@ -43,7 +43,8 @@ import {
   updateDataFromFedexByConsolidatedId,
   updateDataFromFedexByUnloadingId,
   getPackageDispatchsByDriverAndDateRange,
-  getPackageDispatchsByDateRange
+  getPackageDispatchsByDateRange,
+  generateEfficientReport
 } from "@/lib/services/monitoring/monitoring"
 import { useAuthStore } from "@/store/auth.store"
 import { LoaderWithOverlay } from "@/components/loader"
@@ -447,54 +448,71 @@ export default function TrackingPage() {
       // 1. Determinar qué API usar dependiendo de si hay Chofer o no
       let rawResponse: any;
       if (selectedRepartidores.length > 0) {
-        rawResponse = await getPackageDispatchsByDriverAndDateRange(selectedRepartidores[0].id, start.toISOString(), end.toISOString());
+        rawResponse = await getPackageDispatchsByDriverAndDateRange(selectedRepartidores[0].id, effectiveSubsidiaryId, start.toISOString(), end.toISOString());
       } else {
-        rawResponse = await getPackageDispatchsByDateRange(start.toISOString(), end.toISOString());
+        rawResponse = await getPackageDispatchsByDateRange(effectiveSubsidiaryId, start.toISOString(), end.toISOString());
       }
 
       setPackages(rawResponse || []);
 
-      /*const routesArray = Array.isArray(rawResponse) ? rawResponse : (rawResponse?.data || rawResponse?.packageDispatchs || rawResponse?.rutas || []);
-      
-      if (routesArray.length > 0) {
-        
-        if (dateRangeFilter === 'day') {
-          await Promise.allSettled(routesArray.map((r: any) => {
-            const rid = r?.id || r?._id;
-            return rid ? updateDataFromFedexByPackageDispatchId(rid) : Promise.resolve();
-          }));
-        }
-
-        const infosPromises = routesArray.map(async (r: any) => {
-          const routeId = r?.id || r?._id;
-          if (!routeId) return []; 
-          
-          try {
-            const rawPkgs: any = await getInfoFromPackageDispatch(routeId);
-            const pkgsArray = Array.isArray(rawPkgs) ? rawPkgs : (rawPkgs?.data || []);
-            
-            return pkgsArray.map((p: any) => ({
-              ...p,
-              packageDispatch: p.packageDispatch || r 
-            }));
-          } catch (err) {
-            console.warn(`Silencioso: Fallo al obtener paquetes para ruta ${routeId}`, err);
-            return []; 
-          }
-        });
-
-        const infos = await Promise.all(infosPromises);
-        const flattenedPackages = infos.flat();
-        
-        setPackages(flattenedPackages);
-        if (flattenedPackages.length > 0) setViewMode("stats");
-
-      } else {
-        setPackages([]); // Sin resultados
-      }*/
     } catch (error) {
       console.error("Error crítico en búsqueda histórica:", error);
       setPackages([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // NUEVO: Handler para generar el Excel de Eficiencia desde el backend
+  const handleGenerateEfficiencyExcel = async () => {
+    setIsLoading(true);
+    try {
+      let start = new Date();
+      let end = new Date();
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+
+      if (dateRangeFilter === 'week') {
+        const day = start.getDay();
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+        start.setDate(diff);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+      } else if (dateRangeFilter === 'month') {
+        start = new Date(start.getFullYear(), start.getMonth(), 1);
+        end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59, 999);
+      } else if (dateRangeFilter === 'custom') {
+        if (!manualStartDate || !manualEndDate) return;
+        start = new Date(manualStartDate + "T00:00:00");
+        end = new Date(manualEndDate + "T23:59:59");
+      }
+
+      const driverId = selectedRepartidores.length > 0 ? selectedRepartidores[0].id : undefined;
+      
+      const response: any = await generateEfficientReport(start.toISOString(), end.toISOString(), effectiveSubsidiaryId);
+      
+      // Bloque de seguridad en caso de que el backend devuelva un Blob y el servicio no inicie la descarga automáticamente
+      if (response && response instanceof Blob) {
+         const url = window.URL.createObjectURL(response);
+         const link = document.createElement('a');
+         link.href = url;
+         link.setAttribute('download', `Eficiencia_Repartidores_${new Date().toLocaleDateString('es-MX')}.xlsx`);
+         document.body.appendChild(link);
+         link.click();
+         link.parentNode?.removeChild(link);
+      } else if (response && response.data instanceof Blob) {
+         const url = window.URL.createObjectURL(response.data);
+         const link = document.createElement('a');
+         link.href = url;
+         link.setAttribute('download', `Eficiencia_Repartidores_${new Date().toLocaleDateString('es-MX')}.xlsx`);
+         document.body.appendChild(link);
+         link.click();
+         link.parentNode?.removeChild(link);
+      }
+
+    } catch (error) {
+      console.error("Error generando el reporte Excel de eficiencia:", error);
     } finally {
       setIsLoading(false);
     }
@@ -684,7 +702,6 @@ export default function TrackingPage() {
               <Button id="tutorial-button" variant="outline" size="icon" onClick={startTutorial}><HelpCircle className="h-4 w-4" /></Button>
               <div><SucursalSelector value={effectiveSubsidiaryId || user?.subsidiary?.id || ""} returnObject={true} onValueChange={(val) => { if (typeof val === "string") setSelectedSubsidiaryId(val); else if (Array.isArray(val)) setSelectedSubsidiaryId(val[0]?.id ?? ""); else if (val && typeof val === "object") setSelectedSubsidiaryId((val as any).id); }} /></div>
               
-              {/* NUEVO BOTON PDF EFICIENCIA */}
               <Button 
                 onClick={handleExportEfficiencyPDF} 
                 variant="outline"
@@ -774,13 +791,24 @@ export default function TrackingPage() {
                      </>
                    )}
                    
-                   <Button 
-                     onClick={handleHistorySearch} 
-                     disabled={isLoading || (dateRangeFilter === 'custom' && (!manualStartDate || !manualEndDate))}
-                     className="bg-primary/90 hover:bg-primary"
-                   >
-                     Buscar Historial
-                   </Button>
+                   <div className="flex gap-2">
+                     <Button 
+                       onClick={handleHistorySearch} 
+                       disabled={isLoading || (dateRangeFilter === 'custom' && (!manualStartDate || !manualEndDate))}
+                       className="bg-primary/90 hover:bg-primary"
+                     >
+                       Buscar Historial
+                     </Button>
+                     {/* NUEVO BOTÓN: LLAMA AL ENDPOINT DE EXCEL USANDO EL MISMO RANGO */}
+                     <Button 
+                       onClick={handleGenerateEfficiencyExcel} 
+                       disabled={isLoading || (dateRangeFilter === 'custom' && (!manualStartDate || !manualEndDate))}
+                       variant="outline"
+                       className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                     >
+                       <FileDown className="mr-2 h-4 w-4" /> Generar Excel Eficiencia
+                     </Button>
+                   </div>
                  </div>
                </div>
 

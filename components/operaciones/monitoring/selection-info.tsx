@@ -72,7 +72,7 @@ export function SelectionInfo({ type, data }: SelectionInfoProps) {
             </div>
             <div className="text-sm">
               <p className="font-medium text-muted-foreground mb-1">Fecha</p>
-              <p className="font-semibold text-base">{(data as RutaInfo).createdAt}</p>
+              <p className="font-semibold text-base">{(data as RutaInfo).date}</p>
             </div>
             <div className="text-sm">
               <p className="font-medium text-muted-foreground mb-1">Vehículo</p>

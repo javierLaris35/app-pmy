@@ -157,11 +157,11 @@ export function RepartidorSelector({
                     />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium truncate">{repartidor.name}</span>
-                      {repartidor.employeeId && (
+                      {/*{repartidor.employeeId && (
                         <span className="text-sm text-muted-foreground truncate">
                           ID: {repartidor.employeeId}
                         </span>
-                      )}
+                      )}*/}
                     </div>
                   </CommandItem>
                 ))}

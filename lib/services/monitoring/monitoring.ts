@@ -94,15 +94,22 @@ const generateReportInventory67 = async (subsidiaryId: string) => {
   return response.data;
 };
 
-const getPackageDispatchsByDriverAndDateRange = async (driverId: string, startDate: string, endDate: string) => {
-    const response = await axiosConfig.get(`${url}/package-dispatch/driver?driverId=${driverId}&startDate=${startDate}&endDate=${endDate}`);
+const getPackageDispatchsByDriverAndDateRange = async (driverId: string, subsidiaryId: string, startDate: string, endDate: string) => {
+    const response = await axiosConfig.get(`${url}/package-dispatch/driver?driverId=${driverId}&subsidiaryId=${subsidiaryId}&startDate=${startDate}&endDate=${endDate}`);
     return response.data;
 }
 
-const getPackageDispatchsByDateRange = async (startDate: string, endDate: string) => {
-    const response = await axiosConfig.get(`${url}/package-dispatch/date-range?startDate=${startDate}&endDate=${endDate}`);
+const getPackageDispatchsByDateRange = async (subsidiaryId: string, startDate: string, endDate: string) => {
+    const response = await axiosConfig.get(`${url}/package-dispatch/date-range?subsidiaryId=${subsidiaryId}&startDate=${startDate}&endDate=${endDate}`);
     return response.data;
 }
+
+const generateEfficientReport = async (startDate: string, endDate: string, subsidiaryId: string) => {
+    const response = await axiosConfig.get(`${url}/report/drivers?startDate=${startDate}&endDate=${endDate}&subsidiaryId=${subsidiaryId}`, {
+        responseType: 'blob',
+    });
+    return response.data;
+};  
 
 export {
     getConsolidateds,
@@ -121,5 +128,6 @@ export {
     generateReportPending,
     generateReportInventory67,
     getPackageDispatchsByDriverAndDateRange,
-    getPackageDispatchsByDateRange
+    getPackageDispatchsByDateRange,
+    generateEfficientReport
 }
