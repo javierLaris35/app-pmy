@@ -44,7 +44,10 @@ import {
   updateDataFromFedexByUnloadingId,
   getPackageDispatchsByDriverAndDateRange,
   getPackageDispatchsByDateRange,
-  generateEfficientReport
+  generateEfficientReport,
+  generateReportInventory67,
+  generateReportPending,
+  generateReportNo67
 } from "@/lib/services/monitoring/monitoring"
 import { useAuthStore } from "@/store/auth.store"
 import { LoaderWithOverlay } from "@/components/loader"
@@ -342,7 +345,10 @@ export default function TrackingPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null)
   const [selectedReport, setSelectedReport] = useState<"pending" | "sin67" | "ultimoInventarioSin67" | "">("");
-  
+  const [reportStartDate, setReportStartDate] = useState<Date | null>(null)
+  const [reportEndDate, setReportEndDate] = useState<Date | null>(null)
+
+  type ReportType = "pending" | "sin67" | "ultimoInventarioSin67";
   const effectiveSubsidiaryId = selectedSubsidiaryId || user?.subsidiary?.id
 
   const calculateStats = (packages: MonitoringInfo[]): PackageStats => {
@@ -682,7 +688,202 @@ export default function TrackingPage() {
     }).sort((a, b) => a.driver.localeCompare(b.driver)); 
   }, [filteredPackages]);
 
-  const handleGenerateReport = async () => { /* ... */ };  
+    // Reporte: pendientes (no entregados)
+  const generatePendingReport = async () => {
+    setIsLoading(true);
+    try {
+      // Función para formatear fecha
+      const formatDate = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      if (!effectiveSubsidiaryId) {
+        alert("Por favor, selecciona una sucursal primero");
+        setIsLoading(false);
+        return;
+      }
+
+      // Convertir fechas
+      const startDateStr = reportStartDate ? formatDate(reportStartDate) : undefined;
+      const endDateStr = reportEndDate ? formatDate(reportEndDate) : undefined;
+      
+      console.log("Generando reporte con:", {
+        subsidiaryId: effectiveSubsidiaryId,
+        startDate: startDateStr,
+        endDate: endDateStr
+      });
+
+      // Generar reporte
+      const blob = await generateReportPending(
+        effectiveSubsidiaryId, 
+        startDateStr, 
+        endDateStr
+      );
+
+      // Descargar
+      const url = window.URL.createObjectURL(
+        new Blob([blob], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nombre del archivo
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `pendientes_${effectiveSubsidiaryId}_${timestamp}.xlsx`;
+      
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setIsReportsOpen(false);
+    } catch (err) {
+      console.error('Error generating pending report:', err);
+      alert("Error al generar el reporte");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Reporte: paquetes sin 67 (no contienen '67' en dexCode)
+  const generateSin67Report = async () => {
+    setIsLoading(true)
+    try {
+      const formatDate = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // Determinar sucursal
+      const subsidiaryIdToUse = selectedSubsidiaryId || user?.subsidiary?.id;
+      
+      if (!subsidiaryIdToUse) {
+        alert("Por favor, selecciona una sucursal primero");
+        setIsLoading(false);
+        return;
+      }
+
+      // Convertir fechas
+      const startDateStr = reportStartDate ? formatDate(reportStartDate) : undefined;
+      const endDateStr = reportEndDate ? formatDate(reportEndDate) : undefined;
+      
+      console.log("Generando reporte con:", {
+        subsidiaryId: subsidiaryIdToUse,
+        startDate: startDateStr,
+        endDate: endDateStr
+      });
+
+      // Generar reporte
+      const blob = await generateReportNo67(
+        subsidiaryIdToUse
+      );
+
+      // Descargar
+      const url = window.URL.createObjectURL(
+        new Blob([blob], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nombre del archivo
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `sin_67_${subsidiaryIdToUse}_${timestamp}.xlsx`;
+      
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setIsReportsOpen(false)
+    } catch (err) {
+      console.error("Error generating sin-67 report:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const generateInvetory67Report = async () => {
+    setIsLoading(true);
+    try {
+      if (!effectiveSubsidiaryId) {
+        alert("Por favor, selecciona una sucursal primero");
+        setIsLoading(false);
+        return;
+      }
+
+      const blob = await generateReportInventory67(effectiveSubsidiaryId);
+
+      // Descargar
+      const url = window.URL.createObjectURL(
+        new Blob([blob], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nombre del archivo
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `ultimo_inventario_sin_67${effectiveSubsidiaryId}_${timestamp}.xlsx`;
+      
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const getReportLabel = (report?: ReportType | "") => {
+    switch (report) {
+      case "pending":
+        return "Reporte de pendientes";
+      case "sin67":
+        return "Paquetes sin código 67";
+      case "ultimoInventarioSin67":
+        return "Último inventario sin 67";
+      default:
+        return "";
+    }
+  };
+
+    const handleGenerateReport = async () => {
+    switch (selectedReport) {
+      case "pending":
+        await generatePendingReport();
+        break;
+
+      case "sin67":
+        await generateSin67Report();
+        break;
+
+      case "ultimoInventarioSin67":
+        await generateInvetory67Report();
+        break;
+
+      default:
+        console.warn("Reporte no soportado");
+    }
+  };  
+
   const getEfficiencyColor = (val: number) => val >= 90 ? "text-emerald-500" : val >= 75 ? "text-amber-500" : "text-rose-500";
   const getEfficiencyBg = (val: number) => val >= 90 ? "bg-emerald-500" : val >= 75 ? "bg-amber-500" : "bg-rose-500";
   const getDexColor = (val: number) => val <= 5 ? "text-emerald-500" : val <= 15 ? "text-amber-500" : "text-rose-500";
@@ -720,7 +921,11 @@ export default function TrackingPage() {
                     <Label>Tipo de reporte</Label>
                     <Select value={selectedReport} onValueChange={(v) => setSelectedReport(v as any)}>
                       <SelectTrigger><SelectValue placeholder="Selecciona un reporte" /></SelectTrigger>
-                      <SelectContent><SelectItem value="pending">Reporte de pendientes</SelectItem><SelectItem value="sin67">Paquetes sin código 67</SelectItem><SelectItem value="ultimoInventarioSin67">Último inventario sin 67</SelectItem></SelectContent>
+                      <SelectContent>
+                        <SelectItem value="pending">Reporte de pendientes</SelectItem>
+                        <SelectItem value="sin67">Paquetes sin código 67</SelectItem>
+                        <SelectItem value="ultimoInventarioSin67">Último inventario sin 67</SelectItem>
+                      </SelectContent>
                     </Select>
                   </div>
                   <DialogFooter className="mt-6 flex justify-between"><Button variant="ghost" onClick={() => setIsReportsOpen(false)}>Cerrar</Button><Button onClick={handleGenerateReport} disabled={isLoading || !selectedReport}>Generar reporte</Button></DialogFooter>
