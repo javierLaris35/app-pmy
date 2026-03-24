@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { ConsolidatedDetails, Consolidateds, PackageInfo, Unloading, UnloadingFormData, UnloadingResponse, ValidTrackingAndConsolidateds } from "@/lib/types"
+import { Consolidateds, Unloading, UnloadingFormData, UnloadingResponse, UnloadingValidationTrackings, ValidTrackingAndConsolidateds } from "@/lib/types"
 
 const url = '/unloadings'
 
@@ -18,7 +18,10 @@ const saveUnloading = async (unloading: UnloadingFormData) => {
     return response.data;
 }
 
-const validateTrackingNumbers = async (trackingNumbers: string[], subsidiaryId: string) => {
+const validateTrackingNumbers = async (trackingNumbers: UnloadingValidationTrackings[], subsidiaryId: string) => {
+  // 🕵️ TRAMPA: Imprimir exactamente lo que estamos a punto de enviar
+    //console.log("🚨 ATENCIÓN - Payload a punto de enviarse:", JSON.stringify(trackingNumbers, null, 2));
+    
   const response = await axiosConfig.post<ValidTrackingAndConsolidateds>(
     `${url}/validate-tracking-numbers`,
     { trackingNumbers, subsidiaryId }

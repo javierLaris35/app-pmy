@@ -833,3 +833,19 @@ export interface MonitoringInfo {
     }
   }
 }
+
+export interface UnloadingValidationTrackings {
+  trackingNumber: string;
+  isAlreadyValidated: boolean;
+  isValid?: boolean;
+  isCharge?: boolean;
+  consolidatedId?: string;
+  recipientName?: string;
+  recipientAddress?: string;
+  recipientPhone?: string;
+  recipientZip?: string;
+  priority?: string;
+  isHighValue?: boolean;
+  payment?: any;
+  commitDateTime?: string;
+}

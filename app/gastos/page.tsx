@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,16 +16,16 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { FileSpreadsheet, FileUp, Plus, Upload } from "lucide-react"
+import { FileSpreadsheet, FileUp, Plus, Upload, Zap } from "lucide-react"
 import { addGasto, updateGasto, getCategorias } from "@/lib/data"
 import type { Expense, ExpenseCategory } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { AppLayout } from "@/components/app-layout"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "@radix-ui/react-icons"
-import { format } from "date-fns"
+import { format, startOfDay, endOfDay } from "date-fns"
 import { es } from "date-fns/locale"
-import { Calendar, Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import * as XLSX from "xlsx"
 import { DataTable } from "@/components/data-table/data-table"
@@ -37,15 +36,15 @@ import {
 } from "@/components/data-table/columns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useExpenses, useSaveExpense } from "@/hooks/services/expenses/use-expenses"
-import { categoriasGasto } from "@/lib/data"  // tu lista de categorías
+import { categoriasGasto } from "@/lib/data" 
 import { toast } from "sonner"
-import { withAuth } from "@/hoc/withAuth";
+import { withAuth } from "@/hoc/withAuth"
+import ExcelJS from "exceljs"
+import { saveAs } from "file-saver"
+import { useAuthStore } from "@/store/auth.store";
 
-
-// Métodos de pago disponibles
 const metodosPago = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "Transferencia", "Cheque", "Otro"]
 
-// Función para obtener el color de la categoría
 const getCategoryColor = (categoryName: string): string => {
   const colorMap: Record<string, string> = {
     Nómina: "bg-green-500",
@@ -59,30 +58,38 @@ const getCategoryColor = (categoryName: string): string => {
     Impuestos: "bg-amber-500",
     Seguros: "bg-violet-500",
   }
-
   return colorMap[categoryName] || "bg-gray-500"
 }
 
 function GastosPage() {
+  const user = useAuthStore((s) => s.user)
+
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
-  const [gastos, setGastos] = useState<Expense[]>([])
   const [categorias, setCategorias] = useState<ExpenseCategory[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [editingGasto, setEditingGasto] = useState<Expense | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const effectiveSubsidiaryId = selectedSucursalId || user?.subsidiary?.id
+
+  const { expenses = [], isLoading, isError, mutate } = useExpenses(effectiveSubsidiaryId)
+  const { save, isSaving, isError: isSaveError } = useSaveExpense()
 
   // Formulario
   const [fecha, setFecha] = useState<Date | undefined>(new Date())
   const [categoriaId, setCategoriaId] = useState("")
-  const [monto, setMonto] = useState(0)
+  const [monto, setMonto] = useState<number | "">("")
   const [descripcion, setDescripcion] = useState("")
   const [metodoPago, setMetodoPago] = useState("Efectivo")
   const [responsable, setResponsable] = useState("")
   const [notas, setNotas] = useState("")
   const [comprobante, setComprobante] = useState<File | null>(null)
-  const { expenses, isLoading, isError, mutate } = useExpenses(selectedSucursalId)
-  const { save, isSaving, isError: isSaveError } = useSaveExpense();
 
+  // Filtros de exportación
+  const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined)
+  const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined)
+  const [exportCategory, setExportCategory] = useState<string>("todas")
 
   useEffect(() => {
     const loadCategorias = async () => {
@@ -92,11 +99,41 @@ function GastosPage() {
     loadCategorias()
   }, [])
 
+  const gastosComunes = useMemo(() => {
+    if (!expenses.length) return []
+    const frecuencias: Record<string, Expense & { count: number }> = {}
+
+    expenses.forEach((g) => {
+      const key = `${g.category}-${g.description?.toLowerCase().trim()}`
+      if (!frecuencias[key]) {
+        frecuencias[key] = { ...g, count: 0 }
+      }
+      frecuencias[key].count++
+    })
+
+    return Object.values(frecuencias)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4)
+  }, [expenses])
+
+  const prefillGasto = (plantilla: Expense) => {
+    setCategoriaId(plantilla.category)
+    setDescripcion(plantilla.description || "")
+    setMonto(plantilla.amount)
+    setMetodoPago(plantilla.paymentMethod || "Efectivo")
+    setResponsable(plantilla.responsible || "")
+    setFecha(new Date())
+    setNotas("")
+    setComprobante(null)
+    setEditingGasto(null)
+    setIsDialogOpen(true)
+  }
+
   const resetForm = () => {
     setEditingGasto(null)
     setFecha(new Date())
     setCategoriaId("")
-    setMonto(0)
+    setMonto("")
     setDescripcion("")
     setMetodoPago("Efectivo")
     setResponsable("")
@@ -110,8 +147,6 @@ function GastosPage() {
   }
 
   const openEditGastoDialog = (gasto: Expense) => {
-    const selectedCategoria = categorias.find((c) => c.name === gasto.category)
-
     setEditingGasto(gasto)
     setFecha(new Date(gasto.date))
     setCategoriaId(gasto.category)
@@ -128,33 +163,30 @@ function GastosPage() {
     e.preventDefault()
 
     if (!fecha) {
-      alert("Por favor selecciona una fecha válida")
+      toast.error("Por favor selecciona una fecha válida")
       return
     }
 
-    const selectedCategoria = categorias.find((c) => c.id === categoriaId)
-
-    if (!selectedCategoria) {
-      alert("Por favor selecciona una categoría válida")
+    if (!categoriaId) {
+      toast.error("Por favor selecciona una categoría válida")
       return
     }
 
     const payload: Expense = {
       subsidiaryId: selectedSucursalId,
       date: fecha,
-      category: categoriaId, // nombre de la categoría directamente
-      amount: monto,
+      category: categoriaId,
+      amount: Number(monto),
       description: descripcion,
       paymentMethod: metodoPago,
       responsible: responsable,
       notes: notas,
-    };
-
+    }
 
     save(payload)
     setIsDialogOpen(false)
     mutate()
-    toast.success("Se registrado con éxito el nuevo gasto.")
+    toast.success("Se registró con éxito el gasto.")
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,22 +195,96 @@ function GastosPage() {
     }
   }
 
-  const handleExportExcel = () => {
-    const dataToExport = gastos.map((gasto) => ({
-      Fecha: format(new Date(gasto.date), "dd/MM/yyyy"),
-      Categoría: gasto.categoryName,
-      Descripción: gasto.description,
-      Monto: gasto.amount,
-      "Método de Pago": gasto.paymentMethod || "No especificado",
-      Responsable: gasto.responsible || "No especificado",
-      Notas: gasto.notes || "",
-    }))
+  const handleExportExcel = async () => {
+  const dataFiltrada = expenses.filter((gasto) => {
+    const fechaGasto = new Date(gasto.date)
+    const pasaFiltroCategoria = exportCategory === "todas" || gasto.category === exportCategory
+    const pasaFiltroFecha = (!exportStartDate || fechaGasto >= startOfDay(exportStartDate)) &&
+                            (!exportEndDate || fechaGasto <= endOfDay(exportEndDate))
+    return pasaFiltroCategoria && pasaFiltroFecha
+  })
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Gastos")
-    XLSX.writeFile(wb, "Gastos.xlsx")
+  if (dataFiltrada.length === 0) {
+    toast.warning("No hay datos que coincidan con estos filtros")
+    return
   }
+
+  // 1. Crear el libro y la hoja de trabajo
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = "Tu Sistema de Finanzas"
+  const worksheet = workbook.addWorksheet("Reporte de Gastos")
+
+  // 2. Definir las columnas con sus anchos específicos y formato de moneda
+  worksheet.columns = [
+    { header: "Fecha", key: "fecha", width: 15 },
+    { header: "Categoría", key: "categoria", width: 20 },
+    { header: "Descripción", key: "descripcion", width: 45 },
+    { header: "Monto", key: "monto", width: 18, style: { numFmt: '"$"#,##0.00' } },
+    { header: "Método de Pago", key: "metodoPago", width: 20 },
+    { header: "Responsable", key: "responsable", width: 25 },
+    { header: "Notas", key: "notas", width: 40 },
+  ]
+
+  // 3. Dar estilo profesional al encabezado
+  const headerRow = worksheet.getRow(1)
+  headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 }
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF0F172A" }, // Un color azul oscuro/slate elegante
+  }
+  headerRow.alignment = { vertical: "middle", horizontal: "center" }
+  headerRow.height = 25
+
+  // 4. Congelar la primera fila y agregar Auto-Filtros
+  worksheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }]
+  worksheet.autoFilter = "A1:G1"
+
+  // 5. Agregar los datos iterando sobre tu arreglo filtrado
+  dataFiltrada.forEach((gasto, index) => {
+    const row = worksheet.addRow({
+      fecha: format(new Date(gasto.date), "dd/MM/yyyy"),
+      categoria: gasto.category,
+      descripcion: gasto.description,
+      monto: gasto.amount,
+      metodoPago: gasto.paymentMethod || "No especificado",
+      responsable: gasto.responsible || "No especificado",
+      notas: gasto.notes || "",
+    })
+
+    // Alternar el color de las filas para facilitar la lectura (estilo cebra)
+    if (index % 2 === 0) {
+      row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } }
+    }
+
+    // Alinear el texto verticalmente en todas las celdas
+    row.alignment = { vertical: "middle", wrapText: true }
+  })
+
+  // 6. Agregar bordes tenues a todas las celdas con datos
+  worksheet.eachRow({ includeEmpty: false }, (row) => {
+    row.eachCell({ includeEmpty: false }, (cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE2E8F0" } },
+        left: { style: "thin", color: { argb: "FFE2E8F0" } },
+        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        right: { style: "thin", color: { argb: "FFE2E8F0" } },
+      }
+    })
+  })
+
+  // 7. Generar el archivo y descargarlo
+  try {
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+    saveAs(blob, `Reporte_Gastos_${selectedSucursalId}_${format(new Date(), "dd-MM-yyyy")}.xlsx`)
+    setIsExportDialogOpen(false)
+    toast.success("Reporte Excel generado correctamente")
+  } catch (error) {
+    console.error("Error al generar el Excel:", error)
+    toast.error("Hubo un problema al exportar el reporte")
+  }
+}
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -197,9 +303,7 @@ function GastosPage() {
         const worksheet = workbook.Sheets[sheetName]
         const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
-        // Procesar los datos importados
         jsonData.forEach((row: any) => {
-          // Buscar la categoría por nombre
           const categoria = categorias.find((c) => c.name.toLowerCase() === (row["Categoría"] || "").toLowerCase())
 
           if (!categoria) {
@@ -207,19 +311,17 @@ function GastosPage() {
             return
           }
 
-          // Convertir fecha de formato DD/MM/YYYY a objeto Date
-          let fecha: Date
+          let fechaRow: Date
           try {
             const parts = row["Fecha"].split("/")
-            fecha = new Date(Number.parseInt(parts[2]), Number.parseInt(parts[1]) - 1, Number.parseInt(parts[0]))
+            fechaRow = new Date(Number.parseInt(parts[2]), Number.parseInt(parts[1]) - 1, Number.parseInt(parts[0]))
           } catch (error) {
-            fecha = new Date()
+            fechaRow = new Date()
           }
 
-          // Añadir el gasto
           addGasto({
             sucursalId: selectedSucursalId,
-            fecha,
+            fecha: fechaRow,
             categoriaId: categoria.id,
             categoriaNombre: categoria.name,
             monto: Number.parseFloat(row["Monto"]) || 0,
@@ -230,16 +332,15 @@ function GastosPage() {
           })
         })
 
-        // Recargar los gastos
-        loadGastos()
+        mutate()
 
-        // Limpiar el input de archivo
         if (fileInputRef.current) {
           fileInputRef.current.value = ""
         }
+        toast.success("Excel importado correctamente")
       } catch (error) {
         console.error("Error al procesar el archivo Excel:", error)
-        alert("Error al procesar el archivo Excel. Asegúrate de que el formato sea correcto.")
+        toast.error("Error al procesar el archivo Excel. Asegúrate de que el formato sea correcto.")
       }
     }
 
@@ -257,13 +358,9 @@ function GastosPage() {
     createSortableColumn<Expense>(
       "category",
       "Categoría",
-      // ahora simplemente devolvemos el string
-      row => row.category ?? "",
-      // y lo renderizamos con el mismo badge/dot
-      value => {
-        // opcional: si quieres información extra (p.ej. descripción), la puedes
-        // buscar en `categoriasGasto`:
-        const cat = categoriasGasto.find(c => c.name === value)
+      (row) => row.category ?? "",
+      (value) => {
+        const cat = categoriasGasto?.find(c => c.name === value)
         return (
           <div className="flex items-center gap-2">
             <div className={`w-3 h-3 rounded-full ${getCategoryColor(value)}`}></div>
@@ -291,31 +388,56 @@ function GastosPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight">Gestión de Gastos</h2>
             <p className="text-muted-foreground">Administra los gastos diarios por sucursal</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-[250px]">
-              <SucursalSelector value={selectedSucursalId} onValueChange={setSelectedSucursalId} />
-            </div>
+          <div className="w-full sm:w-[250px]">
+            <SucursalSelector value={selectedSucursalId} onValueChange={setSelectedSucursalId} />
           </div>
         </div>
 
+        {selectedSucursalId && gastosComunes.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Zap className="h-4 w-4 text-yellow-500" />
+              Carga rápida (Gastos frecuentes)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {gastosComunes.map((gasto, i) => (
+                <Card 
+                  key={i} 
+                  className="cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => prefillGasto(gasto)}
+                >
+                  <CardContent className="p-4 flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${getCategoryColor(gasto.category)}`} />
+                      <span className="text-sm font-semibold truncate">{gasto.category}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{gasto.description}</p>
+                    <p className="text-sm font-medium mt-1">{formatCurrency(gasto.amount)}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Gastos</CardTitle>
-            <div className="flex items-center gap-2">
+          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
+            <CardTitle>Historial de Gastos</CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleExportExcel}
-                disabled={!selectedSucursalId || gastos.length === 0}
+                onClick={() => setIsExportDialogOpen(true)}
+                disabled={!selectedSucursalId || expenses.length === 0}
               >
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
-                Exportar Excel
+                Exportar
               </Button>
               <div className="relative">
                 <input
@@ -345,13 +467,58 @@ function GastosPage() {
             {selectedSucursalId ? (
               <DataTable columns={columns} data={expenses} />
             ) : (
-              <div className="flex h-[200px] items-center justify-center">
-                <p className="text-muted-foreground">Selecciona una sucursal para ver los gastos</p>
+              <div className="flex h-[200px] items-center justify-center border-2 border-dashed rounded-md">
+                <p className="text-muted-foreground">Selecciona una sucursal para gestionar sus gastos</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exportar Gastos</DialogTitle>
+            <DialogDescription>Filtra los datos antes de descargar el archivo Excel.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Categoría</Label>
+              <Select value={exportCategory} onValueChange={setExportCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas las categorías" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas las categorías</SelectItem>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Fecha Inicio</Label>
+                <Input 
+                  type="date" 
+                  onChange={(e) => setExportStartDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined)} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha Fin</Label>
+                <Input 
+                  type="date" 
+                  onChange={(e) => setExportEndDate(e.target.value ? new Date(e.target.value + 'T23:59:59') : undefined)} 
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleExportExcel}>Descargar Excel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl">
@@ -371,7 +538,7 @@ function GastosPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {categorias.map((categoria) => (
-                      <SelectItem key={categoria.id} value={categoria.id}>
+                      <SelectItem key={categoria.id} value={categoria.name}>
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${getCategoryColor(categoria.name)}`}></div>
                           <span>{categoria.name}</span>
@@ -391,14 +558,14 @@ function GastosPage() {
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-[240px] pl-3 text-left font-normal",
+                          "w-full pl-3 text-left font-normal",
                           !fecha && "text-muted-foreground"
                         )}
                       >
                         {fecha ? (
                           format(fecha, "dd/MM/yyyy")
                         ) : (
-                          <span>Seleccione un fecha</span>
+                          <span>Seleccione una fecha</span>
                         )}
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                       </Button>
@@ -415,20 +582,6 @@ function GastosPage() {
                     />
                   </PopoverContent>
                 </Popover>
-                {/*<Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn("w-full justify-start text-left font-normal", !fecha && "text-muted-foreground")}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {fecha ? format(fecha, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent mode="single" selected={fecha} onSelect={setFecha} initialFocus />
-                  </PopoverContent>
-                </Popover>*/}
               </div>
             </div>
 
@@ -457,7 +610,7 @@ function GastosPage() {
                   step="0.01"
                   placeholder="0.00"
                   value={monto}
-                  onChange={(e) => setMonto(Number(e.target.value))}
+                  onChange={(e) => setMonto(Number(e.target.value) || "")}
                   required
                 />
               </div>
