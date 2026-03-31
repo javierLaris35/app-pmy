@@ -162,7 +162,6 @@ const styles = StyleSheet.create({
   },
   expiringTodayRow: {
     backgroundColor: '#ffe6e6',
-    /*borderLeftWidth: 2,*/
     borderLeftColor: colors.accent,
   },
   footer: {
@@ -333,6 +332,8 @@ export const FedExPackageDispatchPDF = ({
 }: FedExPackageDispatchPDFProps) => {
   const timeZone = "America/Hermosillo";
   const currentDate = new Date();
+  
+  // Obtenemos la fecha de hoy asegurada en zona Hermosillo
   const formattedDate = format(currentDate, "yyyy-MM-dd", { timeZone });
   const formattedTime = format(currentDate, "HH:mm:ss", { timeZone });
 
@@ -344,9 +345,6 @@ export const FedExPackageDispatchPDF = ({
   const maxAddressChars = Math.floor(columnWidths.address * 0.9);
 
   const calculatePackageStats = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     let f2Count = 0;
     let cargaCount = 0;
     let expiringTodayCount = 0;
@@ -368,9 +366,11 @@ export const FedExPackageDispatchPDF = ({
 
       try {
         if (pkg?.commitDateTime) {
-          const commitDate = new Date(pkg.commitDateTime);
-          commitDate.setHours(0, 0, 0, 0);
-          if (commitDate.getTime() === today.getTime()) {
+          // Aseguramos que el conteo del encabezado también use la zona horaria correcta
+          const pkgZoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
+          const pkgCommitDate = format(pkgZoned, 'yyyy-MM-dd', { timeZone });
+          
+          if (pkgCommitDate === formattedDate) {
             expiringTodayCount++;
           }
         }
@@ -511,7 +511,7 @@ export const FedExPackageDispatchPDF = ({
 
                 <View style={styles.symbologyContainer}>
                   <Text style={styles.symbologyText}>
-                    SIMBOLOGÍA: [C] CARGA/F2/31.5 • [$] PAGO • [H] VALOR ALTO
+                    SIMBOLOGÍA: [C] CARGA/F2/31.5 • [$] PAGO • [H] VALOR ALTO • [AE] AÉREO (PRIORIDAD)
                   </Text>
                 </View>
               </>
@@ -542,18 +542,21 @@ export const FedExPackageDispatchPDF = ({
                     }
                   }
                   
-                  const icons = `${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
+                  // Agregamos [AE] si es aéreo
+                  const aeIcon = pkg.consolidated?.type === 'aereo' ? '[AE]' : '';
+                  const icons = `${aeIcon}${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
                   
                   const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
                   const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
                   const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
                   const hasPayment = pkg.payment?.amount != null;
                   
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const commitDateObj = new Date(pkg.commitDateTime);
-                  commitDateObj.setHours(0, 0, 0, 0);
-                  const isExpiringToday = commitDateObj.getTime() === today.getTime();
+                  // Verificamos si vence hoy comparando con la fecha actual de Hermosillo ya calculada arriba
+                  const isExpiringToday = commitDate === formattedDate;
+
+                  // Condición combinada para negritas
+                  const isBold = hasPayment || isExpiringToday;
+                  const textWeight = isBold ? 'bold' : 'normal';
 
                   return (
                     <View 
@@ -565,16 +568,16 @@ export const FedExPackageDispatchPDF = ({
                       ]} 
                       key={globalIndex}
                     >
-                      <TableCell width={columnWidths.number} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                      <TableCell width={columnWidths.number} style={{ fontWeight: textWeight }}>
                         {icons} {globalIndex + 1}
                       </TableCell>
-                      <TableCell width={columnWidths.tracking} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                      <TableCell width={columnWidths.tracking} style={{ fontWeight: textWeight }}>
                         {pkg.trackingNumber}
                       </TableCell>
                       {/* NOMBRE y DIRECCIÓN con truncado forzado y SIN salto de línea */}
                       <TableCell 
                         width={columnWidths.name} 
-                        style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
+                        style={{ fontWeight: textWeight }}
                         truncate={true}
                         maxChars={22}
                       >
@@ -582,30 +585,30 @@ export const FedExPackageDispatchPDF = ({
                       </TableCell>
                       <TableCell 
                         width={columnWidths.address} 
-                        style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}
+                        style={{ fontWeight: textWeight }}
                         truncate={true}
                         maxChars={26}
                       >
                         {truncate(pkg.recipientAddress || '', 28)}
                       </TableCell>
-                      <TableCell width={columnWidths.zipCode} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                      <TableCell width={columnWidths.zipCode} style={{ fontWeight: textWeight }}>
                         {pkg.recipientZip || ''}
                       </TableCell>
-                      <TableCell width={columnWidths.payment} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                      <TableCell width={columnWidths.payment} style={{ fontWeight: textWeight }}>
                         {hasPayment ? `${pkg.payment?.type} $${pkg.payment?.amount}` : ''}
                       </TableCell>
-                      <TableCell width={columnWidths.date} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                      <TableCell width={columnWidths.date} style={{ fontWeight: textWeight }}>
                         {commitDate}
                       </TableCell>
                       {!isHermosillo && (
-                        <TableCell width={columnWidths.time} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                        <TableCell width={columnWidths.time} style={{ fontWeight: textWeight }}>
                           {commitTime}
                         </TableCell>
                       )}
-                      <TableCell width={columnWidths.phone} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                      <TableCell width={columnWidths.phone} style={{ fontWeight: textWeight }}>
                         {formatMexicanPhoneNumberWithOutMexicanLada(pkg.recipientPhone)}
                       </TableCell>
-                      <TableCell width={columnWidths.signature} style={{ fontWeight: hasPayment ? 'bold' : 'normal' }}>
+                      <TableCell width={columnWidths.signature} style={{ fontWeight: textWeight }}>
                         {}
                       </TableCell>
                     </View>

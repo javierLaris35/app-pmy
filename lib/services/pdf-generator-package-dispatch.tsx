@@ -117,19 +117,23 @@ export class EnhancedFedExPDFGeneratorPackagDispatch {
 
         doc.setFontSize(8);
         doc.setTextColor(60, 60, 60);
-        doc.text('Simbología: [C] Carga/F2/31.5   [$] Con pago   [H] Valor alto', 5, 35);
+        doc.text('Simbología: [C] Carga/F2/31.5   [$] Con pago   [H] Valor alto   [AE] Aéreo (PRIORIDAD)', 5, 35);
 
         return startY + 8;
     }
 
     private drawPackageSection(doc: jsPDF, startY: number): number {
         const timeZone = 'America/Hermosillo';
-        const pageHeight = doc.internal.pageSize.getHeight(); // 210mm for A4 landscape
+        const pageHeight = doc.internal.pageSize.getHeight();
         const rowHeight = 6;
         const headerHeight = 8;
-        const marginBottom = 10; // Bottom margin
-        const maxY = pageHeight - marginBottom; // Maximum Y position before new page
+        const marginBottom = 10;
+        const maxY = pageHeight - marginBottom;
         let currentY = startY;
+
+        // Obtener la fecha actual en Hermosillo
+        const todayZoned = toZonedTime(new Date(), timeZone);
+        const todayString = format(todayZoned, 'yyyy-MM-dd', { timeZone });
 
         const drawTableHeader = (y: number) => {
             doc.setFillColor(157, 81, 55);
@@ -157,7 +161,7 @@ export class EnhancedFedExPDFGeneratorPackagDispatch {
             doc.text("NOMBRE Y FIRMA", 222, y + 5);
         };
 
-        // Draw initial table header
+        // Dibujar cabecera inicial
         doc.setTextColor(0, 0, 0);
         doc.setDrawColor(0, 0, 0);
         doc.setLineWidth(0.3);
@@ -165,10 +169,9 @@ export class EnhancedFedExPDFGeneratorPackagDispatch {
         currentY += headerHeight;
 
         for (let i = 0; i < this.packages.length; i++) {
-            // Check if there's enough space for the next row
             if (currentY + rowHeight > maxY) {
                 doc.addPage();
-                currentY = 10; // Start at top of new page (adjust if needed)
+                currentY = 10;
                 drawTableHeader(currentY);
                 currentY += headerHeight;
             }
@@ -182,37 +185,48 @@ export class EnhancedFedExPDFGeneratorPackagDispatch {
             }
 
             doc.setDrawColor(220, 220, 220);
-            doc.rect(5, currentY, 10, rowHeight); // No.
-            doc.rect(15, currentY, 21, rowHeight); // No. Guia
-            doc.rect(36, currentY, 60, rowHeight); // Nombre
-            doc.rect(96, currentY, 60, rowHeight); // Direccion
-            doc.rect(156, currentY, 12, rowHeight); // CP
-            doc.rect(168, currentY, 17, rowHeight); // Fecha
-            doc.rect(185, currentY, 15, rowHeight); // Hora
-            doc.rect(200, currentY, 20, rowHeight); // Celular
-            doc.rect(220, currentY, 75, rowHeight); // Nombre y Firma
+            doc.rect(5, currentY, 10, rowHeight);
+            doc.rect(15, currentY, 21, rowHeight);
+            doc.rect(36, currentY, 60, rowHeight);
+            doc.rect(96, currentY, 60, rowHeight);
+            doc.rect(156, currentY, 12, rowHeight);
+            doc.rect(168, currentY, 17, rowHeight);
+            doc.rect(185, currentY, 15, rowHeight);
+            doc.rect(200, currentY, 20, rowHeight);
+            doc.rect(220, currentY, 75, rowHeight);
 
             if (packageInfo) {
                 const recipientName = packageInfo.recipientName || "";
                 const recipientAddress = packageInfo.recipientAddress || "";
                 const payment = packageInfo?.payment?.amount || "";
                 const recipientPhone = packageInfo.recipientPhone || "";
+                
+                // Convertir fecha de compromiso a zona Hermosillo
                 const zonedDate = toZonedTime(new Date(packageInfo.commitDateTime), timeZone);
                 const commitDate = format(zonedDate, 'yyyy-MM-dd', { timeZone });
                 const commitTime = format(zonedDate, 'HH:mm:ss', { timeZone });
-                let icons = '';
 
+                // Verificar si vence hoy
+                const isToday = commitDate === todayString;
+                
+                let icons = '';
                 if (packageInfo.isCharge) icons += '[C]';
                 if (packageInfo.payment) icons += '[$]';
                 if (packageInfo.isHighValue) icons += '[H]';
+                if (packageInfo.consolidated?.type === 'aereo') icons += '[AE]';
 
                 const rowNumberText = `${icons} ${i + 1}`;
-                
 
+                // Aplicar negrita si el paquete vence hoy, de lo contrario normal
+                if (isToday) {
+                    doc.setFont("helvetica", "bold");
+                } else {
+                    doc.setFont("helvetica", "normal");
+                }
 
-                doc.setFont("helvetica", "normal");
                 doc.setFontSize(8);
                 doc.setTextColor(0, 0, 0);
+                
                 doc.text(rowNumberText, 6, currentY + 4);
                 doc.text(packageInfo.trackingNumber, 16, currentY + 4);
                 doc.text(recipientName, 37, currentY + 4);
