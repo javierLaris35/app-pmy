@@ -11,7 +11,6 @@ import {
 } from '@react-pdf/renderer';
 import { format, toZonedTime } from 'date-fns-tz';
 import { PackageInfo, Vehicles } from '@/lib/types';
-import { MissingPackageInfo } from '@/components/operaciones/desembarque/unloading-form';
 
 Font.register({ family: 'Helvetica', src: undefined }); // Uses built-in Helvetica
 

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import {
   Package,
   Truck,
-  Warehouse,
   Ship,
   FileText,
   TableIcon,
@@ -864,8 +863,8 @@ export default function TrackingPage() {
         return "";
     }
   };
-
-    const handleGenerateReport = async () => {
+  
+  const handleGenerateReport = async () => {
     switch (selectedReport) {
       case "pending":
         await generatePendingReport();

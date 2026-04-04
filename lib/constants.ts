@@ -111,6 +111,20 @@ export const sidebarMenu = {
           isActive: false
         },
         {
+          name: "Pagos a Fedex",
+          url: "/operaciones/pagos-fedex",
+          icon: DollarSignIcon,
+          roles: allowedPageRoles.operaciones.pagosFedex,
+          isActive: false
+        },
+        {
+          name: "Recepción en Bodega",
+          url: "/operaciones/recepcion-bodega",
+          icon: PackagePlusIcon,
+          roles: allowedPageRoles.operaciones.recepcionBodega,
+          isActive: false
+        },
+        {
           name: "Salidas a Rutas",
           url: "/operaciones/salidas-a-ruta",
           icon: ClipboardPasteIcon,
