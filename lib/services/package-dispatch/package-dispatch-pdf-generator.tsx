@@ -511,7 +511,7 @@ export const FedExPackageDispatchPDF = ({
 
                 <View style={styles.symbologyContainer}>
                   <Text style={styles.symbologyText}>
-                    SIMBOLOGÍA: [C] CARGA/F2/31.5 • [$] PAGO • [H] VALOR ALTO • [AE] AÉREO (PRIORIDAD)
+                    SIMBOLOGÍA: [C] CARGA/F2/31.5 • [$] PAGO • [H] VALOR ALTO • [A] AÉREO (PRIORIDAD)
                   </Text>
                 </View>
               </>
@@ -543,7 +543,7 @@ export const FedExPackageDispatchPDF = ({
                   }
                   
                   // Agregamos [AE] si es aéreo
-                  const aeIcon = pkg.consolidated?.type === 'aereo' ? '[AE]' : '';
+                  const aeIcon = pkg.consolidated?.type === 'aereo' ? '[A]' : '';
                   const icons = `${aeIcon}${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
                   
                   const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
