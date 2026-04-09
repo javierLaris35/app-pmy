@@ -110,7 +110,7 @@ export const sidebarMenu = {
           roles: allowedPageRoles.operaciones.monitoreo,
           isActive: false
         },
-        {
+        /*{
           name: "Pagos a Fedex",
           url: "/operaciones/pagos-fedex",
           icon: DollarSignIcon,
@@ -123,7 +123,7 @@ export const sidebarMenu = {
           icon: PackagePlusIcon,
           roles: allowedPageRoles.operaciones.recepcionBodega,
           isActive: false
-        },
+        },*/
         {
           name: "Salidas a Rutas",
           url: "/operaciones/salidas-a-ruta",
