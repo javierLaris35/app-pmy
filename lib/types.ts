@@ -50,6 +50,7 @@ export type Expense = {
   paymentMethod?: string
   responsible?: string
   notes?: string
+  vehicleId?: string | null
   receiptUrl?: string
 }
 

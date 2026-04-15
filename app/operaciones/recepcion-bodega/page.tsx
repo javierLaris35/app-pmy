@@ -1,10 +1,16 @@
 "use client"
 
 import PackageReception from "@/components/warehouse/package-reception/package-reception"
+import { AppLayout } from "@/components/app-layout";
 import { withAuth } from "@/hoc/withAuth"
 
 function PackageReceptionPage() {
-    return <PackageReception />
+    return (
+        <AppLayout>
+            <PackageReception />
+        </AppLayout>
+    )
+    
 }
 
 
