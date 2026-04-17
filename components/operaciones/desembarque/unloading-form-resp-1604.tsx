@@ -35,10 +35,6 @@ import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAl
 import { CorrectTrackingModal } from "./correct-tracking-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { IconTruckLoading } from "@tabler/icons-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { NotFoundShipmentDetails } from "./not-found-details";
 
 // Hook useLocalStorage
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -68,17 +64,6 @@ function useLocalStorage<T>(key: string, initialValue: T) {
   return [storedValue, setValue] as const;
 }
 
-// Types
-interface Vehicles {
-  id: string;
-  name: string;
-}
-
-interface Subsidiary {
-  id: string;
-  name: string;
-}
-
 interface Shipment {
   id: string;
   trackingNumber: string;
@@ -88,6 +73,7 @@ interface Shipment {
   commitDateTime?: string | null;
   recipientAddress?: string | null;
   recipientPhone?: string | null;
+  recipientZip?: string | null; // 🚀 Asegúrate de tener esto
   priority?: Priority | null;
   status?: ShipmentStatusType | null;
   isCharge?: boolean;
@@ -98,6 +84,7 @@ interface Shipment {
   };
   isOffline?: boolean;
   createdAt?: Date;
+  consolidatedId?: string; // 🚀 CRÍTICO: Agregar esto para que funcione la caché
 }
 
 enum ShipmentStatusType {
@@ -1174,36 +1161,66 @@ export default function UnloadingForm({
     prevIsOnlineRef.current = isOnline;
 
     if (wasOffline && isNowOnline && selectedSubsidiaryId) {
-      setShipments(currentShipments => {
-        const offlinePackages = currentShipments.filter(pkg => pkg.isOffline);
+      // Necesitamos leer el estado actual de shipments sin pasarlo como dependencia que re-dispare el efecto
+      const currentShipments = useUnloadingStore.getState().shipments || [];
+      const offlinePackages = currentShipments.filter(pkg => pkg.isOffline);
 
-        if (offlinePackages.length > 0) {
-          toast({
-            title: "Revalidando paquetes",
-            description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
-          });
+      if (offlinePackages.length > 0) {
+        toast({
+          title: "Sincronizando...",
+          description: `Validando ${offlinePackages.length} paquetes escaneados offline.`,
+        });
 
-          offlinePackages.forEach(async (pkg) => {
-            try {
-              const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
-                [pkg.trackingNumber],
-                selectedSubsidiaryId
+        const revalidateOfflineBatch = async () => {
+          try {
+            // 🚀 1. Armamos el payload en LOTE. Todos van como false porque el backend nunca los vio.
+            const payloadParaBackend = offlinePackages.map(pkg => ({
+              trackingNumber: pkg.trackingNumber,
+              isAlreadyValidated: false 
+            }));
+
+            // 🚀 2. Un solo viaje a la base de datos para TODOS los paquetes offline
+            const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
+              payloadParaBackend,
+              selectedSubsidiaryId
+            );
+
+            if (result.validatedShipments.length > 0) {
+              // 🚀 3. Creamos un mapa rápido para actualizar el estado
+              const validadosMap = new Map(
+                result.validatedShipments.map(v => [v.trackingNumber, v])
               );
 
-              if (result.validatedShipments.length > 0) {
-                const validated = result.validatedShipments[0];
-                setShipments(prev => prev.map(prevPkg =>
-                  prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
-                ));
-              }
-            } catch (error) {
-              console.error("Error revalidando paquete offline:", error);
+              // 🚀 4. Actualizamos el store reemplazando los offline por los reales
+              setShipments(prev => 
+                prev.map(prevPkg => {
+                  if (prevPkg.isOffline && validadosMap.has(prevPkg.trackingNumber)) {
+                    return validadosMap.get(prevPkg.trackingNumber) as any;
+                  }
+                  return prevPkg;
+                })
+              );
+              
+              toast({
+                title: "Sincronización exitosa",
+                description: `Se revalidaron ${result.validatedShipments.length} paquetes correctamente.`,
+              });
+              
+              // Opcional: si quieres que también actualice faltantes, lo llamas aquí
+              // setMissingPackages(updateMissingPackages(useUnloadingStore.getState().shipments, result.consolidateds));
             }
-          });
-        }
+          } catch (error) {
+            console.error("Error en la revalidación masiva offline:", error);
+            toast({
+              title: "Error de sincronización",
+              description: "Hubo un problema al intentar validar los paquetes offline.",
+              variant: "destructive",
+            });
+          }
+        };
 
-        return currentShipments;
-      });
+        revalidateOfflineBatch();
+      }
     }
   }, [isOnline, selectedSubsidiaryId, setShipments, toast]);
 
@@ -1220,7 +1237,6 @@ export default function UnloadingForm({
       return; 
     }
 
-    // USAR safeScannedPackages aquí
     const trackingNumbers = safeScannedPackages.map(p => p.trackingNumber);
     const validNumbers = trackingNumbers.filter(t => /^\d{12}$/.test(t));
     const invalidNumbers = trackingNumbers.filter(t => !/^\d{12}$/.test(t));
@@ -1238,8 +1254,40 @@ export default function UnloadingForm({
     setIsLoading(true);
     
     try {
+      // 🚀 1. MAGIA DE OPTIMIZACIÓN: Armar el "Fat Payload"
+      const payloadParaBackend = validNumbers.map(tn => {
+        // Buscar si ya tenemos este paquete en memoria (ya fue validado)
+        const cachedPackage = safeShipments.find(s => s.trackingNumber === tn);
+
+        if (cachedPackage && cachedPackage.isValid) {
+          // Ya existe: Le mandamos los datos al backend para ahorrarle la consulta a la base de datos
+          return {
+            trackingNumber: tn,
+            isAlreadyValidated: true, // 👈 El backend usará esta bandera
+            isValid: cachedPackage.isValid,
+            isCharge: cachedPackage.isCharge,
+            consolidatedId: cachedPackage.consolidatedId, // Fundamental
+            recipientName: cachedPackage.recipientName,
+            recipientAddress: cachedPackage.recipientAddress,
+            recipientPhone: cachedPackage.recipientPhone,
+            recipientZip: cachedPackage.recipientZip,
+            priority: cachedPackage.priority,
+            isHighValue: cachedPackage.isHighValue,
+            payment: cachedPackage.payment,
+            commitDateTime: cachedPackage.commitDateTime
+          };
+        }
+
+        // Es un escaneo nuevo o fue inválido antes: El backend tiene que buscarlo
+        return {
+          trackingNumber: tn,
+          isAlreadyValidated: false
+        };
+      });
+
+      // 🚀 2. Enviar la lista de OBJETOS en lugar de la lista de STRINGS
       const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
-        validNumbers, 
+        payloadParaBackend, 
         selectedSubsidiaryId
       );
       
@@ -1264,7 +1312,6 @@ export default function UnloadingForm({
       const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
       const allSurplus = [...invalidNumbers, ...surplusFromValid];
       
-      // Asegurar que prevSurplus sea un array usando safeArray
       const prevSurplus = safeArray(surplusTrackings);
       const newSurplusItems = allSurplus.filter(s => !prevSurplus.includes(s));
       
@@ -1325,7 +1372,8 @@ export default function UnloadingForm({
     isLoading, 
     isValidationPackages, 
     selectedSubsidiaryId, 
-    safeScannedPackages,  // ✅ Ahora existe
+    safeScannedPackages,
+    safeShipments, // 🚀 Añadido a las dependencias porque ahora lo leemos
     speakMessage, 
     surplusTrackings, 
     updateMissingPackages, 

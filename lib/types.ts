@@ -52,6 +52,7 @@ export type Expense = {
   notes?: string
   vehicleId?: string | null
   receiptUrl?: string
+  frequency?: "Único" | "Diario" | "Semanal" | "Mensual" | "Anual"
 }
 
 export type GroupExpese = {

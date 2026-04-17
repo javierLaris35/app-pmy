@@ -16,9 +16,28 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { isAuthenticated, user, hasHydrated } = useAuthStore();
+  const { isAuthenticated, user, hasHydrated, checkSession } = useAuthStore();
   const router = useRouter();
 
+  // 🔥 validar sesión al cargar
+  useEffect(() => {
+    if (hasHydrated) {
+      checkSession();
+    }
+  }, [hasHydrated]);
+
+  // 🔁 validar cada cierto tiempo (opcional pero recomendado)
+  useEffect(() => {
+    if (!hasHydrated) return;
+
+    const interval = setInterval(() => {
+      checkSession();
+    }, 60000); // cada 1 min
+
+    return () => clearInterval(interval);
+  }, [hasHydrated]);
+
+  // 🔒 protección de rutas
   useEffect(() => {
     if (hasHydrated && (!isAuthenticated || !user)) {
       router.replace("/login");
@@ -34,7 +53,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   if (!isAuthenticated || !user) {
-    return null; // ya está redireccionando
+    return null;
   }
 
   return (

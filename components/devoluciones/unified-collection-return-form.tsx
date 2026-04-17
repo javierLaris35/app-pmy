@@ -76,6 +76,9 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   const [collections, setCollections] = useState<Collection[]>([])
   const [invalidCollections, setInvalidCollections] = useState<string[]>([])
   const [hasValidatedCollections, setHasValidatedCollections] = useState(false)
+  
+  // NUEVO ESTADO: Controla el ordenamiento de las recolecciones
+  const [collectionSort, setCollectionSort] = useState<'default' | 'withPickupFirst' | 'withoutPickupFirst'>('default')
 
   // Devolution states
   const [devolutionTrackingRaw, setDevolutionTrackingRaw] = useState("")
@@ -86,17 +89,16 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   const [selectedDrivers, setSelectedDrivers] = useState<Driver[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicles>()
   const [selectedDate, setSelectedDate] = useState<string>("");
+  
+  // ESTADO: Controla el aviso de paquetes sin Pick Up
+  const [showWarningModal, setShowWarningModal] = useState(false);
 
   // Agrega este useEffect después de tus declaraciones de useState
-useEffect(() => {
-  // Cuando la sucursal cambie, reseteamos los selectores dependientes
-  setSelectedDrivers([]);
-  setSelectedVehicle(undefined);
-  
-  // Opcional: Si quieres limpiar también las listas de paquetes al cambiar de sucursal
-  // setCollections([]);
-  // setDevolutions([]);
-}, [selectedSubsidiaryId]);
+  useEffect(() => {
+    // Cuando la sucursal cambie, reseteamos los selectores dependientes
+    setSelectedDrivers([]);
+    setSelectedVehicle(undefined);
+  }, [selectedSubsidiaryId]);
 
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => {
@@ -356,52 +358,8 @@ useEffect(() => {
 
   }
 
-  // Unified save
-  const handleUnifiedSave = async () => {
-    if (!selectedSubsidiaryId) {
-      toast("Por favor selecciona una sucursal antes de guardar.")
-      return
-    }
-
-    if(selectedDrivers.length === 0) {
-      toast("No hay choferes seleccionados, es necesario seleccionar almenos uno para continuar.")
-      return
-    }
-
-    if(!selectedVehicle) {
-      toast("No ha seccionado el vehículoe, es necesario seleccionar uno para continuar.")
-      return
-    }
-
-    if (collections.length === 0 && devolutions.length === 0) {
-      toast("No hay elementos validados para guardar.")
-      return
-    }
-
-    // Validate devolutions have reasons where required
-    const missingExceptionCode = devolutions.some((d) => {
-      // Solo validamos si no tiene un código de excepción
-      console.log("🚀 ~ missingExceptionCode ~ d:", d)
-
-      const hasNoExceptionCode = !d.lastStatus?.exceptionCode;
-      
-      console.log(`\n🔍 Validando devolución ${d.trackingNumber}:`);
-      console.log(`- Estado: ${d.status}`);
-      console.log(`- Código excepción: ${d.lastStatus?.exceptionCode || 'N/A'}`);
-      console.log(`¿Falta código de excepción?: ${hasNoExceptionCode ? '❌ SÍ' : '✅ NO'}`);
-      
-      return hasNoExceptionCode;
-    });
-
-    console.log(`\n📢 Resultado final:`);
-    console.log(`¿Hay devoluciones sin código de excepción?: ${missingExceptionCode ? 'SÍ' : 'NO'}`);
-
-
-    if (missingExceptionCode) {
-      toast("Por favor selecciona un motivo para todas las devoluciones que lo requieran.")
-      return
-    }
-
+  // Lógica real que ejecuta el guardado en base de datos
+  const executeSave = async () => {
     setIsLoading(true)
 
     try {
@@ -418,7 +376,7 @@ useEffect(() => {
           trackingNumber: d.trackingNumber,
           subsidiary: { id: selectedSubsidiaryId },
           status: d.status || undefined,
-          reason: d.lastStatus.exceptionCode || undefined,
+          reason: d.lastStatus?.exceptionCode || undefined,
         }))
         promises.push(saveDevolutions(devolutionsToSave))
       }
@@ -428,8 +386,8 @@ useEffect(() => {
       toast(`Se guardaron ${collections.length} recolecciones y ${devolutions.length} devoluciones.`)
 
       // Generate PDF after successful save
-      //TODO agregar al email la unidad y el chofer que lleba los paquetes
       await handleSendEmail()
+      
       // Reset form
       setCollections([])
       setDevolutions([])
@@ -437,6 +395,7 @@ useEffect(() => {
       setInvalidDevolutions([])
       setHasValidatedCollections(false)
       setHasValidatedDevolutions(false)
+      setShowWarningModal(false)
 
       onSuccess()
     } catch (error) {
@@ -447,8 +406,59 @@ useEffect(() => {
     }
   }
 
+  // Unified save (El guardia de validaciones)
+  const handleUnifiedSave = async () => {
+    if (!selectedSubsidiaryId) {
+      toast("Por favor selecciona una sucursal antes de guardar.")
+      return
+    }
+
+    if(selectedDrivers.length === 0) {
+      toast("No hay choferes seleccionados, es necesario seleccionar almenos uno para continuar.")
+      return
+    }
+
+    if(!selectedVehicle) {
+      toast("No ha seccionado el vehículo, es necesario seleccionar uno para continuar.")
+      return
+    }
+
+    if (collections.length === 0 && devolutions.length === 0) {
+      toast("No hay elementos validados para guardar.")
+      return
+    }
+
+    // Validate devolutions have reasons where required
+    const missingExceptionCode = devolutions.some((d) => !d.lastStatus?.exceptionCode);
+
+    if (missingExceptionCode) {
+      toast("Por favor selecciona un motivo para todas las devoluciones que lo requieran.")
+      return
+    }
+
+    // NUEVA VALIDACIÓN: Revisar si hay recolecciones sin Pick Up
+    const collectionsWithoutPickup = collections.filter((c) => !c.isPickUp)
+    if (collectionsWithoutPickup.length > 0) {
+      setShowWarningModal(true) // Mostramos la alerta y detenemos el guardado
+      return
+    }
+
+    // Si todo está perfecto, guardamos directo
+    executeSave()
+  }
+
   const totalItems = collections.length + devolutions.length
   const hasValidatedItems = hasValidatedCollections || hasValidatedDevolutions
+
+  // NUEVA LÓGICA: Ordenamiento dinámico de las recolecciones para el renderizado
+  const sortedCollections = [...collections].sort((a, b) => {
+    if (collectionSort === 'default') return 0;
+    if (collectionSort === 'withPickupFirst') {
+      return a.isPickUp === b.isPickUp ? 0 : a.isPickUp ? -1 : 1;
+    }
+    // withoutPickupFirst
+    return a.isPickUp === b.isPickUp ? 0 : !a.isPickUp ? -1 : 1;
+  });
 
   return (
     <Card className="w-full">
@@ -465,10 +475,6 @@ useEffect(() => {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-row  justify-end space-x-2">
-          {/*<div className="space-y-2">
-            <Label>Fecha (opcional)</Label>
-            <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-          </div>*/}
           <div className="space-y-2">
             <Label>Repartidores</Label>
             <RepartidorSelector
@@ -526,20 +532,60 @@ useEffect(() => {
 
             {collections.length > 0 && (
               <div className="mt-6 space-y-4">
-                <h3 className="text-lg font-semibold">Recolecciones validadas</h3>
+                {/* Encabezado con botones interactivos de filtrado */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <h3 className="text-lg font-semibold">Recolecciones validadas</h3>
+                  <div className="flex gap-2 text-sm font-medium">
+                    <button
+                      type="button"
+                      title="Click para ordenar con Pick Up primero"
+                      onClick={() => setCollectionSort(prev => prev === 'withPickupFirst' ? 'default' : 'withPickupFirst')}
+                      className={classNames(
+                        "px-3 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1",
+                        collectionSort === 'withPickupFirst' 
+                          ? "bg-green-600 text-white shadow-md scale-105 font-bold" 
+                          : "bg-green-100 text-green-800 hover:bg-green-200"
+                      )}
+                    >
+                      Con Pick Up: {collections.filter(c => c.isPickUp).length}
+                    </button>
+                    
+                    <button
+                      type="button"
+                      title="Click para ordenar sin Pick Up primero"
+                      onClick={() => setCollectionSort(prev => prev === 'withoutPickupFirst' ? 'default' : 'withoutPickupFirst')}
+                      className={classNames(
+                        "px-3 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-1",
+                        collectionSort === 'withoutPickupFirst' 
+                          ? "bg-orange-600 text-white shadow-md scale-105 font-bold" 
+                          : "bg-orange-100 text-orange-800 hover:bg-orange-200"
+                      )}
+                    >
+                      Sin Pick Up: {collections.filter(c => !c.isPickUp).length}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
                   <ul className="divide-y divide-gray-300">
-                    {collections.map(({ trackingNumber, status }) => (
-                      <li key={trackingNumber} className="flex justify-between items-center px-4 py-2 hover:bg-gray-50">
+                    {/* Iteramos sobre el arreglo ordenado (sortedCollections) en lugar del arreglo original */}
+                    {sortedCollections.map(({ trackingNumber, status, isPickUp }) => (
+                      <li 
+                        key={trackingNumber} 
+                        className={classNames(
+                          "flex justify-between items-center px-4 py-2 transition-colors",
+                          isPickUp ? "hover:bg-gray-50" : "bg-orange-50/60 hover:bg-orange-100"
+                        )}
+                      >
                         <div>
                           <span className="font-medium">{trackingNumber}</span>
                           {status ? (
                             <span
                               className={classNames(
                                 "ml-2 text-sm font-semibold px-2 py-0.5 rounded",
-                                status.toLowerCase() === "pick up"
+                                isPickUp
                                   ? "bg-green-100 text-green-800"
-                                  : "bg-yellow-100 text-yellow-800",
+                                  : "bg-orange-200 text-orange-900 border border-orange-300"
                               )}
                             >
                               {status}
@@ -553,7 +599,7 @@ useEffect(() => {
                         <button
                           onClick={() => handleRemoveCollection(trackingNumber)}
                           title="Eliminar"
-                          className="text-red-600 hover:text-red-800"
+                          className="text-red-600 hover:text-red-800 transition-colors"
                           disabled={isLoading}
                         >
                           <Trash2 size={18} />
@@ -614,24 +660,66 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Action buttons */}
-        <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
-          <Button
-            onClick={handleUnifiedSave}
-            disabled={isLoading || !hasValidatedItems || totalItems === 0}
-            className="flex-1"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Guardar todo y generar PDF
-          </Button>
-          <Button onClick={generatePDF} disabled={totalItems === 0} variant="outline" className="flex-1 bg-transparent">
-            <FileText className="mr-2 h-4 w-4" />
-            Solo generar PDF
-          </Button>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-        </div>
+        {/* Sección de Confirmación (Se muestra si hay paquetes sin Pick Up) */}
+        {showWarningModal && (
+          <div className="bg-orange-50 border border-orange-300 p-4 rounded-lg mt-6 animate-in fade-in slide-in-from-bottom-2">
+            <h3 className="text-orange-900 font-bold flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Atención: Tienes paquetes sin Pick Up
+            </h3>
+            <p className="text-sm text-orange-800 mt-2">
+              Se detectaron <strong>{collections.filter(c => !c.isPickUp).length} recolecciones</strong> que no cuentan con estatus de "Pick Up". ¿Estás seguro de que deseas guardarlas de todos modos?
+            </p>
+            
+            <div className="mt-3 bg-white/60 rounded p-2 border border-orange-200 max-h-32 overflow-y-auto">
+              <ul className="text-sm text-orange-900 list-disc ml-5">
+                {collections.filter(c => !c.isPickUp).map(c => (
+                  <li key={c.trackingNumber} className="py-0.5">
+                    <span className="font-medium">{c.trackingNumber}</span> - <span className="text-orange-700">{c.status || 'Sin estatus'}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex gap-3 mt-4">
+              <Button 
+                onClick={() => setShowWarningModal(false)} 
+                variant="outline" 
+                className="bg-white hover:bg-gray-100"
+              >
+                Cancelar y revisar
+              </Button>
+              <Button 
+                onClick={executeSave} 
+                disabled={isLoading}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {isLoading ? "Guardando..." : "Sí, guardar con excepciones"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons (Se ocultan si el modal de advertencia está activo) */}
+        {!showWarningModal && (
+          <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
+            <Button
+              onClick={handleUnifiedSave}
+              disabled={isLoading || !hasValidatedItems || totalItems === 0}
+              className="flex-1"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Guardar todo y generar PDF
+            </Button>
+            <Button onClick={generatePDF} disabled={totalItems === 0} variant="outline" className="flex-1 bg-transparent">
+              <FileText className="mr-2 h-4 w-4" />
+              Solo generar PDF
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+          </div>
+        )}
 
         {/* Summary */}
         {totalItems > 0 && (

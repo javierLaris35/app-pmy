@@ -74,6 +74,7 @@ import { saveAs } from "file-saver";
 import { useAuthStore } from "@/store/auth.store";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { Loader } from "@/components/loader";
+import { upload } from "@/lib/services/expenses";
 
 const metodosPago = [
   "Efectivo",
@@ -84,6 +85,9 @@ const metodosPago = [
   "Otro",
 ];
 
+// NUEVO: Array de periodos
+const periodosPago = ["Único", "Diario", "Semanal", "Mensual", "Anual"];
+
 // Categorías que requieren selección de vehículo
 const VEHICLE_CATEGORIES = [
   "Combustible",
@@ -91,7 +95,6 @@ const VEHICLE_CATEGORIES = [
   "Peajes",
   "Seguros",
 ];
-
 
 // Plantillas de gastos rápidos predefinidos
 const plantillasRapidas = [
@@ -159,6 +162,11 @@ function GastosPage() {
   const [editingGasto, setEditingGasto] = useState<Expense | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // NUEVOS ESTADOS PARA EL MODAL DE IMPORTACIÓN
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importTipo, setImportTipo] = useState("combustibles");
+  const [importFile, setImportFile] = useState<File | null>(null);
+
   const effectiveSubsidiaryId = selectedSucursalId || user?.subsidiary?.id;
 
   const {
@@ -176,6 +184,7 @@ function GastosPage() {
   const [monto, setMonto] = useState<number | "">("");
   const [descripcion, setDescripcion] = useState("");
   const [metodoPago, setMetodoPago] = useState("Efectivo");
+  const [periodoPago, setPeriodoPago] = useState("Único"); // <-- NUEVO
   const [responsable, setResponsable] = useState("");
   const [notas, setNotas] = useState("");
   const [comprobante, setComprobante] = useState<File | null>(null);
@@ -203,7 +212,7 @@ function GastosPage() {
   }, []);
 
   const gastosComunes = useMemo(() => {
-    if (!expenses.length) return [];
+    if (!expenses || !expenses.length) return [];
     const frecuencias: Record<string, Expense & { count: number }> = {};
 
     expenses.forEach((g) => {
@@ -228,6 +237,7 @@ function GastosPage() {
     setDescripcion(plantilla.description || "");
     setMonto(plantilla.amount);
     setMetodoPago(plantilla.paymentMethod || "Efectivo");
+    setPeriodoPago(plantilla.frequency || "Único"); // <-- NUEVO
     setResponsable(plantilla.responsible || "");
     setFecha(new Date());
     setNotas("");
@@ -243,6 +253,7 @@ function GastosPage() {
     setDescripcion(template.descripcion);
     setMonto(template.montoSugerido);
     setMetodoPago("Efectivo");
+    setPeriodoPago("Único"); // <-- NUEVO
     setResponsable("");
     setFecha(new Date());
     setNotas("");
@@ -259,10 +270,12 @@ function GastosPage() {
     setMonto("");
     setDescripcion("");
     setMetodoPago("Efectivo");
+    setPeriodoPago("Único"); // <-- NUEVO
     setResponsable("");
     setNotas("");
     setComprobante(null);
     setVehiculoId("");
+    setSelectedVehiculo(undefined);
   };
 
   const openNewGastoDialog = () => {
@@ -277,6 +290,7 @@ function GastosPage() {
     setMonto(gasto.amount);
     setDescripcion(gasto.description || "");
     setMetodoPago(gasto.paymentMethod || "Efectivo");
+    setPeriodoPago(gasto.frequency || "Único"); // <-- NUEVO
     setResponsable(gasto.responsible || "");
     setNotas(gasto.notes || "");
     setComprobante(null);
@@ -311,6 +325,7 @@ function GastosPage() {
           ? `${descripcion} - ${selectedVehiculo.plateNumber} (${selectedVehiculo.brand} ${selectedVehiculo.model})`
           : descripcion,
       paymentMethod: metodoPago,
+      frequency: periodoPago, // <-- NUEVO
       responsible: responsable,
       vehicleId: requiresVehicle ? selectedVehiculo?.id : null,
       notes:
@@ -364,6 +379,7 @@ function GastosPage() {
         style: { numFmt: '"$"#,##0.00' },
       },
       { header: "Método de Pago", key: "metodoPago", width: 20 },
+      { header: "Frecuencia", key: "periodoPago", width: 15 }, // <-- NUEVO
       { header: "Responsable", key: "responsable", width: 25 },
       { header: "Notas", key: "notas", width: 40 },
     ];
@@ -381,7 +397,7 @@ function GastosPage() {
 
     // 4. Congelar la primera fila y agregar Auto-Filtros
     worksheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
-    worksheet.autoFilter = "A1:G1";
+    worksheet.autoFilter = "A1:H1"; // <-- ACTUALIZADO RANGO
 
     // 5. Agregar los datos iterando sobre tu arreglo filtrado
     dataFiltrada.forEach((gasto, index) => {
@@ -391,6 +407,7 @@ function GastosPage() {
         descripcion: gasto.description,
         monto: gasto.amount,
         metodoPago: gasto.paymentMethod || "No especificado",
+        periodoPago: gasto.frequency || "Único", // <-- NUEVO
         responsable: gasto.responsible || "No especificado",
         notas: gasto.notes || "",
       });
@@ -438,74 +455,42 @@ function GastosPage() {
     }
   };
 
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  // NUEVA FUNCIÓN DE IMPORTACIÓN QUE SE EJECUTA DESDE EL MODAL
+  const handleExecuteImport = async () => {
+    if (!importFile) {
+      toast.error("Por favor selecciona un archivo Excel");
+      return;
+    }
 
-    const file = files[0];
-    const reader = new FileReader();
+    if (!effectiveSubsidiaryId) {
+      toast.error("Falta el identificador de la sucursal");
+      return;
+    }
 
-    reader.onload = (e) => {
-      const data = e.target?.result;
-      if (!data) return;
+    try {
+      // 1. Preparamos el archivo y los datos adicionales para enviarlos al backend
+      const formData = new FormData();
+      formData.append("file", importFile);
+      formData.append("subsidiaryId", effectiveSubsidiaryId);
+      
+      // Opcional: Le mandamos el "tipo" al backend (ej. "combustibles") por si necesita 
+      // aplicar lógica inteligente allá al no encontrar la columna "Categoría".
+      formData.append("tipo", importTipo); 
 
-      try {
-        const workbook = XLSX.read(data, { type: "binary" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      // 2. Llamamos a tu método upload 
+      // (Asegúrate de tener importado 'upload' desde expenses.ts en la parte superior de tu archivo)
+      await upload(formData);
 
-        jsonData.forEach((row: any) => {
-          const categoria = categorias.find(
-            (c) =>
-              c.name.toLowerCase() === (row["Categoría"] || "").toLowerCase(),
-          );
+      // 3. Refrescamos la tabla de gastos, cerramos el modal y limpiamos el estado
+      mutate();
+      setImportFile(null);
+      setIsImportDialogOpen(false);
+      toast.success("Excel subido e importado correctamente");
 
-          if (!categoria) {
-            console.error(`Categoría no encontrada: ${row["Categoría"]}`);
-            return;
-          }
-
-          let fechaRow: Date;
-          try {
-            const parts = row["Fecha"].split("/");
-            fechaRow = new Date(
-              Number.parseInt(parts[2]),
-              Number.parseInt(parts[1]) - 1,
-              Number.parseInt(parts[0]),
-            );
-          } catch (error) {
-            fechaRow = new Date();
-          }
-
-          addGasto({
-            sucursalId: effectiveSubsidiaryId,
-            fecha: fechaRow,
-            categoriaId: categoria.id,
-            categoriaNombre: categoria.name,
-            monto: Number.parseFloat(row["Monto"]) || 0,
-            descripcion: row["Descripción"] || "",
-            metodoPago: row["Método de Pago"] || "Efectivo",
-            responsable: row["Responsable"] || "",
-            notas: row["Notas"] || "",
-          });
-        });
-
-        mutate();
-
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-        toast.success("Excel importado correctamente");
-      } catch (error) {
-        console.error("Error al procesar el archivo Excel:", error);
-        toast.error(
-          "Error al procesar el archivo Excel. Asegúrate de que el formato sea correcto.",
-        );
-      }
-    };
-
-    reader.readAsBinaryString(file);
+    } catch (error) {
+      console.error("Error al subir el archivo Excel:", error);
+      toast.error("Hubo un problema al procesar el archivo en el servidor.");
+    }
   };
 
   const columns = [
@@ -554,11 +539,16 @@ function GastosPage() {
       (row) => row.paymentMethod || "No especificado",
     ),
     createSortableColumn<Expense>(
+      "frequency",
+      "Frecuencia", // <-- NUEVA COLUMNA EN LA TABLA
+      (row) => row.frequency || "Único",
+    ),
+    createSortableColumn<Expense>(
       "responsable",
       "Responsable",
       (row) => row.responsible || "No especificado",
     ),
-    createViewColumn<Expense>((data) => console.log("Ver detalles", data)),
+    createViewColumn<Expense>((data) => openEditGastoDialog(data)), // <-- Restaurado el click
   ];
 
   return (
@@ -600,7 +590,6 @@ function GastosPage() {
                             className="group relative overflow-hidden cursor-pointer border-border/50 bg-background/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary/30 hover:bg-background"
                             onClick={() => prefillFromTemplate(template)}
                           >
-                            {/* Efecto de resplandor decorativo de fondo */}
                             <div
                               className={`absolute -right-6 -top-6 w-20 h-20 rounded-full blur-2xl opacity-10 transition-opacity duration-300 group-hover:opacity-30 ${getCategoryColor(template.categoria)}`}
                             />
@@ -713,24 +702,22 @@ function GastosPage() {
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                 Exportar
               </Button>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept=".xlsx, .xls"
-                  className="hidden"
-                  ref={fileInputRef}
-                  onChange={handleImportExcel}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={!effectiveSubsidiaryId}
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  Importar Excel
-                </Button>
-              </div>
+
+              {/* BOTÓN ACTUALIZADO PARA ABRIR EL MODAL DE IMPORTACIÓN */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setImportFile(null);
+                  setImportTipo("combustibles");
+                  setIsImportDialogOpen(true);
+                }}
+                disabled={!effectiveSubsidiaryId}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Importar Excel
+              </Button>
+
               <Button
                 size="sm"
                 onClick={openNewGastoDialog}
@@ -821,6 +808,84 @@ function GastosPage() {
         </DialogContent>
       </Dialog>
 
+      {/* --- NUEVO MODAL DE IMPORTACIÓN --- */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importar Gastos</DialogTitle>
+            <DialogDescription>
+              Selecciona el tipo de gastos y el archivo Excel a importar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Tipo de Gastos</Label>
+              <Select value={importTipo} onValueChange={setImportTipo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="combustibles">Combustibles</SelectItem>
+                  {/* Aquí puedes agregar más opciones en el futuro */}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Archivo Excel</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="import-file"
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setImportFile(e.target.files[0]);
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start overflow-hidden text-ellipsis"
+                  onClick={() => document.getElementById("import-file")?.click()}
+                >
+                  <FileUp className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="truncate">
+                    {importFile ? importFile.name : "Seleccionar archivo .xlsx"}
+                  </span>
+                </Button>
+                {importFile && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setImportFile(null)}
+                    className="shrink-0"
+                  >
+                    <span className="sr-only">Eliminar</span>×
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsImportDialogOpen(false);
+                setImportFile(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleExecuteImport} disabled={!importFile}>
+              Importar Archivo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
@@ -832,238 +897,275 @@ function GastosPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="categoria" className="font-medium">
-                  Categoría <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={categoriaId}
-                  onValueChange={setCategoriaId}
-                  required
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona una categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categorias.map((categoria) => (
-                      <SelectItem key={categoria.id} value={categoria.name}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${getCategoryColor(categoria.name)}`}
-                          ></div>
-                          <span>{categoria.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            
+            {/* --- SECCIÓN 1: INFORMACIÓN PRINCIPAL --- */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-primary border-b pb-2">Información Principal</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="space-y-2">
+                  <Label htmlFor="categoria" className="font-medium text-xs uppercase text-muted-foreground">
+                    Categoría <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={categoriaId}
+                    onValueChange={setCategoriaId}
+                    required
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categorias.map((categoria) => (
+                        <SelectItem key={categoria.id} value={categoria.name}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${getCategoryColor(categoria.name)}`}
+                            ></div>
+                            <span>{categoria.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="date" className="font-medium">
-                  Fecha <span className="text-destructive">*</span>
-                </Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !fecha && "text-muted-foreground",
-                      )}
-                    >
-                      {fecha ? (
-                        format(fecha, "dd/MM/yyyy")
-                      ) : (
-                        <span>Seleccione una fecha</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={fecha}
-                      onSelect={setFecha}
-                      disabled={(date) =>
-                        date > new Date() || date < new Date("1900-01-01")
-                      }
-                      captionLayout="dropdown"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div className="space-y-2">
+                  <Label htmlFor="date" className="font-medium text-xs uppercase text-muted-foreground">
+                    Fecha <span className="text-destructive">*</span>
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !fecha && "text-muted-foreground",
+                        )}
+                      >
+                        {fecha ? (
+                          format(fecha, "dd/MM/yyyy")
+                        ) : (
+                          <span>Seleccione una fecha</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={fecha}
+                        onSelect={setFecha}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                        captionLayout="dropdown"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="monto" className="font-medium text-xs uppercase text-muted-foreground">
+                    Monto (MXN) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="monto"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={monto}
+                    onChange={(e) => setMonto(Number(e.target.value) || "")}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="descripcion" className="font-medium text-xs uppercase text-muted-foreground">
+                    Descripción <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="descripcion"
+                    placeholder="Descripción del gasto"
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Selector de vehículo - aparece solo para categorías relacionadas */}
+            {/* --- SECCIÓN VEHÍCULO (CONDICIONAL) --- */}
             {requiresVehicle && (
-              <div className="space-y-2">
-                <Label className="font-medium flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  Vehículo <span className="text-destructive">*</span>
-                </Label>
-                <UnidadSelector
-                  value={selectedVehiculo || {} as Vehicles}
-                  subsidiaryId={effectiveSubsidiaryId}
-                  onSelectionChange={setSelectedVehiculo}
-                  placeholder="Selecciona el vehículo asociado a este gasto..."
-                />
-                {selectedVehiculo && (
-                  <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-lg border">
-                    <Truck className="h-5 w-5 text-muted-foreground" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        {selectedVehiculo.name} - {selectedVehiculo.brand}{" "}
-                        {selectedVehiculo.model}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedVehiculo.kms?.toLocaleString()} km
-                        {selectedVehiculo.planeNumber &&
-                          ` • No. Placa: ${selectedVehiculo.planeNumber}`}
-                      </p>
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-primary border-b pb-2">Asignación de Vehículo</h4>
+                <div className="space-y-2">
+                  <Label className="font-medium text-xs uppercase text-muted-foreground flex items-center gap-2">
+                    Vehículo <span className="text-destructive">*</span>
+                  </Label>
+                  <UnidadSelector
+                    value={selectedVehiculo || ({} as Vehicles)}
+                    subsidiaryId={effectiveSubsidiaryId}
+                    onSelectionChange={setSelectedVehiculo}
+                    placeholder="Selecciona el vehículo asociado a este gasto..."
+                  />
+                  {selectedVehiculo && (
+                    <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-lg border mt-2">
+                      <Truck className="h-5 w-5 text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {selectedVehiculo.name} - {selectedVehiculo.brand}{" "}
+                          {selectedVehiculo.model}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedVehiculo.kms?.toLocaleString()} km
+                          {selectedVehiculo.planeNumber &&
+                            ` • No. Placa: ${selectedVehiculo.planeNumber}`}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          selectedVehiculo.status === "active"
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {selectedVehiculo.status}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant={
-                        selectedVehiculo.status === "active"
-                          ? "default"
-                          : "secondary"
-                      }
-                    >
-                      {selectedVehiculo.status}
-                    </Badge>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="descripcion" className="font-medium">
-                Descripción <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="descripcion"
-                placeholder="Descripción del gasto"
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="monto" className="font-medium">
-                  Monto (MXN) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="monto"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={monto}
-                  onChange={(e) => setMonto(Number(e.target.value) || "")}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="metodoPago" className="font-medium">
-                  Método de Pago <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={metodoPago}
-                  onValueChange={setMetodoPago}
-                  required
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona un método de pago" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {metodosPago.map((metodo) => (
-                      <SelectItem key={metodo} value={metodo}>
-                        {metodo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="responsable" className="font-medium">
-                Responsable
-              </Label>
-              <Input
-                id="responsable"
-                placeholder="Nombre del responsable (opcional)"
-                value={responsable}
-                onChange={(e) => setResponsable(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="comprobante" className="font-medium">
-                Comprobante (opcional)
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="comprobante"
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() =>
-                    document.getElementById("comprobante")?.click()
-                  }
-                >
-                  <FileUp className="mr-2 h-4 w-4" />
-                  {comprobante ? comprobante.name : "Elegir archivo"}
-                </Button>
-                {comprobante && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setComprobante(null)}
+            {/* --- SECCIÓN 2: DETALLES DE PAGO --- */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-primary border-b pb-2">Detalles de Pago</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="space-y-2">
+                  <Label htmlFor="metodoPago" className="font-medium text-xs uppercase text-muted-foreground">
+                    Método de Pago <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={metodoPago}
+                    onValueChange={setMetodoPago}
+                    required
                   >
-                    <span className="sr-only">Eliminar</span>×
-                  </Button>
-                )}
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona un método de pago" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {metodosPago.map((metodo) => (
+                        <SelectItem key={metodo} value={metodo}>
+                          {metodo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="periodoPago" className="font-medium text-xs uppercase text-muted-foreground">
+                    Frecuencia / Periodo <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={periodoPago} onValueChange={setPeriodoPago} required>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona un periodo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {periodosPago.map((periodo) => (
+                        <SelectItem key={periodo} value={periodo}>
+                          {periodo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              {!comprobante && (
-                <p className="text-sm text-muted-foreground">
-                  No se ha seleccionado ningún archivo
-                </p>
-              )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notas" className="font-medium">
-                Notas adicionales
-              </Label>
-              <Textarea
-                id="notas"
-                placeholder="Información adicional sobre el gasto (opcional)"
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
-                rows={4}
-              />
+            {/* --- SECCIÓN 3: INFORMACIÓN ADICIONAL --- */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-primary border-b pb-2">Información Adicional</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="space-y-2">
+                  <Label htmlFor="responsable" className="font-medium text-xs uppercase text-muted-foreground">
+                    Responsable
+                  </Label>
+                  <Input
+                    id="responsable"
+                    placeholder="Nombre del responsable (opcional)"
+                    value={responsable}
+                    onChange={(e) => setResponsable(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="comprobante" className="font-medium text-xs uppercase text-muted-foreground">
+                    Comprobante (opcional)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="comprobante"
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start overflow-hidden text-ellipsis"
+                      onClick={() =>
+                        document.getElementById("comprobante")?.click()
+                      }
+                    >
+                      <FileUp className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {comprobante ? comprobante.name : "Elegir archivo"}
+                      </span>
+                    </Button>
+                    {comprobante && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setComprobante(null)}
+                        className="shrink-0"
+                      >
+                        <span className="sr-only">Eliminar</span>×
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notas" className="font-medium text-xs uppercase text-muted-foreground">
+                  Notas adicionales
+                </Label>
+                <Textarea
+                  id="notas"
+                  placeholder="Información adicional sobre el gasto (opcional)"
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  rows={2}
+                  className="resize-none"
+                />
+              </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="pt-4 border-t">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 onClick={() => setIsDialogOpen(false)}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={!effectiveSubsidiaryId}>
+              <Button type="submit" disabled={!effectiveSubsidiaryId} className="gap-2">
                 {editingGasto ? "Actualizar Gasto" : "Registrar Gasto"}
               </Button>
             </DialogFooter>

@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { ChargeShipment, DispatchFormData, PackageDispatch, PackageInfo, Shipment } from "../types"
+import { DispatchFormData, PackageDispatch, PackageInfo } from "../types"
 
 const url = '/package-dispatchs'
 

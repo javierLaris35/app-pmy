@@ -112,6 +112,7 @@ const url = '/shipments'
       throw new Error(finalMessage);
     }
   }
+  
   export async function uploadHighValueShipments(file: File,
     subsidiaryId: string,
     consNumber: string = "",
