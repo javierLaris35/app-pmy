@@ -16,7 +16,7 @@ export interface Ruta {
   vehicle: {
     name: string,
     plateNumber: string
-  }
+  } | null
   normalPackages: number
   f2Packages: number
   status: "En Ruta" | "Completada" | "En Progreso" | "Cancelada"
@@ -46,7 +46,7 @@ export function PackageDispatchSelect({
   const selectedRuta = rutas.find((r) => r.id === value)
 
   const filteredRutas = rutas.filter((ruta) =>
-    `${ruta.trackingNumber} ${ruta.driver} ${ruta.vehicle.name} ${ruta.vehicle.plateNumber} ${ruta.route}`
+    `${ruta.trackingNumber} ${ruta.driver} ${ruta.vehicle?.name} ${ruta.vehicle?.plateNumber} ${ruta.route}`
       .toLowerCase()
       .includes(searchQuery.toLowerCase()),
   )
@@ -85,7 +85,7 @@ export function PackageDispatchSelect({
                   <span className="text-sm text-muted-foreground">{formatDateToShortDate(selectedRuta.createdAt)}</span>
                 </span>
                 <span className="text-muted-foreground text-sm truncate">
-                  {selectedRuta.driver} • {selectedRuta.vehicle.plateNumber}
+                  {selectedRuta.driver} {selectedRuta.vehicle?.plateNumber ? `• ${selectedRuta.vehicle.plateNumber}` : ""}
                 </span>
               </div>
             ) : (
@@ -157,7 +157,7 @@ export function PackageDispatchSelect({
                       <span>{ruta.driver}</span>
                       <span>•</span>
                       <span>
-                        {ruta.vehicle.name} ({ruta.vehicle.plateNumber})
+                        {ruta.vehicle ? `${ruta.vehicle.name} (${ruta.vehicle.plateNumber})` : "Sin vehículo asignado"}
                       </span>
                     </div>
 
@@ -178,8 +178,7 @@ export function PackageDispatchSelect({
                       </Badge>
                     </div>
                   </div>
-</CommandItem>
-
+                </CommandItem>
               ))}
             </CommandGroup>
           </CommandList>
