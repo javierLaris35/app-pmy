@@ -194,9 +194,17 @@ function GastosPage() {
           }
         },
         {
+          element: "#acciones-historial-container",
+          popover: {
+            title: "3. Gastos Frecuentes",
+            description: "Haz clic en estas tarjetas para llenar el formulario automáticamente con gastos frecuentes basados en el historial.",
+            side: "top",
+          }
+        },
+        {
           element: "#btn-importar-excel",
           popover: {
-            title: "3. Importación Masiva",
+            title: "4. Importación Masiva",
             description: "Carga archivos Excel directamente al servidor para procesar múltiples registros a la vez.",
             side: "bottom",
           }
@@ -204,11 +212,19 @@ function GastosPage() {
         {
           element: "#btn-nuevo-gasto",
           popover: {
-            title: "4. Registro Manual",
+            title: "5. Registro Manual",
             description: "Abre el formulario para crear un gasto nuevo desde cero.",
             side: "left",
           }
-        }
+        },
+        {
+          element: "#btn-exportar-excel",
+          popover: {
+            title: "6. Exportar Reporte de Gastos",
+            description: "Exportal el reporte de gastos de la sucursal en un archivo de excel.",
+            side: "bottom",
+          }
+        },
       ]
     });
     driverObj.drive();
@@ -216,21 +232,65 @@ function GastosPage() {
 
   const startModalTutorial = useCallback(() => {
     const driverObj = driver({
+      showProgress: true,
+      nextBtnText: 'Sig.',
+      prevBtnText: 'Ant.',
+      doneBtnText: '¡Entendido!',
       steps: [
         {
-          element: "#distribucion-seccion",
+          element: "#info-principal-header",
           popover: {
-            title: "Distribución de Gastos",
-            description: "Aquí puedes agregar varias sucursales. El sistema repartirá el 100% del monto automáticamente entre ellas.",
+            title: "📂 Información del Gasto",
+            description: "Define la categoría, fecha y el monto total. La descripción debe ser clara, ya que aparecerá en tus reportes mensuales.",
             side: "bottom",
           }
         },
         {
-          element: "#btn-add-sucursal",
+          element: "#distribucion-seccion",
           popover: {
-            title: "Agregar Sucursal",
-            description: "Al agregar una nueva fila, los porcentajes se ajustarán de forma equitativa por ti.",
-            side: "left",
+            title: "⚖️ Distribución Inteligente",
+            description: "Divide el gasto entre varias sucursales. Al agregar una, el sistema reparte el 100% equitativamente en automático para ahorrarte cálculos.",
+            side: "top",
+          }
+        },
+        {
+          element: "#seccion-vehiculo",
+          popover: {
+            title: "🚚 Asignación de Unidad",
+            description: "Si el gasto es de una unidad (combustible, fallas), selecciónala aquí para llevar el historial de costos por vehículo.",
+            side: "top",
+          }
+        },
+        {
+          element: "#seccion-detalles-pago",
+          popover: {
+            title: "💳 Detalles de Pago",
+            description: "Especifica cómo se pagó. La **Frecuencia** es vital: indica si es un gasto de una sola vez (Único) o algo recurrente (Mensual, Diario, etc.).",
+            side: "top",
+          }
+        },
+        {
+          element: "#seccion-informacion-adicional",
+          popover: {
+            title: "👤 Responsable y Comprobante",
+            description: "Asigna quién realizó el gasto y sube una foto o PDF del ticket. Esto es fundamental para las auditorías.",
+            side: "top",
+          }
+        },
+        {
+          element: "#notas-textarea",
+          popover: {
+            title: "📝 Notas Adicionales",
+            description: "Cualquier detalle extra que no quepa en la descripción (ej. 'Se compró refacción porque la anterior salió defectuosa').",
+            side: "top",
+          }
+        },
+        {
+          element: "#btn-submit-gasto",
+          popover: {
+            title: "🚀 Finalizar Registro",
+            description: "Al dar clic, se crearán registros individuales para cada sucursal configurada arriba con sus respectivos montos prorrateados.",
+            side: "top",
           }
         }
       ]
@@ -692,46 +752,6 @@ function GastosPage() {
 
   return (
     <AppLayout>
-      {showTutorial && (
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="max-w-md w-full shadow-2xl border-primary animate-in fade-in zoom-in duration-300">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-bold text-primary">
-                Guía: {tutorialSteps[currentStep].title}
-              </CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setShowTutorial(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {tutorialSteps[currentStep].content}
-              </p>
-              <div className="flex justify-between items-center pt-4">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={currentStep === 0}
-                  onClick={() => setCurrentStep(prev => prev - 1)}
-                >
-                  Anterior
-                </Button>
-                <span className="text-xs font-medium">
-                  {currentStep + 1} de {tutorialSteps.length}
-                </span>
-                {currentStep < tutorialSteps.length - 1 ? (
-                  <Button size="sm" onClick={() => setCurrentStep(prev => prev + 1)}>
-                    Siguiente
-                  </Button>
-                ) : (
-                  <Button size="sm" onClick={() => setShowTutorial(false)}>Entendido</Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -742,21 +762,24 @@ function GastosPage() {
               Administra los gastos diarios por sucursal
             </p>
           </div>
-          <div className="w-full sm:w-[250px]">
+          <div className="flex gap-2">
             <Button 
               variant="ghost" 
               size="sm" 
-              className="text-muted-foreground hover:text-primary"
-              onClick={() => { setCurrentStep(0); setShowTutorial(true); }}
+              onClick={startTutorial}
+              className="flex items-center gap-2"
             >
-              <HelpCircle className="h-4 w-4 mr-2" />
-              ¿Cómo funciona?
+              <HelpCircle className="h-4 w-4" />
+              Guía de uso
             </Button>
-            <SucursalSelector
-              value={effectiveSubsidiaryId}
-              onValueChange={setSelectedSucursalId}
-            />
+            <div className="w-full sm:w-[250px]" id="sucursal-selector-container">
+              <SucursalSelector
+                value={effectiveSubsidiaryId || ""}
+                onValueChange={setSelectedSucursalId}
+              />
+            </div>
           </div>
+          
         </div>
 
         {effectiveSubsidiaryId && (
@@ -766,7 +789,7 @@ function GastosPage() {
                 <Zap className="h-4 w-4 text-amber-500" />
                 Acciones rápidas
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div id="acciones-rapidas-container" className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <TooltipProvider delayDuration={300}>
                   {plantillasRapidas.map((template) => {
                     const IconComponent = template.icon;
@@ -823,7 +846,7 @@ function GastosPage() {
                   <Zap className="h-4 w-4 text-green-500" />
                   Gastos frecuentes (basado en tu historial)
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div id="acciones-historial-container" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   {gastosComunes.map((gasto, i) => (
                     <Card
                       key={i}
@@ -880,6 +903,7 @@ function GastosPage() {
             <CardTitle>Historial de Gastos</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
               <Button
+                id="btn-exportar-excel"
                 variant="outline"
                 size="sm"
                 onClick={() => setIsExportDialogOpen(true)}
@@ -890,6 +914,7 @@ function GastosPage() {
               </Button>
 
               <Button
+                id="btn-importar-excel"
                 variant="outline"
                 size="sm"
                 onClick={() => {
@@ -904,6 +929,7 @@ function GastosPage() {
               </Button>
 
               <Button
+                id="btn-nuevo-gasto"
                 size="sm"
                 onClick={openNewGastoDialog}
                 disabled={!effectiveSubsidiaryId}
@@ -1062,7 +1088,7 @@ function GastosPage() {
             >
               Cancelar
             </Button>
-            <Button onClick={handleExecuteImport} disabled={!importFile}>
+            <Button id="btn-importar-excel" onClick={handleExecuteImport} disabled={!importFile}>
               Importar Archivo
             </Button>
           </DialogFooter>
@@ -1074,6 +1100,15 @@ function GastosPage() {
           <DialogHeader>
             <DialogTitle>
               {editingGasto ? "Editar Gasto" : "Registrar Nuevo Gasto"}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-primary h-8"
+                onClick={(e) => { e.preventDefault(); startModalTutorial(); }}
+              >
+                <HelpCircle className="h-4 w-4 mr-2" />
+                Ayuda
+              </Button>
             </DialogTitle>
             <DialogDescription>
               Complete el formulario para registrar un nuevo gasto operativo
@@ -1082,8 +1117,8 @@ function GastosPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {/* --- SECCIÓN 1: INFORMACIÓN PRINCIPAL --- */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-primary border-b pb-2">Información Principal</h4>
+            <div id="info-principal-header" className="space-y-4">
+              <h4  className="text-sm font-semibold text-primary border-b pb-2">Información Principal</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
                 <div className="space-y-2">
@@ -1179,11 +1214,12 @@ function GastosPage() {
               </div>
             </div>
 
-            {/* --- NUEVA SECCIÓN: DISTRIBUCIÓN POR SUCURSAL --- */}
-            <div className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+            {/* --- SECCIÓN: DISTRIBUCIÓN POR SUCURSAL --- */}
+            <div id="distribucion-seccion" className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
               <div className="flex items-center justify-between border-b pb-2">
                 <h4 className="text-sm font-semibold text-primary">Distribución por Sucursal</h4>
                 <Button
+                  id="btn-add-sucursal"
                   type="button"
                   variant="outline"
                   size="sm"
@@ -1262,7 +1298,7 @@ function GastosPage() {
 
             {/* --- SECCIÓN VEHÍCULO (CONDICIONAL) --- */}
             {requiresVehicle && (
-              <div className="space-y-4">
+              <div id="seccion-vehiculo" className="space-y-4">
                 <h4 className="text-sm font-semibold text-primary border-b pb-2">Asignación de Vehículo</h4>
                 <div className="space-y-2">
                   <Label className="font-medium text-xs uppercase text-muted-foreground flex items-center gap-2">
@@ -1304,7 +1340,7 @@ function GastosPage() {
             )}
 
             {/* --- SECCIÓN 2: DETALLES DE PAGO --- */}
-            <div className="space-y-4">
+            <div id="seccion-detalles-pago" className="space-y-4">
               <h4 className="text-sm font-semibold text-primary border-b pb-2">Detalles de Pago</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
@@ -1351,7 +1387,7 @@ function GastosPage() {
             </div>
 
             {/* --- SECCIÓN 3: INFORMACIÓN ADICIONAL --- */}
-            <div className="space-y-4">
+            <div id="seccion-informacion-adicional" className="space-y-4">
               <h4 className="text-sm font-semibold text-primary border-b pb-2">Información Adicional</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
@@ -1406,7 +1442,7 @@ function GastosPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div id="notas-textarea" className="space-y-2">
                 <Label htmlFor="notas" className="font-medium text-xs uppercase text-muted-foreground">
                   Notas adicionales
                 </Label>
@@ -1429,7 +1465,7 @@ function GastosPage() {
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={!effectiveSubsidiaryId} className="gap-2">
+              <Button id="btn-submit-gasto" type="submit" disabled={!effectiveSubsidiaryId} className="gap-2">
                 {editingGasto ? "Actualizar Gasto" : "Registrar Gasto"}
               </Button>
             </DialogFooter>
