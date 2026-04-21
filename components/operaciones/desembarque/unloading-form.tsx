@@ -615,8 +615,6 @@ export default function UnloadingForm({
     }
   }, [setScannedPackages, setSurplusTrackings, toast]);
 
-  const startTutorial = () => { /* Logic omitted for brevity but intact functionally */ };
-
   const handleCreateShipment = useCallback((formData: any) => {
     try {
       setSurplusTrackings(prev => prev.filter(t => t !== formData.trackingNumber));
@@ -680,9 +678,9 @@ export default function UnloadingForm({
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   }, []);
 
-  const playExpirationSound = useCallback(() => { /* Sound code */ }, []);
-  const playTomorrowExpirationSound = useCallback(() => { /* Sound code */ }, []);
-  const playSurplusSound = useCallback(() => { /* Sound code */ }, []);
+  const playExpirationSound = useCallback(() => {}, []);
+  const playTomorrowExpirationSound = useCallback(() => {}, []);
+  const playSurplusSound = useCallback(() => {}, []);
 
   const handleExpirationCheck = useCallback((newShipments: PackageInfoForUnloading[]) => {
     const expiringToday: ExpiringPackage[] = [];
@@ -759,6 +757,8 @@ export default function UnloadingForm({
   }, []);
 
   const prevIsOnlineRef = useRef(isOnline);
+  
+  // 🚨 SOLUCIÓN 1: Sincronización Offline Tipada 🚨
   useEffect(() => {
     const wasOffline = !prevIsOnlineRef.current;
     const isNowOnline = isOnline;
@@ -770,11 +770,17 @@ export default function UnloadingForm({
 
       if (offlinePackages.length > 0) {
         toast({ title: "Sincronizando...", description: `Validando ${offlinePackages.length} paquetes escaneados offline.` });
+        
         const revalidateOfflineBatch = async () => {
           try {
-            // 🚨 CORRECCIÓN OFFLINE: Enviar solo un arreglo de STRINGS 🚨
-            const validNumbersToSync = offlinePackages.map(pkg => pkg.trackingNumber);
-            const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(validNumbersToSync, selectedSubsidiaryId);
+            // Convertimos trackings a objetos DTO para NestJS
+            const payload = offlinePackages.map(pkg => ({
+              trackingNumber: pkg.trackingNumber,
+              isAlreadyValidated: false
+            }));
+
+            // Llamada directa al API con el payload correcto
+            const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(payload as any, selectedSubsidiaryId);
             
             if (result.validatedShipments.length > 0) {
               const validadosMap = new Map(result.validatedShipments.map(v => [v.trackingNumber, v]));
@@ -796,103 +802,106 @@ export default function UnloadingForm({
     }
   }, [isOnline, selectedSubsidiaryId, setShipments, toast]);
 
+  // 🚨 SOLUCIÓN 2: handleValidatePackages con Payload DTO 🚨
   const handleValidatePackages = useCallback(async () => {
-      if (isLoading || isValidationPackages) return;
+    if (isLoading || isValidationPackages) return;
+    
+    if (!selectedSubsidiaryId) { 
+      toast({ title: "Error", description: "Selecciona una sucursal antes de validar.", variant: "destructive" }); 
+      return; 
+    }
+
+    const trackingNumbers = safeScannedPackages.map(p => p.trackingNumber);
+    const validNumbers = trackingNumbers.filter(t => /^\d{12}$/.test(t));
+    const invalidNumbers = trackingNumbers.filter(t => !/^\d{12}$/.test(t));
+    
+    if (validNumbers.length === 0) return;
+
+    setIsValidationPackages(true);
+    setIsLoading(true);
+    
+    try {
+      // 🚀 TRANSFORMACIÓN: Mandamos el arreglo de OBJETOS que NestJS espera 🚀
+      const payloadDTO = validNumbers.map(tn => ({
+        trackingNumber: tn,
+        isAlreadyValidated: false
+      }));
+
+      const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
+        payloadDTO as any, 
+        selectedSubsidiaryId
+      );
       
-      if (!selectedSubsidiaryId) { 
-        toast({ title: "Error", description: "Selecciona una sucursal antes de validar.", variant: "destructive" }); 
-        return; 
+      if (barScannerInputRef.current?.updateValidatedPackages) {
+        barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
       }
-  
-      const trackingNumbers = safeScannedPackages.map(p => p.trackingNumber);
-      const validNumbers = trackingNumbers.filter(t => /^\d{12}$/.test(t));
-      const invalidNumbers = trackingNumbers.filter(t => !/^\d{12}$/.test(t));
       
-      if (validNumbers.length === 0) return;
-  
-      setIsValidationPackages(true);
-      setIsLoading(true);
+      setShipments(result.validatedShipments);
+      handleExpirationCheck(result.validatedShipments);
       
-      try {
-        // 🚨 CORRECCIÓN PRINCIPAL: Se manda DIRECTAMENTE `validNumbers` que es un `string[]` 🚨
-        const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
-          validNumbers, 
-          selectedSubsidiaryId
-        );
-        
-        if (barScannerInputRef.current?.updateValidatedPackages) {
-          barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
-        }
-        
-        setShipments(result.validatedShipments);
-        
-        handleExpirationCheck(result.validatedShipments);
-        
-        const newMissing = updateMissingPackages(result.validatedShipments, result.consolidateds);
-        setMissingPackages(newMissing);
-        
-        const validTrackings = result.validatedShipments.filter(p => p.isValid).map(p => p.trackingNumber);
-        
-        const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
-        const allSurplus = [...invalidNumbers, ...surplusFromValid];
-        
-        const prevSurplus = safeArray(surplusTrackings);
-        const newSurplusItems = allSurplus.filter(s => !prevSurplus.includes(s));
-        
-        if (newSurplusItems.length > 0) {
-          speakMessage("La guía no se encontró. Por favor, verifica.");
-          try { playSurplusSound(); } catch (err) {}
-        }
-        
-        setSurplusTrackings(allSurplus);
-        setConsolidatedValidation(result.consolidateds || null);
-        
-        toast({ 
-          title: "Validación completada", 
-          description: `✅ ${result.validatedShipments.filter(p => p.isValid).length} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes` 
-        });
-        
-      } catch (error) {
-        console.error("Error validating packages:", error);
-        
-        if (!isOnline) {
-          const offlinePackages = validNumbers.map(tn => ({ 
-            id: `offline-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, 
-            trackingNumber: tn, 
-            isValid: false, 
-            isOffline: true, 
-            reason: "Sin conexión - validar cuando se restablezca internet", 
-            createdAt: new Date() 
-          } as PackageInfoForUnloading));
-          
-          setShipments(prev => [...safeArray(prev), ...offlinePackages]);
-          setSurplusTrackings(invalidNumbers);
-          
-          toast({ title: "Modo offline activado", description: `Se guardaron ${validNumbers.length} paquetes localmente.` });
-        } else {
-          toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
-        }
-      } finally {
-        setIsValidationPackages(false);
-        setIsLoading(false);
-        setTimeout(() => { try { barScannerInputRef.current?.focus(); } catch {} }, 150);
+      const newMissing = updateMissingPackages(result.validatedShipments, result.consolidateds);
+      setMissingPackages(newMissing);
+      
+      const validTrackings = result.validatedShipments.filter(p => p.isValid).map(p => p.trackingNumber);
+      const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
+      const allSurplus = [...invalidNumbers, ...surplusFromValid];
+      const prevSurplus = safeArray(surplusTrackings);
+      const newSurplusItems = allSurplus.filter(s => !prevSurplus.includes(s));
+      
+      if (newSurplusItems.length > 0) {
+        speakMessage("La guía no se encontró. Por favor, verifica.");
+        try { playSurplusSound(); } catch (err) {}
       }
-    }, [
-      isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound
-    ]);
-  
+      
+      setSurplusTrackings(allSurplus);
+      setConsolidatedValidation(result.consolidateds || null);
+      
+      toast({ 
+        title: "Validación completada", 
+        description: `✅ ${result.validatedShipments.filter(p => p.isValid).length} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes` 
+      });
+      
+    } catch (error) {
+      console.error("Error validating packages:", error);
+      if (!isOnline) {
+        const offlinePackages = validNumbers.map(tn => ({ 
+          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, 
+          trackingNumber: tn, 
+          isValid: false, 
+          isOffline: true, 
+          reason: "Sin conexión - validar cuando se restablezca internet", 
+          createdAt: new Date() 
+        } as PackageInfoForUnloading));
+        
+        setShipments(prev => [...safeArray(prev), ...offlinePackages]);
+        setSurplusTrackings(invalidNumbers);
+        toast({ title: "Modo offline activado", description: `Se guardaron ${validNumbers.length} paquetes localmente.` });
+      } else {
+        toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
+      }
+    } finally {
+      setIsValidationPackages(false);
+      setIsLoading(false);
+      setTimeout(() => { try { barScannerInputRef.current?.focus(); } catch {} }, 150);
+    }
+  }, [
+    isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound
+  ]);
+
   const shipmentsArray = useMemo(() => Array.isArray(shipments) ? shipments : [], [shipments]);
 
+  // 🚨 SOLUCIÓN 3: useEffect de validación automática estabilizado 🚨
   useEffect(() => {
     if (!Array.isArray(safeScannedPackages) || safeScannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
 
-    const trackingNumbers = safeScannedPackages.map(pkg => pkg.trackingNumber).join("\n");
-    if (trackingNumbers === lastValidated) return;
+    // Usamos una llave basada solo en los trackings para evitar bucles por cambios de objetos
+    const currentTrackingsKey = safeScannedPackages.map(pkg => pkg.trackingNumber).sort().join(",");
+    
+    if (currentTrackingsKey === lastValidated) return;
 
     const handler = setTimeout(() => {
       if (!isValidationPackages) {
-        // 🚨 CORRECCIÓN BUCLE: Actualizamos 'lastValidated' AQUÍ para evitar que valide repetidamente cada 500ms 🚨
-        setLastValidated(trackingNumbers);
+        setLastValidated(currentTrackingsKey); // Actualizamos ANTES de validar
         handleValidatePackages();
       }
     }, 500);
@@ -928,7 +937,6 @@ export default function UnloadingForm({
     setMissingPackages(newMissingPackages);
     setSurplusTrackings(newSurplusTrackings);
     setOpenPopover(null);
-    
     toast({ title: "Motivo actualizado", description: `Se asignó "${value}" a la guía ${id}` });
   }, [safeSelectedReasons, safeMissingPackages, safeSurplusTrackings, safeScannedPackages, setSelectedReasons, setMissingPackages, setSurplusTrackings, toast]);
 
@@ -949,19 +957,15 @@ export default function UnloadingForm({
 
   const filteredValidShipments = useMemo(() => {
     if (!Array.isArray(validShipments)) return [];
-    
     return validShipments.filter(pkg => {
       if (!pkg) return false;
-      
       const matchesSearch = pkg.trackingNumber?.includes(searchTerm) ||
         (pkg.recipientName && typeof pkg.recipientName === 'string' && pkg.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (pkg.recipientAddress && typeof pkg.recipientAddress === 'string' && pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase()));
-
       const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
       const matchesStatus = filterStatus === "all" ||
         (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
         (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
-
       return matchesSearch && matchesPriority && matchesStatus;
     });
   }, [validShipments, searchTerm, filterPriority, filterStatus]);
@@ -973,7 +977,6 @@ export default function UnloadingForm({
       const keys = ['unloading_unidad', 'unloading_scanned_packages', 'unloading_shipments', 'unloading_missing_packages', 'unloading_surplus_trackings', 'unloading_selected_reasons', 'unloading_tracking_raw', 'unloading_consolidated_validation', 'unloading_selected_consolidados', 'unloading_selected_consolidados_counts'];
       keys.forEach(k => { try { window.localStorage.removeItem(k); } catch {} });
     } catch (err) {}
-
     setSelectedUnidad(null);
     setScannedPackages([]);
     setShipments([]);
@@ -984,7 +987,6 @@ export default function UnloadingForm({
     setConsolidatedValidation(null);
     setSelectedConsolidatedIds([]);
     setLastValidated("");
-
     try { toast?.({ title: "Datos limpiados", description: "Se eliminaron los datos temporales." }); } catch {}
   }, [setScannedPackages, setShipments, setMissingPackages, setSurplusTrackings, setSelectedReasons, setTrackingNumbersRaw, setConsolidatedValidation, setSelectedConsolidatedIds, setLastValidated, setSelectedUnidad, toast]);
 
@@ -1000,16 +1002,14 @@ export default function UnloadingForm({
       setSurplusTrackings(prev => prev.filter(t => !missingKeys.includes(t)));
       toast?.({ title: "Faltantes limpiados", description: "Se limpiaron los paquetes faltantes." });
     } catch (err) {}
-  }, [missingPackages, setMissingPackages, setSelectedReasons, setSurplusTrackings, toast]);
+  }, [safeMissingPackages, setMissingPackages, setSelectedReasons, setSurplusTrackings, toast]);
 
   const handleExport = useCallback(async () => {
     if (shipmentsArray.length === 0) return;
-
     setIsLoading(true);
     try {
       const validList = shipmentsArray.filter(s => s.isValid);
       const blob = await pdf(<UnloadingPDFReport key={Date.now()} vehicle={selectedUnidad} packages={validList} missingPackages={missingPackages} unScannedPackages={surplusTrackings} subsidiaryName={selectedSubsidiaryName || ""} unloadingTrackigNumber={savedUnload?.trackingNumber || ""} />).toBlob();
-
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1038,23 +1038,17 @@ export default function UnloadingForm({
         unloadingTrackigNumber={unloadingSaved?.trackingNumber ?? ""}
       />
     ).toBlob();
-
     const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
     try { window.open(blobUrl, '_blank'); } catch(e){}
-
     const currentDate = new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
     unloadingSaved.shipments = validShipments;
-
     const fileName = `${unloadingSaved?.subsidiary?.name}--Desembarque--${unloadingSaved?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
     const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
-
     const excelBuffer = await generateUnloadingExcelClient(unloadingSaved, false);
     const excelBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const excelFileName = `${unloadingSaved?.subsidiary?.name}--Desembarque--${currentDate.replace(/\//g, "-")}.xlsx`;
     const excelFile = new File([excelBlob], excelFileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
     const onProgress = (percent: number) => { console.log(`Upload progress: ${percent}%`); };
-
     await uploadPDFile(pdfFile, excelFile, unloadingSaved?.subsidiary?.name, unloadingSaved?.id, onProgress);
   }, [validShipments, missingPackages, surplusTrackings, selectedUnidad]);
 
@@ -1063,34 +1057,22 @@ export default function UnloadingForm({
       toast({ title: "Sucursal no seleccionada", description: "Por favor selecciona una sucursal antes de procesar.", variant: "destructive" });
       return;
     }
-
     if (!selectedUnidad) {
       toast({ title: "Unidad no seleccionada", description: "Por favor selecciona una unidad de transporte.", variant: "destructive" });
       return;
     }
-
     const validList = shipmentsArray.filter(s => s.isValid);
-
     if (validList.length === 0) {
       toast({ title: "No hay paquetes válidos", description: "No hay paquetes válidos para procesar el Desembarque.", variant: "destructive" });
       return;
     }
-
-    // GUARDA DE SEGURIDAD PARA GARANTIZAR LOS IDs
     const packagesWithoutId = validList.filter(s => !s.id);
     if (packagesWithoutId.length > 0) {
-      console.error("❌ Se encontraron paquetes sin ID de base de datos:", packagesWithoutId);
-      toast({
-        title: "Validación incompleta",
-        description: "Hay paquetes que aún no han recuperado su ID del servidor. Por favor, espera un momento a que termine de procesar.",
-        variant: "destructive",
-      });
+      toast({ title: "Validación incompleta", description: "Hay paquetes que aún no han recuperado su ID del servidor. Por favor, espera.", variant: "destructive" });
       return;
     }
-
     setIsLoading(true);
     setProgress(0);
-
     try {
       const data: UnloadingFormData = {
         vehicle: selectedUnidad,
@@ -1100,28 +1082,33 @@ export default function UnloadingForm({
         unScannedTrackings: surplusTrackings,
         date: new Date().toISOString()
       };
-
       const saved = await saveUnloading(data);
       setSavedUnloading(saved);
-
       await handleSendEmail(saved);
-
-      toast({
-        title: "Desembarque procesado exitosamente",
-        description: `Se procesaron ${validList.length} paquetes para el desembarque. Faltantes: ${missingPackages.length}, Sobrantes: ${surplusTrackings.length}`,
-      });
-
+      toast({ title: "Desembarque procesado exitosamente", description: `Se procesaron ${validList.length} paquetes.` });
       clearAllStorage();
       onSuccess();
-      
     } catch (error) {
-      toast({ title: "Error al procesar el desembarque", description: "Hubo un problema al procesar el desembarque de paquetes.", variant: "destructive" });
+      toast({ title: "Error", description: "Hubo un problema al procesar el desembarque.", variant: "destructive" });
     } finally {
       setIsLoading(false);
       setSavedUnloading(null);
       setProgress(0);
     }
-  }, [selectedSubsidiaryId, selectedUnidad, shipmentsArray, safeMissingPackages, missingPackages, surplusTrackings, selectedSubsidiaryName, onSuccess, toast, clearAllStorage, handleSendEmail]);
+  }, [selectedSubsidiaryId, selectedUnidad, shipmentsArray, safeMissingPackages, surplusTrackings, selectedSubsidiaryName, onSuccess, toast, clearAllStorage, handleSendEmail]);
+
+  const startTutorial = () => {
+    try {
+      const driverObj = driver({
+        showProgress: true,
+        steps: [
+          { element: "#unloading-tutorial-button", popover: { title: "Bienvenido", description: "Tutorial guiado." } },
+          { element: "#process-button", popover: { title: "Procesar", description: "Haz clic aquí para finalizar." } },
+        ]
+      });
+      driverObj.drive();
+    } catch (err) {}
+  };
 
   return (
     <>
@@ -1129,18 +1116,14 @@ export default function UnloadingForm({
         {isValidationPackages && (
           <LoaderWithOverlay overlay transparent text="Validando paquetes..." className="rounded-lg" />
         )}
-
         {isLoading && !isValidationPackages && (
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex justify-center items-center z-50">
             <LoaderWithOverlay overlay text="Procesando desembarque..." className="rounded-lg" />
           </div>
         )}
-
         {!isOnline && (
           <div className="bg-yellow-50 border-b border-yellow-200 p-2 text-center">
-            <span className="text-yellow-800 text-sm flex items-center justify-center gap-2">
-              ⚡ Modo offline - Los datos se guardan localmente
-            </span>
+            <span className="text-yellow-800 text-sm">⚡ Modo offline activado</span>
           </div>
         )}
 
@@ -1153,27 +1136,23 @@ export default function UnloadingForm({
                 </div>
                 <span>Desembarque de Paquetes</span>
                 {shipmentsArray.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 text-sm">
-                    {validShipments.length} válidos / {shipmentsArray.length} total
+                  <Badge variant="secondary" className="ml-2">
+                    {validShipments.length} válidos
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription>Procesa el desembarque de paquetes de unidades de transporte</CardDescription>
             </div>
-
             <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
                   <MapPinIcon className="h-4 w-4" />
                   <span>Sucursal: {selectedSubsidiaryName}</span>
                 </div>
-
-                <Button id="unloading-tutorial-button" variant="ghost" size="sm" onClick={startTutorial} className="ml-2">
-                  <HelpCircle className="h-4 w-4" /> Tutorial
+                <Button id="unloading-tutorial-button" variant="ghost" size="sm" onClick={startTutorial}>
+                  <HelpCircle className="h-4 w-4" />
                 </Button>
-
               {(shipmentsArray.length > 0 || selectedUnidad) && (
-                <Button variant="outline" size="sm" onClick={() => { clearAllStorage(); clearMissingPackages(); }} className="gap-2" disabled={isLoading}>
-                  <Trash2 className="h-4 w-4" /> Limpiar todo
+                <Button variant="outline" size="sm" onClick={() => { clearAllStorage(); clearMissingPackages(); }} disabled={isLoading}>
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               )}
             </div>
@@ -1185,54 +1164,34 @@ export default function UnloadingForm({
             <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
               <div id="unloading-filters-section" className="space-y-2">
                 <Label className="text-base font-medium flex items-center gap-2">
-                  <PackageCheckIcon className="h-4 w-4" /> Unidad de Transporte
+                  <PackageCheckIcon className="h-4 w-4" /> Unidad
                 </Label>
-                  <div id="unidad-selector">
-                    <UnidadSelector selectedUnidad={selectedUnidad} onSelectionChange={setSelectedUnidad} disabled={isLoading} />
-                  </div>
+                <UnidadSelector selectedUnidad={selectedUnidad} onSelectionChange={setSelectedUnidad} disabled={isLoading} />
               </div>
-
               <Separator />
-
-                <div id="consolidado-section">
-                  <ConsolidateDetails
-                    consolidatedData={
-                      consolidatedValidation && 
-                      Object.keys(consolidatedValidation).length > 0 && 
-                      (
-                        consolidatedValidation.airConsolidated?.length > 0 ||
-                        consolidatedValidation.groundConsolidated?.length > 0 ||
-                        consolidatedValidation.f2Consolidated?.length > 0
-                      )
-                        ? consolidatedValidation 
-                        : undefined
-                    }
-                    initialSelectedIds={selectedConsolidatedIds}
-                    onSelectionChange={handleConsolidateSelectionChange}
-                    subsidiaryId={parentSubsidiaryId ?? selectedSubsidiaryId ?? null}
-                  />
-                  </div>
+              <ConsolidateDetails
+                consolidatedData={
+                  consolidatedValidation && 
+                  Object.keys(consolidatedValidation).length > 0 && 
+                  (consolidatedValidation.airConsolidated?.length > 0 || consolidatedValidation.groundConsolidated?.length > 0 || consolidatedValidation.f2Consolidated?.length > 0)
+                    ? consolidatedValidation 
+                    : undefined
+                }
+                initialSelectedIds={selectedConsolidatedIds}
+                onSelectionChange={handleConsolidateSelectionChange}
+                subsidiaryId={parentSubsidiaryId ?? selectedSubsidiaryId ?? null}
+              />
             </div>
-
             <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
-              <div className="space-y-2">
-                <div id="barcode-scanner" className="space-y-2 p-1 rounded-md">
-                  <BarcodeScannerInput
-                    ref={barScannerInputRef}
-                    onPackagesChange={setScannedPackages}
-                    disabled={isLoading || !selectedSubsidiaryId}
-                    placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escribe o escanea números de tracking"}
-                    onHasDueTomorrow={setScannerHasDueTomorrow}
-                  />
-                </div>
-              </div>
-
+              <BarcodeScannerInput
+                ref={barScannerInputRef}
+                onPackagesChange={setScannedPackages}
+                disabled={isLoading || !selectedSubsidiaryId}
+                placeholder={!selectedSubsidiaryId ? "Selecciona sucursal" : "Escanear..."}
+                onHasDueTomorrow={setScannerHasDueTomorrow}
+              />
               {isLoading && (
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label>Progreso de validación</Label>
-                    <span className="text-sm text-muted-foreground">{progress}%</span>
-                  </div>
                   <Progress value={progress} className="h-2" />
                 </div>
               )}
@@ -1241,152 +1200,63 @@ export default function UnloadingForm({
 
           {shipmentsArray.length > 0 && (
             <div className="mt-6 space-y-4">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Paquetes validados
-                  <Badge variant="outline" className="ml-2">
-                    {filteredValidShipments.length} de {validShipments.length}
-                  </Badge>
-                  {packagesNeedingData.length > 0 && <Badge variant="destructive" className="ml-2">{packagesNeedingData.length} necesitan datos</Badge>}
-                </h3>
-              </div>
-
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Buscar por tracking, destinatario o dirección..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                  <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm">Filtrar</h4>
-                    <Button variant="ghost" size="sm" onClick={() => setShowFilters(!showFilters)} className="h-8 gap-1">
-                      <Filter className="h-4 w-4" />
-                      {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </Button>
-                  </div>
-
-                  <Collapsible open={showFilters}>
-                    <CollapsibleContent className="space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label className="text-sm">Prioridad</Label>
-                          <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
-                            <option value="all">Todas las prioridades</option>
-                            <option value={Priority.ALTA}>Alta</option>
-                            <option value={Priority.MEDIA}>Media</option>
-                            <option value={Priority.BAJA}>Baja</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm">Tipo de paquete</Label>
-                          <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                            <option value="all">Todos los tipos</option>
-                            <option value="special">Especial (carga, alto valor, cobro)</option>
-                            <option value="normal">Paquetes normales</option>
-                          </select>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
+                <Button variant="ghost" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                  <Filter className="h-4 w-4" />
+                </Button>
               </div>
 
               <Tabs defaultValue="validos" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="validos" className="flex items-center gap-1"><Check className="h-4 w-4" /> Válidos ({validShipments.length})</TabsTrigger>
-                  <TabsTrigger value="faltantes" className="flex items-center gap-1"><CircleAlertIcon className="h-4 w-4" /> Faltantes ({missingPackages.length})</TabsTrigger>
-                  <TabsTrigger value="sobrantes" className="flex items-center gap-1"><AlertCircle className="h-4 w-4" /> Sobrantes ({surplusTrackings.length})</TabsTrigger>
+                  <TabsTrigger value="validos">Válidos ({validShipments.length})</TabsTrigger>
+                  <TabsTrigger value="faltantes">Faltantes ({missingPackages.length})</TabsTrigger>
+                  <TabsTrigger value="sobrantes">Sobrantes ({surplusTrackings.length})</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="validos" className="space-y-3 mt-4">
-                  {Array.isArray(filteredValidShipments) && filteredValidShipments.length > 0 ? (
-                    <ScrollArea className="h-[400px] rounded-md border">
-                      <div className="grid grid-cols-1 divide-y">
-                        {filteredValidShipments.map((pkg) => pkg && (
-                          <PackageItem key={pkg.trackingNumber} pkg={pkg} onRemove={handleRemovePackage} isLoading={isLoading} selectedReasons={selectedReasons} onSelectReason={handleSelectMissingTracking} openPopover={openPopover} setOpenPopover={setOpenPopover} onCompleteData={handleOpenCompleteData} />
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  ) : (
-                    <div className="text-center py-12 text-muted-foreground border rounded-md">
-                      <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                      <p>No se encontraron paquetes con los filtros aplicados</p>
-                      {(searchTerm || filterPriority !== "all" || filterStatus !== "all") && (
-                        <Button variant="ghost" size="sm" className="mt-3" onClick={() => { setSearchTerm(""); setFilterPriority("all"); setFilterStatus("all"); }}>
-                          Limpiar filtros
-                        </Button>
-                      )}
+                <TabsContent value="validos" className="mt-4">
+                  <ScrollArea className="h-[400px] rounded-md border">
+                    <div className="divide-y">
+                      {filteredValidShipments.map((pkg) => pkg && (
+                        <PackageItem key={pkg.trackingNumber} pkg={pkg} onRemove={handleRemovePackage} isLoading={isLoading} selectedReasons={selectedReasons} onSelectReason={handleSelectMissingTracking} openPopover={openPopover} setOpenPopover={setOpenPopover} onCompleteData={handleOpenCompleteData} />
+                      ))}
                     </div>
-                  )}
+                  </ScrollArea>
                 </TabsContent>
-
                 <TabsContent value="faltantes" className="mt-4">
-                  {missingPackages.length > 0 ? (
-                    <ScrollArea className="h-[300px] rounded-md border">
-                      <div className="grid grid-cols-1 divide-y">
-                        {safeMissingPackages.map((pkg, index) => pkg && <MissingPackageItem key={`${pkg.trackingNumber}-${index}`} pkg={pkg} />)}
-                      </div>
-                    </ScrollArea>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground border rounded-md"><p>No hay paquetes faltantes</p></div>
-                  )}
+                  <ScrollArea className="h-[300px] border rounded-md">
+                    <div className="divide-y">
+                      {safeMissingPackages.map((pkg, idx) => pkg && <MissingPackageItem key={`${pkg.trackingNumber}-${idx}`} pkg={pkg} />)}
+                    </div>
+                  </ScrollArea>
                 </TabsContent>
-
                 <TabsContent value="sobrantes" className="mt-4">
-                  {surplusTrackings.length > 0 ? (
-                    <ScrollArea className="h-[300px] rounded-md border p-4">
-                      <ul className="space-y-2">
-                        {safeSurplusTrackings.map(tracking => (
-                          <li key={tracking} className="flex justify-between items-center py-2 px-3 rounded-md bg-amber-50 border border-amber-200">
-                            <span className="font-mono text-sm font-medium">{tracking}</span>
-                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={() => handleOpenCorrectTracking(tracking)} disabled={isLoading} className="text-xs h-7 bg-white hover:bg-amber-100">
-                                <Package className="h-3 w-3 mr-1" /> Corregir
-                              </Button>
-                              <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">Sobrante</Badge>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </ScrollArea>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground border rounded-md"><p>No hay guías sobrantes</p></div>
-                  )}
+                  <ScrollArea className="h-[300px] border rounded-md p-4">
+                    <ul className="space-y-2">
+                      {safeSurplusTrackings.map(t => (
+                        <li key={t} className="flex justify-between items-center p-2 rounded bg-amber-50 border border-amber-200">
+                          <span className="font-mono">{t}</span>
+                          <Button variant="outline" size="sm" onClick={() => handleOpenCorrectTracking(t)}>Corregir</Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
                 </TabsContent>
               </Tabs>
-
-              <div id="summary-section" className="flex items-center gap-4 text-sm pt-4 border-t">
-                <div className="flex items-center gap-1"><Package className="w-4 h-4" /><span className="font-medium">Resumen:</span></div>
-                <div className="flex items-center gap-1"><span className="text-green-600 font-semibold">{validShipments.length}</span><span>válidos</span></div>
-                <div className="flex items-center gap-1"><span className="text-red-600 font-semibold">{missingPackages.length}</span><span>faltantes</span></div>
-                <div className="flex items-center gap-1"><span className="text-amber-600 font-semibold">{surplusTrackings.length}</span><span>sobrantes</span></div>
-                {packagesNeedingData.length > 0 && (<div className="flex items-center gap-1"><span className="text-yellow-600 font-semibold">{packagesNeedingData.length}</span><span>necesitan datos</span></div>)}
-              </div>
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-2 justify-between items-center p-4 bg-muted/20 rounded-lg">
-            <Button type="button" variant="outline" onClick={onClose} className="gap-2"><X className="h-4 w-4" /> Cancelar</Button>
-
-              <div className="flex flex-col sm:flex-row gap-2">
-              <Button id="process-button" onClick={handleUnloading} disabled={isLoading || !canUnload || packagesNeedingData.length > 0} className="gap-2">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Procesar el desembarque
-                {packagesNeedingData.length > 0 && <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 text-xs">{packagesNeedingData.length}</Badge>}
+          <div className="flex justify-between items-center p-4 bg-muted/20 rounded-lg">
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <div className="flex gap-2">
+              <Button id="process-button" onClick={handleUnloading} disabled={isLoading || !canUnload || packagesNeedingData.length > 0}>
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Procesar
               </Button>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button id="export-button" onClick={handleExport} disabled={isLoading || shipmentsArray.length === 0} variant="outline" className="gap-2">
-                      <Download className="h-4 w-4" /> Exportar PDF
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Generar reporte PDF de los paquetes actuales</p></TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Button variant="outline" onClick={handleExport} disabled={isLoading || shipmentsArray.length === 0}>
+                <Download className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardContent>

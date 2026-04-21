@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,8 @@ import {
   Fuel,
   Wrench,
   Car,
+  X,
+  HelpCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -40,7 +42,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { addGasto, updateGasto, getCategorias } from "@/lib/data";
+import { getCategorias } from "@/lib/data";
 import type { Expense, ExpenseCategory, Vehicles } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
@@ -76,6 +78,10 @@ import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { Loader } from "@/components/loader";
 import { upload } from "@/lib/services/expenses";
 
+// Importación de Driver.js para el tutorial
+import { driver } from "driver.js"
+import "driver.js/dist/driver.css"
+
 const metodosPago = [
   "Efectivo",
   "Tarjeta de Crédito",
@@ -85,10 +91,8 @@ const metodosPago = [
   "Otro",
 ];
 
-// NUEVO: Array de periodos
 const periodosPago = ["Único", "Diario", "Semanal", "Mensual", "Anual"];
 
-// Categorías que requieren selección de vehículo
 const VEHICLE_CATEGORIES = [
   "Combustible",
   "Mantenimiento",
@@ -96,7 +100,6 @@ const VEHICLE_CATEGORIES = [
   "Seguros",
 ];
 
-// Plantillas de gastos rápidos predefinidos
 const plantillasRapidas = [
   {
     id: "t1",
@@ -136,6 +139,7 @@ const plantillasRapidas = [
   },
 ];
 
+
 const getCategoryColor = (categoryName: string): string => {
   const colorMap: Record<string, string> = {
     Nómina: "bg-green-500",
@@ -152,8 +156,87 @@ const getCategoryColor = (categoryName: string): string => {
   return colorMap[categoryName] || "bg-gray-500";
 };
 
+// Interfaz para el estado de distribución de sucursales
+interface SucursalSplit {
+  id: string;
+  sucursalId: string;
+  porcentaje: number;
+}
+
 function GastosPage() {
   const user = useAuthStore((s) => s.user);
+
+  // --- ESTADOS DE TUTORIAL ---
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  const startTutorial = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: 'Sig.',
+      prevBtnText: 'Ant.',
+      doneBtnText: 'Entendido',
+      steps: [
+        {
+          element: "#sucursal-selector-container",
+          popover: {
+            title: "1. Filtro de Sucursal",
+            description: "Selecciona una sucursal para ver y gestionar sus gastos específicos.",
+            side: "bottom",
+          }
+        },
+        {
+          element: "#acciones-rapidas-container",
+          popover: {
+            title: "2. Registro Veloz",
+            description: "Haz clic en estas tarjetas para llenar el formulario automáticamente con gastos comunes.",
+            side: "top",
+          }
+        },
+        {
+          element: "#btn-importar-excel",
+          popover: {
+            title: "3. Importación Masiva",
+            description: "Carga archivos Excel directamente al servidor para procesar múltiples registros a la vez.",
+            side: "bottom",
+          }
+        },
+        {
+          element: "#btn-nuevo-gasto",
+          popover: {
+            title: "4. Registro Manual",
+            description: "Abre el formulario para crear un gasto nuevo desde cero.",
+            side: "left",
+          }
+        }
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
+  const startModalTutorial = useCallback(() => {
+    const driverObj = driver({
+      steps: [
+        {
+          element: "#distribucion-seccion",
+          popover: {
+            title: "Distribución de Gastos",
+            description: "Aquí puedes agregar varias sucursales. El sistema repartirá el 100% del monto automáticamente entre ellas.",
+            side: "bottom",
+          }
+        },
+        {
+          element: "#btn-add-sucursal",
+          popover: {
+            title: "Agregar Sucursal",
+            description: "Al agregar una nueva fila, los porcentajes se ajustarán de forma equitativa por ti.",
+            side: "left",
+          }
+        }
+      ]
+    });
+    driverObj.drive();
+  }, []);
 
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("");
   const [categorias, setCategorias] = useState<ExpenseCategory[]>([]);
@@ -162,7 +245,6 @@ function GastosPage() {
   const [editingGasto, setEditingGasto] = useState<Expense | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // NUEVOS ESTADOS PARA EL MODAL DE IMPORTACIÓN
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importTipo, setImportTipo] = useState("combustibles");
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -178,29 +260,49 @@ function GastosPage() {
 
   const { save, isSaving, isError: isSaveError } = useSaveExpense();
 
+  // --- LÓGICA DE DISTRIBUCIÓN INTELIGENTE ---
+  const redistribuirPorcentajes = (items: SucursalSplit[]) => {
+    if (items.length === 0) return [];
+    const nuevoPorcentaje = Math.floor(100 / items.length);
+    const residuo = 100 % items.length;
+
+    return items.map((item, index) => ({
+      ...item,
+      porcentaje: index === 0 ? nuevoPorcentaje + residuo : nuevoPorcentaje
+    }));
+  };
+
+  const agregarSucursal = () => {
+    const nuevaDistribucion = [
+      ...sucursalesDistribucion,
+      { id: Date.now().toString(), sucursalId: "", porcentaje: 0 }
+    ];
+    setSucursalesDistribucion(redistribuirPorcentajes(nuevaDistribucion));
+  };
+
+  const eliminarSucursal = (id: string) => {
+    const nuevaDistribucion = sucursalesDistribucion.filter(d => d.id !== id);
+    setSucursalesDistribucion(redistribuirPorcentajes(nuevaDistribucion));
+  };
+
   // Formulario
   const [fecha, setFecha] = useState<Date | undefined>(new Date());
   const [categoriaId, setCategoriaId] = useState("");
   const [monto, setMonto] = useState<number | "">("");
   const [descripcion, setDescripcion] = useState("");
   const [metodoPago, setMetodoPago] = useState("Efectivo");
-  const [periodoPago, setPeriodoPago] = useState("Único"); // <-- NUEVO
+  const [periodoPago, setPeriodoPago] = useState("Único");
   const [responsable, setResponsable] = useState("");
   const [notas, setNotas] = useState("");
   const [comprobante, setComprobante] = useState<File | null>(null);
   const [vehiculoId, setVehiculoId] = useState<string>("");
   const [selectedVehiculo, setSelectedVehiculo] = useState<Vehicles | undefined>(null);
+  const [sucursalesDistribucion, setSucursalesDistribucion] = useState<SucursalSplit[]>([]);
 
-  // Determinar si la categoría seleccionada requiere vehículo
   const requiresVehicle = VEHICLE_CATEGORIES.includes(categoriaId);
 
-  // Filtros de exportación
-  const [exportStartDate, setExportStartDate] = useState<Date | undefined>(
-    undefined,
-  );
-  const [exportEndDate, setExportEndDate] = useState<Date | undefined>(
-    undefined,
-  );
+  const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
+  const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
   const [exportCategory, setExportCategory] = useState<string>("todas");
 
   useEffect(() => {
@@ -237,28 +339,42 @@ function GastosPage() {
     setDescripcion(plantilla.description || "");
     setMonto(plantilla.amount);
     setMetodoPago(plantilla.paymentMethod || "Efectivo");
-    setPeriodoPago(plantilla.frequency || "Único"); // <-- NUEVO
+    setPeriodoPago(plantilla.frequency || "Único");
     setResponsable(plantilla.responsible || "");
     setFecha(new Date());
     setNotas("");
     setComprobante(null);
     setVehiculoId((plantilla as any).vehiculoId || "");
+    
+    // Inicializar distribución con la sucursal actual
+    setSucursalesDistribucion([{ 
+      id: Date.now().toString(), 
+      sucursalId: plantilla.subsidiaryId || effectiveSubsidiaryId || "", 
+      porcentaje: 100 
+    }]);
+
     setEditingGasto(null);
     setIsDialogOpen(true);
   };
 
-  // Prefill desde plantilla rápida predefinida
   const prefillFromTemplate = (template: (typeof plantillasRapidas)[0]) => {
     setCategoriaId(template.categoria);
     setDescripcion(template.descripcion);
     setMonto(template.montoSugerido);
     setMetodoPago("Efectivo");
-    setPeriodoPago("Único"); // <-- NUEVO
+    setPeriodoPago("Único");
     setResponsable("");
     setFecha(new Date());
     setNotas("");
     setComprobante(null);
     setVehiculoId("");
+    
+    setSucursalesDistribucion([{ 
+      id: Date.now().toString(), 
+      sucursalId: effectiveSubsidiaryId || "", 
+      porcentaje: 100 
+    }]);
+
     setEditingGasto(null);
     setIsDialogOpen(true);
   };
@@ -270,12 +386,18 @@ function GastosPage() {
     setMonto("");
     setDescripcion("");
     setMetodoPago("Efectivo");
-    setPeriodoPago("Único"); // <-- NUEVO
+    setPeriodoPago("Único");
     setResponsable("");
     setNotas("");
     setComprobante(null);
     setVehiculoId("");
     setSelectedVehiculo(undefined);
+    
+    setSucursalesDistribucion([{ 
+      id: Date.now().toString(), 
+      sucursalId: effectiveSubsidiaryId || "", 
+      porcentaje: 100 
+    }]);
   };
 
   const openNewGastoDialog = () => {
@@ -290,10 +412,17 @@ function GastosPage() {
     setMonto(gasto.amount);
     setDescripcion(gasto.description || "");
     setMetodoPago(gasto.paymentMethod || "Efectivo");
-    setPeriodoPago(gasto.frequency || "Único"); // <-- NUEVO
+    setPeriodoPago(gasto.frequency || "Único");
     setResponsable(gasto.responsible || "");
     setNotas(gasto.notes || "");
     setComprobante(null);
+
+    setSucursalesDistribucion([{ 
+      id: Date.now().toString(), 
+      sucursalId: gasto.subsidiaryId || effectiveSubsidiaryId || "", 
+      porcentaje: 100 
+    }]);
+
     setIsDialogOpen(true);
   };
 
@@ -315,29 +444,56 @@ function GastosPage() {
       return;
     }
 
-    const payload: Expense = {
-      subsidiaryId: effectiveSubsidiaryId,
-      date: fecha,
-      category: categoriaId,
-      amount: Number(monto),
-      description:
-        requiresVehicle && selectedVehiculo
-          ? `${descripcion} - ${selectedVehiculo.plateNumber} (${selectedVehiculo.brand} ${selectedVehiculo.model})`
-          : descripcion,
-      paymentMethod: metodoPago,
-      frequency: periodoPago, // <-- NUEVO
-      responsible: responsable,
-      vehicleId: requiresVehicle ? selectedVehiculo?.id : null,
-      notes:
-        requiresVehicle && selectedVehiculo
-          ? `Vehículo: ${selectedVehiculo.name} | ${notas}`.trim()
-          : notas,
-    };
+    // VALIDACIONES DE DISTRIBUCIÓN
+    const totalPorcentaje = sucursalesDistribucion.reduce((acc, curr) => acc + (Number(curr.porcentaje) || 0), 0);
+    
+    if (totalPorcentaje !== 100) {
+      toast.error(`La suma de los porcentajes debe ser exactamente 100% (Actual: ${totalPorcentaje}%)`);
+      return;
+    }
 
-    save(payload);
+    if (sucursalesDistribucion.some(s => !s.sucursalId)) {
+      toast.error("Por favor selecciona una sucursal para cada línea de distribución");
+      return;
+    }
+
+    const montoBase = Number(monto);
+
+    // GUARDAR GASTOS POR SUCURSAL
+    // Iteramos la distribución para crear registros prorrateados si hay más de una sucursal involucrada
+    sucursalesDistribucion.forEach((dist) => {
+      const montoProrrateado = montoBase * (dist.porcentaje / 100);
+      
+      // Ajustamos la nota o descripción para reflejar que es un gasto dividido si el % es menor a 100
+      const notaDistribucion = dist.porcentaje < 100 
+        ? `[Fracción: ${dist.porcentaje}% del gasto total de ${formatCurrency(montoBase)}]` 
+        : "";
+
+      const payload: Expense = {
+        subsidiaryId: dist.sucursalId,
+        date: fecha,
+        category: categoriaId,
+        amount: montoProrrateado,
+        description:
+          requiresVehicle && selectedVehiculo
+            ? `${descripcion} - ${selectedVehiculo.plateNumber} (${selectedVehiculo.brand} ${selectedVehiculo.model}) ${notaDistribucion}`.trim()
+            : `${descripcion} ${notaDistribucion}`.trim(),
+        paymentMethod: metodoPago,
+        frequency: periodoPago,
+        responsible: responsable,
+        vehicleId: requiresVehicle ? selectedVehiculo?.id : null,
+        notes:
+          requiresVehicle && selectedVehiculo
+            ? `Vehículo: ${selectedVehiculo.name} | ${notas}`.trim()
+            : notas,
+      };
+
+      save(payload);
+    });
+
     setIsDialogOpen(false);
     mutate();
-    toast.success("Se registró con éxito el gasto.");
+    toast.success("Se registró el gasto y su distribución con éxito.");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -362,12 +518,10 @@ function GastosPage() {
       return;
     }
 
-    // 1. Crear el libro y la hoja de trabajo
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Tu Sistema de Finanzas";
     const worksheet = workbook.addWorksheet("Reporte de Gastos");
 
-    // 2. Definir las columnas con sus anchos específicos y formato de moneda
     worksheet.columns = [
       { header: "Fecha", key: "fecha", width: 15 },
       { header: "Categoría", key: "categoria", width: 20 },
@@ -379,27 +533,24 @@ function GastosPage() {
         style: { numFmt: '"$"#,##0.00' },
       },
       { header: "Método de Pago", key: "metodoPago", width: 20 },
-      { header: "Frecuencia", key: "periodoPago", width: 15 }, // <-- NUEVO
+      { header: "Frecuencia", key: "periodoPago", width: 15 },
       { header: "Responsable", key: "responsable", width: 25 },
       { header: "Notas", key: "notas", width: 40 },
     ];
 
-    // 3. Dar estilo profesional al encabezado
     const headerRow = worksheet.getRow(1);
     headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
     headerRow.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF0F172A" }, // Un color azul oscuro/slate elegante
+      fgColor: { argb: "FF0F172A" }, 
     };
     headerRow.alignment = { vertical: "middle", horizontal: "center" };
     headerRow.height = 25;
 
-    // 4. Congelar la primera fila y agregar Auto-Filtros
     worksheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
-    worksheet.autoFilter = "A1:H1"; // <-- ACTUALIZADO RANGO
+    worksheet.autoFilter = "A1:H1"; 
 
-    // 5. Agregar los datos iterando sobre tu arreglo filtrado
     dataFiltrada.forEach((gasto, index) => {
       const row = worksheet.addRow({
         fecha: format(new Date(gasto.date), "dd/MM/yyyy"),
@@ -407,12 +558,11 @@ function GastosPage() {
         descripcion: gasto.description,
         monto: gasto.amount,
         metodoPago: gasto.paymentMethod || "No especificado",
-        periodoPago: gasto.frequency || "Único", // <-- NUEVO
+        periodoPago: gasto.frequency || "Único",
         responsable: gasto.responsible || "No especificado",
         notas: gasto.notes || "",
       });
 
-      // Alternar el color de las filas para facilitar la lectura (estilo cebra)
       if (index % 2 === 0) {
         row.fill = {
           type: "pattern",
@@ -420,12 +570,9 @@ function GastosPage() {
           fgColor: { argb: "FFF8FAFC" },
         };
       }
-
-      // Alinear el texto verticalmente en todas las celdas
       row.alignment = { vertical: "middle", wrapText: true };
     });
 
-    // 6. Agregar bordes tenues a todas las celdas con datos
     worksheet.eachRow({ includeEmpty: false }, (row) => {
       row.eachCell({ includeEmpty: false }, (cell) => {
         cell.border = {
@@ -437,7 +584,6 @@ function GastosPage() {
       });
     });
 
-    // 7. Generar el archivo y descargarlo
     try {
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
@@ -455,7 +601,6 @@ function GastosPage() {
     }
   };
 
-  // NUEVA FUNCIÓN DE IMPORTACIÓN QUE SE EJECUTA DESDE EL MODAL
   const handleExecuteImport = async () => {
     if (!importFile) {
       toast.error("Por favor selecciona un archivo Excel");
@@ -468,20 +613,13 @@ function GastosPage() {
     }
 
     try {
-      // 1. Preparamos el archivo y los datos adicionales para enviarlos al backend
       const formData = new FormData();
       formData.append("file", importFile);
       formData.append("subsidiaryId", effectiveSubsidiaryId);
-      
-      // Opcional: Le mandamos el "tipo" al backend (ej. "combustibles") por si necesita 
-      // aplicar lógica inteligente allá al no encontrar la columna "Categoría".
       formData.append("tipo", importTipo); 
 
-      // 2. Llamamos a tu método upload 
-      // (Asegúrate de tener importado 'upload' desde expenses.ts en la parte superior de tu archivo)
       await upload(formData);
 
-      // 3. Refrescamos la tabla de gastos, cerramos el modal y limpiamos el estado
       mutate();
       setImportFile(null);
       setIsImportDialogOpen(false);
@@ -493,6 +631,7 @@ function GastosPage() {
     }
   };
 
+  /** Sacar a un archivo */
   const columns = [
     createSelectColumn<Expense>(),
     createSortableColumn<Expense>(
@@ -540,7 +679,7 @@ function GastosPage() {
     ),
     createSortableColumn<Expense>(
       "frequency",
-      "Frecuencia", // <-- NUEVA COLUMNA EN LA TABLA
+      "Frecuencia",
       (row) => row.frequency || "Único",
     ),
     createSortableColumn<Expense>(
@@ -548,11 +687,51 @@ function GastosPage() {
       "Responsable",
       (row) => row.responsible || "No especificado",
     ),
-    createViewColumn<Expense>((data) => openEditGastoDialog(data)), // <-- Restaurado el click
+    createViewColumn<Expense>((data) => openEditGastoDialog(data)),
   ];
 
   return (
     <AppLayout>
+      {showTutorial && (
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="max-w-md w-full shadow-2xl border-primary animate-in fade-in zoom-in duration-300">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-bold text-primary">
+                Guía: {tutorialSteps[currentStep].title}
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setShowTutorial(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {tutorialSteps[currentStep].content}
+              </p>
+              <div className="flex justify-between items-center pt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={currentStep === 0}
+                  onClick={() => setCurrentStep(prev => prev - 1)}
+                >
+                  Anterior
+                </Button>
+                <span className="text-xs font-medium">
+                  {currentStep + 1} de {tutorialSteps.length}
+                </span>
+                {currentStep < tutorialSteps.length - 1 ? (
+                  <Button size="sm" onClick={() => setCurrentStep(prev => prev + 1)}>
+                    Siguiente
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => setShowTutorial(false)}>Entendido</Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -564,6 +743,15 @@ function GastosPage() {
             </p>
           </div>
           <div className="w-full sm:w-[250px]">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-muted-foreground hover:text-primary"
+              onClick={() => { setCurrentStep(0); setShowTutorial(true); }}
+            >
+              <HelpCircle className="h-4 w-4 mr-2" />
+              ¿Cómo funciona?
+            </Button>
             <SucursalSelector
               value={effectiveSubsidiaryId}
               onValueChange={setSelectedSucursalId}
@@ -573,7 +761,6 @@ function GastosPage() {
 
         {effectiveSubsidiaryId && (
           <div className="space-y-4">
-            {/* Plantillas rápidas predefinidas */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Zap className="h-4 w-4 text-amber-500" />
@@ -630,7 +817,6 @@ function GastosPage() {
               </div>
             </div>
 
-            {/* Gastos frecuentes basados en historial */}
             {gastosComunes.length > 0 && (
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -703,7 +889,6 @@ function GastosPage() {
                 Exportar
               </Button>
 
-              {/* BOTÓN ACTUALIZADO PARA ABRIR EL MODAL DE IMPORTACIÓN */}
               <Button
                 variant="outline"
                 size="sm"
@@ -808,7 +993,6 @@ function GastosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* --- NUEVO MODAL DE IMPORTACIÓN --- */}
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -826,7 +1010,6 @@ function GastosPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="combustibles">Combustibles</SelectItem>
-                  {/* Aquí puedes agregar más opciones en el futuro */}
                 </SelectContent>
               </Select>
             </div>
@@ -887,7 +1070,7 @@ function GastosPage() {
       </Dialog>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingGasto ? "Editar Gasto" : "Registrar Nuevo Gasto"}
@@ -967,7 +1150,7 @@ function GastosPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="monto" className="font-medium text-xs uppercase text-muted-foreground">
-                    Monto (MXN) <span className="text-destructive">*</span>
+                    Monto Total (MXN) <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="monto"
@@ -993,6 +1176,87 @@ function GastosPage() {
                     required
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* --- NUEVA SECCIÓN: DISTRIBUCIÓN POR SUCURSAL --- */}
+            <div className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h4 className="text-sm font-semibold text-primary">Distribución por Sucursal</h4>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={agregarSucursal}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Agregar Sucursal
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {sucursalesDistribucion.map((dist, index) => (
+                  <div key={dist.id} className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Sucursal</Label>
+                      <SucursalSelector
+                        value={dist.sucursalId}
+                        onValueChange={(val) => {
+                          const newDist = [...sucursalesDistribucion];
+                          newDist[index].sucursalId = val;
+                          setSucursalesDistribucion(newDist);
+                        }}
+                      />
+                    </div>
+                    <div className="w-24 space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">% Dist.</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={dist.porcentaje}
+                        onChange={(e) => {
+                          const newDist = [...sucursalesDistribucion];
+                          newDist[index].porcentaje = Number(e.target.value);
+                          setSucursalesDistribucion(newDist);
+                        }}
+                      />
+                    </div>
+                    <div className="w-32 space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Monto Asignado</Label>
+                      <Input
+                        type="text"
+                        readOnly
+                        className="bg-muted text-right font-medium"
+                        value={formatCurrency(Number(monto || 0) * (dist.porcentaje / 100))}
+                      />
+                    </div>
+                    {sucursalesDistribucion.length > 1 && (
+                      <div className="pt-5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:bg-destructive/10"
+                          onClick={ () => eliminarSucursal(dist.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Validaciones visuales del total */}
+                {(() => {
+                  const total = sucursalesDistribucion.reduce((acc, curr) => acc + (Number(curr.porcentaje) || 0), 0);
+                  return (
+                    <div className="flex justify-end pt-2">
+                      <Badge variant={total === 100 ? "default" : "destructive"}>
+                        Total distribuido: {total}%
+                      </Badge>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
