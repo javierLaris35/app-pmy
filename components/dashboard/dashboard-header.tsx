@@ -1,12 +1,12 @@
 "use client"
 
-import { Calendar, Download, Filter, RefreshCw, ChevronDown, ChevronUp, Search, Check, Building } from "lucide-react"
+import { Calendar, Download, Filter, RefreshCw, ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useState, useRef, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { SucursalSelector } from "../sucursal-selector"
 
@@ -15,234 +15,167 @@ interface DashboardHeaderProps {
     from: string
     to: string
   }
-  onDateRangeChange: (range: { from: string; to: string;}) => void
+  onDateRangeChange: (range: { from: string; to: string; }) => void
   onSelectedSucursalChange: (selectedSubsidiaries: string[]) => void
+  onExport: () => void
 }
 
-export function DashboardHeader({ dateRange, onDateRangeChange, onSelectedSucursalChange }: DashboardHeaderProps) {
+export function DashboardHeader({ dateRange, onDateRangeChange, onSelectedSucursalChange, onExport }: DashboardHeaderProps) {
   const [showFilters, setShowFilters] = useState(false)
   const [filterFrom, setFilterFrom] = useState(dateRange.from)
   const [filterTo, setFilterTo] = useState(dateRange.to)
-  const [selectedBranches, setSelectedBranches] = useState<string[]>([])
-  const [searchBranch, setSearchBranch] = useState("")
-  const [isBranchesOpen, setIsBranchesOpen] = useState(false)
   const [selectedSucursalesIds, setSelectedSucursalesIds] = useState<string[]>([])
 
-  const filtersRef = useRef<HTMLDivElement>(null)
-  const branchesDropdownRef = useRef<HTMLDivElement>(null)
-  const branchesTriggerRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [filtersHeight, setFiltersHeight] = useState(0)
-
-  useEffect(() => {
-    if (filtersRef.current) setFiltersHeight(filtersRef.current.scrollHeight)
-  }, [showFilters, filterFrom, filterTo, selectedBranches])
-
-  // Actualizar posición del dropdown cuando se abre o cambian los filtros
-  useEffect(() => {
-    if (isBranchesOpen && branchesTriggerRef.current && containerRef.current) {
-      const updatePosition = () => {
-        const triggerRect = branchesTriggerRef.current!.getBoundingClientRect()
-        const containerRect = containerRef.current!.getBoundingClientRect()
-        
-        setDropdownPosition({
-          top: triggerRect.bottom - containerRect.top + 4, // 4px de margen
-          left: triggerRect.left - containerRect.left,
-          width: triggerRect.width
-        })
-      }
-
-      updatePosition()
-      
-      // Actualizar posición en resize y scroll
-      window.addEventListener('resize', updatePosition)
-      window.addEventListener('scroll', updatePosition, true)
-      
-      return () => {
-        window.removeEventListener('resize', updatePosition)
-        window.removeEventListener('scroll', updatePosition, true)
-      }
-    }
-  }, [isBranchesOpen, showFilters])
-
-  // Cerrar dropdown al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (branchesDropdownRef.current && 
-          branchesTriggerRef.current &&
-          !branchesDropdownRef.current.contains(event.target as Node) &&
-          !branchesTriggerRef.current.contains(event.target as Node)) {
-        setIsBranchesOpen(false)
-      }
-    }
-
-    if (isBranchesOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-    
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [isBranchesOpen])
-
-  const branchesOptions = ["Sucursal 1", "Sucursal 2", "Sucursal 3", "Sucursal 4"]
-
-  const filteredBranches = branchesOptions.filter(branch =>
-    branch.toLowerCase().includes(searchBranch.toLowerCase())
-  )
-
-  const toggleBranch = (branch: string) => {
-    const newSelection = selectedBranches.includes(branch)
-      ? selectedBranches.filter(b => b !== branch)
-      : [...selectedBranches, branch]
-    
-    setSelectedBranches(newSelection)
-  }
+  // Determinar si hay filtros activos (diferentes a los props iniciales o sucursales seleccionadas)
+  const hasActiveFilters = useMemo(() => {
+    return filterFrom !== dateRange.from || filterTo !== dateRange.to || selectedSucursalesIds.length > 0;
+  }, [filterFrom, filterTo, dateRange.from, dateRange.to, selectedSucursalesIds]);
 
   const handleApplyFilters = () => {
-    onDateRangeChange({ from: filterFrom, to: filterTo});
+    onDateRangeChange({ from: filterFrom, to: filterTo });
     onSelectedSucursalChange(selectedSucursalesIds)
     setShowFilters(false);
   }
 
-  // Función para formatear fecha en español
+  // FIX #1: Corrección del desfase de zona horaria (Timezone Bug)
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-MX", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric"
-    })
+    if (!dateString) return "";
+    const [year, month, day] = dateString.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day);
+    return localDate.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
   }
 
   return (
-    <div ref={containerRef} className="relative">
-      <Card className="bg-white/95 backdrop-blur-sm border border-gray-200 shadow-md overflow-hidden transition-all duration-300">
-        <CardContent className="p-6">
-          <div className="flex flex-col gap-6">
-            {/* Header Principal */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              {/* Título y Estado */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-8 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></div>
-                  <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Dashboard Ejecutivo</h1>
-                    <p className="text-slate-600">Monitoreo en tiempo real de todas las sucursales</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                    Sistema Activo
-                  </Badge>
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                    9 Sucursales Conectadas
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Controles principales */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Rango de fechas */}
-                <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm">
-                  <Calendar className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm text-slate-700">
-                    {formatDate(filterFrom)} - {formatDate(filterTo)}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-200 hover:bg-gray-50 flex items-center gap-2"
-                    onClick={() => setShowFilters(!showFilters)}
-                  >
-                    <Filter className="h-4 w-4" />
-                    Filtros
-                    {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-200 hover:bg-gray-50 flex items-center gap-2"
-                    onClick={handleApplyFilters}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Actualizar
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 flex items-center gap-2 shadow-md"
-                  >
-                    <Download className="h-4 w-4" />
-                    Exportar
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Panel de Filtros Desplegable */}
-            <div
-              style={{ height: showFilters ? `${filtersHeight}px` : "0px" }}
-              className="overflow-hidden transition-all duration-300 ease-in-out"
-            >
-              <div
-                ref={filtersRef}
-                className={cn(
-                  "grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-white rounded-xl shadow-lg border border-gray-200",
-                  "transition-opacity duration-300",
-                  showFilters ? "opacity-100" : "opacity-0"
-                )}
-              >
-                {/* Fecha Desde */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                    Desde
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={filterFrom}
-                      onChange={(e) => setFilterFrom(e.target.value)}
-                      className="w-full pl-3 pr-3 py-2 border-gray-300 focus:border-orange-400 focus:ring-orange-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Fecha Hasta */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                    Hasta
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={filterTo}
-                      onChange={(e) => setFilterTo(e.target.value)}
-                      className="w-full pl-3 pr-3 py-2 border-gray-300 focus:border-orange-400 focus:ring-orange-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Selector de Sucursales Personalizado */}
-                <div className="space-y-2 relative">
-                  <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                    Sucursales
-                  </Label>
-                  <SucursalSelector value={selectedSucursalesIds} multi={true} onValueChange={setSelectedSucursalesIds} />
-                </div>
+    <Card className="bg-white/95 backdrop-blur-sm border border-gray-200 shadow-sm overflow-hidden">
+      <CardContent className="p-0">
+        
+        {/* --- HEADER PRINCIPAL --- */}
+        <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          
+          {/* Título y Estado */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-8 bg-orange-500 rounded-full"></div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Ejecutivo</h1>
+                <p className="text-sm text-slate-500 mt-0.5">Visión global y métricas de desempeño</p>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Dropdown de Sucursales - Posicionado absolutamente respecto al contenedor padre */}
-      
-    </div>
+          {/* Controles y Acciones Principales */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            
+            {/* Display de Fecha Actual */}
+            <div className="w-full sm:w-auto flex items-center justify-center sm:justify-start gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg text-sm text-slate-700 font-medium">
+              <Calendar className="h-4 w-4 text-orange-500" />
+              <span>{formatDate(dateRange.from)} - {formatDate(dateRange.to)}</span>
+            </div>
+
+            <div className="w-full sm:w-auto flex items-center gap-2">
+              <Button
+                variant={hasActiveFilters ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className={cn(
+                  "flex-1 sm:flex-none flex items-center gap-2 transition-all",
+                  hasActiveFilters 
+                    ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100" 
+                    : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                )}
+              >
+                <Filter className="h-4 w-4" />
+                {hasActiveFilters ? 'Filtros Activos' : 'Filtros'}
+                {showFilters ? <ChevronUp className="h-4 w-4 ml-1 opacity-50" /> : <ChevronDown className="h-4 w-4 ml-1 opacity-50" />}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onExport}
+                className="flex-1 sm:flex-none border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+              >
+                <Download className="h-4 w-4 text-slate-500" />
+                Exportar
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* --- PANEL DE FILTROS DESPLEGABLE --- */}
+        {/* Usamos CSS Grid para una animación fluida de altura sin necesidad de medir refs con JS */}
+        <div 
+          className={cn(
+            "grid transition-all duration-300 ease-in-out border-t border-slate-100",
+            showFilters ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="p-6 bg-slate-50/50">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* Fecha Desde */}
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    Desde
+                  </Label>
+                  <Input
+                    type="date"
+                    value={filterFrom}
+                    onChange={(e) => setFilterFrom(e.target.value)}
+                    className="w-full bg-white border-slate-300 focus-visible:ring-orange-500 shadow-sm"
+                  />
+                </div>
+
+                {/* Fecha Hasta */}
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    Hasta
+                  </Label>
+                  <Input
+                    type="date"
+                    value={filterTo}
+                    onChange={(e) => setFilterTo(e.target.value)}
+                    className="w-full bg-white border-slate-300 focus-visible:ring-orange-500 shadow-sm"
+                  />
+                </div>
+
+                {/* Selector de Sucursales */}
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    Sucursales
+                  </Label>
+                  <div className="bg-white rounded-md shadow-sm">
+                     <SucursalSelector value={selectedSucursalesIds} multi={true} onValueChange={setSelectedSucursalesIds} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Acciones de Filtro */}
+              <div className="mt-6 flex justify-end gap-3 border-t border-slate-200 pt-6">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowFilters(false)}
+                  className="text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={handleApplyFilters}
+                  className="bg-orange-500 hover:bg-orange-600 text-white shadow-sm flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Aplicar Filtros
+                </Button>
+              </div>
+              
+            </div>
+          </div>
+        </div>
+        
+      </CardContent>
+    </Card>
   )
 }

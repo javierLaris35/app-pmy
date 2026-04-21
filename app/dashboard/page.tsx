@@ -10,27 +10,37 @@ import { useSubsidiaryStore } from "@/store/subsidiary.store"
 import { useFinancialSummary } from "@/hooks/services/incomes/use-income"
 import { useDashboard } from "@/hooks/services/dashboard/use-dashboard"
 import { parseDateFromDDMMYYYY } from "@/utils/date.utils"
-import { format, startOfMonth, endOfMonth, parseISO } from "date-fns"
+import { format, startOfMonth, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import type { FinancialSummary, GroupExpese } from "@/lib/types"
 import { withAuth } from "@/hoc/withAuth"
 
 function DashboardContent() {
   const today = new Date()
+  // CAMBIO 1: La fecha inicial es el 1er día del mes, la fecha final es el día de HOY.
   const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
-  const endDayOfMonth = format(endOfMonth(today), "yyyy-MM-dd")
+  const currentDay = format(today, "yyyy-MM-dd")
 
   const [fromDate, setFromDate] = useState(startDayOfMonth)
-  const [toDate, setToDate] = useState(endDayOfMonth)
-  const [dateRange, setDateRange] = useState({ from: startDayOfMonth, to: endDayOfMonth })
+  const [toDate, setToDate] = useState(currentDay)
+  const [dateRange, setDateRange] = useState({ from: startDayOfMonth, to: currentDay })
+  
+  // Este estado guarda los IDs que vienen del DashboardHeader
   const [selectedSubsidiaries, setSelectedSubsidiaries] = useState<string[]>([])
 
   const user = useAuthStore((s) => s.user)
   const selectedSucursalId = useSubsidiaryStore((s) => s.selectedSubsidiaryId)
   const setSelectedSucursalId = useSubsidiaryStore((s) => s.setSelectedSubsidiaryId)
 
+  // Hooks de datos
   const { summary, isLoading, mutate } = useFinancialSummary(selectedSucursalId, fromDate, toDate)
-  const { data, isLoading: isDashboardLoading, mutate: mutateDashboard } = useDashboard(fromDate, toDate)
+  
+  // CAMBIO 2: Ahora pasamos selectedSubsidiaries a useDashboard
+  const { data, isLoading: isDashboardLoading, mutate: mutateDashboard } = useDashboard(
+    fromDate, 
+    toDate, 
+    selectedSubsidiaries
+  )
 
   const [ingresosData, setIngresosData] = useState<any[]>([])
   const [gastosData, setGastosData] = useState<any[]>([])
@@ -44,21 +54,18 @@ function DashboardContent() {
     }
   }, [user, selectedSucursalId, setSelectedSucursalId])
 
-  // Ajustar toDate al cambiar fromDate
-  useEffect(() => {
-    if (fromDate) {
-      const newDate = parseISO(fromDate)
-      setToDate(format(endOfMonth(newDate), "yyyy-MM-dd"))
-    }
-  }, [fromDate])
+  // CAMBIO 3: Elimino el useEffect que forzaba el toDate al final del mes
+  // Si el usuario cambia el fromDate en el selector, el toDate NO debería saltar al fin de mes automáticamente,
+  // debería respetar el rango que el usuario haya seleccionado en el DashboardHeader.
 
-  // Actualizar datos cuando cambian fechas o sucursal
+  // Actualizar datos cuando cambian fechas, sucursal o las sucursales seleccionadas (múltiples)
   useEffect(() => {
     if (selectedSucursalId) {
       mutate() // Finanzas
-      mutateDashboard() // Dashboard
     }
-  }, [fromDate, toDate, selectedSucursalId])
+    // El dashboard se actualiza independientemente de 'selectedSucursalId' ya que usa 'selectedSubsidiaries'
+    mutateDashboard() 
+  }, [fromDate, toDate, selectedSucursalId, selectedSubsidiaries, mutate, mutateDashboard])
 
   // Formatear ingresos y gastos cuando summary cambia
   useEffect(() => {
@@ -68,7 +75,7 @@ function DashboardContent() {
     const safeExpenses = Array.isArray(summary.expenses) ? summary.expenses : []
 
     const ingresosFormateados = safeIncomes.map((ingreso) => ({
-      date: parseDateFromDDMMYYYY(ingreso.date).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
+      date: parseDateFromDDMMYYYY(ingreso.date).toLocaleDateString("en-US", { day: "2-digit", month: "short" }),
       amount: Number(ingreso.totalIncome.replace(/[$,]/g, '')),
     }))
     setIngresosData(ingresosFormateados)
@@ -76,7 +83,7 @@ function DashboardContent() {
     const gastosFormateados = safeExpenses.map((gasto) => {
       const fechaObj = parseISO(gasto.date)
       return {
-        date: format(fechaObj, "dd MMM", { locale: es }),
+        date: format(fechaObj, "dd MMM", { locale: es }), // Mantengo "es" aquí, asumiendo que quieres el formato de fecha en español (ej. "21 abr")
         amount: gasto.total,
       }
     })
@@ -108,6 +115,7 @@ function DashboardContent() {
               setFromDate(range.from)
               setToDate(range.to)
             }}
+            // Esto ya estaba correcto, actualiza nuestro estado
             onSelectedSucursalChange={setSelectedSubsidiaries}
           />
 
