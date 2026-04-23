@@ -225,7 +225,7 @@ export const SHIPMENT_STATUS_MAP: Record<string, string> = {
   "17": "DEX17",
   "12": "DEX12",
   "14": "DEX14 - STAT14",
-  "19": "STAT19",
+  "STAT19": "STAT19",
   "GF": "GUIA FRAUDE"
 };
 
