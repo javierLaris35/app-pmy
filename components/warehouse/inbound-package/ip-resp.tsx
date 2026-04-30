@@ -39,8 +39,26 @@ import {
 } from "lucide-react"
 import { UnidadSelector } from "@/components/selectors/unidad-selector"
 import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
-import { validateShipment } from "@/lib/services/warehouse/warehouse"
-import { ScannedShipment } from "@/lib/types"
+
+// --- Tipos adaptados a tu Entidad Shipment ---
+export type ShipmentType = "FEDEX" | "DHL" | "UPS"
+export type Priority = "ALTA" | "MEDIA" | "BAJA"
+
+export type ScannedShipment = {
+  id: string
+  trackingNumber: string
+  shipmentType: ShipmentType
+  recipientZip: string
+  subsidiaryId: string
+  commitDateTime: Date
+  isHighValue: boolean
+  isCargo: boolean
+  hasCharge: boolean
+  chargeAmount?: number
+  priority: Priority
+  status: string
+  weight: number
+}
 
 export type SessionState = {
   id: string
@@ -76,14 +94,46 @@ const isTomorrow = (date: Date) => {
   return tomorrow.toDateString() === new Date(date).toDateString()
 }
 
+// Generador mock
+const generateScannedShipment = (tracking: string): ScannedShipment => {
+  const sucursales = Object.keys(sucursalMap)
+  const carriers: ShipmentType[] = ["FEDEX", "DHL"]
+  const randomZip = `85${Math.floor(Math.random() * 900) + 100}`
+  
+  const randDate = Math.random()
+  const date = new Date()
+  if (randDate > 0.8) date.setDate(date.getDate() + 1) // Mañana
+  else if (randDate > 0.6) date.setDate(date.getDate() + 5) // Futuro
+
+  const hasCharge = Math.random() > 0.8
+  
+  return {
+    id: crypto.randomUUID(),
+    trackingNumber: tracking,
+    shipmentType: carriers[Math.floor(Math.random() * carriers.length)],
+    recipientZip: randomZip,
+    subsidiaryId: sucursales[Math.floor(Math.random() * sucursales.length)],
+    commitDateTime: date,
+    isHighValue: Math.random() > 0.85,
+    isCargo: Math.random() > 0.9,
+    hasCharge: hasCharge,
+    chargeAmount: hasCharge ? Math.floor(Math.random() * 500) + 100 : undefined,
+    priority: "MEDIA",
+    status: "PENDIENTE",
+    weight: Math.floor(Math.random() * 20) + 1
+  }
+}
+
 export default function InboundPackage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   
   const { speak: speakMessage } = useBrowserVoice({ pitch: 0.8, rate: 1.3 })
 
+  // WRAPPER OPTIMIZADO PARA POS
   const safeSpeak = useCallback((text: string) => {
     try {
+      // Cancelamos cualquier voz reproduciéndose actualmente para escaneos rápidos
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel()
       }
@@ -140,7 +190,7 @@ export default function InboundPackage() {
 
     if (filters.search) {
       const s = filters.search.toLowerCase()
-      result = result.filter(p => p.trackingNumber.toLowerCase().includes(s) || (p.recipientZip && p.recipientZip.includes(s)))
+      result = result.filter(p => p.trackingNumber.toLowerCase().includes(s) || p.recipientZip.includes(s))
     }
     if (filters.sucursal !== "ALL") result = result.filter(p => p.subsidiaryId === filters.sucursal)
     if (filters.carrier !== "ALL") result = result.filter(p => p.shipmentType === filters.carrier)
@@ -152,21 +202,21 @@ export default function InboundPackage() {
       const cmpCarrier = a.shipmentType.localeCompare(b.shipmentType)
       if (cmpCarrier !== 0) return cmpCarrier
 
-      return (a.recipientZip || "").localeCompare(b.recipientZip || "")
+      return a.recipientZip.localeCompare(b.recipientZip)
     })
 
     return result
   }, [session.packages, filters])
 
-  // --- KPIs Restaurados ---
+  // KPIs
   const expiringTodayPackages = useMemo(() => session.packages.filter(p => isToday(p.commitDateTime)), [session.packages])
   const highValuePackages = useMemo(() => session.packages.filter(p => p.isHighValue), [session.packages])
   const cargoPackages = useMemo(() => session.packages.filter(p => p.isCargo), [session.packages])
   const packagesWithCharges = useMemo(() => session.packages.filter(p => p.hasCharge), [session.packages])
   const totalChargesAmount = useMemo(() => packagesWithCharges.reduce((acc, p) => acc + (p.chargeAmount || 0), 0), [packagesWithCharges])
   
-  const fedexCount = useMemo(() => session.packages.filter(p => p.shipmentType === "fedex").length, [session.packages])
-  const dhlCount = useMemo(() => session.packages.filter(p => p.shipmentType === "dhl").length, [session.packages])
+  const fedexCount = useMemo(() => session.packages.filter(p => p.shipmentType === "FEDEX").length, [session.packages])
+  const dhlCount = useMemo(() => session.packages.filter(p => p.shipmentType === "DHL").length, [session.packages])
 
   // Atajos de teclado
   useEffect(() => {
@@ -193,7 +243,6 @@ export default function InboundPackage() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [session.packages.length])
 
-  // --- LÓGICA DE ESCANEO REAL + VALORES POR DEFECTO PARA UI ---
   const handleScan = useCallback(async () => {
     if (!scanInput.trim()) return
     setIsScanning(true)
@@ -201,54 +250,31 @@ export default function InboundPackage() {
     
     const trackingNumber = scanInput.trim().toUpperCase()
 
-    if (session.packages.some((p) => p.trackingNumber === trackingNumber)) {
-      setError(`Guía duplicada: ${trackingNumber}`)
-      safeSpeak("Guía duplicada.")
-      setIsScanning(false)
-      setScanInput("")
-      return
-    }
-
-    try {
-      const result = await validateShipment(trackingNumber)
-
-      console.log("🚀 ~ InboundPackage ~ result:", result)
-
-      if (result.isValid === false) {
-        setError(result.reason || "No encontrado en sistema")
-        safeSpeak("No encontrado.")
-      } else {
-        const newShipment: ScannedShipment = {
-          ...result,
-          commitDateTime: new Date(result.commitDateTime),
-          // Defaults para evitar errores en modales si el backend no los manda aún
-          isCarga: result.isCarga || false,
-          hasPayment: result.hasPayment || false,
-          paymentAmount: result.paymentAmount || 0
-        }
-        
-        if (isToday(newShipment.commitDateTime)) {
-          safeSpeak("Vence hoy")
-        } else if (isTomorrow(newShipment.commitDateTime)) {
-          safeSpeak("Vence mañana")
-        } else {
-          safeSpeak("Registrado")
-        }
-
-        setSession(prev => ({
-          ...prev,
-          packages: [newShipment, ...prev.packages]
-        }))
-        setScanInput("")
+    setSession((prevSession) => {
+      if (prevSession.packages.some((p) => p.trackingNumber === trackingNumber)) {
+        setError(`Guía duplicada: ${trackingNumber}`)
+        safeSpeak("Guía duplicada. Por favor, verifica.")
+        return prevSession
       }
-    } catch (err) {
-      setError("Error de comunicación con el servidor")
-      safeSpeak("Error de sistema")
-    } finally {
-      setIsScanning(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
-  }, [scanInput, session.packages, safeSpeak])
+
+      const newShipment = generateScannedShipment(trackingNumber)
+      
+      if (isToday(newShipment.commitDateTime)) {
+        safeSpeak("El paquete expira hoy")
+      } else if (isTomorrow(newShipment.commitDateTime)) {
+        safeSpeak("El paquete expira mañana")
+      }
+
+      return {
+        ...prevSession,
+        packages: [newShipment, ...prevSession.packages],
+      }
+    })
+
+    setScanInput("")
+    setIsScanning(false)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [scanInput, safeSpeak])
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -416,7 +442,7 @@ export default function InboundPackage() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-white z-10 shadow-sm border-b">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[170px] text-xs h-9 text-bold">Tracking</TableHead>
+                      <TableHead className="w-[170px] text-xs h-9">Tracking</TableHead>
                       <TableHead className="text-xs h-9">Carrier</TableHead>
                       <TableHead className="text-xs h-9">Destino</TableHead>
                       <TableHead className="text-xs h-9 w-[300px]">Alertas y Etiquetas</TableHead>
@@ -433,12 +459,12 @@ export default function InboundPackage() {
                     ) : (
                       processedPackages.map((pkg) => (
                         <TableRow key={pkg.id}>
-                          <TableCell className="font-mono font-medium text-sm py-2.5 text-bold">{pkg.trackingNumber}</TableCell>
+                          <TableCell className="font-mono font-medium text-sm py-2.5">{pkg.trackingNumber}</TableCell>
                           
                           <TableCell className="py-2.5">
-                            {pkg.shipmentType === 'fedex' ? (
+                            {pkg.shipmentType === 'FEDEX' ? (
                               <Badge className="bg-[#4d148c] hover:bg-[#4d148c]/90 text-white font-bold text-[10px] border-none shadow-sm">FedEx</Badge>
-                            ) : pkg.shipmentType === 'dhl' ? (
+                            ) : pkg.shipmentType === 'DHL' ? (
                               <Badge className="bg-[#ffcc00] hover:bg-[#ffcc00]/90 text-[#d40511] font-bold text-[10px] border-none shadow-sm">DHL</Badge>
                             ) : (
                               <Badge variant="outline" className="font-normal text-[10px]">{pkg.shipmentType}</Badge>
@@ -446,7 +472,7 @@ export default function InboundPackage() {
                           </TableCell>
                           
                           <TableCell className="text-xs py-2.5 text-muted-foreground">
-                            {sucursalMap[pkg.subsidiary.name] || pkg.subsidiary.name} <br/>
+                            {sucursalMap[pkg.subsidiaryId] || pkg.subsidiaryId} <br/>
                             <span className="font-mono">CP: {pkg.recipientZip}</span>
                           </TableCell>
                           
@@ -455,8 +481,8 @@ export default function InboundPackage() {
                               {isToday(pkg.commitDateTime) && <Badge className="font-bold text-[10px] px-1.5 py-0 bg-red-600 text-white hover:bg-red-700 shadow-sm">Vence Hoy</Badge>}
                               {isTomorrow(pkg.commitDateTime) && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-orange-100 text-orange-800 border-orange-200 border hover:bg-orange-200">Vence Mañana</Badge>}
                               {pkg.isHighValue && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200 border hover:bg-purple-200">Alto Valor</Badge>}
-                              {pkg.isCarga && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200 border hover:bg-blue-200">Carga</Badge>}
-                              {pkg.hasPayment && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border-amber-200 border hover:bg-amber-200">Cobro: ${pkg.chargeAmount}</Badge>}
+                              {pkg.isCargo && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200 border hover:bg-blue-200">Carga</Badge>}
+                              {pkg.hasCharge && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border-amber-200 border hover:bg-amber-200">Cobro: ${pkg.chargeAmount}</Badge>}
                             </div>
                           </TableCell>
                           
@@ -485,7 +511,7 @@ export default function InboundPackage() {
           <div className="xl:col-span-4 space-y-4">
             
             <Card className="border-blue-200 shadow-sm">
-              <CardContent className="pt-6">
+              <CardContent className="">
                 <div className="bg-blue-50/30 pb-4">
                     <Label className="text-sm font-medium flex items-center gap-2">
                         <Barcode className="w-4 h-4 text-blue-600" /> Captura de Tracking (Escáner)
@@ -519,9 +545,9 @@ export default function InboundPackage() {
             </Card>
 
             <Card>
-              <CardContent className="pt-6">
+              <CardContent className="">
                 <Label className="">Asignación de Ruta</Label>
-                <div className="space-y-2 mt-2">
+                <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Seleccionar Vehículo</Label>
                   <UnidadSelector 
                     selectedUnidad={session.vehicleId}
@@ -530,7 +556,7 @@ export default function InboundPackage() {
                 </div>
                 
                 {selectedVehiculo && (
-                    <div className="space-y-2 mt-4">
+                    <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Seleccionar Chofer</Label>
                       <RepartidorSelector 
                         onSelectionChange={(e) => {
@@ -544,7 +570,7 @@ export default function InboundPackage() {
             </Card>
 
             <Card>
-              <CardContent className="pt-6 space-y-3">
+              <CardContent className="space-y-3">
                 <Label className="text-sm font-medium">Procesar Recepción</Label>
                 <div className="space-y-2">
                     {isClient ? (
@@ -576,7 +602,7 @@ export default function InboundPackage() {
         </div>
       </main>
 
-      {/* --- Modales Restaurados --- */}
+      {/* --- Modales --- */}
 
       <Dialog open={modals.shortcuts} onOpenChange={(val) => toggleModal("shortcuts", val)}>
         <DialogContent className="sm:max-w-[425px]">
