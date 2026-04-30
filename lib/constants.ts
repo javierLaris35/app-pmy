@@ -56,6 +56,28 @@ export const sidebarMenu = {
       ]
     },
     {
+      title: "Bodega",
+      url:"#",
+      icon: Warehouse,
+      isActive: false,
+      items: [
+        {
+          name: "Entrada",
+          url: "/bodega/entrada",
+          icon: PackageIcon,
+          roles: allowedPageRoles.bodega.entrada,
+          isActive: false
+        },
+        {
+          name: "Salida",
+          url: "/bodega/salida",
+          icon: PackageIcon,
+          roles: allowedPageRoles.bodega.salida,
+          isActive: false
+        }
+      ]
+    },
+    {
       title: "Operaciones",
       url: "#",
       icon: BriefcaseBusinessIcon,

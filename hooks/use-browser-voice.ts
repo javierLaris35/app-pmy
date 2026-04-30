@@ -119,9 +119,12 @@ export function useBrowserVoice(options: UseBrowserVoiceOptions = {}): UseBrowse
             setIsPaused(false);
         };
         utterance.onerror = (event) => {
-            console.error('Speech synthesis error:', event);
-            setIsSpeaking(false);
-            setIsPaused(false);
+        // Ignoramos silenciosamente si la voz se canceló porque escaneaste otro paquete rápido
+        if (event.error === 'canceled' || event.error === 'interrupted') {
+            return; 
+        }
+        // Usamos console.warn en lugar de console.error para que Next.js no tire la pantalla roja
+        console.warn("Speech synthesis error:", event);
         };
 
         window.speechSynthesis.speak(utterance);
