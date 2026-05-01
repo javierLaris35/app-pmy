@@ -12,12 +12,12 @@ import { useDashboard } from "@/hooks/services/dashboard/use-dashboard"
 import { parseDateFromDDMMYYYY } from "@/utils/date.utils"
 import { format, startOfMonth, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
-import type { FinancialSummary, GroupExpese } from "@/lib/types"
+import type { GroupExpese } from "@/lib/types"
 import { withAuth } from "@/hoc/withAuth"
+import { getFinancialSummary } from "@/lib/services/reports/reports"
 
 function DashboardContent() {
   const today = new Date()
-  // CAMBIO 1: La fecha inicial es el 1er día del mes, la fecha final es el día de HOY.
   const startDayOfMonth = format(startOfMonth(today), "yyyy-MM-dd")
   const currentDay = format(today, "yyyy-MM-dd")
 
@@ -25,82 +25,72 @@ function DashboardContent() {
   const [toDate, setToDate] = useState(currentDay)
   const [dateRange, setDateRange] = useState({ from: startDayOfMonth, to: currentDay })
   
-  // Este estado guarda los IDs que vienen del DashboardHeader
   const [selectedSubsidiaries, setSelectedSubsidiaries] = useState<string[]>([])
 
   const user = useAuthStore((s) => s.user)
   const selectedSucursalId = useSubsidiaryStore((s) => s.selectedSubsidiaryId)
   const setSelectedSucursalId = useSubsidiaryStore((s) => s.setSelectedSubsidiaryId)
 
-  // Hooks de datos
-  const { summary, isLoading, mutate } = useFinancialSummary(selectedSucursalId, fromDate, toDate)
-  
-  // CAMBIO 2: Ahora pasamos selectedSubsidiaries a useDashboard
   const { data, isLoading: isDashboardLoading, mutate: mutateDashboard } = useDashboard(
     fromDate, 
     toDate, 
     selectedSubsidiaries
   )
 
-  const [ingresosData, setIngresosData] = useState<any[]>([])
-  const [gastosData, setGastosData] = useState<any[]>([])
-  const [gastosPorCategoria, setGastosPorCategoria] = useState<any[]>([])
   const isAdmin = user?.role.includes("admin") || user?.role.includes("superadmin")
 
-  // Inicializar sucursal si no hay seleccionada
   useEffect(() => {
     if (!selectedSucursalId && user?.subsidiaryId) {
       setSelectedSucursalId(user.subsidiaryId)
     }
   }, [user, selectedSucursalId, setSelectedSucursalId])
 
-  // CAMBIO 3: Elimino el useEffect que forzaba el toDate al final del mes
-  // Si el usuario cambia el fromDate en el selector, el toDate NO debería saltar al fin de mes automáticamente,
-  // debería respetar el rango que el usuario haya seleccionado en el DashboardHeader.
-
-  // Actualizar datos cuando cambian fechas, sucursal o las sucursales seleccionadas (múltiples)
   useEffect(() => {
     if (selectedSucursalId) {
-      mutate() // Finanzas
+      //mutate() // Finanzas
     }
-    // El dashboard se actualiza independientemente de 'selectedSucursalId' ya que usa 'selectedSubsidiaries'
     mutateDashboard() 
-  }, [fromDate, toDate, selectedSucursalId, selectedSubsidiaries, mutate, mutateDashboard])
+  }, [fromDate, toDate, selectedSucursalId, selectedSubsidiaries, mutateDashboard])
 
-  // Formatear ingresos y gastos cuando summary cambia
-  useEffect(() => {
-    if (!summary || isLoading) return
+  // Función que recibe los parámetros del hijo y ejecuta la descarga
+  const handleExportFinancialSummary = async (filters: { startDate: string; endDate: string; subsidiaryIds: string[] }) => {
+    try {
+      // 1. Obtenemos la data cruda del backend. 
+      // (Axios ya lanza error automáticamente si falla el HTTP, por lo que quitamos el if(!response.ok))
+      const rawData = await getFinancialSummary(filters.subsidiaryIds, filters.startDate, filters.endDate)
 
-    const safeIncomes = Array.isArray(summary.incomes) ? summary.incomes : []
-    const safeExpenses = Array.isArray(summary.expenses) ? summary.expenses : []
+      // 2. Forzamos la creación de un Blob con el tipo MIME exacto de Excel
+      const excelBlob = new Blob([rawData], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
 
-    const ingresosFormateados = safeIncomes.map((ingreso) => ({
-      date: parseDateFromDDMMYYYY(ingreso.date).toLocaleDateString("en-US", { day: "2-digit", month: "short" }),
-      amount: Number(ingreso.totalIncome.replace(/[$,]/g, '')),
-    }))
-    setIngresosData(ingresosFormateados)
+      // 3. Crear el enlace temporal de descarga
+      const downloadUrl = window.URL.createObjectURL(excelBlob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
 
-    const gastosFormateados = safeExpenses.map((gasto) => {
-      const fechaObj = parseISO(gasto.date)
-      return {
-        date: format(fechaObj, "dd MMM", { locale: es }), // Mantengo "es" aquí, asumiendo que quieres el formato de fecha en español (ej. "21 abr")
-        amount: gasto.total,
+      // 4. Determinar nombre del archivo basado en la selección
+      let prefix = 'Todas_Las_Sucursales'
+      if (filters.subsidiaryIds.length === 1) {
+        prefix = filters.subsidiaryIds[0]
+      } else if (filters.subsidiaryIds.length > 1) {
+        prefix = 'Multiples_Sucursales'
       }
-    })
-    setGastosData(gastosFormateados)
-    setGastosPorCategoria(calcularGastosPorCategoria(safeExpenses))
-  }, [summary, isLoading])
 
-  const calcularGastosPorCategoria = (dailyExpenses: GroupExpese[] = []) => {
-    const acumulado: Record<string, number> = {}
-    dailyExpenses.forEach(({ items }) => {
-      items.forEach((gasto) => {
-        const name = gasto.category?.trim() || 'Sin categoría'
-        const amount = typeof gasto.amount === 'number' ? gasto.amount : parseFloat(String(gasto.amount)) || 0
-        acumulado[name] = (acumulado[name] || 0) + amount
-      })
-    })
-    return Object.entries(acumulado).map(([name, value]) => ({ name, value }))
+      link.download = `Estado_de_Resultados_${prefix}_${filters.startDate}_al_${filters.endDate}.xlsx`
+      
+      // 5. Simular el clic para forzar la descarga en el navegador
+      document.body.appendChild(link)
+      link.click()
+      
+      // 6. Limpiar la memoria y el DOM
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+
+    } catch (error) {
+      // Si el servidor de verdad falla (ej. error 500), Axios caerá aquí.
+      console.error("Fallo al exportar el reporte:", error)
+    }
   }
 
   return (
@@ -115,7 +105,8 @@ function DashboardContent() {
               setFromDate(range.from)
               setToDate(range.to)
             }}
-            // Esto ya estaba correcto, actualiza nuestro estado
+            // Corregido: Pasamos la referencia, no la ejecución
+            onExport={handleExportFinancialSummary} 
             onSelectedSucursalChange={setSelectedSubsidiaries}
           />
 

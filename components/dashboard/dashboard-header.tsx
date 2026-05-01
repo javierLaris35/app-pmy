@@ -3,7 +3,6 @@
 import { Calendar, Download, Filter, RefreshCw, ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useState, useMemo } from "react"
@@ -17,7 +16,8 @@ interface DashboardHeaderProps {
   }
   onDateRangeChange: (range: { from: string; to: string; }) => void
   onSelectedSucursalChange: (selectedSubsidiaries: string[]) => void
-  onExport: () => void
+  // Actualizamos la firma para retornar los parámetros actuales
+  onExport: (filters: { startDate: string; endDate: string; subsidiaryIds: string[] }) => void
 }
 
 export function DashboardHeader({ dateRange, onDateRangeChange, onSelectedSucursalChange, onExport }: DashboardHeaderProps) {
@@ -92,7 +92,12 @@ export function DashboardHeader({ dateRange, onDateRangeChange, onSelectedSucurs
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onExport}
+                // Enviamos los parámetros actuales al método padre
+                onClick={() => onExport({ 
+                  startDate: filterFrom, 
+                  endDate: filterTo, 
+                  subsidiaryIds: selectedSucursalesIds 
+                })}
                 className="flex-1 sm:flex-none border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
               >
                 <Download className="h-4 w-4 text-slate-500" />
