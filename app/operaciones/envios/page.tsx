@@ -12,7 +12,7 @@ import {
 import { Eye, Upload } from "lucide-react"
 import { columns } from "./columns"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
-import { Shipment, UserRoleEnum } from "@/lib/types"
+import { DhlImportData, Shipment, UserRoleEnum } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
 import { useShipments } from "@/hooks/services/shipments/use-shipments"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,13 +26,18 @@ import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
 import { withAuth } from "@/hoc/withAuth";
 import { useAuthStore } from "@/store/auth.store"
 import { SucursalSelector } from "@/components/sucursal-selector"
-
+import { updateFromDHL } from "@/lib/services/shipments"
+import { ImportDHLModal } from "@/components/import-components/import-dhl-modal"
+import { format, toZonedTime } from 'date-fns-tz';
 
 function ShipmentsPage() {
   const user = useAuthStore((s) => s.user)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null)
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [consDate, setConsDate] = useState<Date | string | null>(null);
+  const [isDhlModalOpen, setIsDhlModalOpen] = useState(false)
 
   // ✅ Determinamos la sucursal actual
   const effectiveSubsidiaryId = selectedSubsidiaryId || user?.subsidiary?.id
@@ -43,6 +48,32 @@ function ShipmentsPage() {
   const handleViewTimeline = useCallback((shipment: Shipment) => {
     setSelectedShipment(shipment)
   }, [])
+
+  const handleUpdateFromDHL = async (data: DhlImportData) => {
+    const formData = new FormData();
+    formData.append('file', data.file);
+    formData.append('subsidiaryId', data.subsidiaryId);
+    
+    // Pasamos el string de la fecha tal cual (ej. "2026-04-29")
+    if (data.consDate) {
+      formData.append('consDate', data.consDate);
+    }
+    
+    // Pasamos el número de consolidado si existe
+    if (data.consNumber && data.consNumber.trim() !== '') {
+      formData.append('consNumber', data.consNumber.trim());
+    }
+
+    try {
+      await updateFromDHL(formData, (progress) => {
+        console.log(`Subiendo archivo: ${progress}%`);
+      });
+      // Aquí puedes agregar tu alerta de éxito o refrescar la tabla
+    } catch (error) {
+      console.error(error);
+      // Aquí puedes agregar tu alerta de error
+    }
+  }
 
   const handleUploadSuccess = () => {
     toast("La importación de los envíos se realizó correctamente.")
@@ -99,13 +130,24 @@ function ShipmentsPage() {
 
             <Button onClick={() => setIsUploadModalOpen(true)}>
               <Upload className="h-4 w-4" />
-              Importar Envíos
+              Importar Envíos Fedex
+            </Button>
+
+            <Button onClick={() => setIsDhlModalOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Importar Envíos DHL
             </Button>
 
             <ShipmentWizardModal
               open={isUploadModalOpen}
               onOpenChange={setIsUploadModalOpen}
               onUploadSuccess={handleUploadSuccess}
+            />
+
+            <ImportDHLModal
+              isOpen={isDhlModalOpen}
+              onOpenChange={setIsDhlModalOpen}
+              onSubmit={handleUpdateFromDHL}
             />
           </div>
         </div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CheckIcon, XIcon, Package, AlertTriangle, FileText, ArrowRightLeft } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"

@@ -247,6 +247,35 @@ const url = '/shipments'
     return response.data;
   };
 
+  const updateFromDHL = async (
+    formData: FormData,
+    onProgress?: (progress: number) => void
+  ) => {
+    try {
+      const response = await axiosConfig.post('/shipments/upload-dhl', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+          }
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      const data = error.response?.data;
+      
+      // Lógica para extraer el mensaje real oculto tras el "apiMessage: E" de NestJS
+      const serverMessage = data?.response?.message || data?.message || error.message;
+      
+      const finalMessage = Array.isArray(serverMessage) 
+        ? serverMessage.join('\n') 
+        : serverMessage;
+
+      throw new Error(finalMessage);
+    }
+  }
+
 export {
     getShipments,
     getShipmentById,
@@ -256,5 +285,6 @@ export {
     generateDashboardKpis,
     getCharges,
     getShipmentByTrackingNumberShowHistory,
-    getShipmentByTrackingNumber
+    getShipmentByTrackingNumber,
+    updateFromDHL
 }

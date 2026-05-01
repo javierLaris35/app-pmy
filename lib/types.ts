@@ -851,3 +851,26 @@ export interface UnloadingValidationTrackings {
   payment?: any;
   commitDateTime?: string;
 }
+
+export interface DhlImportData {
+  file: File;           // Obligatorio: El archivo Excel físicamente.
+  subsidiaryId: string; // Obligatorio: El ID de la sucursal que seleccionó en el Select.
+  consDate?: string;    // Opcional (?): La fecha que eligió (si eligió alguna).
+  consNumber?: string;  // Opcional (?): El número de consolidado manual (si escribió alguno).
+}
+
+export interface ScannedShipment {
+  id: string
+  trackingNumber: string
+  shipmentType: ShipmentType
+  recipientZip: string
+  subsidiary: Subsidiary
+  commitDateTime: Date
+  isHighValue: boolean
+  priority: Priority
+  status: string
+  // Props de UI restauradas
+  isCarga: boolean
+  hasPayment: boolean
+  paymentAmount?: number
+}
