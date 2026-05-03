@@ -61,7 +61,6 @@ export type GroupExpese = {
   items: Expense[]
 }
 
-
 export type FinancialSummary = {
   incomes: RouteIncome[],
   expenses: GroupExpese[],
@@ -363,7 +362,6 @@ export enum Priority {
   MEDIA = 'media',
   BAJA = 'baja',
 }
-
 
 export interface TrackingValidationModalProps {
   open: boolean
@@ -873,4 +871,45 @@ export interface ScannedShipment {
   isCarga: boolean
   hasPayment: boolean
   paymentAmount?: number
+}
+
+
+export interface Transfer {
+  id: string;
+  
+  // Origen
+  originId?: string;
+  origin?: Subsidiary; // Relación completa
+  
+  // Destino
+  destinationId?: string;
+  destination?: Subsidiary; // Relación completa
+  otherDestination?: string; // Cuando seleccionan "Otro"
+  
+  // Detalles del traslado
+  amount: number;
+  transferType: 'TYCO' | 'AEROPUERTO' | 'OTRO'; // Ej: 'Tyco', 'Aeropuerto', 'Otro'
+  otherTransferType?: string; // Descripción cuando el tipo es "Otro"
+  
+  // Estado y metadatos
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | string;
+  createdAt: string; // NestJS mandará la fecha como un string ISO (ej: "2026-05-02T10:00:00.000Z")
+  
+  // Relaciones adicionales (opcionales dependiendo de si las pides en el backend)
+  drivers?: Driver[];
+  vehicle?: Unidad;
+  createdBy?: User;
+  createdById?: string;
+}
+
+// 2. Interfaz para crear el Traslado (Para el Formulario / POST)
+export interface CreateTransferPayload {
+  originId?: string;
+  destinationId?: string;
+  otherDestination?: string;
+  transferType: string;
+  otherTransferType?: string;
+  amount?: number; // Asegúrate de enviarlo, aunque sea 0 por defecto si no lo pides en el form
+  vehicleId?: string;
+  driverIds?: string[];
 }

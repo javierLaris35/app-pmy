@@ -21,7 +21,7 @@ interface SucursalSelectorProps {
   value: string | string[]
   onValueChange: (value: string | string[] | Subsidiary | Subsidiary[]) => void
   multi?: boolean
-  returnObject?: boolean // ✅ Nueva prop opcional
+  returnObject?: boolean
 }
 
 export function SucursalSelector({
@@ -54,10 +54,12 @@ export function SucursalSelector({
       } else if (!value && !defaultAppliedRef.current) {
         const defaultSucursal =
           subsidiaries.find((s) => s.id === user?.subsidiary?.id) || subsidiaries[0]
+        
         if (defaultSucursal) {
           setSelectedSucursales([defaultSucursal])
-          // No disparamos onValueChange automáticamente para evitar ciclos.
-          // El padre debe decidir cuándo propagar el valor por defecto.
+          // ✅ CORRECCIÓN: Avisamos al padre (TransferScreen) del valor por defecto.
+          // Gracias al defaultAppliedRef, esto es totalmente seguro y no hará un loop.
+          onValueChange(returnObject ? defaultSucursal : defaultSucursal.id)
           defaultAppliedRef.current = true
         }
       }
@@ -96,7 +98,7 @@ export function SucursalSelector({
   }, [multi, selectedSucursales])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -111,7 +113,7 @@ export function SucursalSelector({
       <PopoverContent className="w-[300px] p-0">
         <Command>
           <CommandInput placeholder="Buscar sucursal..." />
-          <CommandList>
+          <CommandList className="max-h-64 overflow-y-auto">
             <CommandEmpty>
               {isLoading ? "Cargando sucursales..." : "No se encontraron sucursales."}
             </CommandEmpty>

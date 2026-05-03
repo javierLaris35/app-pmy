@@ -31,6 +31,7 @@ import {
   CartesianGrid, 
   Tooltip 
 } from 'recharts';
+import { Subsidiary } from "@/lib/types"
 
 function IngresosPage() {
   // 1. ESTADOS DE FILTRO
@@ -148,7 +149,13 @@ function IngresosPage() {
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
                   <Filter className="h-3 w-3" /> Sucursal
                 </label>
-                <SucursalSelector value={selectedSucursalId} onValueChange={setSelectedSucursalId} />
+                <SucursalSelector 
+                  value={selectedSucursalId} 
+                  onValueChange={ (val) => {
+                    const id = typeof val === "string" ? val : (val as Subsidiary).id;
+                    setSelectedSucursalId(id)
+                  }} 
+                />
               </div>
               <div className="w-full space-y-1.5 text-left">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">

@@ -39,6 +39,7 @@ import { Switch } from "../ui/switch"
 // Importación de Driver.js para el tutorial
 import { driver } from "driver.js"
 import "driver.js/dist/driver.css"
+import { Subsidiary } from "@/lib/types"
 
 const steps = [
   {
@@ -287,7 +288,8 @@ export function ShipmentWizardModal({
               <SucursalSelector 
                 value={sucursalId} 
                 onValueChange={(val) => {
-                  setSucursalId(val)
+                  const id = typeof val === "string" ? val : (val as Subsidiary).id;
+                  setSucursalId(id)
                   setInputErrors(prev => ({ ...prev, sucursalId: false }))
                 }} 
               />

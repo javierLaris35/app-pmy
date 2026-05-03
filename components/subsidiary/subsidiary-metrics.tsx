@@ -44,7 +44,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// Ajusta las interfaces según tu archivo de tipos real
 export interface SubsidiaryMetrics {
   subsidiaryId: string
   subsidiaryName: string
@@ -84,12 +83,16 @@ interface Props {
 }
 
 export function SubsidiaryMetricsGrid({ data }: Props) {
-  // Extraemos el resumen general del primer elemento (si existe)
   const summary = data.length > 0 ? data[0].generalSummary : null
 
   // Formateador de moneda
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value)
+
+  // Cálculo del margen global
+  const globalMargin = summary && summary.totalIncome > 0 
+    ? (summary.totalProfit / summary.totalIncome) * 100 
+    : 0;
 
   // Helper para renderizar los mini KPIs dentro de las tarjetas
   const kpiBox = (
@@ -97,7 +100,7 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
     bgTo: string,
     icon: React.ReactNode,
     label: string,
-    value: string | number
+    value: React.ReactNode 
   ) => (
     <div
       className={`flex flex-col justify-between p-4 bg-gradient-to-r ${bgFrom} ${bgTo} rounded-xl
@@ -109,7 +112,7 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
         <span className="text-sm font-semibold text-slate-700">{label}</span>
       </div>
       <div className="flex items-center justify-end">
-        <span className="text-xl font-extrabold text-slate-800 drop-shadow-sm">
+        <span className="text-xl font-extrabold text-slate-800 drop-shadow-sm flex items-baseline gap-1">
           {value}
         </span>
       </div>
@@ -159,11 +162,16 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
 
           {/* Utilidad General */}
           <Card className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-800 border-none shadow-lg text-white">
-            <div className="absolute top-0 right-0 p-4 opacity-20">
-              <BarChart3 className="w-24 h-24" />
+            {/* Aquí reemplazamos el ícono de fondo por el porcentaje GIGANTE */}
+            <div className="absolute top-1/2 -translate-y-1/2 right-4 opacity-40 select-none">
+              <span className="text-7xl lg:text-8xl font-black tracking-tighter">
+                {globalMargin > 0 ? '+' : ''}{globalMargin.toFixed(1)}%
+              </span>
             </div>
+            
             <CardContent className="p-6 relative z-10">
               <div className="flex items-center gap-3 mb-2">
+                {/* Restauramos el ícono del billete a la izquierda */}
                 <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                   <Banknote className="w-6 h-6 text-white" />
                 </div>
@@ -194,7 +202,7 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
           </TabsList>
         </div>
 
-        {/* --- VISTA DE TARJETAS (CÓDIGO ORIGINAL MEJORADO) --- */}
+        {/* --- VISTA DE TARJETAS --- */}
         <TabsContent value="cards" className="mt-0">
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
             {data.map((subsidiary) => {
@@ -207,6 +215,11 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
                 efficiencyColor = "bg-orange-400"
                 efficiencyLabel = "Media"
               }
+
+              // Calcular margen por sucursal
+              const margin = subsidiary.totalRevenue > 0 
+                ? (subsidiary.totalProfit / subsidiary.totalRevenue) * 100 
+                : 0;
 
               return (
                 <Card
@@ -238,7 +251,21 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
                     <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
                       {kpiBox("from-green-50", "to-emerald-100/50", <Banknote className="w-4 h-4 text-emerald-700" />, "Ingresos", formatCurrency(subsidiary.totalRevenue))}
                       {kpiBox("from-orange-50", "to-orange-100/50", <Banknote className="w-4 h-4 text-orange-600" />, "Gastos", formatCurrency(subsidiary.totalExpenses))}
-                      {kpiBox("from-blue-50", "to-indigo-100/50", <Banknote className="w-4 h-4 text-indigo-700" />, "Utilidad", formatCurrency(subsidiary.totalProfit))}
+                      
+                      {/* Restauramos el billete y añadimos el margen al lado del dinero */}
+                      {kpiBox(
+                        "from-blue-50", 
+                        "to-indigo-100/50", 
+                        <Banknote className="w-4 h-4 text-indigo-700" />, 
+                        "Utilidad", 
+                        <>
+                          {formatCurrency(subsidiary.totalProfit)}
+                          <span className={`text-sm ml-1 font-bold ${margin >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            ({margin.toFixed(1)}%)
+                          </span>
+                        </>
+                      )}
+                      
                       {kpiBox("from-purple-50", "to-purple-100/50", <PercentCircle className="w-4 h-4 text-purple-600" />, "Efectividad", `${subsidiary.averageEfficiency.toFixed(0)}%`)}
                     </div>
 
@@ -309,12 +336,15 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
                     <TableHead className="text-right font-bold text-slate-700">Ingresos</TableHead>
                     <TableHead className="text-right font-bold text-slate-700">Gastos</TableHead>
                     <TableHead className="text-right font-bold text-slate-700">Utilidad</TableHead>
+                    <TableHead className="text-right font-bold text-slate-700">Margen (%)</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">Eficiencia</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.map((sub) => {
                     const isProfit = sub.totalProfit >= 0
+                    const margin = sub.totalRevenue > 0 ? (sub.totalProfit / sub.totalRevenue) * 100 : 0;
+                    
                     return (
                       <TableRow key={sub.subsidiaryId} className="hover:bg-slate-50/50 transition-colors">
                         <TableCell className="font-semibold text-slate-800">{sub.subsidiaryName}</TableCell>
@@ -325,6 +355,9 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
                         <TableCell className="text-right">{formatCurrency(sub.totalExpenses)}</TableCell>
                         <TableCell className={`text-right font-bold ${isProfit ? 'text-blue-600' : 'text-red-600'}`}>
                           {formatCurrency(sub.totalProfit)}
+                        </TableCell>
+                        <TableCell className={`text-right font-medium ${margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {margin.toFixed(1)}%
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge 

@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon } from "lucide-react"
 import { ElementType } from "react";
 import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
@@ -62,10 +62,31 @@ export const sidebarMenu = {
       isActive: false,
       items: [
         {
+          name: "Consolidados",
+          url: "/operaciones/consolidados",
+          icon: IconTruckLoading,
+          roles: allowedPageRoles.bodega.consolidados,
+          isActive: false
+        },
+        {
           name: "Entrada",
           url: "/bodega/entrada",
           icon: PackageIcon,
           roles: allowedPageRoles.bodega.entrada,
+          isActive: false
+        },
+        {
+          name: "Inventarios",
+          url: "/operaciones/inventarios",
+          icon: Warehouse,
+          roles: allowedPageRoles.bodega.inventarios,
+          isActive: false
+        },
+        {
+          name: "Recepción en Bodega",
+          url: "/operaciones/recepcion-bodega",
+          icon: PackagePlusIcon,
+          roles: allowedPageRoles.bodega.recepcionBodega,
           isActive: false
         },
         {
@@ -90,13 +111,7 @@ export const sidebarMenu = {
           roles: allowedPageRoles.operaciones.cargas,
           isActive: false
         },
-        {
-          name: "Consolidados",
-          url: "/operaciones/consolidados",
-          icon: IconTruckLoading,
-          roles: allowedPageRoles.operaciones.consolidados,
-          isActive: false
-        },
+        
         {
           name: "Desembarques",
           url: "/operaciones/desembarques",
@@ -116,13 +131,6 @@ export const sidebarMenu = {
           url: "/operaciones/envios",
           icon: PackageIcon,
           roles: allowedPageRoles.operaciones.envios,
-          isActive: false
-        },
-        {
-          name: "Inventarios",
-          url: "/operaciones/inventarios",
-          icon: Warehouse,
-          roles: allowedPageRoles.operaciones.inventarios,
           isActive: false
         },
         {
@@ -146,6 +154,13 @@ export const sidebarMenu = {
           roles: allowedPageRoles.operaciones.recepcionBodega,
           isActive: false
         },*/
+        {
+          name: "Traslados",
+          url: "/operaciones/traslados",
+          icon: ForkliftIcon,
+          roles: allowedPageRoles.operaciones.traslados,
+          isActive: false
+        },
         {
           name: "Salidas a Rutas",
           url: "/operaciones/salidas-a-ruta",

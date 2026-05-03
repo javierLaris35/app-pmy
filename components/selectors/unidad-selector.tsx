@@ -111,7 +111,7 @@ export function UnidadSelector({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal={true}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -135,7 +135,8 @@ export function UnidadSelector({
         <PopoverContent className="w-full p-0">
           <Command>
             <CommandInput placeholder="Buscar unidad..." />
-            <CommandList>
+            {/* === AQUÍ ESTÁ LA CORRECCIÓN DEL SCROLL === */}
+            <CommandList className="max-h-64 overflow-y-auto">
               <CommandEmpty>
                 {!effectiveSubsidiaryId 
                   ? "Selecciona una sucursal primero" 
