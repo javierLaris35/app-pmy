@@ -868,7 +868,7 @@ export interface ScannedShipment {
   priority: Priority
   status: string
   // Props de UI restauradas
-  isCarga: boolean
+  isCharge: boolean
   hasPayment: boolean
   paymentAmount?: number
 }

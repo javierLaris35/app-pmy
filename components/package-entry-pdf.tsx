@@ -7,145 +7,44 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer"
-import { SessionState, ScannedShipment } from "@/lib/types" 
+import { SessionState } from "./warehouse/inbound-package/inbound-package"
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 40,
-    fontSize: 10,
-    fontFamily: "Helvetica",
-    color: "#1e293b",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between", // <- CORREGIDO AQUÍ
-    borderBottomWidth: 2,
-    borderBottomColor: "#4d148c", 
-    paddingBottom: 10,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    color: "#0f172a",
-  },
-  subtitle: {
-    fontSize: 9,
-    color: "#64748b",
-    marginTop: 2,
-  },
-  metaSection: {
-    flexDirection: "row",
-    marginBottom: 20,
-    gap: 20,
-  },
-  metaBox: {
-    flex: 1,
-    padding: 10,
-    backgroundColor: "#f8fafc",
-    borderRadius: 4,
-  },
-  metaTitle: {
-    fontSize: 8,
-    color: "#64748b",
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  metaValue: {
-    fontSize: 11,
-    fontWeight: "bold",
-  },
-  statsGrid: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 25,
-  },
-  statCard: {
-    flex: 1,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 4,
-    textAlign: "center",
-  },
-  statLabel: {
-    fontSize: 7,
-    color: "#64748b",
-    textTransform: "uppercase",
-    marginBottom: 2,
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  table: {
-    width: "100%",
-    borderStyle: "solid",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 30,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    backgroundColor: "#f1f5f9",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  tableRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  tableCol: {
-    padding: 6,
-    borderRightWidth: 1,
-    borderRightColor: "#e2e8f0",
-  },
-  tableColHeader: {
-    padding: 6,
-    borderRightWidth: 1,
-    borderRightColor: "#e2e8f0",
-    fontSize: 8,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  signatureSection: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 50,
-    paddingHorizontal: 20,
-  },
-  signatureBox: {
-    width: 200,
-    borderTopWidth: 1,
-    borderTopColor: "#94a3b8",
-    paddingTop: 10,
-    textAlign: "center",
-  },
-  signatureName: {
-    fontSize: 10,
-    fontWeight: "bold",
-    marginTop: 5,
-  },
-  badge: {
-    fontSize: 7,
-    paddingVertical: 2, // <- CORREGIDO AQUÍ (React-pdf es muy estricto con esto)
-    paddingHorizontal: 4, // <- CORREGIDO AQUÍ
-    borderRadius: 2,
-    marginRight: 4,
-    color: "#ffffff",
-  },
+  // Página con márgenes más eficientes y fuente base un poco más pequeña
+  page: { padding: 30, fontSize: 9, fontFamily: "Helvetica", color: "#1e293b" },
+  
+  // Encabezado más compacto
+  header: { flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#4d148c", paddingBottom: 8, marginBottom: 12 },
+  title: { fontSize: 14, fontWeight: "bold", textTransform: "uppercase", color: "#0f172a" },
+  subtitle: { fontSize: 8, color: "#64748b", marginTop: 2 },
+  
+  // Metadatos (Unidad y Tiempo)
+  metaSection: { flexDirection: "row", marginBottom: 12, gap: 10 },
+  metaBox: { flex: 1, padding: 6, backgroundColor: "#f8fafc", borderRadius: 4 },
+  metaTitle: { fontSize: 7, color: "#64748b", textTransform: "uppercase", marginBottom: 2 },
+  metaValue: { fontSize: 9, fontWeight: "bold" },
+  
+  // Tarjetas de Estadísticas (más compactas)
+  statsGrid: { flexDirection: "row", gap: 8, marginBottom: 15 },
+  statCard: { flex: 1, padding: 6, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 4, textAlign: "center" },
+  statLabel: { fontSize: 6, color: "#64748b", textTransform: "uppercase", marginBottom: 2 },
+  statValue: { fontSize: 11, fontWeight: "bold" },
+  
+  // TABLA - Aquí está la clave para ahorrar espacio
+  table: { width: "100%", borderStyle: "solid", borderWidth: 1, borderColor: "#e2e8f0", marginBottom: 20 },
+  tableHeader: { flexDirection: "row", backgroundColor: "#f1f5f9", borderBottomWidth: 1, borderBottomColor: "#e2e8f0" },
+  tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+  tableColHeader: { padding: 4, borderRightWidth: 1, borderRightColor: "#e2e8f0", fontSize: 7, fontWeight: "bold", textTransform: "uppercase" },
+  tableCol: { padding: 4, borderRightWidth: 1, borderRightColor: "#e2e8f0", fontSize: 8 }, 
+  
+  // Firmas
+  signatureSection: { flexDirection: "row", justifyContent: "space-between", marginTop: 30, paddingHorizontal: 20 },
+  signatureBox: { width: 180, borderTopWidth: 1, borderTopColor: "#94a3b8", paddingTop: 8, textAlign: "center" },
+  signatureName: { fontSize: 9, fontWeight: "bold", marginTop: 4 },
+  
+  // Etiquetas (Alto valor, Carga, etc)
+  badge: { fontSize: 6, paddingVertical: 1, paddingHorizontal: 3, borderRadius: 2, marginRight: 2, color: "#ffffff" },
 })
-
-const sucursalMap: Record<string, string> = {
-  alamos: "Álamos",
-  navojoa: "Navojoa",
-  huatabampo: "Huatabampo",
-  "pueblo-yaqui": "Pueblo Yaqui",
-  "villa-juarez": "Villa Juárez",
-  vicam: "Vicam",
-}
 
 interface PDFProps {
   session: SessionState
@@ -153,47 +52,69 @@ interface PDFProps {
 }
 
 export const PackageEntryPDF = ({ session, vehiculo }: PDFProps) => {
-  const fedexCount = session.packages.filter(p => p.shipmentType === "FEDEX").length
-  const dhlCount = session.packages.filter(p => p.shipmentType === "DHL").length
-  const totalCharges = session.packages.reduce((acc, p) => acc + (p.chargeAmount || 0), 0)
+  // 1. BLINDAJE DE CONTADORES
+  const fedexCount = session.packages.filter(p => String(p.shipmentType || "").toLowerCase() === "fedex").length
+  const dhlCount = session.packages.filter(p => String(p.shipmentType || "").toLowerCase() === "dhl").length
+  const totalCharges = session.packages.reduce((acc, p) => acc + (Number(p.paymentAmount) || 0), 0)
 
-  // Ordenar paquetes para el reporte (Mismo orden que en pantalla)
+  // 2. EXTRACCIÓN SEGURA DE TEXTOS
+  const getUnidadText = (v: any) => {
+    if (!v) return "N/A";
+    const data = (typeof v.id === 'object' && v.id !== null) ? v.id : v;
+    return String(data.plateNumber || data.placa || data.name || data.id || "N/A");
+  };
+
+  const getSubsidiaryName = (pkg: any) => {
+    if (pkg?.subsidiary?.name) return String(pkg.subsidiary.name);
+    if (typeof pkg?.subsidiaryId === 'string') return pkg.subsidiaryId;
+    if (typeof pkg?.subsidiaryId === 'object' && pkg?.subsidiaryId !== null) return String(pkg.subsidiaryId.name || "S/N");
+    return "S/N";
+  };
+
+  const unidadText = getUnidadText(vehiculo);
+
+  // 3. NUEVO ORDENAMIENTO: Código Postal -> Sucursal -> Carrier
   const sortedPackages = [...session.packages].sort((a, b) => {
-    const cmpSucursal = (sucursalMap[a.subsidiaryId] || a.subsidiaryId).localeCompare(sucursalMap[b.subsidiaryId] || b.subsidiaryId)
-    if (cmpSucursal !== 0) return cmpSucursal
-    const cmpCarrier = a.shipmentType.localeCompare(b.shipmentType)
-    if (cmpCarrier !== 0) return cmpCarrier
-    return a.recipientZip.localeCompare(b.recipientZip)
+    // Nivel 1: Ordenar por Código Postal (de menor a mayor, usando numeric para que 85000 vaya antes que 85001)
+    const zipA = String(a.recipientZip || "");
+    const zipB = String(b.recipientZip || "");
+    const cmpZip = zipA.localeCompare(zipB, undefined, { numeric: true });
+    if (cmpZip !== 0) return cmpZip;
+
+    // Nivel 2: Ordenar por Sucursal (A-Z)
+    const sucursalA = getSubsidiaryName(a);
+    const sucursalB = getSubsidiaryName(b);
+    const cmpSucursal = sucursalA.localeCompare(sucursalB);
+    if (cmpSucursal !== 0) return cmpSucursal;
+    
+    // Nivel 3: Ordenar por Carrier (A-Z)
+    const carrierA = String(a.shipmentType || "").toUpperCase();
+    const carrierB = String(b.shipmentType || "").toUpperCase();
+    return carrierA.localeCompare(carrierB);
   })
 
-  // Fecha segura para evitar errores de renderizado
   const safeDate = new Date().toLocaleDateString("es-MX")
-  const safeStartTime = new Date(session.startTime).toLocaleTimeString("es-MX")
+  const safeStartTime = session.startTime ? new Date(session.startTime).toLocaleTimeString("es-MX") : ""
   const safeEndTime = session.endTime ? new Date(session.endTime).toLocaleTimeString("es-MX") : "En Proceso"
 
   return (
     <Document title={`Reporte de Recepción - ${session.id}`}>
       <Page size="A4" style={styles.page}>
-        {/* Encabezado */}
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Bodega Obregón</Text>
             <Text style={styles.subtitle}>Reporte de Recepción de Envíos en Bodega</Text>
           </View>
           <View style={{ textAlign: "right" }}>
-            <Text style={{ fontSize: 10, fontWeight: "bold" }}>FECHA: {safeDate}</Text>
-            <Text style={styles.subtitle}>ID Sesión: {session.id.slice(0, 8)}</Text>
+            <Text style={{ fontSize: 9, fontWeight: "bold" }}>FECHA: {safeDate}</Text>
+            <Text style={styles.subtitle}>ID Sesión: {String(session.id || "").slice(0, 8)}</Text>
           </View>
         </View>
 
-        {/* Info de Ruta */}
         <View style={styles.metaSection}>
           <View style={styles.metaBox}>
             <Text style={styles.metaTitle}>Información de Unidad</Text>
-            <Text style={styles.metaValue}>
-              Placa: {vehiculo?.placa || "N/A"} - {vehiculo?.marca || ""}
-            </Text>
-            <Text style={styles.subtitle}>Vehículo ID: {session.vehicleId}</Text>
+            <Text style={styles.metaValue}>Unidad: {unidadText}</Text>
           </View>
           <View style={styles.metaBox}>
             <Text style={styles.metaTitle}>Tiempo de Operación</Text>
@@ -202,7 +123,6 @@ export const PackageEntryPDF = ({ session, vehiculo }: PDFProps) => {
           </View>
         </View>
 
-        {/* Resumen Estadístico */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Total Envíos</Text>
@@ -228,7 +148,6 @@ export const PackageEntryPDF = ({ session, vehiculo }: PDFProps) => {
           </View>
         </View>
 
-        {/* Tabla de Contenido */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableColHeader, { width: "25%" }]}>Guía (Tracking)</Text>
@@ -241,23 +160,27 @@ export const PackageEntryPDF = ({ session, vehiculo }: PDFProps) => {
           {sortedPackages.map((pkg) => (
             <View key={pkg.id} style={styles.tableRow}>
               <Text style={[styles.tableCol, { width: "25%", fontWeight: "bold" }]}>
-                {pkg.trackingNumber}
+                {String(pkg.trackingNumber || "N/A")}
               </Text>
-              <Text style={[styles.tableCol, { width: "15%" }]}>{pkg.shipmentType}</Text>
+              <Text style={[styles.tableCol, { width: "15%" }]}>
+                {String(pkg.shipmentType || "N/A")}
+              </Text>
               <Text style={[styles.tableCol, { width: "20%" }]}>
-                {sucursalMap[pkg.subsidiaryId] || pkg.subsidiaryId}
+                {getSubsidiaryName(pkg)}
               </Text>
-              <Text style={[styles.tableCol, { width: "10%" }]}>{pkg.recipientZip}</Text>
+              <Text style={[styles.tableCol, { width: "10%" }]}>
+                {String(pkg.recipientZip || "N/A")}
+              </Text>
               <View style={[styles.tableCol, { width: "30%", borderRightWidth: 0, flexDirection: "row" }]}>
                 {pkg.isHighValue && (
                   <Text style={[styles.badge, { backgroundColor: "#7e22ce" }]}>ALTO VALOR</Text>
                 )}
-                {pkg.hasCharge && (
+                {pkg.hasPayment && (
                   <Text style={[styles.badge, { backgroundColor: "#d97706" }]}>
-                    ${pkg.chargeAmount}
+                    ${Number(pkg.paymentAmount || 0)}
                   </Text>
                 )}
-                {pkg.isCargo && (
+                {pkg.isCharge && (
                   <Text style={[styles.badge, { backgroundColor: "#2563eb" }]}>CARGA</Text>
                 )}
               </View>
@@ -265,27 +188,29 @@ export const PackageEntryPDF = ({ session, vehiculo }: PDFProps) => {
           ))}
         </View>
 
-        {/* Sección de Firmas */}
         <View style={styles.signatureSection}>
           <View style={styles.signatureBox}>
             <Text style={styles.metaTitle}>Entregado por (Operador)</Text>
-            <Text style={styles.signatureName}>{session.enteredByName || "___________________"}</Text>
+            <Text style={styles.signatureName}>
+              {String(session.enteredByName || "___________________")}
+            </Text>
           </View>
           <View style={styles.signatureBox}>
             <Text style={styles.metaTitle}>Recibido por (Bodega)</Text>
-            <Text style={styles.signatureName}>{session.receivedByName || "___________________"}</Text>
+            <Text style={styles.signatureName}>
+              {String(session.receivedByName || "___________________")}
+            </Text>
           </View>
         </View>
 
-        {/* Footer */}
         <Text
           style={{
             position: "absolute",
-            bottom: 30,
-            left: 40,
-            right: 40,
+            bottom: 20,
+            left: 30,
+            right: 30,
             textAlign: "center",
-            fontSize: 8,
+            fontSize: 7,
             color: "#94a3b8",
           }}
         >

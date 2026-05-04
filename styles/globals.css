@@ -1,7 +1,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -39,14 +38,14 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
-    --sidebar-background: 30 70% 96%;            /* Fondo claro como el del logo */
-    --sidebar-foreground: 26 53% 27%;            /* Marrón oscuro para texto */
-    --sidebar-primary: 0 68% 51%;                /* Rojo vibrante para botones/enlaces */
-    --sidebar-primary-foreground: 45 100% 96%;   /* Contraste sobre el rojo (beige claro) */
-    --sidebar-accent: 45 100% 56%;               /* Amarillo como color destacado */
-    --sidebar-accent-foreground: 26 53% 27%;     /* Marrón para contraste */
-    --sidebar-border: 26 33% 85%;                /* Marrón claro para bordes */
-    --sidebar-ring: 0 68% 51%;                   /* Igual que el rojo para efectos */
+    --sidebar-background: 30 70% 96%;
+    --sidebar-foreground: 26 53% 27%;
+    --sidebar-primary: 0 68% 51%;
+    --sidebar-primary-foreground: 45 100% 96%;
+    --sidebar-accent: 45 100% 56%;
+    --sidebar-accent-foreground: 26 53% 27%;
+    --sidebar-border: 26 33% 85%;
+    --sidebar-ring: 0 68% 51%;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -85,11 +84,16 @@ body {
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  html,
   body {
-    @apply bg-background text-foreground;
+    min-height: 100%;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
   }
 }
 
@@ -140,8 +144,7 @@ body {
 }
 
 /* Estilos especificos para hacer que los bordes de la modal ( que en realidad es el scroll del dialog
-   Parece salir de los redondeados de la modal
- */
+Parece salir de los redondeados de la modal  */
 
 /* Estilos personalizados para la barra de scroll en diálogos (Edge/Chrome) */
 [role="dialog"]::-webkit-scrollbar {

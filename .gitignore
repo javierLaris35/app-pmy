@@ -30,3 +30,5 @@ next-env.d.ts
 electron.js
 
 .idea
+
+nvm

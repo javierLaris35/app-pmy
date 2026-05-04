@@ -579,15 +579,23 @@ export const shipmentTypes = [
 ]
 
 export const subsidiaries = [
-  { label: "Huatabampo", value: "Huatabampo" },
-  { label: "Hermosillo", value: "Hermosillo" },
-  { label: "Constitución", value: "Constitución" },
-  { label: "Loreto", value: "Loreto" },
-  { label: "Cd Obregon", value: "Cd" },
-  { label: "Cabo San Lucas", value: "Cabo San Lucas" },
-  { label: "Guaymas", value: "Guaymas" },
-  { label: "Navojoa", value: "Navojoa" },
-  { label: "Puerto Peñasco", value: "Puerto Peñasco" },
+  { label: "Hermosillo Ruta Extendida", value: "hermosillo-ruta-extendida" },
+  { label: "Loreto", value: "loreto" },
+  { label: "Vicam", value: "vicam" },
+  { label: "Puerto Peñasco", value: "puerto-penasco" },
+  { label: "Villa Juarez", value: "villa-juarez" },
+  { label: "Constitucion", value: "constitucion" },
+  { label: "Ciudad Obregon", value: "ciudad-obregon" },
+  { label: "Huatabampo", value: "huatabampo" },
+  { label: "La Costa", value: "la-costa" },
+  { label: "Pueblo Yaqui", value: "pueblo-yaqui" },
+  { label: "Alamos", value: "alamos" },
+  { label: "Cabo San Lucas", value: "cabo-san-lucas" },
+  { label: "Nogales", value: "nogales" },
+  { label: "Hermosillo", value: "hermosillo" },
+  { label: "Navojoa", value: "navojoa" },
+  { label: "Guaymas", value: "guaymas" },
+  { label: "La Paz", value: "la-paz" },
 ]
 
 

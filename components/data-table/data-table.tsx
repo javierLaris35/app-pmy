@@ -23,9 +23,9 @@ interface DataTableProps<TData, TValue> {
   filters?: {
     columnId: string
     title: string
-    options: { label: string; value: string }[]
+    options?: { label: string; value: string }[] // <-- AQUI ESTÁ EL CAMBIO (se agregó '?')
   }[],
-   onTableReady?: (table: ReturnType<typeof useReactTable>) => void
+  onTableReady?: (table: ReturnType<typeof useReactTable>) => void
 }
 
 export function DataTable<TData, TValue>({

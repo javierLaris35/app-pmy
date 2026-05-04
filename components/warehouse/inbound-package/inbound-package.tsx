@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { PDFDownloadLink } from "@react-pdf/renderer"
 import { useBrowserVoice } from "@/hooks/use-browser-voice" 
+import { ColumnDef } from "@tanstack/react-table"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+
 import { PackageEntryPDF } from "@/components/package-entry-pdf"
 import {
   Download,
@@ -29,43 +31,35 @@ import {
   Keyboard,
   Package,
   Barcode,
-  Search,
-  Building2,
   ShieldAlert,
   Clock,
   DollarSign,
   Box,
-  Truck
+  Truck,
+  PackagePlusIcon
 } from "lucide-react"
+
+// Selectores especializados
 import { UnidadSelector } from "@/components/selectors/unidad-selector"
 import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
+
+// Servicios y tipos
 import { validateShipment } from "@/lib/services/warehouse/warehouse"
-import { ScannedShipment } from "@/lib/types"
+import { Driver, ScannedShipment, Vehicles } from "@/lib/types"
+import { useAuthStore } from "@/store/auth.store"
+import { DataTable } from "@/components/data-table/data-table"
+import { tableFilters } from "./filters"
 
 export type SessionState = {
   id: string
-  vehicleId: string
+  vehicle: Vehicles | null
   startTime: Date
   endTime?: Date
+  drivers: Driver[]
   receivedByName: string
   enteredByName: string
   packages: ScannedShipment[]
   status: "En Proceso" | "Completado"
-}
-
-// --- Mocks y Diccionarios ---
-const mockVehiculos = [
-  { id: "v1", placa: "ABC-123", marca: "Freightliner", modelo: "Cascadia", estado: "Activo", choferAsignado: "Juan Pérez" },
-  { id: "v2", placa: "XYZ-789", marca: "Ford", modelo: "F-150", estado: "Activo", choferAsignado: "María García" },
-]
-
-const sucursalMap: Record<string, string> = {
-  alamos: "Álamos",
-  navojoa: "Navojoa",
-  huatabampo: "Huatabampo",
-  "pueblo-yaqui": "Pueblo Yaqui",
-  "villa-juarez": "Villa Juárez",
-  vicam: "Vicam",
 }
 
 // Helpers para fechas
@@ -77,9 +71,10 @@ const isTomorrow = (date: Date) => {
 }
 
 export default function InboundPackage() {
+  const user = useAuthStore((state) => state.user);
+  const userSubsidiaryId = user?.subsidiary?.id ?? ""
+
   const inputRef = useRef<HTMLInputElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
-  
   const { speak: speakMessage } = useBrowserVoice({ pitch: 0.8, rate: 1.3 })
 
   const safeSpeak = useCallback((text: string) => {
@@ -96,26 +91,20 @@ export default function InboundPackage() {
   }, [speakMessage])
   
   const [isClient, setIsClient] = useState(false)
-  
   const [session, setSession] = useState<SessionState>({
     id: crypto.randomUUID(),
-    vehicleId: mockVehiculos[0].id,
+    vehicle: null,
     startTime: new Date(),
     receivedByName: "",
     enteredByName: "",
     packages: [],
-    status: "En Proceso"
+    status: "En Proceso",
+    drivers: []
   })
   
   const [scanInput, setScanInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
-  const [filters, setFilters] = useState({
-    search: "",
-    sucursal: "ALL",
-    carrier: "ALL"
-  })
 
   const [modals, setModals] = useState({
     shortcuts: false,
@@ -125,95 +114,82 @@ export default function InboundPackage() {
     signatures: false
   })
 
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
+  useEffect(() => { setIsClient(true) }, [])
 
   const toggleModal = (key: keyof typeof modals, value: boolean) => {
     setModals(prev => ({ ...prev, [key]: value }))
     if (!value) setTimeout(() => inputRef.current?.focus(), 100)
   }
 
-  // Ordenamiento corporativo: Sucursal -> Carrier -> CP
-  const processedPackages = useMemo(() => {
-    let result = [...session.packages]
-
-    if (filters.search) {
-      const s = filters.search.toLowerCase()
-      result = result.filter(p => p.trackingNumber.toLowerCase().includes(s) || (p.recipientZip && p.recipientZip.includes(s)))
-    }
-    if (filters.sucursal !== "ALL") result = result.filter(p => p.subsidiaryId === filters.sucursal)
-    if (filters.carrier !== "ALL") result = result.filter(p => p.shipmentType === filters.carrier)
-
-    result.sort((a, b) => {
-      const cmpSucursal = (sucursalMap[a.subsidiaryId] || a.subsidiaryId).localeCompare(sucursalMap[b.subsidiaryId] || b.subsidiaryId)
-      if (cmpSucursal !== 0) return cmpSucursal
-
-      const cmpCarrier = a.shipmentType.localeCompare(b.shipmentType)
-      if (cmpCarrier !== 0) return cmpCarrier
-
-      return (a.recipientZip || "").localeCompare(b.recipientZip || "")
-    })
-
-    return result
-  }, [session.packages, filters])
-
-  // --- KPIs Restaurados ---
+  // KPIs
   const expiringTodayPackages = useMemo(() => session.packages.filter(p => isToday(p.commitDateTime)), [session.packages])
   const highValuePackages = useMemo(() => session.packages.filter(p => p.isHighValue), [session.packages])
-  const cargoPackages = useMemo(() => session.packages.filter(p => p.isCargo), [session.packages])
-  const packagesWithCharges = useMemo(() => session.packages.filter(p => p.hasCharge), [session.packages])
-  const totalChargesAmount = useMemo(() => packagesWithCharges.reduce((acc, p) => acc + (p.chargeAmount || 0), 0), [packagesWithCharges])
+  const cargoPackages = useMemo(() => session.packages.filter(p => p.isCharge), [session.packages])
+  const packagesWithCharges = useMemo(() => session.packages.filter(p => p.hasPayment), [session.packages])
+  const totalChargesAmount = useMemo(() => packagesWithCharges.reduce((acc, p) => acc + (p.paymentAmount || 0), 0), [packagesWithCharges])
   
-  const fedexCount = useMemo(() => session.packages.filter(p => p.shipmentType === "fedex").length, [session.packages])
-  const dhlCount = useMemo(() => session.packages.filter(p => p.shipmentType === "dhl").length, [session.packages])
+  const fedexCount = useMemo(() => session.packages.filter(p => p.shipmentType.toLowerCase() === "fedex").length, [session.packages])
+  const dhlCount = useMemo(() => session.packages.filter(p => p.shipmentType.toLowerCase() === "dhl").length, [session.packages])
 
-  // Atajos de teclado
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isInputFocused = document.activeElement instanceof HTMLInputElement
-      
-      if (e.key === "F1") {
-        e.preventDefault()
-        inputRef.current?.focus()
-      } else if (e.key === "F2" && session.packages.length > 0) {
-        e.preventDefault()
-        toggleModal("signatures", true)
-      } else if (e.key === "F3") {
-        e.preventDefault()
-        searchRef.current?.focus()
-      } else if (e.key === "Escape") {
-        setModals({ signatures: false, shortcuts: false, expiringToday: false, highValue: false, charges: false })
-        setTimeout(() => inputRef.current?.focus(), 100)
-      } else if (!isInputFocused && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        inputRef.current?.focus()
-      }
+  // --- ORDENAMIENTO EN PANTALLA ---
+  const sortedPackages = useMemo(() => {
+    return [...session.packages].sort((a, b) => {
+      const getSubName = (pkg: any) => {
+        if (pkg?.subsidiary?.name) return String(pkg.subsidiary.name);
+        if (typeof pkg?.subsidiaryId === 'string') return pkg.subsidiaryId;
+        if (typeof pkg?.subsidiaryId === 'object' && pkg?.subsidiaryId !== null) return String(pkg.subsidiaryId.name || "S/N");
+        return "S/N";
+      };
+
+      // 1. Por Código Postal
+      const zipA = String(a.recipientZip || "");
+      const zipB = String(b.recipientZip || "");
+      const cmpZip = zipA.localeCompare(zipB, undefined, { numeric: true });
+      if (cmpZip !== 0) return cmpZip;
+
+      // 2. Por Sucursal
+      const sucursalA = getSubName(a);
+      const sucursalB = getSubName(b);
+      const cmpSucursal = sucursalA.localeCompare(sucursalB);
+      if (cmpSucursal !== 0) return cmpSucursal;
+
+      // 3. Por Carrier
+      const carrierA = String(a.shipmentType || "").toUpperCase();
+      const carrierB = String(b.shipmentType || "").toUpperCase();
+      return carrierA.localeCompare(carrierB);
+    });
+  }, [session.packages]);
+
+  // --- VALIDACIONES DE FLUJO ---
+  const isReadyToFinish = session.packages.length > 0 && session.vehicle?.id && session.drivers.length > 0;
+  
+  // Extraemos el nombre del chofer de forma segura para evitar el error [object Object]
+  const derivedDriverName = session.drivers.map(d => {
+    if (typeof d.id === 'object' && d.id !== null) {
+      return (d.id as any).name || (d.id as any).nombre || "Operador Seleccionado";
     }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [session.packages.length])
+    return (d as any).name || (d as any).nombre || d.id || "Operador Seleccionado";
+  }).join(", ")
+  
+  // Solo exigimos que hayan escrito el nombre de quien RECIBE
+  const canSaveAndGeneratePDF = session.receivedByName.trim() !== "";
 
-  // --- LÓGICA DE ESCANEO REAL + VALORES POR DEFECTO PARA UI ---
   const handleScan = useCallback(async () => {
     if (!scanInput.trim()) return
     setIsScanning(true)
     setError(null)
-    
     const trackingNumber = scanInput.trim().toUpperCase()
 
     if (session.packages.some((p) => p.trackingNumber === trackingNumber)) {
-      setError(`Guía duplicada: ${trackingNumber}`)
-      safeSpeak("Guía duplicada.")
-      setIsScanning(false)
-      setScanInput("")
-      return
+      setError(`Guía duplicada: ${trackingNumber}`);
+      safeSpeak("Guía duplicada.");
+      setIsScanning(false);
+      setScanInput("");
+      return;
     }
 
     try {
       const result = await validateShipment(trackingNumber)
-
-      console.log("🚀 ~ InboundPackage ~ result:", result)
-
       if (result.isValid === false) {
         setError(result.reason || "No encontrado en sistema")
         safeSpeak("No encontrado.")
@@ -221,28 +197,16 @@ export default function InboundPackage() {
         const newShipment: ScannedShipment = {
           ...result,
           commitDateTime: new Date(result.commitDateTime),
-          // Defaults para evitar errores en modales si el backend no los manda aún
-          isCarga: result.isCarga || false,
+          isCharge: result.isCharge || false,
           hasPayment: result.hasPayment || false,
           paymentAmount: result.paymentAmount || 0
         }
-        
-        if (isToday(newShipment.commitDateTime)) {
-          safeSpeak("Vence hoy")
-        } else if (isTomorrow(newShipment.commitDateTime)) {
-          safeSpeak("Vence mañana")
-        } else {
-          safeSpeak("Registrado")
-        }
-
-        setSession(prev => ({
-          ...prev,
-          packages: [newShipment, ...prev.packages]
-        }))
+        safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence mañana" : "Registrado")
+        setSession(prev => ({ ...prev, packages: [newShipment, ...prev.packages] }))
         setScanInput("")
       }
     } catch (err) {
-      setError("Error de comunicación con el servidor")
+      setError("Error de servidor")
       safeSpeak("Error de sistema")
     } finally {
       setIsScanning(false)
@@ -250,347 +214,269 @@ export default function InboundPackage() {
     }
   }, [scanInput, session.packages, safeSpeak])
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      handleScan()
-    }
-  }
+  const handleKeyPress = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); handleScan() } }
 
-  const handleRemovePackage = (id: string) => {
+  const handleRemovePackage = useCallback((id: string) => {
     setSession(prev => ({ ...prev, packages: prev.packages.filter((p) => p.id !== id) }))
-    setTimeout(() => inputRef.current?.focus(), 10)
-  }
+  }, [])
 
   const handleCompleteSession = async () => {
     setIsScanning(true)
     await new Promise((resolve) => setTimeout(resolve, 800))
-    setSession(prev => ({ ...prev, endTime: new Date(), status: "Completado" }))
+    // Limpiamos la sesión por completo para el siguiente camión
+    setSession({
+      id: crypto.randomUUID(),
+      vehicle: null,
+      startTime: new Date(),
+      receivedByName: "",
+      enteredByName: "",
+      packages: [],
+      status: "En Proceso",
+      drivers: []
+    })
     toggleModal("signatures", false)
     setIsScanning(false)
-
-    setTimeout(() => {
-      setSession({
-        id: crypto.randomUUID(),
-        vehicleId: session.vehicleId,
-        startTime: new Date(),
-        receivedByName: "",
-        enteredByName: "",
-        packages: [],
-        status: "En Proceso"
-      })
-      setScanInput("")
-      inputRef.current?.focus()
-    }, 2000)
   }
 
-  const selectedVehiculo = mockVehiculos.find((v) => v.id === session.vehicleId)
-
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      
-      <header className="bg-white border-b border-border">
-        <div className="px-6 py-4 max-w-[1600px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Building2 className="w-5 h-5 text-muted-foreground" />
-            <div className="flex items-center gap-3">
-              <h1 className="text-base font-semibold">Bodega Obregón</h1>
-              <Separator orientation="vertical" className="h-4" />
-              <span className="text-sm text-muted-foreground">Recepción de Envíos</span>
-            </div>
-            
-            <TooltipProvider>
+  // --- DEFINICIÓN DE COLUMNAS PARA EL DATA-TABLE ---
+  const columns: ColumnDef<ScannedShipment>[] = useMemo(() => [
+    {
+      accessorKey: "trackingNumber",
+      header: "Tracking",
+      cell: ({ row }) => <span className="font-mono text-sm font-medium">{row.getValue("trackingNumber")}</span>,
+    },
+    {
+      id: "shipmentType",
+      accessorKey: "shipmentType",
+      header: "Carrier",
+      cell: ({ row }) => {
+        // CORRECCIÓN AQUÍ: Se leía "carrier" en lugar de "shipmentType" y se le agregó un fallback seguro.
+        const type = (row.getValue("shipmentType") as string) || ""; 
+        if (type.toLowerCase() === 'fedex') {
+          return <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
+        }
+        if (type.toLowerCase() === 'dhl') {
+          return <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
+        }
+        return <Badge variant="outline" className="text-[10px] uppercase">{type}</Badge>
+      },
+      filterFn: (row, id, value: string[]) => {
+        const rowValue = (row.getValue(id) as string).toLowerCase()
+        return value.includes(rowValue)
+      },
+    },
+    {
+      id: "subsidiary",
+      accessorFn: (row) => row.subsidiary, 
+      header: "Destino",
+      cell: ({ row }) => {
+        const pkg = row.original;
+        return (
+          <div className="text-xs text-muted-foreground">
+             {pkg.subsidiary?.name || "S/N"} <br/>
+             <span className="font-mono">CP: {pkg.recipientZip}</span>
+          </div>
+        )
+      },
+      filterFn: (row, id, value: string[]) => {
+        const rowValue = row.getValue(id) as string
+        return value.includes(rowValue)
+      },
+    },
+    {
+      id: "alertas",
+      header: "Alertas y Etiquetas",
+      cell: ({ row }) => {
+        const pkg = row.original;
+        return (
+          <div className="flex gap-1.5 flex-wrap">
+            {isToday(pkg.commitDateTime) && <Badge className="font-bold text-[10px] px-1.5 py-0 bg-red-600 text-white hover:bg-red-700 shadow-sm">Vence Hoy</Badge>}
+            {isTomorrow(pkg.commitDateTime) && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-orange-100 text-orange-800 border-orange-200 border hover:bg-orange-200">Vence Mañana</Badge>}
+            {pkg.isHighValue && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200 border hover:bg-purple-200">Alto Valor</Badge>}
+            {pkg.isCharge && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200 border hover:bg-blue-200">Carga</Badge>}
+            {pkg.hasPayment && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border-amber-200 border hover:bg-amber-200">Cobro: ${pkg.paymentAmount}</Badge>}
+          </div>
+        )
+      }
+    },
+    {
+      id: "acciones",
+      header: () => <div className="text-right">Acciones</div>,
+      cell: ({ row }) => {
+        return (
+          <div className="text-right">
+            <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button onClick={() => toggleModal("shortcuts", true)} className="ml-2 text-muted-foreground hover:text-foreground outline-none rounded">
-                    <Keyboard className="w-4 h-4" />
-                  </button>
+                  <Button variant="ghost" size="icon" onClick={() => handleRemovePackage(row.original.id)} className="h-7 w-7 hover:text-destructive">
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent>Ver Atajos (F1, F2...)</TooltipContent>
+                <TooltipContent>Eliminar Registro</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
-        </div>
-      </header>
+        )
+      }
+    }
+  ], [handleRemovePackage])
 
-      <main className="p-6 max-w-[1600px] mx-auto space-y-6">
-        
-        {/* Grid de 6 Columnas para las Estadísticas */}
+  return (
+    <div className="text-slate-900 min-h-screen pt-4"> 
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+              <PackagePlusIcon className="w-8 h-8 text-blue-600" />
+              Gestión de Entradas a Bodega
+            </h1>
+            <p className="text-slate-500 mt-1">Registro y seguimiento de paquetes entrantes a la bodega.</p>
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={() => toggleModal("shortcuts", true)}>
+                  <Keyboard className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver Atajos de Teclado</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          <StatCard title="Total Registros" value={session.packages.length} icon={Package} />
-          
+          <StatCard title="Total" value={session.packages.length} icon={Package} />
           <div className="rounded-lg border bg-card p-3 flex flex-col justify-center shadow-sm">
-            <div className="flex flex-row items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Transportistas</span>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Carrier</span>
               <Truck className="h-3.5 w-3.5 text-muted-foreground/50" />
             </div>
             <div className="flex items-center gap-3">
-               <div className="flex-1 flex flex-col">
-                 <span className="text-[10px] font-bold text-[#4d148c] uppercase">FedEx</span>
-                 <span className="text-xl font-bold tracking-tight">{fedexCount}</span>
+               <div className="flex-1">
+                 <p className="text-[10px] font-bold text-[#4d148c]">FEDEX</p>
+                 <p className="text-xl font-bold">{fedexCount}</p>
                </div>
-               <div className="w-px h-8 bg-border"></div>
-               <div className="flex-1 flex flex-col items-end">
-                 <span className="text-[10px] font-bold text-[#d40511] uppercase">DHL</span>
-                 <span className="text-xl font-bold tracking-tight">{dhlCount}</span>
+               <Separator orientation="vertical" className="h-8" />
+               <div className="flex-1 text-right">
+                 <p className="text-[10px] font-bold text-[#d40511]">DHL</p>
+                 <p className="text-xl font-bold">{dhlCount}</p>
                </div>
             </div>
           </div>
-          
-          <StatCard 
-            title="Vencen Hoy" 
-            value={expiringTodayPackages.length} 
-            icon={Clock} 
-            alert={expiringTodayPackages.length > 0}
-            onClick={() => expiringTodayPackages.length > 0 && toggleModal("expiringToday", true)}
-          />
-          
-          <StatCard 
-            title="Alto Valor" 
-            value={highValuePackages.length} 
-            icon={ShieldAlert} 
-            alert={highValuePackages.length > 0}
-            onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)}
-          />
-          
-          <StatCard 
-            title="Carga" 
-            value={cargoPackages.length} 
-            icon={Box} 
-          />
-
-          <StatCard 
-            title="Cobros Extras" 
-            value={packagesWithCharges.length} 
-            subValue={`$${totalChargesAmount.toLocaleString()} MXN`}
-            icon={DollarSign} 
-            alert={packagesWithCharges.length > 0}
-            onClick={() => packagesWithCharges.length > 0 && toggleModal("charges", true)}
-          />
+          <StatCard title="Vencen Hoy" value={expiringTodayPackages.length} icon={Clock} alert={expiringTodayPackages.length > 0} onClick={() => expiringTodayPackages.length > 0 && toggleModal("expiringToday", true)} />
+          <StatCard title="Alto Valor" value={highValuePackages.length} icon={ShieldAlert} alert={highValuePackages.length > 0} onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)} />
+          <StatCard title="Carga" value={cargoPackages.length} icon={Box} />
+          <StatCard title="Cobros" value={packagesWithCharges.length} subValue={`$${totalChargesAmount}`} icon={DollarSign} alert={packagesWithCharges.length > 0} onClick={() => packagesWithCharges.length > 0 && toggleModal("charges", true)} />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pt-6">
           
-          {/* COLUMNA IZQUIERDA: Tabla de Datos */}
+          {/* TABLA DE INVENTARIO Y FILTROS */}
           <div className="xl:col-span-8 space-y-6">
-            <Card className="flex flex-col h-full">
-              <div className="px-6 py-4 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-muted/10">
+            <Card className="border-none shadow-none bg-transparent">
+              <div className="pb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium">Inventario Recibido</CardTitle>
-                  <Badge variant="secondary" className="font-mono text-[10px]">{processedPackages.length}</Badge>
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <div className="relative flex-1 sm:w-48">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input 
-                      id="search-filter"
-                      ref={searchRef}
-                      placeholder="Buscar guía o C.P. (F3)..." 
-                      className="h-8 text-xs pl-8 bg-white shadow-sm"
-                      value={filters.search}
-                      onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
-                    />
-                  </div>
-                  <select 
-                    className="h-8 rounded-md border border-input bg-white px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring shadow-sm"
-                    value={filters.sucursal}
-                    onChange={(e) => setFilters(f => ({ ...f, sucursal: e.target.value }))}
-                  >
-                    <option value="ALL">Todas las Sucursales</option>
-                    {Object.entries(sucursalMap).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                  </select>
-                  <select 
-                    className="h-8 rounded-md border border-input bg-white px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring shadow-sm"
-                    value={filters.carrier}
-                    onChange={(e) => setFilters(f => ({ ...f, carrier: e.target.value }))}
-                  >
-                    <option value="ALL">Carrier</option>
-                    <option value="FEDEX">FedEx</option>
-                    <option value="DHL">DHL</option>
-                  </select>
+                  <h2 className="text-lg font-semibold">Inventario</h2>
+                  <Badge variant="secondary">{session.packages.length}</Badge>
                 </div>
               </div>
               
-              <CardContent className="p-0 flex-1 overflow-auto max-h-[800px]">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-white z-10 shadow-sm border-b">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[170px] text-xs h-9 text-bold">Tracking</TableHead>
-                      <TableHead className="text-xs h-9">Carrier</TableHead>
-                      <TableHead className="text-xs h-9">Destino</TableHead>
-                      <TableHead className="text-xs h-9 w-[300px]">Alertas y Etiquetas</TableHead>
-                      <TableHead className="text-right text-xs h-9">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {processedPackages.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center h-24 text-muted-foreground text-sm">
-                          Escanee un paquete para comenzar.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      processedPackages.map((pkg) => (
-                        <TableRow key={pkg.id}>
-                          <TableCell className="font-mono font-medium text-sm py-2.5 text-bold">{pkg.trackingNumber}</TableCell>
-                          
-                          <TableCell className="py-2.5">
-                            {pkg.shipmentType === 'fedex' ? (
-                              <Badge className="bg-[#4d148c] hover:bg-[#4d148c]/90 text-white font-bold text-[10px] border-none shadow-sm">FedEx</Badge>
-                            ) : pkg.shipmentType === 'dhl' ? (
-                              <Badge className="bg-[#ffcc00] hover:bg-[#ffcc00]/90 text-[#d40511] font-bold text-[10px] border-none shadow-sm">DHL</Badge>
-                            ) : (
-                              <Badge variant="outline" className="font-normal text-[10px]">{pkg.shipmentType}</Badge>
-                            )}
-                          </TableCell>
-                          
-                          <TableCell className="text-xs py-2.5 text-muted-foreground">
-                            {sucursalMap[pkg.subsidiary.name] || pkg.subsidiary.name} <br/>
-                            <span className="font-mono">CP: {pkg.recipientZip}</span>
-                          </TableCell>
-                          
-                          <TableCell className="py-2.5">
-                            <div className="flex gap-1.5 flex-wrap">
-                              {isToday(pkg.commitDateTime) && <Badge className="font-bold text-[10px] px-1.5 py-0 bg-red-600 text-white hover:bg-red-700 shadow-sm">Vence Hoy</Badge>}
-                              {isTomorrow(pkg.commitDateTime) && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-orange-100 text-orange-800 border-orange-200 border hover:bg-orange-200">Vence Mañana</Badge>}
-                              {pkg.isHighValue && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200 border hover:bg-purple-200">Alto Valor</Badge>}
-                              {pkg.isCarga && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200 border hover:bg-blue-200">Carga</Badge>}
-                              {pkg.hasPayment && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border-amber-200 border hover:bg-amber-200">Cobro: ${pkg.chargeAmount}</Badge>}
-                            </div>
-                          </TableCell>
-                          
-                          <TableCell className="text-right py-2.5">
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => handleRemovePackage(pkg.id)} className="h-7 w-7 hover:text-destructive">
-                                    <X className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Eliminar Registro</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+              <CardContent className="p-0">
+                <div className="">
+                  <DataTable 
+                    columns={columns} 
+                    data={sortedPackages} // <-- Aquí se pasan los paquetes ya ordenados
+                    searchKey="trackingNumber"
+                    filters={tableFilters}
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* COLUMNA DERECHA: Escáner y Configuración */}
+          {/* ESCÁNER Y RUTA */}
           <div className="xl:col-span-4 space-y-4">
-            
             <Card className="border-blue-200 shadow-sm">
-              <CardContent className="pt-6">
-                <div className="bg-blue-50/30 pb-4">
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                        <Barcode className="w-4 h-4 text-blue-600" /> Captura de Tracking (Escáner)
-                    </Label>
-                    <Label className="text-xs">
-                        Escanee el código de barras aquí.
-                    </Label>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <Barcode className="w-5 h-5" />
+                  <span className="text-sm font-semibold">Escáner de Entrada</span>
                 </div>
-                <div className="flex flex-col gap-3">
-                  <Input
-                    ref={inputRef}
-                    type="text"
-                    placeholder="Escanee o teclee (F1)..."
-                    value={scanInput}
-                    onChange={(e) => setScanInput(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    disabled={isScanning}
-                    className="font-mono text-base h-12 shadow-inner uppercase"
-                    autoFocus
-                  />
-                  <Button onClick={handleScan} disabled={isScanning || !scanInput.trim()} className="h-10 w-full">
-                    {isScanning ? "Procesando..." : "Registrar Paquete"}
-                  </Button>
+                <Input
+                  ref={inputRef}
+                  placeholder="Escanee guía (F1)..."
+                  value={scanInput}
+                  onChange={(e) => setScanInput(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  disabled={isScanning}
+                  className="font-mono text-lg h-12 uppercase"
+                />
+                <Button onClick={handleScan} disabled={isScanning || !scanInput.trim()} className="w-full h-11">
+                  {isScanning ? "Procesando..." : "Registrar"}
+                </Button>
+                {error && <p className="text-xs text-red-600 bg-red-50 p-2 rounded flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {error}</p>}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="space-y-4">
+                <Label className="font-semibold">Asignación de Salida</Label>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Unidad de Traslado</Label>
+                    <UnidadSelector 
+                      selectedUnidad={session.vehicle?.id || ""} 
+                      onSelectionChange={(id) => setSession(s => ({...s, vehicle: { id } as Vehicles }))} 
+                      subsidiaryId={userSubsidiaryId} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Chofer Asignado</Label>
+                    <RepartidorSelector 
+                      selectedRepartidores={session.drivers.map(d => d.id)} 
+                      // NOTA: Si onSelectionChange solo devuelve el 'id', el modal mostrará el ID.
+                      // Asegúrate de que el RepartidorSelector devuelva el objeto completo ({id, name}) si quieres que se vea el nombre real en el PDF.
+                      onSelectionChange={(ids) => setSession(s => ({...s, drivers: ids.map(id => ({ id } as Driver))}))} 
+                      subsidiaryId={userSubsidiaryId}
+                    />
+                  </div>
                 </div>
-                {error && (
-                  <p className="mt-3 text-xs text-destructive font-medium flex items-center gap-1.5 p-2 bg-destructive/10 rounded">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {error}
+              </CardContent>
+            </Card>
+
+            {/* SECCIÓN DE FINALIZACIÓN VALIDADA */}
+            <Card className="bg-slate-50/50">
+              <CardContent className="space-y-3">
+                {!isReadyToFinish && (
+                  <p className="text-[11px] text-amber-600 font-medium bg-amber-50 p-2 rounded flex items-center gap-2 leading-tight border border-amber-100">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0" /> 
+                    Seleccione Unidad, Chofer y escanee al menos un paquete para finalizar.
                   </p>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <Label className="">Asignación de Ruta</Label>
-                <div className="space-y-2 mt-2">
-                  <Label className="text-xs text-muted-foreground">Seleccionar Vehículo</Label>
-                  <UnidadSelector 
-                    selectedUnidad={session.vehicleId}
-                    onSelectionChange={(unidadId) => setSession(prev => ({...prev, vehicleId: unidadId}))}
-                  />
-                </div>
                 
-                {selectedVehiculo && (
-                    <div className="space-y-2 mt-4">
-                      <Label className="text-xs text-muted-foreground">Seleccionar Chofer</Label>
-                      <RepartidorSelector 
-                        onSelectionChange={(e) => {
-                            console.log(e);
-                        }}
-                        selectedRepartidores={[]}
-                      />
-                  </div>
-                )}
+                <Button 
+                  onClick={() => toggleModal("signatures", true)} 
+                  disabled={!isReadyToFinish} 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizar Ingreso
+                </Button>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardContent className="pt-6 space-y-3">
-                <Label className="text-sm font-medium">Procesar Recepción</Label>
-                <div className="space-y-2">
-                    {isClient ? (
-                    <PDFDownloadLink document={<PackageEntryPDF session={session} vehiculo={selectedVehiculo} />} fileName={`recepcion-${new Date().toISOString().split("T")[0]}.pdf`}>
-                        {({ loading }) => (
-                        <Button variant="outline" disabled={loading || session.packages.length === 0} className="w-full justify-start h-9 text-sm shadow-sm">
-                            <Download className="mr-2 h-4 w-4" /> Exportar Reporte
-                        </Button>
-                        )}
-                    </PDFDownloadLink>
-                    ) : (
-                    <Button variant="outline" disabled className="w-full justify-start h-9 text-sm shadow-sm">
-                        <Download className="mr-2 h-4 w-4" /> Preparando Reporte...
-                    </Button>
-                    )}
-
-                    <Button
-                    onClick={() => toggleModal("signatures", true)}
-                    disabled={session.packages.length === 0}
-                    className="w-full justify-start h-10 text-sm shadow-md bg-green-600 hover:bg-green-700 text-white"
-                    >
-                    <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizar Ingreso (F2)
-                    </Button>
-                </div>
-              </CardContent>
-            </Card>
-
           </div>
-        </div>
-      </main>
+      </div>
 
-      {/* --- Modales Restaurados --- */}
-
-      <Dialog open={modals.shortcuts} onOpenChange={(val) => toggleModal("shortcuts", val)}>
+      {/* MODALES REUTILIZADOS */}
+      <Dialog open={modals.shortcuts} onOpenChange={(v) => toggleModal("shortcuts", v)}>
         <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2"><Keyboard className="w-4 h-4"/> Atajos de Teclado</DialogTitle>
-            <DialogDescription className="text-xs">Optimice su flujo de trabajo utilizando el teclado.</DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Keyboard className="w-4 h-4"/> Atajos de Teclado</DialogTitle></DialogHeader>
           <div className="grid gap-2 py-3">
             {[
               { key: "F1", action: "Enfocar campo de Escáner" },
               { key: "F2", action: "Abrir ventana de Finalizar Ingreso" },
               { key: "F3", action: "Buscar en listado (Guía o CP)" },
               { key: "ESC", action: "Cerrar modales o ventanas" },
-              { key: "Letras", action: "Auto-enfoca escáner si está fuera" },
             ].map(({ key, action }) => (
               <div key={key} className="flex justify-between items-center text-sm border-b pb-2 last:border-0 border-slate-100">
                 <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono text-xs shadow-sm">{key}</kbd>
@@ -607,7 +493,6 @@ export default function InboundPackage() {
         title="Paquetes que Vencen Hoy"
         description="Lista de paquetes con urgencia crítica para hoy."
         packages={expiringTodayPackages}
-        sucursalMap={sucursalMap}
       />
 
       <DetailModal 
@@ -616,7 +501,6 @@ export default function InboundPackage() {
         title="Paquetes de Alto Valor"
         description="Requieren manejo de seguridad especial."
         packages={highValuePackages}
-        sucursalMap={sucursalMap}
       />
 
       <DetailModal 
@@ -625,31 +509,71 @@ export default function InboundPackage() {
         title="Cobros Pendientes"
         description={`Monto Total a Cobrar: $${totalChargesAmount.toLocaleString()} MXN`}
         packages={packagesWithCharges}
-        sucursalMap={sucursalMap}
       />
 
-      <Dialog open={modals.signatures} onOpenChange={(val) => toggleModal("signatures", val)}>
-        <DialogContent className="sm:max-w-[425px]">
+      {/* MODAL DE FIRMAS REFORZADO */}
+      <Dialog open={modals.signatures} onOpenChange={(v) => toggleModal("signatures", v)}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-base">Firma de Recepción</DialogTitle>
-            <DialogDescription className="text-xs">
-              Autorice el ingreso de {session.packages.length} paquetes a la bodega.
+            <DialogTitle>Cerrar Recepción y Firmas</DialogTitle>
+            <DialogDescription>
+              Confirme quién recibe la mercancía para habilitar la descarga del PDF y guardar el registro.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-2">
-              <Label htmlFor="received-by" className="text-xs">Recibe (Personal de Bodega)</Label>
-              <Input id="received-by" value={session.receivedByName} onChange={(e) => setSession({...session, receivedByName: e.target.value})} className="h-9" autoFocus />
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nombre de quien Entrega (Operador Seleccionado)</Label>
+              <Input 
+                value={derivedDriverName} 
+                readOnly
+                className="bg-slate-100 text-slate-500 cursor-not-allowed font-medium"
+              />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="entered-by" className="text-xs">Entrega (Chofer/Operador)</Label>
-              <Input id="entered-by" value={session.enteredByName} onChange={(e) => setSession({...session, enteredByName: e.target.value})} className="h-9" />
+            <div className="space-y-2">
+              <Label>Nombre de quien Recibe (Personal en Bodega)</Label>
+              <Input 
+                value={session.receivedByName} 
+                onChange={(e) => setSession({...session, receivedByName: e.target.value})} 
+                placeholder="Ej. Juan Pérez"
+                autoFocus
+              />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => toggleModal("signatures", false)}>Cancelar</Button>
-            <Button size="sm" onClick={handleCompleteSession} disabled={!session.receivedByName || !session.enteredByName || isScanning}>
-              Confirmar
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => toggleModal("signatures", false)}>
+              Cancelar
+            </Button>
+            
+            {/* Le pasamos dinámicamente el nombre del operador derivado al PDF */}
+            {isClient && canSaveAndGeneratePDF ? (
+              <PDFDownloadLink 
+                document={
+                  <PackageEntryPDF 
+                    session={{...session, enteredByName: derivedDriverName}} 
+                    vehiculo={session.vehicle} 
+                  />
+                } 
+                fileName="recepcion.pdf"
+                className="w-full sm:w-auto"
+              >
+                {({ loading }) => (
+                  <Button variant="secondary" className="w-full" disabled={loading}>
+                    <Download className="mr-2 h-4 w-4" /> PDF
+                  </Button>
+                )}
+              </PDFDownloadLink>
+            ) : (
+              <Button variant="secondary" className="w-full sm:w-auto" disabled>
+                <Download className="mr-2 h-4 w-4" /> PDF
+              </Button>
+            )}
+
+            <Button 
+              onClick={handleCompleteSession} 
+              disabled={!canSaveAndGeneratePDF}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
+            >
+              Confirmar y Limpiar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -660,56 +584,46 @@ export default function InboundPackage() {
 
 function StatCard({ title, value, subValue, icon: Icon, alert = false, onClick }: any) {
   return (
-    <div onClick={onClick} className={`rounded-lg border bg-card p-3 flex flex-col justify-center shadow-sm transition-colors ${alert ? "cursor-pointer hover:bg-muted/40 border-destructive/30" : ""}`}>
-      <div className="flex flex-row items-center justify-between mb-1">
-        <span className={`text-[10px] font-semibold uppercase tracking-wider ${alert ? "text-destructive" : "text-muted-foreground"}`}>{title}</span>
-        <Icon className={`h-3.5 w-3.5 ${alert ? "text-destructive/70" : "text-muted-foreground/50"}`} />
+    <div onClick={onClick} className={`rounded-lg border p-3 shadow-sm transition-colors ${alert ? "border-red-200 bg-red-50/50 cursor-pointer hover:bg-red-50" : "bg-card"}`}>
+      <div className="flex items-center justify-between mb-1">
+        <span className={`text-[10px] font-bold uppercase ${alert ? "text-red-600" : "text-muted-foreground"}`}>{title}</span>
+        <Icon className={`h-3.5 w-3.5 ${alert ? "text-red-500" : "text-muted-foreground/40"}`} />
       </div>
       <div className="flex items-baseline gap-2">
-        <div className="text-xl font-bold tracking-tight">{value}</div>
-        {subValue && <div className="text-xs font-semibold text-muted-foreground">{subValue}</div>}
+        <p className="text-xl font-bold">{value}</p>
+        {subValue && <p className="text-[10px] text-muted-foreground font-medium">{subValue}</p>}
       </div>
     </div>
   )
 }
 
-function DetailModal({ open, onOpenChange, title, description, packages, sucursalMap }: any) {
+function DetailModal({ open, onOpenChange, title, description, packages }: any) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-base">{title}</DialogTitle>
-          <DialogDescription className="text-sm">{description}</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="max-h-[50vh] overflow-auto border rounded-md mt-2">
+        <div className="max-h-[400px] overflow-auto border rounded-md">
           <Table>
-            <TableHeader className="sticky top-0 bg-background z-10 shadow-sm border-b">
+            <TableHeader>
               <TableRow>
-                <TableHead className="text-xs h-9">Tracking</TableHead>
-                <TableHead className="text-xs h-9">Detalles</TableHead>
-                <TableHead className="text-right text-xs h-9">Monto / Peso</TableHead>
+                <TableHead>Guía</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Info</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {packages.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center h-20 text-muted-foreground text-sm">
-                    No hay registros asociados.
+              {packages.map((pkg: any) => (
+                <TableRow key={pkg.id}>
+                  <TableCell className="font-mono">{pkg.trackingNumber}</TableCell>
+                  <TableCell className="uppercase text-[10px]">{pkg.shipmentType}</TableCell>
+                  <TableCell className="text-right text-[10px]">
+                    {pkg.hasPayment ? `$${pkg.paymentAmount}` : 'OK'}
                   </TableCell>
                 </TableRow>
-              ) : (
-                packages.map((pkg: ScannedShipment) => (
-                  <TableRow key={pkg.id}>
-                    <TableCell className="font-mono font-medium text-sm py-2">{pkg.trackingNumber}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs py-2">
-                      {pkg.shipmentType} • {sucursalMap[pkg.subsidiaryId]}
-                    </TableCell>
-                    <TableCell className="text-right text-xs py-2 font-medium">
-                      {pkg.hasCharge ? `$${pkg.chargeAmount}` : `${pkg.weight} kg`}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
         </div>
