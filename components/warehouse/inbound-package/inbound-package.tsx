@@ -345,7 +345,7 @@ export default function InboundPackage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
           <StatCard title="Total" value={session.packages.length} icon={Package} />
           <div className="rounded-lg border bg-card p-3 flex flex-col justify-center shadow-sm">
             <div className="flex items-center justify-between mb-2">
