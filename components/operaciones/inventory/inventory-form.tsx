@@ -168,6 +168,13 @@ const PackageItem = ({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono font-medium text-sm">{pkg.trackingNumber}</span>
 
+            { pkg.shipmentType === 'fedex' ? (
+                <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
+              ) : (
+                <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
+              ) 
+            }
+
             <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
               {pkg.isValid ? "Válido" : "Inválido"}
             </Badge>
@@ -738,8 +745,10 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
 
     // Obtener tracking numbers de los paquetes escaneados
     const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber);
-    const validNumbers = trackingNumbers.filter((tn) => /^\d{12}$/.test(tn));
-    const invalidNumbers = trackingNumbers.filter((tn) => !/^\d{12}$/.test(tn));
+    //const validNumbers = trackingNumbers.filter((tn) => /^\d{12}$/.test(tn));
+    //const invalidNumbers = trackingNumbers.filter((tn) => !/^\d{12}$/.test(tn));
+    const validNumbers = trackingNumbers.filter((tn) => /^[A-Za-z0-9]{10,12}$/.test(tn));
+    const invalidNumbers = trackingNumbers.filter((tn) => !/^[A-Za-z0-9]{10,12}$/.test(tn));
 
     if (validNumbers.length === 0) {
       toast({
