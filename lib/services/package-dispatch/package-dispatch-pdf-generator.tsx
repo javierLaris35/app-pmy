@@ -347,6 +347,8 @@ export const FedExPackageDispatchPDF = ({
   const calculatePackageStats = () => {
     let f2Count = 0;
     let cargaCount = 0;
+    let fedexCount = 0;
+    let dhlCount = 0;
     let expiringTodayCount = 0;
     let withPaymentCount = 0;
     let totalPaymentAmount = 0;
@@ -363,6 +365,9 @@ export const FedExPackageDispatchPDF = ({
         withPaymentCount++;
         totalPaymentAmount += pkg.payment.amount;
       }
+
+      if (pkg?.shipmentType === 'fedex') fedexCount++;
+      if (pkg?.shipmentType === 'dhl') dhlCount++;
 
       try {
         if (pkg?.commitDateTime) {
@@ -387,7 +392,9 @@ export const FedExPackageDispatchPDF = ({
       expiringTodayCount,
       withPaymentCount,
       totalPaymentAmount,
-      regularCount: packages.length - f2Count - highValueCount
+      regularCount: packages.length - f2Count - highValueCount,
+      fedexCount,
+      dhlCount,
     };
   };
 
@@ -506,6 +513,14 @@ export const FedExPackageDispatchPDF = ({
                   <View style={styles.infoItem}>
                     <Text style={[styles.infoText, styles.infoLabel]}>MONTO</Text>
                     <Text style={[styles.infoText, styles.infoValue]}>${(isNaN(Number(packageStats.totalPaymentAmount)) ? 0 : Number(packageStats.totalPaymentAmount)).toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={[styles.infoText, styles.infoLabel]}>Fedex</Text>
+                    <Text style={[styles.infoText, styles.infoValue]}>{packageStats.fedexCount}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={[styles.infoText, styles.infoLabel]}>DHL</Text>
+                    <Text style={[styles.infoText, styles.infoValue]}>{packageStats.dhlCount}</Text>
                   </View>
                 </View>
 

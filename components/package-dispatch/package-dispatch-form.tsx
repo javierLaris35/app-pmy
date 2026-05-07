@@ -33,7 +33,7 @@ type Props = {
   onSuccess: () => void;
 }
 
-const VALIDATION_REGEX = /^\d{12}$/;
+const VALIDATION_REGEX = /^\d{10,12}$/;
 
 const formatMexicanPhoneNumber = (phone: string): string => {
   const cleaned = phone.replace(/\D/g, '');
@@ -65,7 +65,14 @@ const PackageItem = ({
         <div className="flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono font-medium text-sm">{pkg.trackingNumber}</span>
-            
+
+            { pkg.shipmentType === 'fedex' ? (
+                <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
+              ) : (
+                <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
+              ) 
+            }  
+
             <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
               {pkg.isValid ? "Válido" : "Inválido"}
             </Badge>
@@ -290,6 +297,7 @@ const PackageDispatchForm: React.FC<Props> = ({
 
     const uniqueLines = Array.from(new Set(lines));
     const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn));
+    console.log("🚀 ~ handleValidatePackages ~ validNumbers:", validNumbers)
     const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn));
 
     if (validNumbers.length === 0) {

@@ -20,13 +20,13 @@ interface BarcodeScannerInputProps {
 
 const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, BarcodeScannerInputProps>(
     function BarcodeScannerInput({
-                                   id = "trackingNumbers",
-                                   placeholder = "Escanea o pega los códigos de seguimiento aquí...",
-                                   label = "Números de Seguimiento",
-                                   disabled = false,
-                                   hasErrors = false,
-                                   onTrackingNumbersChange,
-                                 }: BarcodeScannerInputProps, ref) {
+        id = "trackingNumbers",
+        placeholder = "Escanea o pega los códigos de seguimiento aquí...",
+        label = "Números de Seguimiento",
+        disabled = false,
+        hasErrors = false,
+        onTrackingNumbersChange,
+      }: BarcodeScannerInputProps, ref) {
       const textareaRef = useRef<HTMLTextAreaElement>(null);
       const wasPastedRef = useRef(false);
       const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("");
@@ -67,11 +67,14 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
               if (wasPastedRef.current) {
                 wasPastedRef.current = false; // resetea el flag
 
-                const pastedLines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
-
+                const pastedLines = currentScan.split("\n").filter(Boolean);
                 const codes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
+                
                 pastedLines.forEach(line => {
-                  const code = line.slice(-12); // solo lo último si es necesario
+                  // 1. Limpiamos cualquier basura invisible o espacios
+                  const cleanLine = line.replace(/[^A-Za-z0-9]/g, '').trim();
+                  // 2. Extraemos los últimos 12 (si tiene 10, los pasa intactos)
+                  const code = cleanLine.slice(-12);
                   if (code) codes.add(code);
                 });
 
@@ -80,9 +83,12 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
               }
 
               // Procesamiento normal para escaneo (ej. pistola)
-              const lines = currentScan.split("\n").map((line) => line.trim()).filter(Boolean);
+              const lines = currentScan.split("\n").filter(Boolean);
               const lastLine = lines[lines.length - 1] || "";
-              const newCode = lastLine.slice(-12);
+              
+              // Limpiamos la línea de caracteres extraños antes de cortar
+              const cleanLastLine = lastLine.replace(/[^A-Za-z0-9]/g, '').trim();
+              const newCode = cleanLastLine.slice(-12);
 
               if (newCode) {
                 const existingCodes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));

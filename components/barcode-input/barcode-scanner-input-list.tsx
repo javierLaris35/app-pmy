@@ -167,39 +167,17 @@ const BarcodeScannerInputComponent = forwardRef<
       );
     }*/
     updateValidatedPackages: validatedPackages => {
-      // 1. ESPIAMOS QUÉ ESTÁ MANDANDO EL PADRE/API
-      //console.log("📥 Recibido desde la API:", validatedPackages);
-
-      setPackages(prev => {
-        // 2. ESPIAMOS QUÉ TENEMOS ACTUALMENTE EN ESPERA
-        //console.log("⏳ Paquetes en espera:", prev);
-
-        return prev.map(pkg => {
-          // Limpieza extrema: quitamos TODO lo que no sea letra o número
-          const cleanOriginal = String(pkg.trackingNumber)
-            .replace(/[^A-Z0-9]/gi, '')
-            .toUpperCase();
-
-          const validated = validatedPackages.find(v => {
-            const cleanValidated = String(v.trackingNumber)
-              .replace(/[^A-Z0-9]/gi, '')
-              .toUpperCase();
-            
-            return cleanOriginal === cleanValidated;
-          });
-
-          // 3. ESPIAMOS SI HUBO MATCH
-          if (!validated) {
-            console.warn(`❌ No se encontró match en la API para la guía: ${pkg.trackingNumber}`);
-          } else {
-            console.log(`✅ Match exitoso para: ${pkg.trackingNumber}`);
-          }
-
+      setPackages(prev =>
+        prev.map(pkg => {
+          const validated = validatedPackages.find(
+            // Comparamos asegurando que solo queden números en ambas cadenas
+            v => String(v.trackingNumber).replace(/\D/g, '') === String(pkg.trackingNumber).replace(/\D/g, '')
+          );
           return validated
             ? { ...validated, isPendingValidation: false }
-            : pkg; 
-        });
-      });
+            : pkg;
+        })
+      );
     }
   }));
 
@@ -245,13 +223,12 @@ const BarcodeScannerInputComponent = forwardRef<
     const lines = text
       .split("\n")
       .map(l => {
-        // 1. Limpiamos cualquier caracter de control oculto o basura del escáner
-        const clean = l.replace(/[^A-Za-z0-9]/g, '').trim();
-        // 2. Mantenemos tu regla para sacar el código real de FedEx.
-        // Si 'clean' tiene 10 caracteres, los devuelve intactos.
+        // 1. Limpiamos cualquier caracter que NO sea número (elimina letras, símbolos, espacios)
+        const clean = l.replace(/[^0-9]/g, '').trim();
+        // 2. Extraemos los últimos 12 (si tiene 10, los pasa intactos)
         return clean.slice(-12);
       })
-      .filter(Boolean)
+      .filter(Boolean);
 
     if (!lines.length) return;
 
