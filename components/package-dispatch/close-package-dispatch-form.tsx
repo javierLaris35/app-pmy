@@ -443,14 +443,16 @@ export default function ClosePackageDispatch({
         .filter(p => p.isValid)
         .map(p => ({ 
           id: p.id, 
-          status: p.status
+          status: p.status,
+          isCharge: p.isCharge,
         }));
 
       // 2. Hacemos lo mismo para los entregados por si acaso
       const podShipmentIds = deliveredPackages
         .map(p => ({ 
           id: p.id,
-          status: p.status
+          status: p.status,
+          isCharge: p.isCharge,
         }));
       
       console.log("🚀 ~ handleCloseRoute ~ deliveredPackages:", deliveredPackages)
