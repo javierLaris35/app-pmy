@@ -16,6 +16,7 @@ export interface Consolidado {
   date: string
   consNumber: string
   numberOfPackages: number
+  carrier: 'FEDEX' | 'DHL'
 }
 
 interface ConsolidadoSelectProps {
@@ -43,19 +44,6 @@ export function ConsolidadoSelect({
       .toLowerCase()
       .includes(searchQuery.toLowerCase()),
   )
-
-  /*const getEstadoColor = (estado: Consolidado["estado"]) => {
-    switch (estado) {
-      case "Completo":
-        return "bg-green-500 text-white"
-      case "En Tránsito":
-        return "bg-blue-500 text-white"
-      case "En Proceso":
-        return "bg-yellow-500 text-white"
-      default:
-        return "bg-muted text-muted-foreground"
-    }
-  }*/
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -151,7 +139,13 @@ export function ConsolidadoSelect({
                     </div>
 
                     {/* Badges */}
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      { consolidado.carrier === 'FEDEX' ? (
+                          <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
+                        ) : (
+                          <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
+                        ) 
+                      }
                       <Badge
                         className="text-xs bg-slate-100 text-slate-700 border border-slate-200"
                       >

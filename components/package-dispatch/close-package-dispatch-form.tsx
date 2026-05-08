@@ -21,6 +21,7 @@ import {
   RefreshCwIcon,
   AlertTriangle,
   FileText,
+  Box,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,9 +45,8 @@ import { generateRouteClosureExcel } from "@/lib/services/route-closure/route-cl
 import { updateDataFromFedexByPackageDispatchId } from "@/lib/services/monitoring/monitoring";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-
 interface ClosePackageDispatchProps {
-  dispatchId: string; // Solo recibe el ID
+  dispatchId: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -59,31 +59,27 @@ export default function ClosePackageDispatch({
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
   
-  // Estados para los datos
   const [dispatch, setDispatch] = useState<PackageDispatch | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Estados para el formulario
   const [collectionsRaw, setCollectionsRaw] = useState("");
   const [actualKms, setActualKms] = useState("");
   const [addCollections, setAddCollections] = useState(false);
 
-  // Estados para mostrar/ocultar listas detalladas
   const [showDelivered, setShowDelivered] = useState(false);
   const [showNotDelivered, setShowNotDelivered] = useState(false);
   const [showOther, setShowOther] = useState(false);
 
-  // Obtener datos del dispatch
+  const [dhlStatuses, setDhlStatuses] = useState<Record<string, string>>({});
+
   useEffect(() => {
     const fetchDispatchData = async () => {
       setIsLoading(true);
       try {
-        console.log("🚀 ~ fetchDispatchData ~ dispatchId:", dispatchId)
         const dispatchData = await getShipmensByDispatchId(dispatchId);
         setDispatch(dispatchData);
       } catch (error) {
-        console.error("Error al cargar datos del dispatch:", error);
         toast({
           title: "Error",
           description: "No se pudieron cargar los datos de la ruta",
@@ -100,7 +96,6 @@ export default function ClosePackageDispatch({
     }
   }, [dispatchId, toast, onClose]);
 
-  // Formatear fecha
   const formatDate = (dateString?: string) => {
     if (!dateString) return "—";
     const date = new Date(dateString);
@@ -111,9 +106,9 @@ export default function ClosePackageDispatch({
     });
   };
 
-  // Memoizar cálculos basados en dispatch
   const {
     allShipments,
+    dhlShipments,
     totalPackages,
     deliveredPackages,
     notDeliveredPackages,
@@ -132,6 +127,7 @@ export default function ClosePackageDispatch({
     if (!dispatch) {
       return {
         allShipments: [],
+        dhlShipments: [],
         totalPackages: 0,
         deliveredPackages: [],
         notDeliveredPackages: [],
@@ -149,15 +145,14 @@ export default function ClosePackageDispatch({
       };
     }
 
-    // Todos los paquetes de la salida
     const shipments = mapToPackageInfoComplete(dispatch.shipments, dispatch.chargeShipments);
     const total = shipments.length;
 
-    // Clasificar paquetes por status
     const delivered: PackageInfo[] = [];
     const notDelivered: PackageInfo[] = [];
     const other: PackageInfo[] = [];
     const returned: PackageInfo[] = [];
+    const dhlOnly: PackageInfo[] = [];
 
     const notDeliveredStatuses = [
       'no_entregado',
@@ -169,16 +164,21 @@ export default function ClosePackageDispatch({
     ];
 
     shipments.forEach(pkg => {
-      const status = pkg.status?.toLowerCase() || 'desconocido';
+      const isDhl = pkg.shipmentType?.toLowerCase() === 'dhl';
+      
+      if (isDhl) {
+        dhlOnly.push(pkg);
+      }
+
+      const status = (isDhl && dhlStatuses[pkg.id]) 
+        ? dhlStatuses[pkg.id] 
+        : (pkg.status?.toLowerCase() || 'desconocido');
       
       if (status === 'entregado') {
         delivered.push(pkg);
       } else if (notDeliveredStatuses.includes(status)) {
         notDelivered.push(pkg);
-        returned.push({
-          ...pkg,
-          isValid: true
-        });
+        returned.push({ ...pkg, isValid: true });
       } else {
         other.push(pkg);
       }
@@ -198,6 +198,7 @@ export default function ClosePackageDispatch({
 
     return {
       allShipments: shipments,
+      dhlShipments: dhlOnly,
       totalPackages: total,
       deliveredPackages: delivered,
       notDeliveredPackages: notDelivered,
@@ -213,9 +214,8 @@ export default function ClosePackageDispatch({
       returnRate: retRate,
       routeNames: routes,
     };
-  }, [dispatch]);
+  }, [dispatch, dhlStatuses]);
 
-  // Calcula kilómetros recorridos
   const calculateKmsTraveled = useCallback(() => {
     if (!actualKms || !dispatch?.kms) return null;
     const initial = parseInt(dispatch.kms) || 0;
@@ -225,26 +225,21 @@ export default function ClosePackageDispatch({
 
   const kmsTraveled = calculateKmsTraveled();
 
+  const pendingDhlUpdates = dhlShipments.some(pkg => !dhlStatuses[pkg.id]);
+
   const handlePdf = async () => { 
     const collectionsForPdf = collectionsRaw.split("\n")
         .map(item => item.trim())
         .filter(item => item.length > 0);
 
-
-    console.log("🚀 ~ handlePdf ~ notDeliveredPackages:", notDeliveredPackages)
-    console.log("🚀 ~ handlePdf ~ deliveredPackages:", deliveredPackages)
-    
-      // Generar PDF
       const blob = await pdf(
         <RouteClosurePDF 
           key={Date.now()}
           returnedPackages={notDeliveredPackages}
-          
           packageDispatch={dispatch!}
           actualKms={actualKms}
           collections={collectionsForPdf}
           podPackages={deliveredPackages}
-          
         />
       ).toBlob();
 
@@ -252,7 +247,6 @@ export default function ClosePackageDispatch({
       window.open(blobUrl, '_blank');
   }
 
-  // Función para enviar email con PDF y Excel
   const handleSendEmail = async (routeClosure: RouteClosure) => {
     setIsSubmitting(true);
 
@@ -261,7 +255,6 @@ export default function ClosePackageDispatch({
         .map(item => item.trim())
         .filter(item => item.length > 0);
 
-      // Generar PDF
       const blob = await pdf(
         <RouteClosurePDF 
           key={Date.now()}
@@ -269,7 +262,7 @@ export default function ClosePackageDispatch({
           packageDispatch={dispatch!}
           actualKms={actualKms}
           collections={collectionsForPdf}
-          podPackages={[]}
+          podPackages={deliveredPackages}
         />
       ).toBlob();
 
@@ -285,7 +278,6 @@ export default function ClosePackageDispatch({
       const fileName = `CIERRE--${dispatch?.drivers?.[0]?.name?.toUpperCase() || 'SIN_REPARTIDOR'}--${dispatch?.subsidiary?.name || 'SIN_SUCURSAL'}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`;
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
-      // Generar Excel
       const excelBuffer = await generateRouteClosureExcel(
         returnedPackages, 
         dispatch!, 
@@ -303,11 +295,9 @@ export default function ClosePackageDispatch({
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
 
-      // Subir archivos
       await uploadFiles(pdfFile, excelFile, routeClosure.id);
 
     } catch (error) {
-      console.error("Error al generar o enviar archivos:", error);
       toast({
         title: "Error en documentos",
         description: "No se pudieron generar los archivos PDF/Excel",
@@ -318,7 +308,6 @@ export default function ClosePackageDispatch({
     }
   };
 
-  // Función para manejar cambio del switch
   const handleAddCollectionsChange = useCallback((checked: boolean) => {
     setAddCollections(checked);
     if (!checked) {
@@ -326,11 +315,9 @@ export default function ClosePackageDispatch({
     }
   }, []);
 
-  // Manejo del cierre de ruta
   const handleCloseRoute = async () => {
     if (!dispatch) return;
 
-    // Validación de kilometraje
     if (!actualKms.trim()) {
       toast({
         title: "Error",
@@ -340,7 +327,6 @@ export default function ClosePackageDispatch({
       return;
     }
 
-    // Validar que el kilometraje sea numérico
     const kmsNumber = parseInt(actualKms);
 
     if (isNaN(kmsNumber) || kmsNumber < 0) {
@@ -352,7 +338,6 @@ export default function ClosePackageDispatch({
       return;
     }
 
-    // Validar que el kilometraje final sea mayor al inicial
     const initialKms = parseInt(dispatch.kms || "0");
 
     if (kmsNumber < initialKms) {
@@ -391,12 +376,10 @@ export default function ClosePackageDispatch({
         description: "La ruta se ha cerrado correctamente.",
       });
       
-      // Generar y enviar documentos
       await handleSendEmail(savedClosure);
 
       onSuccess();
     } catch (error) {
-      console.error("Error al cerrar la ruta:", error);
       toast({
         title: "Error",
         description: "No se pudo procesar el cierre de ruta.",
@@ -422,9 +405,7 @@ export default function ClosePackageDispatch({
 
   const isTodayInHermosillo = (utcDate?: string | Date) => {
     if (!utcDate) return false;
-
     const date = new Date(utcDate);
-
     const formatter = new Intl.DateTimeFormat("es-MX", {
       timeZone: "America/Hermosillo",
       year: "numeric",
@@ -440,9 +421,7 @@ export default function ClosePackageDispatch({
 
   const isYesterdayInHermosillo = (utcDate?: string | Date) => {
     if (!utcDate) return false;
-
     const date = new Date(utcDate);
-
     const formatter = new Intl.DateTimeFormat("es-MX", {
       timeZone: "America/Hermosillo",
       year: "numeric",
@@ -450,7 +429,6 @@ export default function ClosePackageDispatch({
       day: "2-digit",
     });
 
-    // Hoy en Hermosillo
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
@@ -461,17 +439,12 @@ export default function ClosePackageDispatch({
     return yesterdayFormatted === target;
   };
 
-  const hasOtherPackagesDueToday = (
-    otherPackages: PackageInfo[]
-  ) => {
+  const hasOtherPackagesDueToday = (otherPackages: PackageInfo[]) => {
     const dispatchWasYesterday = isYesterdayInHermosillo(dispatch?.createdAt);
 
     return otherPackages.some(pkg => {
       if (!pkg.commitDateTime) return false;
-
       const dueToday = isTodayInHermosillo(pkg.commitDateTime);
-
-      // 🔒 Solo bloquea si vence hoy y el dispatch NO fue ayer
       return dueToday && !dispatchWasYesterday;
     });
   };
@@ -479,10 +452,7 @@ export default function ClosePackageDispatch({
   const handleUpdateFedex = async () => { 
     try {
       setIsLoading(true);
-
-      const updatedPackages = await updateDataFromFedexByPackageDispatchId(dispatchId);
-      console.log("🚀 ~ handleUpdateFedex ~ updatedPackages:", updatedPackages)
-
+      await updateDataFromFedexByPackageDispatchId(dispatchId);
     } catch (error) {
       console.error("Error al actualizar datos de FedEx:", error);
     } finally {
@@ -504,18 +474,14 @@ export default function ClosePackageDispatch({
       <div className="text-center py-8">
         <XCircle className="h-12 w-12 mx-auto text-red-500 mb-2" />
         <p className="text-gray-700">No se pudieron cargar los datos de la ruta</p>
-        <Button onClick={onClose} className="mt-4">
-          Cerrar
-        </Button>
+        <Button onClick={onClose} className="mt-4">Cerrar</Button>
       </div>
     );
   }
 
   return (
     <div className="w-full max-w-6xl mx-auto border-0 shadow-none space-y-6 p-1">
-      {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        {/* IZQUIERDA: Icono + título */}
         <div className="flex items-center gap-3">
           <div className="p-3 bg-primary/10 rounded-xl">
             <Lock className="h-9 w-9 text-primary" />
@@ -533,23 +499,13 @@ export default function ClosePackageDispatch({
           </div>
         </div>
 
-        {/* DERECHA: Botón refresh */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="outline"
               size="sm"
               onClick={handleUpdateFedex}
-              className="
-                h-14 w-14
-                rounded-xl
-                bg-gradient-to-r from-green-600 to-emerald-600
-                hover:from-green-700 hover:to-emerald-700
-                shadow-md hover:shadow-lg
-                transition-all
-                text-white
-                flex items-center justify-center
-              "
+              className="h-14 w-14 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all text-white flex items-center justify-center"
             >
               <RefreshCwIcon className="h-7 w-7" />
             </Button>
@@ -560,7 +516,6 @@ export default function ClosePackageDispatch({
         </Tooltip>
       </div>
 
-      {/* Información general de la ruta */}
       <Card className="border-gray-200 shadow-sm">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -617,17 +572,13 @@ export default function ClosePackageDispatch({
         </CardContent>
       </Card>
 
-      {/* Estadísticas principales */}
       <div>
-        {/* Título y nota de bloqueo */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-          {/* Título */}
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
             <PackageCheck className="h-5 w-5 text-primary" />
             Estadísticas de Entrega
           </h3>
 
-          {/* Nota de bloqueo */}
           {hasOtherPackagesDueToday(otherPackages) && (
             <div className="flex items-center gap-2 text-sm text-red-600">
               <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -639,7 +590,6 @@ export default function ClosePackageDispatch({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Tarjeta ENTREGADOS */}
           <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
@@ -677,23 +627,16 @@ export default function ClosePackageDispatch({
                             No hay paquetes entregados
                           </div>
                         ) : (
-                          deliveredPackages.map((pkg, index) => (
-                            <div
-                              key={pkg.id || pkg.trackingNumber}
-                              className="p-2 rounded hover:bg-green-50 space-y-1"
-                            >
-                              {/* Fila superior: tracking + status */}
+                          deliveredPackages.map((pkg) => (
+                            <div key={pkg.id || pkg.trackingNumber} className="p-2 rounded hover:bg-green-50 space-y-1">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="font-medium text-sm text-gray-800 truncate">
                                   {pkg.trackingNumber}
                                 </div>
-
                                 <Badge className="bg-green-100 text-green-800 shrink-0">
                                   {pkg.status || 'ENTREGADO'}
                                 </Badge>
                               </div>
-
-                              {/* Fila inferior: destinatario */}
                               <div className="flex items-start justify-between text-xs text-gray-500 truncate">
                                 {pkg.recipientName || 'Sin destinatario'}
                               </div>
@@ -708,7 +651,6 @@ export default function ClosePackageDispatch({
             </CardContent>
           </Card>
 
-          {/* Tarjeta NO ENTREGADOS/DEVUELTOS */}
           <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 to-white shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
@@ -747,47 +689,25 @@ export default function ClosePackageDispatch({
                           </div>
                         ) : (
                           notDeliveredPackages.map((pkg) => {
-                            const rawExceptionCode =
-                              pkg.exceptionCode ??
-                              pkg.statusHistory
-                                ?.filter(
-                                  h => h.status === 'no_entregado' && h.exceptionCode
-                                )
-                                .sort(
-                                  (a, b) =>
-                                    new Date(b.timestamp).getTime() -
-                                    new Date(a.timestamp).getTime()
-                                )[0]?.exceptionCode;
-
-                            const noEntregadoExceptionCode = rawExceptionCode
-                              ? `DEX ${rawExceptionCode}`
-                              : undefined;
+                            const rawExceptionCode = pkg.exceptionCode ?? pkg.statusHistory
+                              ?.filter(h => h.status === 'no_entregado' && h.exceptionCode)
+                              .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]?.exceptionCode;
+                            const noEntregadoExceptionCode = rawExceptionCode ? `DEX ${rawExceptionCode}` : undefined;
 
                             return (
-                              <div
-                                key={pkg.id || pkg.trackingNumber}
-                                className="p-2 rounded hover:bg-red-50 space-y-1"
-                              >
-                                {/* Fila superior */}
+                              <div key={pkg.id || pkg.trackingNumber} className="p-2 rounded hover:bg-red-50 space-y-1">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="font-medium text-sm text-gray-800 truncate">
                                     {pkg.trackingNumber}
                                   </div>
-
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-red-100 text-red-800 border-red-300 shrink-0"
-                                  >
+                                  <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 shrink-0">
                                     {pkg.status || 'NO ENTREGADO'}
                                   </Badge>
                                 </div>
-
-                                {/* Fila inferior */}
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="text-xs text-gray-500 truncate">
                                     {pkg.recipientName || 'Sin destinatario'}
                                   </div>
-
                                   {noEntregadoExceptionCode && (
                                     <div className="text-xs text-amber-600 font-medium truncate max-w-[140px]">
                                       {noEntregadoExceptionCode}
@@ -806,7 +726,6 @@ export default function ClosePackageDispatch({
             </CardContent>
           </Card>
 
-          {/* Tarjeta OTROS ESTATUS */}
           <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
@@ -854,12 +773,10 @@ export default function ClosePackageDispatch({
                                   : "hover:bg-amber-50 border-transparent"
                               )}
                             >
-                              {/* FILA 1: TRACKING + STATUS */}
                               <div className="flex items-start justify-between gap-3">
                                 <span className="font-semibold text-sm text-left">
                                   {pkg.trackingNumber}
                                 </span>
-
                                 <Badge
                                   className={cn(
                                     "whitespace-normal leading-tight max-w-[45%] text-left",
@@ -871,13 +788,10 @@ export default function ClosePackageDispatch({
                                   {pkg.status || "otro"}
                                 </Badge>
                               </div>
-
-                              {/* FILA 2: DETALLES */}
                               <div className="flex flex-col gap-1 text-left">
                                 <span className="text-xs text-gray-600">
                                   {pkg.recipientName || "Sin destinatario"}
                                 </span>
-
                                 {pkg.commitDateTime && (
                                   <span
                                     className={cn(
@@ -906,14 +820,63 @@ export default function ClosePackageDispatch({
 
       <Separator className="my-4" />
 
-      {/* Sección de Datos para el Cierre */}
       <div className="space-y-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-primary" />
           Información para el Cierre
         </h3>
 
-        {/* Kilometraje */}
+        {dhlShipments.length > 0 && (
+          <Card className="border-orange-200 shadow-sm bg-orange-50/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Box className="h-5 w-5 text-orange-600" />
+                  <span className="text-orange-900">Actualizar Paquetes DHL</span>
+                </div>
+                <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300">
+                  {dhlShipments.length} paquetes
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-orange-800/80">
+                Es obligatorio asignar el estatus actual de los paquetes gestionados por DHL.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-48 rounded-md border border-orange-200 bg-white">
+                <div className="p-1 space-y-1">
+                  {dhlShipments.map((pkg) => (
+                    <div key={pkg.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded hover:bg-orange-50/50 border-b last:border-0 border-orange-100">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-semibold text-sm text-gray-800">{pkg.trackingNumber}</span>
+                        <span className="text-xs text-gray-500 line-clamp-1">{pkg.recipientName || 'Sin destinatario'}</span>
+                      </div>
+                      <select
+                        value={dhlStatuses[pkg.id] || ""}
+                        onChange={(e) => setDhlStatuses(prev => ({ ...prev, [pkg.id]: e.target.value }))}
+                        className={cn(
+                          "flex h-9 w-full sm:w-[180px] items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                          !dhlStatuses[pkg.id] && "border-orange-400 ring-1 ring-orange-400/50"
+                        )}
+                        required
+                      >
+                        <option value="" disabled>Seleccionar estatus...</option>
+                        <option value="entregado">Entregado</option>
+                        <option value="no_entregado">No Entregado</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              {pendingDhlUpdates && (
+                <p className="text-xs text-orange-600 mt-2 font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Faltan estatus por actualizar
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="border-blue-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -978,7 +941,6 @@ export default function ClosePackageDispatch({
           </CardContent>
         </Card>
 
-        {/* Recolecciones */}
         <Card className="border-purple-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -1044,7 +1006,6 @@ export default function ClosePackageDispatch({
         </Card>
       </div>
 
-      {/* Resumen Final */}
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
         <CardHeader className="pb-3">
           <CardTitle className="text-blue-800">Resumen del Cierre</CardTitle>
@@ -1116,7 +1077,6 @@ export default function ClosePackageDispatch({
         </CardContent>
       </Card>
 
-      {/* Botones de acción */}
       <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4 border-t">
         <Button
           variant="outline"
@@ -1142,7 +1102,7 @@ export default function ClosePackageDispatch({
 
         <Button
           onClick={handleCloseRoute}
-          disabled={isSubmitting || !actualKms.trim() || hasOtherPackagesDueToday(otherPackages)}
+          disabled={isSubmitting || !actualKms.trim() || hasOtherPackagesDueToday(otherPackages) || pendingDhlUpdates}
           size="lg"
           className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 flex-1 sm:flex-none shadow-md hover:shadow-lg transition-all"
         >

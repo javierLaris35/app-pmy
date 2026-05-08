@@ -258,11 +258,12 @@ export const RouteClosurePDF = ({
 
   const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(shipments, chargeShipments);
 
-  const validReturns = returnedPackages.filter((p) => p.isValid);
+  const validReturns = returnedPackages /*.filter((p) => p.isValid);*/
     
   const originalCount = packageDispatchShipments?.length || 0;
   const returnRate = originalCount > 0 ? (returnedPackages.length / originalCount) * 100 : 0;
   const podDeliveredCount = podPackages?.length || 0;
+  console.log("🚀 ~ RouteClosurePDF ~ podPackages:", podPackages)
 
   const dex03Count = returnedPackages.filter(
     (p) => p.status === ShipmentStatusType.DIRECCION_INCORRECTA
