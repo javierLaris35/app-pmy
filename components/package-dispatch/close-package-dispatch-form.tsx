@@ -35,7 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, mapToPackageInfoComplete } from "@/lib/utils";
-import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
+import { PackageDispatch, PackageInfo, RouteClosure, ShipmentStatusType } from "@/lib/types";
 import { useAuthStore } from "@/store/auth.store";
 import { save, uploadFiles } from "@/lib/services/route-closure";
 import { pdf } from "@react-pdf/renderer";
@@ -70,8 +70,6 @@ export default function ClosePackageDispatch({
   const [showDelivered, setShowDelivered] = useState(false);
   const [showNotDelivered, setShowNotDelivered] = useState(false);
   const [showOther, setShowOther] = useState(false);
-
-  const [dhlStatuses, setDhlStatuses] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const fetchDispatchData = async () => {
@@ -170,17 +168,29 @@ export default function ClosePackageDispatch({
         dhlOnly.push(pkg);
       }
 
-      const status = (isDhl && dhlStatuses[pkg.id]) 
-        ? dhlStatuses[pkg.id] 
-        : (pkg.status?.toLowerCase() || 'desconocido');
+      // Leemos el estatus directamente del paquete (que ya viene actualizado por el select)
+      const statusStr = pkg.status?.toLowerCase() || 'desconocido';
       
-      if (status === 'entregado') {
+      // Validamos si es Entregado (reconoce FedEx o tu Enum)
+      // Nota: Uso (any) o las dos opciones por si tu enum es ENTREGADO o DELIVERED
+      const isDelivered = 
+        statusStr === 'entregado' || 
+        pkg.status === (ShipmentStatusType as any).ENTREGADO
+
+      // Validamos si es No Entregado (reconoce FedEx o tu Enum)
+      const isNotDelivered = 
+        notDeliveredStatuses.includes(statusStr) || 
+        pkg.status === (ShipmentStatusType as any).NOT_DELIVERED ||
+        statusStr === 'no_entregado';
+      
+      if (isDelivered) {
         delivered.push(pkg);
-      } else if (notDeliveredStatuses.includes(status)) {
+      } else if (isNotDelivered) {
         notDelivered.push(pkg);
         returned.push({ ...pkg, isValid: true });
       } else {
-        other.push(pkg);
+        // Si no se ha seleccionado nada, caerá aquí y bloqueará el botón
+        other.push(pkg); 
       }
     });
 
@@ -214,7 +224,7 @@ export default function ClosePackageDispatch({
       returnRate: retRate,
       routeNames: routes,
     };
-  }, [dispatch, dhlStatuses]);
+  }, [dispatch]);
 
   const calculateKmsTraveled = useCallback(() => {
     if (!actualKms || !dispatch?.kms) return null;
@@ -225,13 +235,15 @@ export default function ClosePackageDispatch({
 
   const kmsTraveled = calculateKmsTraveled();
 
-  const pendingDhlUpdates = dhlShipments.some(pkg => !dhlStatuses[pkg.id]);
+  const pendingDhlUpdates = otherPackages.some(pkg => pkg.shipmentType?.toLowerCase() === 'dhl');
 
   const handlePdf = async () => { 
     const collectionsForPdf = collectionsRaw.split("\n")
         .map(item => item.trim())
         .filter(item => item.length > 0);
 
+      console.log("🚀 ~ handlePdf ~ notDeliveredPackages:", notDeliveredPackages)
+      
       const blob = await pdf(
         <RouteClosurePDF 
           key={Date.now()}
@@ -315,7 +327,7 @@ export default function ClosePackageDispatch({
     }
   }, []);
 
-  const handleCloseRoute = async () => {
+  const handleCloseRouteResp = async () => {
     if (!dispatch) return;
 
     if (!actualKms.trim()) {
@@ -389,6 +401,111 @@ export default function ClosePackageDispatch({
       setIsSubmitting(false);
     }
   };
+
+  const handleCloseRoute = async () => {
+    if (!dispatch) return;
+
+    if (!actualKms.trim()) {
+      toast({
+        title: "Error",
+        description: "Debes ingresar el kilometraje al cierre.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const kmsNumber = parseInt(actualKms);
+
+    if (isNaN(kmsNumber) || kmsNumber < 0) {
+      toast({
+        title: "Kilometraje inválido",
+        description: "Ingresa un valor numérico válido",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const initialKms = parseInt(dispatch.kms || "0");
+
+    if (kmsNumber < initialKms) {
+      toast({
+        title: "Kilometraje incorrecto",
+        description: "El kilometraje final no puede ser menor al inicial",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const returnedShipmentIds = returnedPackages
+        .filter(p => p.isValid)
+        .map(p => ({ 
+          id: p.id, 
+          status: p.status
+        }));
+
+      // 2. Hacemos lo mismo para los entregados por si acaso
+      const podShipmentIds = deliveredPackages
+        .map(p => ({ 
+          id: p.id,
+          status: p.status
+        }));
+      
+      console.log("🚀 ~ handleCloseRoute ~ deliveredPackages:", deliveredPackages)
+      console.log("🚀 ~ handleCloseRoute ~ podShipmentIds:", podShipmentIds)
+
+      const closurePackageDispatch: RouteClosure = {
+        packageDispatch: { id: dispatch.id },
+        closeDate: new Date(),
+        returnedPackages: returnedShipmentIds,
+        podPackages: podShipmentIds, // Ahora sí enviamos los entregados en lugar de []
+        actualKms: actualKms,
+        subsidiary: user?.subsidiary,
+        createdBy: user,
+        collections: collectionsRaw.split("\n")
+            .map(item => item.trim())
+            .filter(item => item.length > 0)
+      };
+
+      const savedClosure = await save(closurePackageDispatch);
+      
+      toast({
+        title: "Cierre exitoso",
+        description: "La ruta se ha cerrado correctamente.",
+      });
+      
+      await handleSendEmail(savedClosure);
+
+      onSuccess();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo procesar el cierre de ruta.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDhlStatusChange = useCallback((pkgId: string, newStatus: string) => {
+    setDispatch((prev) => {
+      if (!prev) return prev;
+
+      // Actualizamos el paquete dentro de shipments (o chargeShipments si aplica)
+      return {
+        ...prev,
+        shipments: prev.shipments?.map((pkg) => 
+          pkg.id === pkgId ? { ...pkg, status: newStatus } : pkg
+        ),
+        chargeShipments: prev.chargeShipments?.map((pkg) => 
+          pkg.id === pkgId ? { ...pkg, status: newStatus } : pkg
+        )
+      };
+    });
+  }, []);
 
   const formatDateHermosillo = (utcDate?: string | Date) => {
     if (!utcDate) return "—";
@@ -852,18 +969,27 @@ export default function ClosePackageDispatch({
                         <span className="text-xs text-gray-500 line-clamp-1">{pkg.recipientName || 'Sin destinatario'}</span>
                       </div>
                       <select
-                        value={dhlStatuses[pkg.id] || ""}
-                        onChange={(e) => setDhlStatuses(prev => ({ ...prev, [pkg.id]: e.target.value }))}
+                        value={Object.values(ShipmentStatusType).includes(pkg.status as any) ? pkg.status : ""}
+                        onChange={(e) => handleDhlStatusChange(pkg.id, e.target.value)}
                         className={cn(
                           "flex h-9 w-full sm:w-[180px] items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-                          !dhlStatuses[pkg.id] && "border-orange-400 ring-1 ring-orange-400/50"
+                          !Object.values(ShipmentStatusType).includes(pkg.status as any) && "border-orange-400 ring-1 ring-orange-400/50"
                         )}
                         required
                       >
                         <option value="" disabled>Seleccionar estatus...</option>
-                        <option value="entregado">Entregado</option>
-                        <option value="no_entregado">No Entregado</option>
-                      </select>
+                        {Object.values(ShipmentStatusType).map((statusValue) => {
+                          const formattedLabel = statusValue
+                            .replace(/_/g, ' ')
+                            .replace(/\b\w/g, (char) => char.toUpperCase());
+
+                          return (
+                            <option key={statusValue} value={statusValue}>
+                              {formattedLabel}
+                            </option>
+                          );
+                        })}
+                      </select>           
                     </div>
                   ))}
                 </div>

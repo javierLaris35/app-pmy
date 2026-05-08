@@ -355,6 +355,8 @@ export enum ShipmentStatusType {
   CAMBIO_FECHA_SOLICITADO = 'cambio_fecha_solicitado', //DEX17
   ACARGO_DE_FEDEX = 'acargo_de_fedex', // OD
   ENTREGADO_POR_FEDEX = 'entregado_por_fedex',
+  DEMORA_EN_ENTREGA = 'demora_en_entrega', // DEX84 o STAT84
+  EMPRESA_CERRADA = 'empresa_cerrada', 
 }
 
 export enum Priority {

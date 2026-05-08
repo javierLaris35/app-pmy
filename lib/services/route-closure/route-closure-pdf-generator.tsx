@@ -114,6 +114,7 @@ const styles = StyleSheet.create({
     fontSize: 6.5,
     padding: 2,
     minHeight: 16,
+    alignItems: "center"
   },
   tableRowEven: { backgroundColor: colors.light },
   multiColumnContainer: {
@@ -258,12 +259,21 @@ export const RouteClosurePDF = ({
 
   const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(shipments, chargeShipments);
 
-  const validReturns = returnedPackages /*.filter((p) => p.isValid);*/
+  const validReturns = returnedPackages;
     
   const originalCount = packageDispatchShipments?.length || 0;
   const returnRate = originalCount > 0 ? (returnedPackages.length / originalCount) * 100 : 0;
   const podDeliveredCount = podPackages?.length || 0;
-  console.log("🚀 ~ RouteClosurePDF ~ podPackages:", podPackages)
+
+  // Contadores por Paquetería
+  const fedexTotal = packageDispatchShipments.filter(p => p.shipmentType?.toLowerCase() === 'fedex').length;
+  const dhlTotal = packageDispatchShipments.filter(p => p.shipmentType?.toLowerCase() === 'dhl').length;
+
+  const fedexDelivered = podPackages.filter(p => p.shipmentType?.toLowerCase() === 'fedex').length;
+  const dhlDelivered = podPackages.filter(p => p.shipmentType?.toLowerCase() === 'dhl').length;
+
+  const fedexReturned = returnedPackages.filter(p => p.shipmentType?.toLowerCase() === 'fedex').length;
+  const dhlReturned = returnedPackages.filter(p => p.shipmentType?.toLowerCase() === 'dhl').length;
 
   const dex03Count = returnedPackages.filter(
     (p) => p.status === ShipmentStatusType.DIRECCION_INCORRECTA
@@ -294,9 +304,6 @@ export const RouteClosurePDF = ({
         amount: pkg.payment?.amount || 0,
         type: pkg.payment?.type || "N/A",
       })) || [];
-
-
-  console.log("🚀 ~ RouteClosurePDF ~ charges:", charges)
 
   const splitCollectionsIntoColumns = (collections: string[], columns: number) => {
     const result = [];
@@ -369,8 +376,10 @@ export const RouteClosurePDF = ({
             {returnedPackages.length > 0 ? (
               <View style={styles.tableContainer}>
                 <View style={styles.tableHeader}>
-                  <Text style={{ width: "60%" }}>GUÍA</Text>
-                  <Text style={{ width: "40%" }}>MOTIVO</Text>
+                  {/* Ajustamos ligeramente el ancho para que quepa la palabra completa */}
+                  <Text style={{ width: "45%" }}>GUÍA</Text>
+                  <Text style={{ width: "20%", textAlign: "center" }}>TIPO</Text>
+                  <Text style={{ width: "35%" }}>MOTIVO</Text>
                 </View>
                 {validReturns.map((p, i) => (
                   <View
@@ -380,8 +389,12 @@ export const RouteClosurePDF = ({
                       i % 2 === 0 && styles.tableRowEven,
                     ]}
                   >
-                    <Text style={{ width: "60%" }}>{p.trackingNumber}</Text>
-                    <Text style={{ width: "40%" }}>
+                    <Text style={{ width: "45%" }}>{p.trackingNumber}</Text>
+                    <Text style={{ width: "20%", textAlign: "center", fontWeight: "bold" }}>
+                      {/* Aquí mostramos el nombre completo */}
+                      {p.shipmentType?.toLowerCase() === 'dhl' ? 'DHL' : 'FedEx'}
+                    </Text>
+                    <Text style={{ width: "35%" }}>
                       {getDexCode(p.status) || "N/A"}
                     </Text>
                   </View>
@@ -419,11 +432,38 @@ export const RouteClosurePDF = ({
 
           {/* Columna derecha */}
           <View style={styles.rightColumn}>
+            
+            {/* Desglose por Paquetería */}
             <Text style={styles.sectionTitle}>
+              DESGLOSE POR PAQUETERÍA
+            </Text>
+            <View style={styles.tableContainer}>
+              <View style={styles.tableHeader}>
+                <Text style={{ width: "25%" }}></Text>
+                <Text style={{ width: "25%", textAlign: "center" }}>TOTAL</Text>
+                <Text style={{ width: "25%", textAlign: "center" }}>ENT</Text>
+                <Text style={{ width: "25%", textAlign: "center" }}>DEV</Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={{ width: "25%", fontWeight: "bold" }}>FedEx</Text>
+                <Text style={{ width: "25%", textAlign: "center" }}>{fedexTotal}</Text>
+                <Text style={{ width: "25%", textAlign: "center", color: colors.success }}>{fedexDelivered}</Text>
+                <Text style={{ width: "25%", textAlign: "center", color: colors.accent }}>{fedexReturned}</Text>
+              </View>
+              <View style={[styles.tableRow, styles.tableRowEven]}>
+                <Text style={{ width: "25%", fontWeight: "bold" }}>DHL</Text>
+                <Text style={{ width: "25%", textAlign: "center" }}>{dhlTotal}</Text>
+                <Text style={{ width: "25%", textAlign: "center", color: colors.success }}>{dhlDelivered}</Text>
+                <Text style={{ width: "25%", textAlign: "center", color: colors.accent }}>{dhlReturned}</Text>
+              </View>
+            </View>
+
+            {/* Recolecciones */}
+            <Text style={[styles.sectionTitle, { marginTop: 6 }]}>
               RECOLECCIONES ({collections.length})
             </Text>
             {collections.length > 0 ? (
-              <View style={[styles.tableContainer, { maxHeight: 200 }]}>
+              <View style={[styles.tableContainer, { maxHeight: 150 }]}>
                 <View style={styles.multiColumnContainer}>
                   {collectionColumns.map((column, colIndex) => (
                     <View key={colIndex} style={styles.column}>
@@ -505,7 +545,7 @@ export const RouteClosurePDF = ({
               </Text>
             )}
 
-            {/* Estadísticas */}
+            {/* Estadísticas Generales */}
             <View style={[styles.statsContainer, { marginTop: 6 }]}>
               <View style={styles.statBox}>
                 <Text style={styles.statTitle}>PAQUETES EN SALIDA</Text>
@@ -517,7 +557,7 @@ export const RouteClosurePDF = ({
               </View>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statTitle}>TASA DE DEVOLUCIÓN</Text>
+              <Text style={styles.statTitle}>TASA DE DEVOLUCIÓN GENERAL</Text>
               <Text
                 style={[
                   styles.statValue,

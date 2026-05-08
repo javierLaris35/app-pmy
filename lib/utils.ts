@@ -232,6 +232,7 @@ const NOT_DELIVERED_STATUS_MAP: Record<string, string> = {
   direccion_incorrecta: "DEX03",
   cliente_no_disponible: "DEX08",
   rechazado: "DEX07",
+  cambio_fecha_solicitado: "DEX17",
 };
 
 export const getDexCode = (status: string): string | null => {
