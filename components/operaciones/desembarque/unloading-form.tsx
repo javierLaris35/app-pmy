@@ -678,9 +678,90 @@ export default function UnloadingForm({
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   }, []);
 
-  const playExpirationSound = useCallback(() => {}, []);
-  const playTomorrowExpirationSound = useCallback(() => {}, []);
-  const playSurplusSound = useCallback(() => {}, []);
+  const playExpirationSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioContext = new AudioCtx();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.type = "square";
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      const now = audioContext.currentTime;
+      oscillator.frequency.setValueAtTime(1000, now);
+      gainNode.gain.setValueAtTime(0.2, now);
+      gainNode.gain.setValueAtTime(0, now + 0.1);
+      oscillator.frequency.setValueAtTime(1000, now + 0.15);
+      gainNode.gain.setValueAtTime(0.2, now + 0.15);
+      gainNode.gain.setValueAtTime(0, now + 0.25);
+
+      oscillator.start(now);
+      oscillator.stop(now + 0.3);
+    } catch (err) {
+      console.warn("playExpirationSound error:", err);
+    }
+  }, []);
+
+  const playTomorrowExpirationSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioContext = new AudioCtx();
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = "sine";
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      const now = audioContext.currentTime;
+      osc.frequency.setValueAtTime(700, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.setValueAtTime(0, now + 0.12);
+      osc.start(now);
+      osc.stop(now + 0.14);
+    } catch (err) {
+      console.warn("playTomorrowExpirationSound error:", err);
+    }
+  }, []);
+
+  // Sonido para guías sobrantes (breve tono)
+  const playSurplusSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioContext = new AudioCtx();
+      const now = audioContext.currentTime;
+
+      // Primer tono (ping alto)
+      const o1 = audioContext.createOscillator();
+      const g1 = audioContext.createGain();
+      o1.type = 'triangle';
+      o1.frequency.setValueAtTime(880, now);
+      g1.gain.setValueAtTime(0.15, now);
+      o1.connect(g1);
+      g1.connect(audioContext.destination);
+      o1.start(now);
+      o1.stop(now + 0.09);
+
+      // Segundo tono (ping más bajo) separado ligeramente
+      const o2 = audioContext.createOscillator();
+      const g2 = audioContext.createGain();
+      const t2 = now + 0.12;
+      o2.type = 'triangle';
+      o2.frequency.setValueAtTime(660, t2);
+      g2.gain.setValueAtTime(0.15, t2);
+      o2.connect(g2);
+      g2.connect(audioContext.destination);
+      o2.start(t2);
+      o2.stop(t2 + 0.12);
+    } catch (err) {
+      console.warn("playSurplusSound error:", err);
+    }
+  }, []);
 
   const handleExpirationCheck = useCallback((newShipments: PackageInfoForUnloading[]) => {
     const expiringToday: ExpiringPackage[] = [];
@@ -713,7 +794,8 @@ export default function UnloadingForm({
     if (expiringToday.length > 0) {
       setExpiringPackages(expiringToday);
       setCurrentExpiringIndex(0);
-      speakMessage("El paquete expira hoy");
+      speakMessage("Vence hoy");
+      playExpirationSound();
       const newShown = new Set(shownExpiringPackages);
       expiringToday.forEach(p => newShown.add(p.trackingNumber));
       setShownExpiringPackages(newShown);
@@ -722,7 +804,8 @@ export default function UnloadingForm({
     if (expiringTomorrow.length > 0) {
       setExpiringPackages(expiringTomorrow);
       setCurrentExpiringIndex(0);
-      speakMessage("El paquete expira mañana");
+      speakMessage("Vence mañana");
+      playTomorrowExpirationSound();
       const newShown = new Set(shownExpiringPackages);
       expiringTomorrow.forEach(p => newShown.add(p.trackingNumber));
       setShownExpiringPackages(newShown);
