@@ -67,11 +67,11 @@ function ShipmentsPage() {
     try {
       await updateFromDHL(formData, (progress) => {
         console.log(`Subiendo archivo: ${progress}%`);
-      });
-      // Aquí puedes agregar tu alerta de éxito o refrescar la tabla
+      });    
+      
     } catch (error) {
-      console.error(error);
-      // Aquí puedes agregar tu alerta de error
+      console.error("Error capturado antes del modal:", error);
+      throw error; 
     }
   }
 
