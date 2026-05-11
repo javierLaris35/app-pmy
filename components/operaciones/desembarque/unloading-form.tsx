@@ -895,8 +895,8 @@ export default function UnloadingForm({
     }
 
     const trackingNumbers = safeScannedPackages.map(p => p.trackingNumber);
-    const validNumbers = trackingNumbers.filter(t => /^\d{12}$/.test(t));
-    const invalidNumbers = trackingNumbers.filter(t => !/^\d{12}$/.test(t));
+    const validNumbers = trackingNumbers.filter(t => /^\d{10,12}$/.test(t));
+    const invalidNumbers = trackingNumbers.filter(t => !/^\d{10,12}$/.test(t));
     
     if (validNumbers.length === 0) return;
 
