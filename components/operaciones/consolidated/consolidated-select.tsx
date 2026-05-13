@@ -140,7 +140,7 @@ export function ConsolidadoSelect({
 
                     {/* Badges */}
                     <div className="flex flex-wrap items-center gap-3">
-                      { consolidado.carrier === 'FEDEX' ? (
+                      { consolidado.carrier?.trim().toUpperCase() === 'FEDEX' ? (
                           <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
                         ) : (
                           <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
