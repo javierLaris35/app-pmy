@@ -8,6 +8,11 @@ const getTransfers = async (url: string) => {
     return response.data;
 }
 
+const getTransfersBySubsidiary = async (subsidiaryId: string) => {
+    const response = await axiosConfig.get<Transfer[]>(`${url}?subsidiaryId=${subsidiaryId}`);
+    return response.data;
+}
+
 const saveTransfer = async (transfer: CreateTransferPayload) => {
     const response = await axiosConfig.post<Transfer>(url, transfer);
     return response.data;
@@ -15,5 +20,6 @@ const saveTransfer = async (transfer: CreateTransferPayload) => {
 
 export {
     getTransfers,
+    getTransfersBySubsidiary,
     saveTransfer
 }

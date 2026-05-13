@@ -21,14 +21,14 @@ type SelectStatusProps = {
 };
 
 export function SelectStatus({
-                               value = '',
-                               exceptionCode = null,
-                               reason = '',
-                               onChange,
-                               onReasonChange,
-                               placeholder = 'Selecciona un estatus',
-                               disabled = false,
-                             }: SelectStatusProps) {
+  value = '',
+  exceptionCode = null,
+  reason = '',
+  onChange,
+  onReasonChange,
+  placeholder = 'Selecciona un estatus',
+  disabled = false,
+}: SelectStatusProps) {
   const statusOptions = useMemo(() =>
           Object.entries(SHIPMENT_STATUS_MAP).map(([code, label]) => ({
             value: code,

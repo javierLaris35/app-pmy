@@ -1,3 +1,4 @@
+// components/pdf/RouteClosurePDF.tsx
 import React from "react";
 import {
   Document,
@@ -91,6 +92,7 @@ const styles = StyleSheet.create({
     borderStyle: "solid",
   },
   tableContainer: {
+    maxHeight: 200,
     borderWidth: 1,
     borderColor: colors.border,
     borderStyle: "solid",
@@ -115,18 +117,13 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   tableRowEven: { backgroundColor: colors.light },
-  
-  // CORRECCIÓN DE EMPALME: Se elimina maxHeight fijo y se usa wrap para permitir flujo natural
-  collectionsContainer: {
-    padding: 4,
-  },
   multiColumnContainer: {
     flexDirection: "row",
+    justifyContent: "space-between",
     flexWrap: "wrap",
-    justifyContent: "flex-start",
   },
+  column: { width: "48%" },
   collectionItem: {
-    width: "48%",
     fontSize: 7,
     marginBottom: 2,
     padding: 2,
@@ -243,7 +240,6 @@ interface RouteClosurePDFProps {
   actualKms: string;
   collections?: string[];
   podPackages?: PackageInfo[];
-  noVanPackages?: any[]; // Propiedad agregada
 }
 
 export const RouteClosurePDF = ({
@@ -252,7 +248,6 @@ export const RouteClosurePDF = ({
   actualKms,
   collections = [],
   podPackages = [],
-  noVanPackages = [], // Valor por defecto
 }: RouteClosurePDFProps) => {
   const timeZone = "America/Hermosillo";
   const currentDate = new Date();
@@ -267,8 +262,6 @@ export const RouteClosurePDF = ({
   const validReturns = returnedPackages;
     
   const originalCount = packageDispatchShipments?.length || 0;
-  const noVanCount = noVanPackages?.length || 0;
-  const totalRuta = originalCount + noVanCount;
   const returnRate = originalCount > 0 ? (returnedPackages.length / originalCount) * 100 : 0;
   const podDeliveredCount = podPackages?.length || 0;
 
@@ -302,6 +295,7 @@ export const RouteClosurePDF = ({
     drivers && drivers.length > 0 ? drivers[0].name : "No asignado";
   const routeNames = routes?.map((r) => r.name).join(", ") || "No asignado";
 
+  // Cobros
   const charges =
     podPackages
       ?.filter((pkg) => pkg.payment)
@@ -310,6 +304,17 @@ export const RouteClosurePDF = ({
         amount: pkg.payment?.amount || 0,
         type: pkg.payment?.type || "N/A",
       })) || [];
+
+  const splitCollectionsIntoColumns = (collections: string[], columns: number) => {
+    const result = [];
+    const itemsPerColumn = Math.ceil(collections.length / columns);
+    for (let i = 0; i < columns; i++)
+      result.push(
+        collections.slice(i * itemsPerColumn, (i + 1) * itemsPerColumn)
+      );
+    return result;
+  };
+  const collectionColumns = splitCollectionsIntoColumns(collections, 2);
 
   return (
     <Document>
@@ -347,6 +352,14 @@ export const RouteClosurePDF = ({
             <Text style={styles.compactValue}>{dispatchDate}</Text>
           </View>
           <View style={styles.compactItem}>
+            <Text style={styles.compactLabel}>KMs Programados</Text>
+            <Text style={styles.compactValue}>{kms || "0"}</Text>
+          </View>
+          <View style={styles.compactItem}>
+            <Text style={styles.compactLabel}>KMs Reales</Text>
+            <Text style={styles.compactValue}>{actualKms}</Text>
+          </View>
+          <View style={styles.compactItem}>
             <Text style={styles.compactLabel}>POD Entregados</Text>
             <Text style={styles.compactValue}>{podDeliveredCount}</Text>
           </View>
@@ -361,8 +374,9 @@ export const RouteClosurePDF = ({
               DEVUELTOS ({returnedPackages.length})
             </Text>
             {returnedPackages.length > 0 ? (
-              <View style={[styles.tableContainer, { marginBottom: 8 }]}>
+              <View style={styles.tableContainer}>
                 <View style={styles.tableHeader}>
+                  {/* Ajustamos ligeramente el ancho para que quepa la palabra completa */}
                   <Text style={{ width: "45%" }}>GUÍA</Text>
                   <Text style={{ width: "20%", textAlign: "center" }}>TIPO</Text>
                   <Text style={{ width: "35%" }}>MOTIVO</Text>
@@ -377,6 +391,7 @@ export const RouteClosurePDF = ({
                   >
                     <Text style={{ width: "45%" }}>{p.trackingNumber}</Text>
                     <Text style={{ width: "20%", textAlign: "center", fontWeight: "bold" }}>
+                      {/* Aquí mostramos el nombre completo */}
                       {p.shipmentType?.toLowerCase() === 'dhl' ? 'DHL' : 'FedEx'}
                     </Text>
                     <Text style={{ width: "35%" }}>
@@ -388,35 +403,6 @@ export const RouteClosurePDF = ({
             ) : (
               <Text style={{ textAlign: "center", fontSize: 7, padding: 8 }}>
                 No hay devueltos
-              </Text>
-            )}
-
-            {/* NUEVA SECCIÓN: PAQUETES NO VAN */}
-            <Text style={styles.sectionTitle}>
-              PAQUETES NO VAN ({noVanCount})
-            </Text>
-            {noVanCount > 0 ? (
-              <View style={[styles.tableContainer, { marginBottom: 8 }]}>
-                <View style={styles.tableHeader}>
-                  <Text style={{ width: "60%" }}>GUÍA</Text>
-                  <Text style={{ width: "40%", textAlign: "center" }}>ESTATUS</Text>
-                </View>
-                {noVanPackages.map((p, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.tableRow,
-                      i % 2 === 0 && styles.tableRowEven,
-                    ]}
-                  >
-                    <Text style={{ width: "60%" }}>{p.trackingNumber}</Text>
-                    <Text style={{ width: "40%", textAlign: "center" }}>{p.status || "N/A"}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={{ textAlign: "center", fontSize: 7, padding: 8 }}>
-                No hay paquetes No VAN
               </Text>
             )}
 
@@ -447,6 +433,7 @@ export const RouteClosurePDF = ({
           {/* Columna derecha */}
           <View style={styles.rightColumn}>
             
+            {/* Desglose por Paquetería */}
             <Text style={styles.sectionTitle}>
               DESGLOSE POR PAQUETERÍA
             </Text>
@@ -471,24 +458,33 @@ export const RouteClosurePDF = ({
               </View>
             </View>
 
-            {/* Recolecciones - CORREGIDO PARA EVITAR EMPALME */}
+            {/* Recolecciones */}
             <Text style={[styles.sectionTitle, { marginTop: 6 }]}>
               RECOLECCIONES ({collections.length})
             </Text>
             {collections.length > 0 ? (
-              <View style={styles.tableContainer}>
-                <View style={styles.collectionsContainer}>
-                    <View style={styles.multiColumnContainer}>
-                        {collections.map((tracking, i) => (
-                            <Text key={i} style={styles.collectionItem}>
-                                {tracking}
-                            </Text>
-                        ))}
+              <View style={[styles.tableContainer, { maxHeight: 150 }]}>
+                <View style={styles.multiColumnContainer}>
+                  {collectionColumns.map((column, colIndex) => (
+                    <View key={colIndex} style={styles.column}>
+                      {column.map((tracking, i) => (
+                        <Text key={i} style={styles.collectionItem}>
+                          {tracking}
+                        </Text>
+                      ))}
                     </View>
+                  ))}
                 </View>
               </View>
             ) : (
-              <Text style={{ textAlign: "center", fontSize: 7, padding: 8, color: colors.dark }}>
+              <Text
+                style={{
+                  textAlign: "center",
+                  fontSize: 7,
+                  padding: 8,
+                  color: colors.dark,
+                }}
+              >
                 No hay recolecciones
               </Text>
             )}
@@ -506,11 +502,11 @@ export const RouteClosurePDF = ({
                 </View>
                 {charges.map((c, i) => (
                   <View
-                    key={i}
                     style={[
                       styles.tableRow,
                       i % 2 === 0 && styles.tableRowEven,
                     ]}
+                    key={i}
                   >
                     <Text style={{ width: "50%" }}>{c.trackingNumber}</Text>
                     <Text style={{ width: "25%" }}>{c.type}</Text>
@@ -519,38 +515,60 @@ export const RouteClosurePDF = ({
                     </Text>
                   </View>
                 ))}
+                {/* Total */}
+                <View
+                  style={[
+                    styles.tableRow,
+                    { fontWeight: "bold", backgroundColor: colors.light },
+                  ]}
+                >
+                  <Text style={{ width: "50%" }}>TOTAL</Text>
+                  <Text style={{ width: "25%" }}></Text>
+                  <Text style={{ width: "25%" }}>
+                    $
+                    {charges
+                      .reduce((sum, c) => sum + (+c.amount), 0)
+                      .toFixed(2)}
+                  </Text>
+                </View>
               </View>
             ) : (
-              <Text style={{ textAlign: "center", fontSize: 7, padding: 8, color: colors.dark }}>
+              <Text
+                style={{
+                  textAlign: "center",
+                  fontSize: 7,
+                  padding: 8,
+                  color: colors.dark,
+                }}
+              >
                 No hay cobros
               </Text>
             )}
 
-            {/* Estadísticas Generales - INCLUYE CONTADOR NO VAN */}
+            {/* Estadísticas Generales */}
             <View style={[styles.statsContainer, { marginTop: 6 }]}>
               <View style={styles.statBox}>
-                <Text style={styles.statTitle}>SALIDA</Text>
+                <Text style={styles.statTitle}>PAQUETES EN SALIDA</Text>
                 <Text style={styles.statValue}>{originalCount}</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statTitle}>NO VAN</Text>
-                <Text style={[styles.statValue, { color: colors.secondary }]}>{noVanCount}</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statTitle}>ENTREGADOS</Text>
+                <Text style={styles.statTitle}>ENTREGAS EFECTIVAS</Text>
                 <Text style={styles.statValue}>{podDeliveredCount}</Text>
               </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statTitle}>% DEVOLUCIÓN</Text>
-                <Text
-                  style={[
-                    styles.statValue,
-                    { color: returnRate > 20 ? colors.accent : colors.success },
-                  ]}
-                >
-                  {returnRate.toFixed(1)}%
-                </Text>
-              </View>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statTitle}>TASA DE DEVOLUCIÓN GENERAL</Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  {
+                    color:
+                      returnRate > 20 ? colors.accent : colors.success,
+                  },
+                ]}
+              >
+                {returnRate.toFixed(1)}%
+              </Text>
             </View>
           </View>
         </View>

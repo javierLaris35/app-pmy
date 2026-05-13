@@ -722,6 +722,7 @@ export interface RouteClosure {
   packageDipatch: PackageDispatch;
   actualKms: string;
   collections: string[];
+  noVanPackages: string[];
 }
 
 export interface ValidatedPackagesForClousere {

@@ -18,6 +18,13 @@ const validateTrackingNumbers = async (trackingNumbers: string[], packageDispatc
     return response.data;
 }
 
+const validateTrackinNumberNoVan = async (noVanTrackingNumbers: string[]) => {
+    const response = await axiosConfig.post<{ validNoVanTrackings: string[] }>(`${url}/validateNoVanTrackings`, {
+        noVanTrackingNumbers
+    });
+    return response.data;
+}
+
 export async function uploadFiles(
     pdfFile: File,
     excelFile: File,
@@ -54,5 +61,6 @@ export async function uploadFiles(
 
 export {
     save,
-    validateTrackingNumbers
+    validateTrackingNumbers,
+    validateTrackinNumberNoVan
 }
