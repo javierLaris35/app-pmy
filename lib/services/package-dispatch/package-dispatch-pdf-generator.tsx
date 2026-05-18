@@ -27,7 +27,7 @@ const colors = {
   info: "#17a2b8",
 };
 
-// Estilos con fuentes grandes y ESPACIADO MÍNIMO
+// Estilos con fuentes grandes y ESPACIADO MÍNIMO (Intactos)
 const styles = StyleSheet.create({
   page: {
     padding: 5,
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.primary,
     borderBottomStyle: "solid",
-    height: 35, // ALTURA FIJA
+    height: 35,
   },
   logo: { width: 30, height: 30 },
   headerText: {
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: colors.border,
     borderStyle: "solid",
-    height: 25, // ALTURA FIJA
+    height: 25,
   },
   compactItem: { 
     width: "32%", 
@@ -89,7 +89,6 @@ const styles = StyleSheet.create({
     color: colors.dark,
     lineHeight: 1,
   },
-  // INFORMACIÓN EN UNA SOLA FILA COMPACTA
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -100,7 +99,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: colors.border,
     borderStyle: "solid",
-    height: 25, // ALTURA FIJA
+    height: 25,
   },
   infoItem: {
     flex: 1,
@@ -133,7 +132,7 @@ const styles = StyleSheet.create({
     borderStyle: "solid",
     borderRadius: 3,
     marginBottom: 2,
-    flex: 1, // OCUPA TODO EL ESPACIO RESTANTE
+    flex: 1, 
   },
   tableHeader: {
     flexDirection: "row",
@@ -152,7 +151,7 @@ const styles = StyleSheet.create({
     borderBottomStyle: "solid",
     fontSize: 10,
     padding: 0.5,
-    minHeight: 15, // ALTURA MÍNIMA PARA MÁXIMAS FILAS
+    minHeight: 15,
     alignItems: 'center',
   },
   tableRowEven: { backgroundColor: colors.light },
@@ -174,7 +173,7 @@ const styles = StyleSheet.create({
     borderTopStyle: "solid",
     paddingTop: 1,
     opacity: 0.7,
-    height: 15, // ALTURA FIJA
+    height: 15,
   },
   symbologyContainer: {
     flexDirection: "row",
@@ -186,7 +185,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: colors.border,
     borderStyle: "solid",
-    height: 10, // ALTURA FIJA
+    height: 10,
   },
   symbologyText: {
     fontSize: 6,
@@ -204,16 +203,15 @@ const styles = StyleSheet.create({
   },
   tableCell: {
     paddingHorizontal: 0.5,
-    paddingVertical: 0.2, // MÍNIMO PADDING VERTICAL
+    paddingVertical: 0.2,
     justifyContent: 'center',
     alignItems: 'flex-start',
     height: '100%',
   },
-  // ESTILO ESPECIAL PARA EVITAR SALTO DE LÍNEA
   tableCellText: {
     fontSize: 9,
-    lineHeight: 0.9, // LINE HEIGHT MÍNIMO
-    flexWrap: 'nowrap', // EVITA SALTO DE LÍNEA
+    lineHeight: 0.9,
+    flexWrap: 'nowrap',
     overflow: 'hidden',
   },
 });
@@ -229,87 +227,20 @@ interface FedExPackageDispatchPDFProps {
   packageDispatch?: PackageDispatch;
 }
 
-// CÁLCULO SIMPLIFICADO Y FUNCIONAL
-const calculateRowsPerPage = (hasHeader: boolean): number => {
-  if (hasHeader) {
-    // Página 1 con header - espacio limitado
-    return 31; // Aproximadamente 48 paquetes en primera página
-  } else {
-    // Páginas sin header - mucho más espacio
-    return 38; // Aproximadamente 65 paquetes en páginas siguientes
-  }
-};
-
-const splitPackagesIntoPages = (packages: PackageInfo[]) => {
-  const pages = [];
-  
-  console.log(`📦 Total paquetes a dividir: ${packages.length}`);
-  
-  if (packages.length === 0) return pages;
-  
-  // Página 1 con header
-  const firstPageRows = calculateRowsPerPage(true);
-  const firstPage = packages.slice(0, firstPageRows);
-  if (firstPage.length > 0) {
-    pages.push(firstPage);
-    console.log(`📄 Página 1: ${firstPage.length} paquetes`);
-  }
-  
-  // Páginas siguientes
-  let currentIndex = firstPageRows;
-  
-  while (currentIndex < packages.length) {
-    const otherPageRows = calculateRowsPerPage(false);
-    const page = packages.slice(currentIndex, currentIndex + otherPageRows);
-    if (page.length > 0) {
-      pages.push(page);
-      console.log(`📄 Página ${pages.length}: ${page.length} paquetes`);
-    }
-    currentIndex += otherPageRows;
-  }
-  
-  console.log(`✅ Total páginas generadas: ${pages.length}`);
-  return pages;
-};
-
-const splitInvalidTrackingsIntoPages = (invalidTrackings: string[]) => {
-  const pages = [];
-  const rowsPerPage = calculateRowsPerPage(false);
-  for (let i = 0; i < invalidTrackings.length; i += rowsPerPage) {
-    pages.push(invalidTrackings.slice(i, i + rowsPerPage));
-  }
-  return pages;
-};
-
 const getColumnWidths = (isHermosillo: boolean) => {  
   const baseConfig = {
-    number: 30,
-    tracking: 65,
-    name: 135,
-    address: 155,
-    zipCode: 26,
-    payment: 63,
-    date: 47,
-    time: 38,
-    phone: 50,
-    signature: 40
+    number: 30, tracking: 65, name: 135, address: 155,
+    zipCode: 26, payment: 63, date: 47, time: 38,
+    phone: 50, signature: 40
   };
 
   if (isHermosillo) {
     return {
-      number: 30,
-      tracking: 65,
-      name: 135,
-      address: 155,
-      zipCode: 26,
-      payment: 63,
-      date: 47,
-      time: 0,
-      phone: 55,
-      signature: 42
+      number: 30, tracking: 65, name: 135, address: 155,
+      zipCode: 26, payment: 63, date: 47, time: 0,
+      phone: 55, signature: 42
     };
   }
-
   return baseConfig;
 };
 
@@ -333,51 +264,28 @@ export const FedExPackageDispatchPDF = ({
   const timeZone = "America/Hermosillo";
   const currentDate = new Date();
   
-  // Obtenemos la fecha de hoy asegurada en zona Hermosillo
   const formattedDate = format(currentDate, "yyyy-MM-dd", { timeZone });
   const formattedTime = format(currentDate, "HH:mm:ss", { timeZone });
 
   const isHermosillo = subsidiaryName?.toLowerCase().includes('hermosillo');
   const columnWidths = getColumnWidths(isHermosillo);
 
-  // Calcular caracteres máximos
-  const maxNameChars = Math.floor(columnWidths.name * 0.9);
-  const maxAddressChars = Math.floor(columnWidths.address * 0.9);
-
   const calculatePackageStats = () => {
-    let f2Count = 0;
-    let cargaCount = 0;
-    let fedexCount = 0;
-    let dhlCount = 0;
-    let expiringTodayCount = 0;
-    let withPaymentCount = 0;
-    let totalPaymentAmount = 0;
-    let highValueCount = 0;
+    let f2Count = 0, cargaCount = 0, fedexCount = 0, dhlCount = 0;
+    let expiringTodayCount = 0, withPaymentCount = 0, totalPaymentAmount = 0, highValueCount = 0;
 
     packages.forEach((pkg) => {
       if (pkg?.isCharge) f2Count++;
-      if (pkg?.isHighValue) {
-        cargaCount++;
-        highValueCount++;
-      }
-      
-      if (pkg?.payment?.amount) {
-        withPaymentCount++;
-        totalPaymentAmount += pkg.payment.amount;
-      }
-
+      if (pkg?.isHighValue) { cargaCount++; highValueCount++; }
+      if (pkg?.payment?.amount) { withPaymentCount++; totalPaymentAmount += pkg.payment.amount; }
       if (pkg?.shipmentType === 'fedex') fedexCount++;
       if (pkg?.shipmentType === 'dhl') dhlCount++;
 
       try {
         if (pkg?.commitDateTime) {
-          // Aseguramos que el conteo del encabezado también use la zona horaria correcta
           const pkgZoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
           const pkgCommitDate = format(pkgZoned, 'yyyy-MM-dd', { timeZone });
-          
-          if (pkgCommitDate === formattedDate) {
-            expiringTodayCount++;
-          }
+          if (pkgCommitDate === formattedDate) expiringTodayCount++;
         }
       } catch (error) {
         console.error('Error procesando fecha del paquete:', error);
@@ -385,16 +293,10 @@ export const FedExPackageDispatchPDF = ({
     });
 
     return {
-      total: packages.length,
-      f2Count,
-      cargaCount,
-      highValueCount,
-      expiringTodayCount,
-      withPaymentCount,
-      totalPaymentAmount,
+      total: packages.length, f2Count, cargaCount, highValueCount,
+      expiringTodayCount, withPaymentCount, totalPaymentAmount,
       regularCount: packages.length - f2Count - highValueCount,
-      fedexCount,
-      dhlCount,
+      fedexCount, dhlCount,
     };
   };
 
@@ -407,34 +309,6 @@ export const FedExPackageDispatchPDF = ({
   const mainDriver = drivers && drivers.length > 0 ? drivers[0].name : "No asignado";
   const routeNames = routes?.map((r) => r.name).join(" → ") || "No asignado";
 
-  const packagePages = splitPackagesIntoPages(packages);
-  const invalidPages = splitInvalidTrackingsIntoPages(invalidTrackings);
-
-  // SOLUCIÓN: Crear páginas separadas - primero válidos, luego inválidos
-  const allPages = [];
-
-  // 1. Primero agregar todas las páginas de paquetes válidos
-  packagePages.forEach((packagePage, index) => {
-    allPages.push({
-      type: 'valid',
-      data: packagePage,
-      pageIndex: index,
-      isFirstPage: index === 0
-    });
-  });
-
-  // 2. Luego agregar todas las páginas de trackings inválidos
-  invalidPages.forEach((invalidPage, index) => {
-    allPages.push({
-      type: 'invalid',
-      data: invalidPage,
-      pageIndex: packagePages.length + index,
-      isFirstPage: false // Nunca mostrar header en páginas de inválidos
-    });
-  });
-
-  const totalPages = allPages.length;
-
   // Componente de celda optimizado
   const TableCell = ({ children, width, style = {}, truncate = false, maxChars, ...props }: any) => (
     <View style={[styles.tableCell, { width }, style]} {...props}>
@@ -446,252 +320,239 @@ export const FedExPackageDispatchPDF = ({
 
   return (
     <Document>
-      {allPages.map(({ type, data, pageIndex, isFirstPage }) => {
-        const hasHeader = isFirstPage;
+      {/* Al usar wrap={true}, la página crecerá automáticamente a la hoja siguiente si se llena */}
+      <Page size="LETTER" style={styles.page} orientation="landscape" wrap>
         
-        return (
-          <Page key={pageIndex} size="LETTER" style={styles.page} orientation="landscape">
-            {hasHeader && (
-              <>
-                <View style={styles.header}>
-                  <Image src="/logo-no-fondo.png" style={styles.logo} />
-                  <Text style={styles.headerText}>SALIDA A RUTA</Text>
-                  <View>
-                    <Text style={styles.dateText}>{formattedDate}</Text>
-                    <Text style={styles.dateText}>{formattedTime}</Text>
-                  </View>
-                </View>
+        {/* ENCABEZADOS PRINCIPALES: Al estar al principio y sin prop "fixed", 
+            se renderizan SOLO EN LA PRIMERA HOJA (como tú querías) */}
+        <View style={styles.header}>
+          <Image src="/logo-no-fondo.png" style={styles.logo} />
+          <Text style={styles.headerText}>SALIDA A RUTA</Text>
+          <View>
+            <Text style={styles.dateText}>{formattedDate}</Text>
+            <Text style={styles.dateText}>{formattedTime}</Text>
+          </View>
+        </View>
 
-                <View style={styles.compactGrid}>
-                  <View style={styles.compactItem}>
-                    <Text style={styles.compactLabel}>Sucursal</Text>
-                    <Text style={styles.compactValue}>{subsidiaryName || "N/A"}</Text>
-                  </View>
-                  <View style={styles.compactItem}>
-                    <Text style={styles.compactLabel}>Vehículo</Text>
-                    <Text style={styles.compactValue}>{vehicle?.name || "N/A"}</Text>
-                  </View>
-                  <View style={styles.compactItem}>
-                    <Text style={styles.compactLabel}>Chofer Principal</Text>
-                    <Text style={styles.compactValue}>{mainDriver}</Text>
-                  </View>
-                </View>
+        <View style={styles.compactGrid}>
+          <View style={styles.compactItem}>
+            <Text style={styles.compactLabel}>Sucursal</Text>
+            <Text style={styles.compactValue}>{subsidiaryName || "N/A"}</Text>
+          </View>
+          <View style={styles.compactItem}>
+            <Text style={styles.compactLabel}>Vehículo</Text>
+            <Text style={styles.compactValue}>{vehicle?.name || "N/A"}</Text>
+          </View>
+          <View style={styles.compactItem}>
+            <Text style={styles.compactLabel}>Chofer Principal</Text>
+            <Text style={styles.compactValue}>{mainDriver}</Text>
+          </View>
+        </View>
 
-                <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>RUTA</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>{routeNames}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>SEGUIMIENTO</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>{trackingNumber}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>TOTAL</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>{packageStats.total}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>REGULARES</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>{packageStats.regularCount}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>F2 / 31.5</Text>
-                    <Text style={[styles.infoText, styles.infoHighlight]}>{packageStats.f2Count}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>ALTO VALOR</Text>
-                    <Text style={[styles.infoText, styles.infoHighlight]}>{packageStats.cargaCount}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>CON COBRO</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>{packageStats.withPaymentCount}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>VENCEN HOY</Text>
-                    <Text style={[styles.infoText, styles.infoUrgent]}>{packageStats.expiringTodayCount}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>MONTO</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>${(isNaN(Number(packageStats.totalPaymentAmount)) ? 0 : Number(packageStats.totalPaymentAmount)).toFixed(2)}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>Fedex</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>{packageStats.fedexCount}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={[styles.infoText, styles.infoLabel]}>DHL</Text>
-                    <Text style={[styles.infoText, styles.infoValue]}>{packageStats.dhlCount}</Text>
-                  </View>
-                </View>
+        <View style={styles.infoRow}>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>RUTA</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>{routeNames}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>SEGUIMIENTO</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>{trackingNumber}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>TOTAL</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>{packageStats.total}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>REGULARES</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>{packageStats.regularCount}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>F2 / 31.5</Text>
+            <Text style={[styles.infoText, styles.infoHighlight]}>{packageStats.f2Count}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>ALTO VALOR</Text>
+            <Text style={[styles.infoText, styles.infoHighlight]}>{packageStats.cargaCount}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>CON COBRO</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>{packageStats.withPaymentCount}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>VENCEN HOY</Text>
+            <Text style={[styles.infoText, styles.infoUrgent]}>{packageStats.expiringTodayCount}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>MONTO</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>${(isNaN(Number(packageStats.totalPaymentAmount)) ? 0 : Number(packageStats.totalPaymentAmount)).toFixed(2)}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>Fedex</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>{packageStats.fedexCount}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.infoText, styles.infoLabel]}>DHL</Text>
+            <Text style={[styles.infoText, styles.infoValue]}>{packageStats.dhlCount}</Text>
+          </View>
+        </View>
 
-                <View style={styles.symbologyContainer}>
-                  <Text style={styles.symbologyText}>
-                    SIMBOLOGÍA: [C] CARGA/F2/31.5 • [$] PAGO • [H] VALOR ALTO • [A] AÉREO (PRIORIDAD)
-                  </Text>
-                </View>
-              </>
-            )}
+        <View style={styles.symbologyContainer}>
+          <Text style={styles.symbologyText}>
+            SIMBOLOGÍA: [C] CARGA/F2/31.5 • [$] PAGO • [H] VALOR ALTO • [A] AÉREO (PRIORIDAD)
+          </Text>
+        </View>
 
-            {type === 'valid' ? (
-              // TABLA DE PAQUETES VÁLIDOS
-              <View style={styles.tableContainer}>
-                <View style={styles.tableHeader}>
-                  <TableCell width={columnWidths.number}>[#]</TableCell>
-                  <TableCell width={columnWidths.tracking}>NO. GUIA</TableCell>
-                  <TableCell width={columnWidths.name}>NOMBRE</TableCell>
-                  <TableCell width={columnWidths.address}>DIRECCIÓN</TableCell>
-                  <TableCell width={columnWidths.zipCode}>CP</TableCell>
-                  <TableCell width={columnWidths.payment}>COBRO</TableCell>
-                  <TableCell width={columnWidths.date}>FECHA</TableCell>
-                  {!isHermosillo && <TableCell width={columnWidths.time}>HORA</TableCell>}
-                  <TableCell width={columnWidths.phone}>CELULAR</TableCell>
-                  <TableCell width={80}>NOMBRE Y FIRMA</TableCell>
-                </View>
+        {/* TABLA DE PAQUETES VÁLIDOS */}
+        <View style={styles.tableContainer}>
+          {/* El atributo 'fixed' clona automáticamente este header si la tabla se brinca a una hoja nueva */}
+          <View style={styles.tableHeader} fixed>
+            <TableCell width={columnWidths.number}>[#]</TableCell>
+            <TableCell width={columnWidths.tracking}>NO. GUIA</TableCell>
+            <TableCell width={columnWidths.name}>NOMBRE</TableCell>
+            <TableCell width={columnWidths.address}>DIRECCIÓN</TableCell>
+            <TableCell width={columnWidths.zipCode}>CP</TableCell>
+            <TableCell width={columnWidths.payment}>COBRO</TableCell>
+            <TableCell width={columnWidths.date}>FECHA</TableCell>
+            {!isHermosillo && <TableCell width={columnWidths.time}>HORA</TableCell>}
+            <TableCell width={columnWidths.phone}>CELULAR</TableCell>
+            <TableCell width={80}>NOMBRE Y FIRMA</TableCell>
+          </View>
 
-                {data.map((pkg, i) => {
-                  // CALCULAR CORRECTAMENTE el índice global
-                  let globalIndex = i;
-                  for (let prevPage = 0; prevPage < pageIndex; prevPage++) {
-                    if (allPages[prevPage].type === 'valid') {
-                      globalIndex += allPages[prevPage].data.length;
-                    }
-                  }
-                  
-                  // Agregamos [AE] si es aéreo
-                  const aeIcon = pkg.consolidated?.type === 'aereo' ? '[A]' : '';
-                  const icons = `${aeIcon}${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
-                  
-                  const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
-                  const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
-                  const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
-                  const hasPayment = pkg.payment?.amount != null;
-                  
-                  // Verificamos si vence hoy comparando con la fecha actual de Hermosillo ya calculada arriba
-                  const isExpiringToday = commitDate === formattedDate;
+          {/* Ya no mapeamos "data" en bloques, mapeamos TODA la lista. El wrap hace la división */}
+          {packages.map((pkg, i) => {
+            const aeIcon = pkg.consolidated?.type === 'aereo' ? '[A]' : '';
+            const icons = `${aeIcon}${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
+            
+            const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
+            const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
+            const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
+            const hasPayment = pkg.payment?.amount != null;
+            
+            const isExpiringToday = commitDate === formattedDate;
+            const isBold = hasPayment || isExpiringToday;
+            const textWeight = isBold ? 'bold' : 'normal';
 
-                  // Condición combinada para negritas
-                  const isBold = hasPayment || isExpiringToday;
-                  const textWeight = isBold ? 'bold' : 'normal';
-
-                  return (
-                    <View 
-                      style={[
-                        styles.tableRow,
-                        i % 2 === 0 && styles.tableRowEven,
-                        hasPayment && styles.paymentRow,
-                        isExpiringToday && styles.expiringTodayRow
-                      ]} 
-                      key={globalIndex}
-                    >
-                      <TableCell width={columnWidths.number} style={{ fontWeight: textWeight }}>
-                        {icons} {globalIndex + 1}
-                      </TableCell>
-                      <TableCell width={columnWidths.tracking} style={{ fontWeight: textWeight }}>
-                        {pkg.trackingNumber}
-                      </TableCell>
-                      {/* NOMBRE y DIRECCIÓN con truncado forzado y SIN salto de línea */}
-                      <TableCell 
-                        width={columnWidths.name} 
-                        style={{ fontWeight: textWeight }}
-                        truncate={true}
-                        maxChars={22}
-                      >
-                        {truncate(pkg.recipientName || '', 25)}
-                      </TableCell>
-                      <TableCell 
-                        width={columnWidths.address} 
-                        style={{ fontWeight: textWeight }}
-                        truncate={true}
-                        maxChars={26}
-                      >
-                        {truncate(pkg.recipientAddress || '', 28)}
-                      </TableCell>
-                      <TableCell width={columnWidths.zipCode} style={{ fontWeight: textWeight }}>
-                        {pkg.recipientZip || ''}
-                      </TableCell>
-                      <TableCell width={columnWidths.payment} style={{ fontWeight: textWeight }}>
-                        {hasPayment ? `${pkg.payment?.type} $${pkg.payment?.amount}` : ''}
-                      </TableCell>
-                      <TableCell width={columnWidths.date} style={{ fontWeight: textWeight }}>
-                        {commitDate}
-                      </TableCell>
-                      {!isHermosillo && (
-                        <TableCell width={columnWidths.time} style={{ fontWeight: textWeight }}>
-                          {commitTime}
-                        </TableCell>
-                      )}
-                      <TableCell width={columnWidths.phone} style={{ fontWeight: textWeight }}>
-                        {formatMexicanPhoneNumberWithOutMexicanLada(pkg.recipientPhone)}
-                      </TableCell>
-                      <TableCell width={columnWidths.signature} style={{ fontWeight: textWeight }}>
-                        {}
-                      </TableCell>
-                    </View>
-                  );
-                })}
+            return (
+              <View 
+                style={[
+                  styles.tableRow,
+                  i % 2 === 0 && styles.tableRowEven,
+                  hasPayment && styles.paymentRow,
+                  isExpiringToday && styles.expiringTodayRow
+                ]} 
+                key={i}
+              >
+                <TableCell width={columnWidths.number} style={{ fontWeight: textWeight }}>
+                  {icons} {i + 1}
+                </TableCell>
+                <TableCell width={columnWidths.tracking} style={{ fontWeight: textWeight }}>
+                  {pkg.trackingNumber}
+                </TableCell>
+                <TableCell 
+                  width={columnWidths.name} 
+                  style={{ fontWeight: textWeight }}
+                  truncate={true}
+                  maxChars={22}
+                >
+                  {truncate(pkg.recipientName || '', 25)}
+                </TableCell>
+                <TableCell 
+                  width={columnWidths.address} 
+                  style={{ fontWeight: textWeight }}
+                  truncate={true}
+                  maxChars={26}
+                >
+                  {truncate(pkg.recipientAddress || '', 28)}
+                </TableCell>
+                <TableCell width={columnWidths.zipCode} style={{ fontWeight: textWeight }}>
+                  {pkg.recipientZip || ''}
+                </TableCell>
+                <TableCell width={columnWidths.payment} style={{ fontWeight: textWeight }}>
+                  {hasPayment ? `${pkg.payment?.type} $${pkg.payment?.amount}` : ''}
+                </TableCell>
+                <TableCell width={columnWidths.date} style={{ fontWeight: textWeight }}>
+                  {commitDate}
+                </TableCell>
+                {!isHermosillo && (
+                  <TableCell width={columnWidths.time} style={{ fontWeight: textWeight }}>
+                    {commitTime}
+                  </TableCell>
+                )}
+                <TableCell width={columnWidths.phone} style={{ fontWeight: textWeight }}>
+                  {formatMexicanPhoneNumberWithOutMexicanLada(pkg.recipientPhone)}
+                </TableCell>
+                <TableCell width={columnWidths.signature} style={{ fontWeight: textWeight }}>
+                  {}
+                </TableCell>
               </View>
-            ) : (
-              // TABLA DE TRACKINGS INVÁLIDOS (SOLO EN PÁGINAS SEPARADAS)
-              <View style={[styles.tableContainer, { borderColor: '#ff9999' }]}>
-                <View style={[styles.tableHeader, { backgroundColor: '#ff9999' }]}>
-                  <Text style={[styles.symbologyText, { color: 'white', fontSize: 10, width: '100%', textAlign: 'center' }]}>
-                    🚨 TRACKINGS INVÁLIDOS / NO ENCONTRADOS
-                  </Text>
+            );
+          })}
+        </View>
+
+        {/* TABLA DE TRACKINGS INVÁLIDOS */}
+        {invalidTrackings.length > 0 && (
+          // El atributo 'break' empuja forzosamente esta tabla a iniciar en una página NUEVA
+          <View style={[styles.tableContainer, { borderColor: '#ff9999' }]} break>
+            <View style={[styles.tableHeader, { backgroundColor: '#ff9999' }]} fixed>
+              <Text style={[styles.symbologyText, { color: 'white', fontSize: 10, width: '100%', textAlign: 'center' }]}>
+                🚨 TRACKINGS INVÁLIDOS / NO ENCONTRADOS
+              </Text>
+            </View>
+            
+            <View style={styles.tableHeader} fixed>
+              <TableCell width={columnWidths.number}>[#]</TableCell>
+              <TableCell width={columnWidths.tracking}>NO. GUIA</TableCell>
+              <TableCell width={columnWidths.name}>NOMBRE</TableCell>
+              <TableCell width={columnWidths.address}>DIRECCIÓN</TableCell>
+              <TableCell width={columnWidths.zipCode}>CP</TableCell>
+              <TableCell width={columnWidths.payment}>COBRO</TableCell>
+              <TableCell width={columnWidths.date}>FECHA</TableCell>
+              {!isHermosillo && <TableCell width={columnWidths.time}>HORA</TableCell>}
+              <TableCell width={columnWidths.phone}>CELULAR</TableCell>
+              <TableCell width={60}>NOMBRE Y FIRMA</TableCell>
+            </View>
+
+            {invalidTrackings.map((tracking, index) => {
+              const globalIndex = packages.length + index;
+              return (
+                <View 
+                  style={[
+                    styles.tableRow,
+                    index % 2 === 0 && { backgroundColor: '#fff0f0' }
+                  ]} 
+                  key={globalIndex}
+                >
+                  <TableCell width={columnWidths.number} style={{ fontWeight: 'bold', color: '#cc0000' }}>
+                    {globalIndex + 1}
+                  </TableCell>
+                  <TableCell width={columnWidths.tracking} style={{ fontWeight: 'bold', color: '#cc0000' }}>
+                    {tracking}
+                  </TableCell>
+                  <TableCell width={columnWidths.name}></TableCell>
+                  <TableCell width={columnWidths.address}></TableCell>
+                  <TableCell width={columnWidths.zipCode}></TableCell>
+                  <TableCell width={columnWidths.payment}></TableCell>
+                  <TableCell width={columnWidths.date}></TableCell>
+                  {!isHermosillo && <TableCell width={columnWidths.time}></TableCell>}
+                  <TableCell width={columnWidths.phone}></TableCell>
+                  <TableCell width={columnWidths.signature}></TableCell>
                 </View>
-                
-                <View style={styles.tableHeader}>
-                  <TableCell width={columnWidths.number}>[#]</TableCell>
-                  <TableCell width={columnWidths.tracking}>NO. GUIA</TableCell>
-                  <TableCell width={columnWidths.name}>NOMBRE</TableCell>
-                  <TableCell width={columnWidths.address}>DIRECCIÓN</TableCell>
-                  <TableCell width={columnWidths.zipCode}>CP</TableCell>
-                  <TableCell width={columnWidths.payment}>COBRO</TableCell>
-                  <TableCell width={columnWidths.date}>FECHA</TableCell>
-                  {!isHermosillo && <TableCell width={columnWidths.time}>HORA</TableCell>}
-                  <TableCell width={columnWidths.phone}>CELULAR</TableCell>
-                  <TableCell width={60}>NOMBRE Y FIRMA</TableCell>
-                </View>
+              );
+            })}
+          </View>
+        )}
 
-                {data.map((tracking, index) => {
-                  const globalIndex = packages.length + index + ((pageIndex - packagePages.length) * calculateRowsPerPage(false));
-                  return (
-                    <View 
-                      style={[
-                        styles.tableRow,
-                        index % 2 === 0 && { backgroundColor: '#fff0f0' }
-                      ]} 
-                      key={globalIndex}
-                    >
-                      <TableCell width={columnWidths.number} style={{ fontWeight: 'bold', color: '#cc0000' }}>
-                        {globalIndex + 1}
-                      </TableCell>
-                      <TableCell width={columnWidths.tracking} style={{ fontWeight: 'bold', color: '#cc0000' }}>
-                        {tracking}
-                      </TableCell>
-                      <TableCell width={columnWidths.name}></TableCell>
-                      <TableCell width={columnWidths.address}></TableCell>
-                      <TableCell width={columnWidths.zipCode}></TableCell>
-                      <TableCell width={columnWidths.payment}></TableCell>
-                      <TableCell width={columnWidths.date}></TableCell>
-                      {!isHermosillo && <TableCell width={columnWidths.time}></TableCell>}
-                      <TableCell width={columnWidths.phone}></TableCell>
-                      <TableCell width={columnWidths.signature}></TableCell>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+        {/* PIE DE PÁGINA (Al ser 'fixed' se incrustan solos debajo en cada hoja impresa) 
+        <Text 
+          style={styles.pageNumber} 
+          fixed 
+          render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} 
+        />
 
-            <Text style={styles.pageNumber}>
-              Página {pageIndex + 1} de {totalPages}
-            </Text>
-
-            <Text style={styles.footer}>
-              Documento generado automáticamente - PMY App v.1.0 - {formattedDate} {formattedTime}
-            </Text>
-          </Page>
-        );
-      })}
+        <Text style={styles.footer} fixed>
+          Documento generado automáticamente - PMY App v.1.0 - {formattedDate} {formattedTime}
+        </Text>*/}
+      </Page>
     </Document>
   );
 };
