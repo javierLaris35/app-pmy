@@ -215,7 +215,7 @@ export default function TransferScreen() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-            <ForkliftIcon className="w-8 h-8 text-blue-600" />
+            <ForkliftIcon className="w-8 h-8 text-red-600" />
             Gestión de Traslados
           </h1>
           <p className="text-slate-500 mt-1">
@@ -236,7 +236,7 @@ export default function TransferScreen() {
           
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-              <Button className=" text-white gap-2 w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
+              <Button className=" text-white gap-2 w-full sm:w-auto bg-red-600 hover:bg-red-700">
                 <Plus className="w-5 h-5" />
                 Nuevo Traslado
               </Button>
@@ -245,8 +245,8 @@ export default function TransferScreen() {
             <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-full">
-                    <ForkliftIcon className="w-5 h-5 text-blue-600" />
+                  <div className="p-2 bg-red-100 rounded-full">
+                    <ForkliftIcon className="w-5 h-5 text-red-600" />
                   </div>
                   <div>
                     <DialogTitle>Registro de Traslado</DialogTitle>
@@ -548,7 +548,7 @@ export default function TransferScreen() {
                   <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
+                  <Button type="submit" className=" text-white" disabled={isSubmitting}>
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                     {isSubmitting ? "Guardando..." : "Guardar Traslado"}
                   </Button>
