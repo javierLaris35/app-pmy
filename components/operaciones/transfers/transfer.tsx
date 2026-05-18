@@ -32,6 +32,7 @@ import { UnidadSelector } from "@/components/selectors/unidad-selector"
 import { useAuthStore } from "@/store/auth.store"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { columns } from "./columns"
+import { toast } from "sonner"
 
 export default function TransferScreen() {
   const user = useAuthStore((s) => s.user)
@@ -39,6 +40,7 @@ export default function TransferScreen() {
   
   // === ESTADOS ===
   const [transferDate, setTransferDate] = useState<string>(new Date().toISOString().split("T")[0])
+  const [errors, setErrors] = useState<Record<string, boolean>>({})
 
   const [origin, setOrigin] = useState("")
   const [destination, setDestination] = useState("")
@@ -91,67 +93,88 @@ export default function TransferScreen() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!transferDate) return alert("Por favor selecciona la fecha del traslado.")
-    if (!origin) return alert("Por favor selecciona una sucursal de origen.") 
+    const newErrors: Record<string, boolean> = {}
+
+    if (!transferDate) newErrors.transferDate = true
+    if (!origin) newErrors.origin = true
 
     if (isExternalDestination) {
-      if (!otherDestination.trim()) return alert("Por favor escribe el nombre del destino externo.")
+      if (!otherDestination.trim()) newErrors.otherDestination = true
     } else {
-      if (!destination) return alert("Por favor selecciona una sucursal de destino.")
-      if (origin === destination) return alert("La sucursal de destino no puede ser la misma que la sucursal de origen.")
+      if (!destination) newErrors.destination = true
+      if (origin && destination && origin === destination) {
+        newErrors.destination = true
+        toast.error("La sucursal de destino no puede ser la misma que la sucursal de origen.")
+      }
     }
 
-    if (!transferType) return alert("Por favor selecciona el tipo de traslado.")
+    if (!transferType) newErrors.transferType = true
 
     if (transferType === "otro") {
-      if (!otherTransferType.trim()) return alert("Por favor especifica el tipo de traslado en el campo de texto.")
-      if (Number(amount) <= 0) return alert("Por favor ingresa un monto válido mayor a 0.")
+      if (!otherTransferType.trim()) newErrors.otherTransferType = true
+      if (Number(amount) <= 0 || isNaN(Number(amount))) newErrors.amount = true
     }
 
-    if (hasExtraCosts && Number(extraCostAmount) <= 0) {
-      return alert("Por favor ingresa un monto de costo extra mayor a 0.")
+    if (selectedVehicle && !origin) {
+      newErrors.origin = true
+      toast.error("Para seleccionar un vehículo, primero debes elegir una sucursal de origen.")
+    }
+
+    if (!selectedVehicle && origin) newErrors.vehicle = true
+
+    if (selectedDrivers.length === 0) newErrors.drivers = true
+
+    if (hasExtraCosts && (Number(extraCostAmount) <= 0 || isNaN(Number(extraCostAmount)))) {
+      newErrors.extraCostAmount = true
     }
 
     if (transferType === "aeropuerto") {
-      if (selectedDrivers.length === 0) return alert("Para traslados de aeropuerto, debes seleccionar un chofer.")
-      if (selectedHelpers.length === 0) return alert("Para traslados de aeropuerto, el segundo a bordo (ayudante) es obligatorio.")
+      if (selectedDrivers.length === 0) newErrors.drivers = true
+      if (selectedHelpers.length === 0) newErrors.helpers = true
     } else if (hasHelper && selectedHelpers.length === 0) {
-      return alert("Has activado el segundo a bordo, por favor selecciona un ayudante.")
+      newErrors.helpers = true
     }
 
+    const duplicateDriver = selectedDrivers.some(driver => 
+      selectedHelpers.some(helper => helper.id === driver.id)
+    )
+    if (duplicateDriver) {
+      newErrors.drivers = true
+      newErrors.helpers = true
+      toast.error("El mismo repartidor no puede ser chofer y ayudante a la vez.")
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      if (!duplicateDriver && origin !== destination && !(selectedVehicle && !origin)) {
+        toast.error("Por favor completa o corrige los campos obligatorios marcados en rojo.")
+      }
+      return 
+    }
+
+    setErrors({})
     setIsSubmitting(true)
     
     try {
-      // 1. Extraemos los IDs
       const mainDriverIds = selectedDrivers.map(driver => driver.id)
       const helperIds = selectedHelpers.map(helper => helper.id)
-      
-      // 2. Combinamos choferes y ayudantes en el mismo arreglo (Como lo pide el DTO)
       const combinedDriverIds = [...mainDriverIds, ...helperIds]
 
-      // 3. Cálculos monetarios
       const baseAmount = transferType === "otro" ? Number(amount) : 0;
       const extra = hasExtraCosts ? Number(extraCostAmount) : 0;
       const calculatedTotalAmount = baseAmount + extra;
 
-      // 4. PAYLOAD ESTRICTO AL DTO
       const payload = {
         originId: origin, 
         destinationId: isExternalDestination ? undefined : destination,
         otherDestination: isExternalDestination ? otherDestination : undefined,
         transferType: transferType, 
         otherTransferType: transferType === "otro" ? otherTransferType : undefined,
-        
-        // NestJS con @IsDate() o TypeORM suele esperar el Date en string ISO
         transferDate: new Date(transferDate).toISOString(), 
-        
         secondAbord: transferType === "aeropuerto" ? true : hasHelper,
-        // secondAboardAmount: No lo tenemos en la UI, se envía undefined/se omite
-        
         extraAmount: hasExtraCosts ? extra : undefined,
         amount: transferType === "otro" ? baseAmount : undefined,
-        totalAmount: calculatedTotalAmount, // Campo requerido por el DTO
-        
+        totalAmount: calculatedTotalAmount, 
         vehicleId: selectedVehicle?.id ? selectedVehicle.id : undefined,
         driverIds: combinedDriverIds.length > 0 ? combinedDriverIds : undefined,
       }
@@ -161,7 +184,6 @@ export default function TransferScreen() {
       await saveTransfer(payload)
       mutate()
 
-      // LIMPIAR ESTADOS
       setTransferDate(new Date().toISOString().split("T")[0])
       setOrigin("")
       setDestination("")
@@ -214,7 +236,7 @@ export default function TransferScreen() {
           
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-              <Button className=" text-white gap-2 w-full sm:w-auto">
+              <Button className=" text-white gap-2 w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
                 <Plus className="w-5 h-5" />
                 Nuevo Traslado
               </Button>
@@ -242,30 +264,31 @@ export default function TransferScreen() {
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">1. Ruta del Traslado</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
                     <div className="space-y-2">
-                      <Label htmlFor="origin" className="flex items-center gap-2 h-5">
-                        <MapPin className="w-4 h-4 text-slate-500" />
+                      <Label htmlFor="origin" className={errors.origin ? "flex items-center gap-2 h-5 text-red-500" : "flex items-center gap-2 h-5 text-slate-500"}>
+                        <MapPin className="w-4 h-4" />
                         Sucursal Origen
                       </Label>
                       <SucursalSelector 
                         value={origin}
+                        hasError={errors.origin}
                         onValueChange={(val) => {
                             const id = typeof val === 'string' ? val : (val as Subsidiary).id;
-                            
-                            // Si el origen cambia, limpiamos los vehículos y choferes seleccionados
                             if (id !== origin) {
                               setOrigin(id);
                               setSelectedVehicle(undefined);
                               setSelectedDrivers([]);
                               setSelectedHelpers([]);
                             }
+                            if (errors.origin) setErrors(prev => ({ ...prev, origin: false }))
                         }}
                       />
+                      {errors.origin && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                     </div>
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between mb-1 h-5">
-                        <Label htmlFor="destination" className="flex items-center gap-2">
-                          <Send className="w-4 h-4 text-slate-500" />
+                        <Label htmlFor="destination" className={errors.destination ? "flex items-center gap-2 text-red-500" : "flex items-center gap-2 text-slate-500"}>
+                          <Send className="w-4 h-4" />
                           Sucursal Destino
                         </Label>
                         
@@ -273,7 +296,11 @@ export default function TransferScreen() {
                           <Checkbox 
                             id="isExternal" 
                             checked={isExternalDestination} 
-                            onCheckedChange={(checked) => setIsExternalDestination(checked as boolean)} 
+                            onCheckedChange={(checked) => {
+                              setIsExternalDestination(checked as boolean)
+                              if (errors.destination) setErrors(prev => ({ ...prev, destination: false }))
+                              if (errors.otherDestination) setErrors(prev => ({ ...prev, otherDestination: false }))
+                            }} 
                           />
                           <label
                             htmlFor="isExternal"
@@ -290,19 +317,26 @@ export default function TransferScreen() {
                             id="otherDestination" 
                             placeholder="Escribe el nombre del destino..." 
                             value={otherDestination}
-                            onChange={(e) => setOtherDestination(e.target.value)}
-                            className="border-blue-200 focus-visible:ring-blue-500"
+                            onChange={(e) => {
+                              setOtherDestination(e.target.value)
+                              if (errors.otherDestination) setErrors(prev => ({ ...prev, otherDestination: false }))
+                            }}
+                            className={errors.otherDestination ? "border-red-500 focus-visible:ring-red-500" : "border-blue-200 focus-visible:ring-blue-500"}
                           />
+                          {errors.otherDestination && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                         </div>
                       ) : (
                         <div className="animate-in fade-in zoom-in duration-200">
                             <SucursalSelector 
                                 value={destination}
+                                hasError={errors.destination}
                                 onValueChange={(val) => {
                                     const id = typeof val === 'string' ? val : (val as Subsidiary).id;
                                     setDestination(id);
+                                    if (errors.destination) setErrors(prev => ({ ...prev, destination: false }))
                                 }}
                             />
+                            {errors.destination && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                         </div>
                       )}
                     </div>
@@ -317,22 +351,30 @@ export default function TransferScreen() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end mb-4">
                     <div className="space-y-2">
-                      <Label htmlFor="transferDate" className="flex items-center gap-2 h-5">
-                        <CalendarIcon className="w-4 h-4 text-slate-500" />
+                      <Label htmlFor="transferDate" className={errors.transferDate ? "flex items-center gap-2 h-5 text-red-500" : "flex items-center gap-2 h-5 text-slate-500"}>
+                        <CalendarIcon className="w-4 h-4" />
                         Fecha del Traslado
                       </Label>
                       <Input 
                         id="transferDate"
                         type="date" 
                         value={transferDate}
-                        onChange={(e) => setTransferDate(e.target.value)}
+                        onChange={(e) => {
+                          setTransferDate(e.target.value)
+                          if (errors.transferDate) setErrors(prev => ({ ...prev, transferDate: false }))
+                        }}
+                        className={errors.transferDate ? "border-red-500 focus-visible:ring-red-500" : ""}
                       />
+                      {errors.transferDate && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="transferType">Tipo de Traslado</Label>
-                      <Select onValueChange={handleTransferTypeChange} value={transferType}>
-                        <SelectTrigger id="transferType">
+                      <Label htmlFor="transferType" className={errors.transferType ? "text-red-500" : ""}>Tipo de Traslado</Label>
+                      <Select onValueChange={(val) => {
+                        handleTransferTypeChange(val)
+                        if (errors.transferType) setErrors(prev => ({ ...prev, transferType: false }))
+                      }} value={transferType}>
+                        <SelectTrigger id="transferType" className={errors.transferType ? "border-red-500 ring-red-500" : ""}>
                           <SelectValue placeholder="Selecciona el tipo de traslado" />
                         </SelectTrigger>
                         <SelectContent>
@@ -341,6 +383,7 @@ export default function TransferScreen() {
                           <SelectItem value="otro">Otro</SelectItem>
                         </SelectContent>
                       </Select>
+                      {errors.transferType && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                     </div>
                   </div>
 
@@ -348,20 +391,25 @@ export default function TransferScreen() {
                     {transferType === "otro" && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end animate-in fade-in slide-in-from-top-2">
                         <div className="space-y-2">
-                          <Label htmlFor="otherTransferType" className="flex items-center h-5">
+                          <Label htmlFor="otherTransferType" className={errors.otherTransferType ? "flex items-center h-5 text-red-500" : "flex items-center h-5"}>
                             Especificar otro tipo *
                           </Label>
                           <Input 
                             id="otherTransferType" 
                             placeholder="Describe el tipo de traslado" 
                             value={otherTransferType}
-                            onChange={(e) => setOtherTransferType(e.target.value)}
+                            onChange={(e) => {
+                              setOtherTransferType(e.target.value)
+                              if (errors.otherTransferType) setErrors(prev => ({ ...prev, otherTransferType: false }))
+                            }}
+                            className={errors.otherTransferType ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
+                          {errors.otherTransferType && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="amount" className="flex items-center gap-1 h-5">
-                            <DollarSign className="w-4 h-4 text-slate-500" />
+                          <Label htmlFor="amount" className={errors.amount ? "flex items-center gap-1 h-5 text-red-500" : "flex items-center gap-1 h-5 text-slate-500"}>
+                            <DollarSign className="w-4 h-4" />
                             Monto *
                           </Label>
                           <Input 
@@ -371,22 +419,30 @@ export default function TransferScreen() {
                             step="0.01"
                             placeholder="0.00" 
                             value={amount}
-                            onChange={(e) => setAmount(Number(e.target.value))}
+                            onChange={(e) => {
+                              setAmount(Number(e.target.value))
+                              if (errors.amount) setErrors(prev => ({ ...prev, amount: false }))
+                            }}
+                            className={errors.amount ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
+                          {errors.amount && <p className="text-xs text-red-500 mt-1">Monto inválido</p>}
                         </div>
                       </div>
                     )}
 
                     <div className="pt-2">
                       <div className="flex items-center space-x-2 mb-3">
-                        <Switch id="hasExtraCosts" checked={hasExtraCosts} onCheckedChange={setHasExtraCosts} />
+                        <Switch id="hasExtraCosts" checked={hasExtraCosts} onCheckedChange={(checked) => {
+                          setHasExtraCosts(checked)
+                          if (!checked && errors.extraCostAmount) setErrors(prev => ({ ...prev, extraCostAmount: false }))
+                        }} />
                         <Label htmlFor="hasExtraCosts" className="cursor-pointer">Agregar costos adicionales</Label>
                       </div>
 
                       {hasExtraCosts && (
                         <div className="animate-in fade-in slide-in-from-top-2 w-full sm:w-[48%]">
-                          <Label htmlFor="extraCostAmount" className="flex items-center gap-1 mb-2">
-                            <DollarSign className="w-4 h-4 text-slate-500" />
+                          <Label htmlFor="extraCostAmount" className={errors.extraCostAmount ? "flex items-center gap-1 mb-2 text-red-500" : "flex items-center gap-1 mb-2 text-slate-500"}>
+                            <DollarSign className="w-4 h-4" />
                             Monto Extra *
                           </Label>
                           <Input 
@@ -396,8 +452,13 @@ export default function TransferScreen() {
                             step="0.01"
                             placeholder="0.00" 
                             value={extraCostAmount}
-                            onChange={(e) => setExtraCostAmount(Number(e.target.value))}
+                            onChange={(e) => {
+                              setExtraCostAmount(Number(e.target.value))
+                              if (errors.extraCostAmount) setErrors(prev => ({ ...prev, extraCostAmount: false }))
+                            }}
+                            className={errors.extraCostAmount ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
+                          {errors.extraCostAmount && <p className="text-xs text-red-500 mt-1">Monto extra inválido</p>}
                         </div>
                       )}
                     </div>
@@ -412,37 +473,48 @@ export default function TransferScreen() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     
                     <div className="space-y-2">
-                      <Label htmlFor="vehiculo" className="flex items-center gap-2 h-5">
-                        <Car className="w-4 h-4 text-slate-500" />
+                      <Label htmlFor="vehiculo" className={errors.vehicle ? "flex items-center gap-2 h-5 text-red-500" : "flex items-center gap-2 h-5 text-slate-500"}>
+                        <Car className="w-4 h-4" />
                         Vehículo
                       </Label>
-                      {/* Se actualiza el subsidiaryId a origin y se deshabilita si origin está vacío */}
                       <UnidadSelector 
                         selectedUnidad={selectedVehicle}
-                        onSelectionChange={setSelectedVehicle}
+                        hasError={errors.vehicle}
+                        onSelectionChange={(val) => {
+                          setSelectedVehicle(val)
+                          if (errors.vehicle) setErrors(prev => ({ ...prev, vehicle: false }))
+                        }}
                         disabled={isLoading || !origin} 
                         subsidiaryId={origin} 
-                      />                  
+                      />
+                      {errors.vehicle && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                     </div>
 
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="chofer" className="flex items-center gap-2 h-5">
-                          <Users className="w-4 h-4 text-slate-500" />
+                        <Label htmlFor="chofer" className={errors.drivers ? "flex items-center gap-2 h-5 text-red-500" : "flex items-center gap-2 h-5 text-slate-500"}>
+                          <Users className="w-4 h-4" />
                           Chofer {transferType === "aeropuerto" && "*"}
                         </Label>
-                        {/* Se actualiza el subsidiaryId a origin y se deshabilita si origin está vacío */}
                         <RepartidorSelector 
                           selectedRepartidores={selectedDrivers} 
-                          onSelectionChange={setSelectedDrivers}
+                          hasError={errors.drivers}
+                          onSelectionChange={(val) => {
+                            setSelectedDrivers(val)
+                            if (errors.drivers) setErrors(prev => ({ ...prev, drivers: false }))
+                          }}
                           disabled={isLoading || !origin} 
                           subsidiaryId={origin}
                         />
+                        {errors.drivers && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                       </div>
 
                       {transferType !== "aeropuerto" && (
                         <div className="flex items-center space-x-2 pt-2">
-                          <Switch id="hasHelper" checked={hasHelper} onCheckedChange={setHasHelper} />
+                          <Switch id="hasHelper" checked={hasHelper} onCheckedChange={(checked) => {
+                            setHasHelper(checked)
+                            if (!checked && errors.helpers) setErrors(prev => ({ ...prev, helpers: false }))
+                          }} />
                           <Label htmlFor="hasHelper" className="cursor-pointer">
                             Agregar segundo a bordo (Ayudante)
                           </Label>
@@ -451,17 +523,21 @@ export default function TransferScreen() {
 
                       {(transferType === "aeropuerto" || hasHelper) && (
                         <div className="space-y-2 animate-in fade-in zoom-in duration-200">
-                          <Label htmlFor="ayudante" className="flex items-center gap-2 h-5">
-                            <Users className="w-4 h-4 text-slate-500" />
+                          <Label htmlFor="ayudante" className={errors.helpers ? "flex items-center gap-2 h-5 text-red-500" : "flex items-center gap-2 h-5 text-slate-500"}>
+                            <Users className="w-4 h-4" />
                             Ayudante (Segundo a bordo) {transferType === "aeropuerto" && "*"}
                           </Label>
-                          {/* Se actualiza el subsidiaryId a origin y se deshabilita si origin está vacío */}
                           <RepartidorSelector 
                             selectedRepartidores={selectedHelpers} 
-                            onSelectionChange={setSelectedHelpers}
+                            hasError={errors.helpers}
+                            onSelectionChange={(val) => {
+                              setSelectedHelpers(val)
+                              if (errors.helpers) setErrors(prev => ({ ...prev, helpers: false }))
+                            }}
                             disabled={isLoading || !origin} 
                             subsidiaryId={origin}
                           />
+                          {errors.helpers && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                         </div>
                       )}
                     </div>
@@ -472,7 +548,7 @@ export default function TransferScreen() {
                   <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit" className=" text-white" disabled={isSubmitting}>
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                     {isSubmitting ? "Guardando..." : "Guardar Traslado"}
                   </Button>
