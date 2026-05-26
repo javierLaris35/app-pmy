@@ -468,7 +468,7 @@ function GastosPage() {
   const openEditGastoDialog = (gasto: Expense) => {
     setEditingGasto(gasto);
     setFecha(new Date(gasto.date));
-    setCategoriaId(gasto.category);
+    setCategoriaId(gasto.category.id);
     setMonto(gasto.amount);
     setDescripcion(gasto.description || "");
     setMetodoPago(gasto.paymentMethod || "Efectivo");
