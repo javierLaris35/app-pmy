@@ -17,11 +17,20 @@ import type { Subsidiary } from "@/lib/types"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { useAuthStore } from "@/store/auth.store"
 
+// Función auxiliar para normalizar el valor de tipo BIT/Buffer
+const checkIsWarehouse = (val: any): boolean => {
+  if (val && typeof val === 'object' && 'data' in val) {
+    return val.data[0] === 1; // Maneja el Buffer [0] o [1]
+  }
+  return Boolean(val); // Maneja booleano, número 1/0, etc.
+};
+
 interface SucursalSelectorProps {
   value: string | string[]
   onValueChange: (value: string | string[] | Subsidiary | Subsidiary[]) => void
   multi?: boolean
   returnObject?: boolean
+  onlyWarehouses?: boolean
 }
 
 export function SucursalSelector({
@@ -29,47 +38,59 @@ export function SucursalSelector({
   onValueChange,
   multi = false,
   returnObject = false,
+  onlyWarehouses = false
 }: SucursalSelectorProps) {
-  const { subsidiaries, isLoading } = useSubsidiaries()
+  const { subsidiaries: rawSubsidiaries, isLoading } = useSubsidiaries()
   const [open, setOpen] = useState(false)
   const [selectedSucursales, setSelectedSucursales] = useState<Subsidiary[]>([])
   const user = useAuthStore((state) => state.user)
 
-  // Evita aplicar el valor por defecto repetidas veces (previene loops)
+  // Normalizamos las sucursales apenas llegan, una sola vez
+  const subsidiaries = useMemo(() => {
+    if (!rawSubsidiaries) return []
+    return rawSubsidiaries.map(s => ({
+      ...s,
+      isWarehouse: checkIsWarehouse(s.isWarehouse)
+    }))
+  }, [rawSubsidiaries])
+
   const defaultAppliedRef = useRef(false)
+
+  // 🚀 Filtrar las sucursales usando la versión normalizada
+  const filteredSubsidiaries = useMemo(() => {
+    return onlyWarehouses
+      ? subsidiaries.filter((s) => s.isWarehouse)
+      : subsidiaries
+  }, [subsidiaries, onlyWarehouses])
 
   // 🧠 Memorizar selección basada en value
   useEffect(() => {
-    if (!subsidiaries || subsidiaries.length === 0) return
+    if (filteredSubsidiaries.length === 0) return
 
     if (multi) {
-      const selected = subsidiaries.filter((s) =>
-        Array.isArray(value) ? value.includes(s.id) : false
+      const selected = filteredSubsidiaries.filter((s) =>
+        Array.isArray(value) ? value.includes(s.id!) : false
       )
       setSelectedSucursales(selected)
     } else {
-      const selected = subsidiaries.find((s) => s.id === value)
+      const selected = filteredSubsidiaries.find((s) => s.id === value)
       if (selected) {
         setSelectedSucursales([selected])
       } else if (!value && !defaultAppliedRef.current) {
         const defaultSucursal =
-          subsidiaries.find((s) => s.id === user?.subsidiary?.id) || subsidiaries[0]
+          filteredSubsidiaries.find((s) => s.id === user?.subsidiary?.id) || filteredSubsidiaries[0]
         
         if (defaultSucursal) {
           setSelectedSucursales([defaultSucursal])
-          // ✅ CORRECCIÓN: Avisamos al padre (TransferScreen) del valor por defecto.
-          // Gracias al defaultAppliedRef, esto es totalmente seguro y no hará un loop.
-          onValueChange(returnObject ? defaultSucursal : defaultSucursal.id)
+          onValueChange(returnObject ? defaultSucursal : defaultSucursal.id!)
           defaultAppliedRef.current = true
         }
       }
     }
-  }, [subsidiaries, value, user, onValueChange, multi, returnObject])
+  }, [filteredSubsidiaries, value, user, onValueChange, multi, returnObject])
 
-  // 🧩 Función para manejar selección
   const handleSelect = useCallback(
     (sucursal: Subsidiary) => {
-      console.log("[SucursalSelector] handleSelect ->", { sucursal, returnObject, multi })
       if (multi) {
         let updated: Subsidiary[]
         if (selectedSucursales.some((s) => s.id === sucursal.id)) {
@@ -89,13 +110,17 @@ export function SucursalSelector({
   )
 
   const selectedLabel = useMemo(() => {
+    // Definimos los textos base dependiendo de si es bodega o sucursal
+    const placeholder = onlyWarehouses ? "Seleccionar bodega..." : "Seleccionar sucursal..."
+    const multiPlaceholder = onlyWarehouses ? "Seleccionar bodegas..." : "Seleccionar sucursales..."
+
     if (multi) {
       return selectedSucursales.length > 0
         ? selectedSucursales.map((s) => s.name).join(", ")
-        : "Seleccionar sucursales..."
+        : multiPlaceholder
     }
-    return selectedSucursales[0]?.name || "Seleccionar sucursal..."
-  }, [multi, selectedSucursales])
+    return selectedSucursales[0]?.name || placeholder
+  }, [multi, selectedSucursales, onlyWarehouses])
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
@@ -118,7 +143,7 @@ export function SucursalSelector({
               {isLoading ? "Cargando sucursales..." : "No se encontraron sucursales."}
             </CommandEmpty>
             <CommandGroup>
-              {subsidiaries.map((sucursal) => {
+              {filteredSubsidiaries.map((sucursal) => {
                 const isSelected = selectedSucursales.some((s) => s.id === sucursal.id)
                 return (
                   <CommandItem

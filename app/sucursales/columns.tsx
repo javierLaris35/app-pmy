@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Subsidiary } from "@/lib/types"
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2, Building2, Store, WarehouseIcon } from "lucide-react"
 
 // Definir el tipo para las funciones que necesitas
 interface ColumnHelpers {
@@ -47,6 +47,32 @@ export const getColumns = ({
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
   },
   {
+    accessorKey: "isWarehouse",
+    header: "Tipo",
+    cell: ({ row }) => {
+      const rawValue = row.original.isWarehouse;
+      
+      // Si viene como un objeto Buffer [0] o [1]
+      let isWarehouse = false;
+      if (rawValue && typeof rawValue === 'object' && 'data' in rawValue) {
+        isWarehouse = (rawValue as any).data[0] === 1;
+      } else {
+        // Caso normal si a veces llega como booleano o número
+        isWarehouse = Boolean(rawValue);
+      }
+      
+      return isWarehouse ? (
+        <span className="flex items-center w-fit gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-md">
+          <WarehouseIcon className="w-3 h-3" /> Bodega
+        </span>
+      ) : (
+        <span className="flex items-center w-fit gap-1 px-2 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-md">
+          <Store className="w-3 h-3" /> Sucursal
+        </span>
+      )
+    },
+  },
+  {
     accessorKey: "address",
     header: "Dirección",
     cell: ({ row }) => row.original.address || "-",
@@ -62,24 +88,34 @@ export const getColumns = ({
     cell: ({ row }) => row.original.officeManager || "-",
   },
   {
-    accessorKey: "officeEmail",
-    header: "Email Oficina",
-    cell: ({ row }) => row.original.officeEmail || "-",
-  },
-  {
     accessorKey: "fedexCostPackage",
     header: "Costo FedEx",
-    cell: ({ row }) => `$${row.original.fedexCostPackage || "0.00"}`,
+    cell: ({ row }) => `$${Number(row.original.fedexCostPackage ?? 0).toFixed(2)}`,
   },
   {
     accessorKey: "dhlCostPackage",
     header: "Costo DHL",
-    cell: ({ row }) => `$${row.original.dhlCostPackage || "0.00"}`,
+    cell: ({ row }) => `$${Number(row.original.dhlCostPackage ?? 0).toFixed(2)}`,
   },
   {
     accessorKey: "chargeCost",
     header: "Costo Carga",
-    cell: ({ row }) => `$${row.original.chargeCost || "0.00"}`,
+    cell: ({ row }) => `$${Number(row.original.chargeCost ?? 0).toFixed(2)}`,
+  },
+  {
+    accessorKey: "tycoAmount",
+    header: "Monto Tyco",
+    cell: ({ row }) => `$${Number(row.original.tycoAmount ?? 0).toFixed(2)}`,
+  },
+  {
+    accessorKey: "airportAmount",
+    header: "Monto Aeropuerto",
+    cell: ({ row }) => `$${Number(row.original.airportAmount ?? 0).toFixed(2)}`,
+  },
+  {
+    accessorKey: "secondAbordAmount",
+    header: "Monto 2do Abordo",
+    cell: ({ row }) => `$${Number(row.original.secondAbordAmount ?? 0).toFixed(2)}`,
   },
   {
     accessorKey: "active",

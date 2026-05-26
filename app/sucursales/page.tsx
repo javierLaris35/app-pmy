@@ -12,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from "@/components/ui/dialog"
 import {
   AlertDialog,
@@ -36,6 +35,7 @@ import {
   Mail,
   Copy,
   AlertTriangle,
+  Building2,
 } from "lucide-react"
 import type { Subsidiary } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
@@ -52,43 +52,45 @@ import { withAuth } from "@/hoc/withAuth"
 import { toast } from "sonner"
 import { getColumns } from "./columns"
 
+const initialFormState = {
+  name: "",
+  address: "",
+  phone: "",
+  officeManager: "",
+  managerPhone: "",
+  fedexCostPackage: 0,
+  dhlCostPackage: 0,
+  chargeCost: 0,
+  tycoAmount: 0,
+  airportAmount: 0,
+  secondAbordAmount: 0,
+  active: true,
+  isWarehouse: false,
+  officeEmail: "",
+  officeEmailToCopy: "",
+}
+
 function SucursalesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingSucursal, setEditingSucursal] = useState<Subsidiary | null>(null)
   const [sucursalToDelete, setSucursalToDelete] = useState<Subsidiary | null>(null)
   
+  const [formData, setFormData] = useState(initialFormState)
+
   const { subsidiaries, isLoading, isError, mutate } = useSubsidiaries()
   const { save, isSaving } = useSaveSubsidiary()
   const { deleteSubsidiary, isDeleting } = useDeleteSubsidiary()
 
-  const [nombre, setNombre] = useState("")
-  const [direccion, setDireccion] = useState("")
-  const [telefono, setTelefono] = useState("")
-  const [encargado, setEncargado] = useState("")
-  const [encargadoTelefono, setEncargadoTelefono] = useState("")
-  const [activo, setActivo] = useState(true)
-  const [fedexCostPackage, setFedexCostPackage] = useState(0.00)
-  const [dhlCostPackage, setDhlCostPackage] = useState(0.00)
-  const [chargeCost, setChargeCost] = useState(0.00)
-  const [officeEmail, setOfficeEmail] = useState("")
-  const [officeEmailToCopy, setOfficeEmailToCopy] = useState("")
-
   const isMobile = useIsMobile()
+
+  const handleFormChange = (field: keyof typeof formData, value: string | number | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
 
   const resetForm = () => {
     setEditingSucursal(null)
-    setNombre("")
-    setDireccion("")
-    setTelefono("")
-    setEncargado("")
-    setEncargadoTelefono("")
-    setActivo(true)
-    setFedexCostPackage(0.00)
-    setDhlCostPackage(0.00)
-    setChargeCost(0.00)
-    setOfficeEmail("")
-    setOfficeEmailToCopy("")
+    setFormData(initialFormState)
   }
 
   const openNewSucursalDialog = () => {
@@ -98,17 +100,23 @@ function SucursalesPage() {
 
   const openEditSucursalDialog = (sucursal: Subsidiary) => {
     setEditingSucursal(sucursal)
-    setNombre(sucursal.name)
-    setDireccion(sucursal.address || "")
-    setTelefono(sucursal.phone || "")
-    setEncargado(sucursal.officeManager || "")
-    setEncargadoTelefono(sucursal.managerPhone || "")
-    setFedexCostPackage(sucursal.fedexCostPackage || 0)
-    setDhlCostPackage(sucursal.dhlCostPackage || 0)
-    setChargeCost(sucursal.chargeCost || 0)
-    setActivo(sucursal.active)
-    setOfficeEmail(sucursal.officeEmail || "")
-    setOfficeEmailToCopy(sucursal.officeEmailToCopy || "")
+    setFormData({
+      name: sucursal.name,
+      address: sucursal.address || "",
+      phone: sucursal.phone || "",
+      officeManager: sucursal.officeManager || "",
+      managerPhone: sucursal.managerPhone || "",
+      fedexCostPackage: sucursal.fedexCostPackage || 0,
+      dhlCostPackage: sucursal.dhlCostPackage || 0,
+      chargeCost: sucursal.chargeCost || 0,
+      tycoAmount: sucursal.tycoAmount || 0,
+      airportAmount: sucursal.airportAmount || 0,
+      secondAbordAmount: sucursal.secondAbordAmount || 0,
+      active: sucursal.active,
+      isWarehouse: sucursal.isWarehouse || false,
+      officeEmail: sucursal.officeEmail || "",
+      officeEmailToCopy: sucursal.officeEmailToCopy || "",
+    })
     setIsDialogOpen(true)
   }
 
@@ -126,17 +134,9 @@ function SucursalesPage() {
     e.preventDefault()
 
     const subsidiaryData = {
-      name: nombre,
-      address: direccion,
-      phone: telefono,
-      officeManager: encargado,
-      managerPhone: encargadoTelefono,
-      fedexCostPackage,
-      dhlCostPackage,
-      chargeCost,
-      active: activo,
-      officeEmail: officeEmail || undefined,
-      officeEmailToCopy: officeEmailToCopy || undefined
+      ...formData,
+      officeEmail: formData.officeEmail || undefined,
+      officeEmailToCopy: formData.officeEmailToCopy || undefined
     }
 
     try {
@@ -189,11 +189,10 @@ function SucursalesPage() {
     }
   }
 
-  // Obtener las columnas con las funciones inyectadas
   const columns = getColumns({
     handleToggleActive,
     openEditSucursalDialog,
-    handleDeleteSubsidiary: openDeleteDialog, // Cambiamos para usar el diálogo
+    handleDeleteSubsidiary: openDeleteDialog,
     isSaving,
     isDeleting
   })
@@ -221,7 +220,14 @@ function SucursalesPage() {
             {subsidiaries.map((sucursal: Subsidiary) => (
               <Card key={sucursal.id} className="border shadow-sm rounded-xl">
                 <CardHeader className="pb-2 flex flex-row items-start justify-between">
-                  <CardTitle className="text-base">{sucursal.name}</CardTitle>
+                  <div className="flex flex-col gap-1">
+                    <CardTitle className="text-base">{sucursal.name}</CardTitle>
+                    {sucursal.isWarehouse && (
+                      <span className="text-xs flex items-center text-blue-600 bg-blue-50 w-fit px-2 py-0.5 rounded-full font-medium">
+                        <Building2 className="w-3 h-3 mr-1" /> Bodega
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={sucursal.active}
@@ -281,7 +287,9 @@ function SucursalesPage() {
                         </p>
                       </div>
                     )}
-                    <div className="grid grid-cols-3 gap-2 pt-2">
+                    
+                    {/* Costos de Paquetería y Extras */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-2 pt-2 border-t mt-2">
                       <div>
                         <span className="font-medium text-foreground">FedEx:</span>
                         <p>${sucursal.fedexCostPackage?.toFixed(2) || "0.00"}</p>
@@ -293,6 +301,18 @@ function SucursalesPage() {
                       <div>
                         <span className="font-medium text-foreground">Carga:</span>
                         <p>${sucursal.chargeCost?.toFixed(2) || "0.00"}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Tyco:</span>
+                        <p>${sucursal.tycoAmount?.toFixed(2) || "0.00"}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Aeropuerto:</span>
+                        <p>${sucursal.airportAmount?.toFixed(2) || "0.00"}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">2do Abordo:</span>
+                        <p>${sucursal.secondAbordAmount?.toFixed(2) || "0.00"}</p>
                       </div>
                     </div>
                   </div>
@@ -332,150 +352,203 @@ function SucursalesPage() {
         )}
       </div>
 
-      {/* Diálogo para crear/editar sucursal */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingSucursal ? "Editar Sucursal" : "Nueva Sucursal"}</DialogTitle>
             <DialogDescription>
-              {editingSucursal ? "Modifica los datos de la sucursal" : "Ingresa los datos de la nueva sucursal"}
+              {editingSucursal ? "Modifica los datos de la sucursal o bodega." : "Ingresa los datos de la nueva sucursal o bodega."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="nombre">Nombre *</Label>
-                <Input
-                  id="nombre"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  required
-                  placeholder="Nombre de la sucursal"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="direccion">Dirección</Label>
-                <Input
-                  id="direccion"
-                  value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
-                  placeholder="Dirección completa"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="telefono">Teléfono</Label>
-                <Input
-                  id="telefono"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                  placeholder="Número de teléfono"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="encargado">Encargado *</Label>
-                <Input
-                  id="encargado"
-                  value={encargado}
-                  onChange={(e) => setEncargado(e.target.value)}
-                  required
-                  placeholder="Nombre del encargado"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="encargadoTelefono">Teléfono Encargado</Label>
-                <Input
-                  id="encargadoTelefono"
-                  value={encargadoTelefono}
-                  onChange={(e) => setEncargadoTelefono(e.target.value)}
-                  placeholder="Teléfono del encargado"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="officeEmail">Email Oficina</Label>
-                <Input
-                  id="officeEmail"
-                  type="email"
-                  value={officeEmail}
-                  onChange={(e) => setOfficeEmail(e.target.value)}
-                  placeholder="ejemplo@sucursal.com"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="officeEmailToCopy">Email para Copia (CC)</Label>
-                <Input
-                  id="officeEmailToCopy"
-                  type="email"
-                  value={officeEmailToCopy}
-                  onChange={(e) => setOfficeEmailToCopy(e.target.value)}
-                  placeholder="copia@empresa.com"
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="fedexCostPackage">Costo Paquete FedEx</Label>
+                  <Label htmlFor="name">Nombre *</Label>
                   <Input
-                    id="fedexCostPackage"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={fedexCostPackage}
-                    onChange={(e) => setFedexCostPackage(+e.target.value)}
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => handleFormChange("name", e.target.value)}
+                    required
+                    placeholder="Nombre de la sucursal"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="dhlCostPackage">Costo Paquete DHL</Label>
+                  <Label htmlFor="address">Dirección</Label>
                   <Input
-                    id="dhlCostPackage"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={dhlCostPackage}
-                    onChange={(e) => setDhlCostPackage(+e.target.value)}
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => handleFormChange("address", e.target.value)}
+                    placeholder="Dirección completa"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="chargeCost">Costo por Carga</Label>
+                  <Label htmlFor="phone">Teléfono</Label>
                   <Input
-                    id="chargeCost"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={chargeCost}
-                    onChange={(e) => setChargeCost(+e.target.value)}
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => handleFormChange("phone", e.target.value)}
+                    placeholder="Número de teléfono"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="officeManager">Encargado *</Label>
+                  <Input
+                    id="officeManager"
+                    value={formData.officeManager}
+                    onChange={(e) => handleFormChange("officeManager", e.target.value)}
+                    required
+                    placeholder="Nombre del encargado"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="managerPhone">Teléfono Encargado</Label>
+                  <Input
+                    id="managerPhone"
+                    value={formData.managerPhone}
+                    onChange={(e) => handleFormChange("managerPhone", e.target.value)}
+                    placeholder="Teléfono del encargado"
                   />
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="activo"
-                  checked={activo}
-                  onCheckedChange={setActivo}
-                />
-                <Label htmlFor="activo">Activo</Label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="officeEmail">Email Oficina</Label>
+                  <Input
+                    id="officeEmail"
+                    type="email"
+                    value={formData.officeEmail}
+                    onChange={(e) => handleFormChange("officeEmail", e.target.value)}
+                    placeholder="ejemplo@sucursal.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="officeEmailToCopy">Email para Copia (CC)</Label>
+                  <Input
+                    id="officeEmailToCopy"
+                    type="email"
+                    value={formData.officeEmailToCopy}
+                    onChange={(e) => handleFormChange("officeEmailToCopy", e.target.value)}
+                    placeholder="copia@empresa.com"
+                  />
+                </div>
               </div>
+
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="text-sm font-semibold text-foreground">Costos y Tarifas</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="fedexCostPackage">Paquete FedEx</Label>
+                    <Input
+                      id="fedexCostPackage"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.fedexCostPackage}
+                      onChange={(e) => handleFormChange("fedexCostPackage", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="dhlCostPackage">Paquete DHL</Label>
+                    <Input
+                      id="dhlCostPackage"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.dhlCostPackage}
+                      onChange={(e) => handleFormChange("dhlCostPackage", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="chargeCost">Costo por Carga</Label>
+                    <Input
+                      id="chargeCost"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.chargeCost}
+                      onChange={(e) => handleFormChange("chargeCost", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="tycoAmount">Monto Tyco</Label>
+                    <Input
+                      id="tycoAmount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.tycoAmount}
+                      onChange={(e) => handleFormChange("tycoAmount", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="airportAmount">Monto Aeropuerto</Label>
+                    <Input
+                      id="airportAmount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.airportAmount}
+                      onChange={(e) => handleFormChange("airportAmount", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="secondAbordAmount">Monto 2do Abordo</Label>
+                    <Input
+                      id="secondAbordAmount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.secondAbordAmount}
+                      onChange={(e) => handleFormChange("secondAbordAmount", +e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-6 pt-2">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="activo"
+                    checked={formData.active}
+                    onCheckedChange={(checked) => handleFormChange("active", checked)}
+                  />
+                  <Label htmlFor="activo">Activo</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isWarehouse"
+                    checked={formData.isWarehouse}
+                    onCheckedChange={(checked) => handleFormChange("isWarehouse", checked)}
+                  />
+                  <Label htmlFor="isWarehouse">Es Bodega</Label>
+                </div>
+              </div>
+
             </div>
             <DialogFooter>
               <Button 
                 type="submit" 
                 disabled={isSaving}
               >
-                {isSaving ? "Guardando..." : editingSucursal ? "Actualizar" : "Crear"} Sucursal
+                {isSaving ? "Guardando..." : editingSucursal ? "Actualizar" : "Crear"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de confirmación para eliminar */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-500" />
-              <AlertDialogTitle>¿Eliminar sucursal?</AlertDialogTitle>
+              <AlertDialogTitle>¿Eliminar registro?</AlertDialogTitle>
             </div>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará permanentemente la sucursal{" "}
+              Esta acción no se puede deshacer. Se eliminará permanentemente la sucursal/bodega{" "}
               <span className="font-semibold text-foreground">
                 "{sucursalToDelete?.name}"
               </span>

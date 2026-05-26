@@ -11,6 +11,11 @@ export type Subsidiary = {
   active: boolean
   officeEmail?: string
   officeEmailToCopy?: string
+  tycoAmount: number;
+  airportAmount: number;
+  secondAbordAmount: number;
+  isWarehouse: boolean
+  createdBy?: string;
 }
 
 export type Collection = {

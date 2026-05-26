@@ -12,6 +12,24 @@ export type ValidationError = {
   reason: string;
 };
 
+export interface ShipmentWarehouseDto {
+  id: string;
+  trackingNumber: string;
+  shipmentType: string;
+  isCharge: boolean;
+  remittances: {
+    pieceTrackingNumber: string;
+    shipmentId: string;
+  }[];
+}
+
+export interface CreateWarehouseDto {
+  warehouse: string;
+  shipments: ShipmentWarehouseDto[];
+  vehicle: string;
+  drivers: string[];
+}
+
 /**
  * Valida un paquete mediante su número de tracking.
  * @param trackingNumber El código escaneado.
@@ -32,7 +50,13 @@ const validateShipment = async (
   return response.data;
 };
 
+const saveWarehouseInbound = async (data: CreateWarehouseDto) => {
+  const response = await axiosConfig.post(`${url}`, data);
+  return response.data;
+}
+
 
 export {
-    validateShipment
+    validateShipment,
+    saveWarehouseInbound
 }

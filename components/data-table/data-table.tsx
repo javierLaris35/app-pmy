@@ -4,11 +4,14 @@ import {
   type ColumnFiltersState,
   type SortingState,
   type VisibilityState,
+  type ExpandedState,
+  type Row,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  getExpandedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
 
@@ -23,9 +26,11 @@ interface DataTableProps<TData, TValue> {
   filters?: {
     columnId: string
     title: string
-    options?: { label: string; value: string }[] // <-- AQUI ESTÁ EL CAMBIO (se agregó '?')
+    options?: { label: string; value: string }[] 
   }[],
   onTableReady?: (table: ReturnType<typeof useReactTable>) => void
+  // NUEVA PROPIEDAD OPCIONAL PARA RENDERIZAR SUB-FILAS
+  renderSubComponent?: (props: { row: Row<TData> }) => React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -34,12 +39,16 @@ export function DataTable<TData, TValue>({
   searchKey,
   filters,
   onTableReady,
+  renderSubComponent,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = React.useState<string>("")
+  
+  // NUEVO ESTADO PARA CONTROLAR LAS FILAS EXPANDIDAS
+  const [expanded, setExpanded] = React.useState<ExpandedState>({})
 
   const table = useReactTable({
     data,
@@ -50,6 +59,7 @@ export function DataTable<TData, TValue>({
       rowSelection,
       columnFilters,
       globalFilter,
+      expanded,
     },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -57,10 +67,12 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
+    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     globalFilterFn: (row, columnId, filterValue) => {
       const search = filterValue.toLowerCase()
 
@@ -114,13 +126,26 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
+                <React.Fragment key={row.id}>
+                  {/* FILA PRINCIPAL */}
+                  <TableRow data-state={row.getIsSelected() && "selected"}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  
+                  {/* SUB-FILA (Solo se renderiza si está expandida y si existe la función) */}
+                  {row.getIsExpanded() && renderSubComponent && (
+                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
+                      {/* El colSpan asegura que abarque toda la tabla de extremo a extremo */}
+                      <TableCell colSpan={row.getVisibleCells().length} className="p-0 border-b">
+                        {renderSubComponent({ row })}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               ))
             ) : (
               <TableRow>

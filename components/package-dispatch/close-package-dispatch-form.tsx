@@ -217,8 +217,12 @@ export default function ClosePackageDispatchWizard({
   const dhlOnly: PackageInfo[] = [];
 
   const notDeliveredStatuses = [
-    'no_entregado', 'rechazado', 'direccion_incorrecta', 'cliente_no_disponible',
-    'cambio_fecha_solicitado', 'devuelto_a_fedex'
+    'no_entregado', 
+    'rechazado', 
+    'direccion_incorrecta', 
+    'cliente_no_disponible',
+    'cambio_fecha_solicitado', 
+    'devuelto_a_fedex'
   ];
 
   // 2. Procesar paquetes originales

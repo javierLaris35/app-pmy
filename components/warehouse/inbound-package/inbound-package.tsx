@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { PDFDownloadLink } from "@react-pdf/renderer"
 import { useBrowserVoice } from "@/hooks/use-browser-voice" 
-import { ColumnDef } from "@tanstack/react-table"
+import { ColumnDef, Row } from "@tanstack/react-table"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,7 +36,14 @@ import {
   DollarSign,
   Box,
   Truck,
-  PackagePlusIcon
+  PackagePlusIcon,
+  ScanBarcode,
+  User,
+  MapPin,
+  ChevronRight,
+  ChevronDown,
+  Layers,
+  HelpCircle
 } from "lucide-react"
 
 // Selectores especializados
@@ -44,11 +51,19 @@ import { UnidadSelector } from "@/components/selectors/unidad-selector"
 import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
 
 // Servicios y tipos
-import { validateShipment } from "@/lib/services/warehouse/warehouse"
+import { saveWarehouseInbound, validateShipment } from "@/lib/services/warehouse/warehouse"
 import { Driver, ScannedShipment, Vehicles } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { DataTable } from "@/components/data-table/data-table"
 import { tableFilters } from "./filters"
+import { SucursalSelector } from "@/components/sucursal-selector"
+
+export type InboundShipment = ScannedShipment & {
+  pieces?: string[]; 
+  existingPieces?: string[]; 
+  recipientName?: string;
+  recipientAddress?: string;
+}
 
 export type SessionState = {
   id: string
@@ -58,11 +73,19 @@ export type SessionState = {
   drivers: Driver[]
   receivedByName: string
   enteredByName: string
-  packages: ScannedShipment[]
+  packages: InboundShipment[]
   status: "En Proceso" | "Completado"
 }
 
-// Helpers para fechas
+// Variables en inglés para el flujo de remesas
+type RemittanceDialogState = {
+  isOpen: boolean;
+  step: "confirm" | "scan";
+  masterTracking: string;
+  pieceInput: string;
+  error: string | null;
+}
+
 const isToday = (date: Date) => new Date().toDateString() === new Date(date).toDateString()
 const isTomorrow = (date: Date) => {
   const tomorrow = new Date()
@@ -72,9 +95,13 @@ const isTomorrow = (date: Date) => {
 
 export default function InboundPackage() {
   const user = useAuthStore((state) => state.user);
-  const userSubsidiaryId = user?.subsidiary?.id ?? ""
+  
+  // Establecemos el ID por defecto si el usuario lo tiene en su Store
+  const defaultWarehouseId = user?.subsidiary?.id || user?.subsidiaryId || "";
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const pieceInputRef = useRef<HTMLInputElement>(null) 
+
   const { speak: speakMessage } = useBrowserVoice({ pitch: 0.8, rate: 1.3 })
 
   const safeSpeak = useCallback((text: string) => {
@@ -102,9 +129,24 @@ export default function InboundPackage() {
     drivers: []
   })
   
+  // Guardamos únicamente la selección manual.
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("")
+  
+  // Esta es la fuente de la verdad para toda la vista y el envío
+  const effectiveWarehouseId = selectedWarehouse || defaultWarehouseId;
+
   const [scanInput, setScanInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Estado para el modal de remesas
+  const [remittanceDialog, setRemittanceDialog] = useState<RemittanceDialogState>({
+    isOpen: false,
+    step: "confirm",
+    masterTracking: "",
+    pieceInput: "",
+    error: null
+  })
 
   const [modals, setModals] = useState({
     shortcuts: false,
@@ -116,54 +158,59 @@ export default function InboundPackage() {
 
   useEffect(() => { setIsClient(true) }, [])
 
+  // Auto-focus en el input de piezas cuando el paso cambia a "scan"
+  useEffect(() => {
+    if (remittanceDialog.isOpen && remittanceDialog.step === "scan") {
+      setTimeout(() => pieceInputRef.current?.focus(), 100);
+    }
+  }, [remittanceDialog.isOpen, remittanceDialog.step]);
+
   const toggleModal = (key: keyof typeof modals, value: boolean) => {
     setModals(prev => ({ ...prev, [key]: value }))
-    if (!value) setTimeout(() => inputRef.current?.focus(), 100)
+    if (!value && !remittanceDialog.isOpen) setTimeout(() => inputRef.current?.focus(), 100)
   }
 
-  // KPIs
   const expiringTodayPackages = useMemo(() => session.packages.filter(p => isToday(p.commitDateTime)), [session.packages])
   const highValuePackages = useMemo(() => session.packages.filter(p => p.isHighValue), [session.packages])
   const cargoPackages = useMemo(() => session.packages.filter(p => p.isCharge), [session.packages])
   const packagesWithCharges = useMemo(() => session.packages.filter(p => p.hasPayment), [session.packages])
-  const totalChargesAmount = useMemo(() => packagesWithCharges.reduce((acc, p) => acc + (p.paymentAmount || 0), 0), [packagesWithCharges])
+  const totalChargesAmount = useMemo(() => 
+    packagesWithCharges.reduce((acc, p) => acc + (Number(p.paymentAmount) || 0), 0), 
+  [packagesWithCharges])
   
-  const fedexCount = useMemo(() => session.packages.filter(p => p.shipmentType.toLowerCase() === "fedex").length, [session.packages])
-  const dhlCount = useMemo(() => session.packages.filter(p => p.shipmentType.toLowerCase() === "dhl").length, [session.packages])
+  // LOGICA ACTUALIZADA PARA CONTAR PIEZAS DENTRO DE LOS PAQUETES
+  const totalCount = useMemo(() => session.packages.reduce((acc, p) => acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0), 0), [session.packages])
+  const fedexCount = useMemo(() => session.packages.reduce((acc, p) => p.shipmentType.toLowerCase() === "fedex" ? acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0) : acc, 0), [session.packages])
+  const dhlCount = useMemo(() => session.packages.reduce((acc, p) => p.shipmentType.toLowerCase() === "dhl" ? acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0) : acc, 0), [session.packages])
 
-  // --- ORDENAMIENTO EN PANTALLA ---
   const sortedPackages = useMemo(() => {
     return [...session.packages].sort((a, b) => {
       const getSubName = (pkg: any) => {
-        if (pkg?.subsidiary?.name) return String(pkg.subsidiary.name);
-        if (typeof pkg?.subsidiaryId === 'string') return pkg.subsidiaryId;
-        if (typeof pkg?.subsidiaryId === 'object' && pkg?.subsidiaryId !== null) return String(pkg.subsidiaryId.name || "S/N");
+        if (pkg?.subsidiary?.name) return String(pkg.subsidiary.name).trim();
+        if (typeof pkg?.subsidiaryId === 'string') return pkg.subsidiaryId.trim();
+        if (typeof pkg?.subsidiaryId === 'object' && pkg?.subsidiaryId !== null) return String(pkg.subsidiaryId.name || "S/N").trim();
         return "S/N";
       };
 
-      // 1. Por Código Postal
-      const zipA = String(a.recipientZip || "");
-      const zipB = String(b.recipientZip || "");
-      const cmpZip = zipA.localeCompare(zipB, undefined, { numeric: true });
+      const branchA = getSubName(a);
+      const branchB = getSubName(b);
+      const cmpBranch = branchA.localeCompare(branchB);
+      if (cmpBranch !== 0) return cmpBranch;
+
+      const zipA = String(a.recipientZip || "").trim();
+      const zipB = String(b.recipientZip || "").trim();
+      const cmpZip = zipA.localeCompare(zipB, undefined, { numeric: true }); 
       if (cmpZip !== 0) return cmpZip;
 
-      // 2. Por Sucursal
-      const sucursalA = getSubName(a);
-      const sucursalB = getSubName(b);
-      const cmpSucursal = sucursalA.localeCompare(sucursalB);
-      if (cmpSucursal !== 0) return cmpSucursal;
-
-      // 3. Por Carrier
-      const carrierA = String(a.shipmentType || "").toUpperCase();
-      const carrierB = String(b.shipmentType || "").toUpperCase();
+      const carrierA = String(a.shipmentType || "").trim().toUpperCase();
+      const carrierB = String(b.shipmentType || "").trim().toUpperCase();
       return carrierA.localeCompare(carrierB);
     });
   }, [session.packages]);
-
-  // --- VALIDACIONES DE FLUJO ---
-  const isReadyToFinish = session.packages.length > 0 && session.vehicle?.id && session.drivers.length > 0;
   
-  // Extraemos el nombre del chofer de forma segura para evitar el error [object Object]
+  // AÑADIDA VALIDACIÓN: !!effectiveWarehouseId 
+  const isReadyToFinish = session.packages.length > 0 && session.vehicle?.id && session.drivers.length > 0 && !!effectiveWarehouseId;
+  
   const derivedDriverName = session.drivers.map(d => {
     if (typeof d.id === 'object' && d.id !== null) {
       return (d.id as any).name || (d.id as any).nombre || "Operador Seleccionado";
@@ -171,8 +218,81 @@ export default function InboundPackage() {
     return (d as any).name || (d as any).nombre || d.id || "Operador Seleccionado";
   }).join(", ")
   
-  // Solo exigimos que hayan escrito el nombre de quien RECIBE
   const canSaveAndGeneratePDF = session.receivedByName.trim() !== "";
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInputFocused = document.activeElement instanceof HTMLInputElement;
+
+      if (e.key === "F1") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      } 
+      else if (e.key === "F2") {
+        e.preventDefault();
+        if (isReadyToFinish) {
+          toggleModal("signatures", true);
+        } else {
+          safeSpeak("Faltan datos para finalizar"); 
+        }
+      } 
+      else if (e.key === "F3") {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Buscar"]') as HTMLInputElement;
+        if (searchInput) searchInput.focus();
+      } 
+      else if (e.key === "Escape") {
+        setModals({ signatures: false, shortcuts: false, expiringToday: false, highValue: false, charges: false });
+        if (remittanceDialog.isOpen) {
+          setRemittanceDialog(prev => ({...prev, isOpen: false}));
+        }
+        setTimeout(() => inputRef.current?.focus(), 100);
+      } 
+      else if (!isInputFocused && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        if (remittanceDialog.isOpen && remittanceDialog.step === "scan") {
+          pieceInputRef.current?.focus();
+        } else if (!remittanceDialog.isOpen) {
+          inputRef.current?.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isReadyToFinish, safeSpeak, remittanceDialog.isOpen, remittanceDialog.step]);
+
+  const handlePieceScan = useCallback(() => {
+    const pieceTracking = remittanceDialog.pieceInput.trim().toUpperCase();
+    if (!pieceTracking) return;
+
+    setSession(prev => {
+      const pkgIndex = prev.packages.findIndex(p => p.trackingNumber === remittanceDialog.masterTracking);
+      if (pkgIndex === -1) return prev;
+
+      const pkg = prev.packages[pkgIndex];
+      
+      if (pkg.pieces?.includes(pieceTracking) || pkg.existingPieces?.includes(pieceTracking)) {
+        setRemittanceDialog(d => ({ ...d, error: `Pieza duplicada o ya registrada: ${pieceTracking}` }));
+        safeSpeak("Pieza duplicada");
+        setTimeout(() => pieceInputRef.current?.select(), 50);
+        return prev;
+      }
+
+      safeSpeak("Pieza agregada");
+      
+      setRemittanceDialog(d => ({ ...d, error: null, pieceInput: "" })); 
+      
+      const updatedPackages = [...prev.packages];
+      updatedPackages[pkgIndex] = {
+        ...pkg,
+        pieces: [...(pkg.pieces || []), pieceTracking]
+      };
+      return { ...prev, packages: updatedPackages };
+    });
+
+    setTimeout(() => pieceInputRef.current?.focus(), 50);
+  }, [remittanceDialog.pieceInput, remittanceDialog.masterTracking, safeSpeak]);
+
 
   const handleScan = useCallback(async () => {
     if (!scanInput.trim()) return
@@ -180,12 +300,28 @@ export default function InboundPackage() {
     setError(null)
     const trackingNumber = scanInput.trim().toUpperCase()
 
-    if (session.packages.some((p) => p.trackingNumber === trackingNumber)) {
-      setError(`Guía duplicada: ${trackingNumber}`);
-      safeSpeak("Guía duplicada.");
-      setIsScanning(false);
-      setScanInput("");
-      return;
+    const existingPackage = session.packages.find((p) => p.trackingNumber === trackingNumber);
+
+    if (existingPackage) {
+      if (existingPackage.shipmentType.toLowerCase() === "dhl") {
+        setRemittanceDialog({
+          isOpen: true,
+          step: "confirm",
+          masterTracking: trackingNumber,
+          pieceInput: "",
+          error: null
+        });
+        safeSpeak("Guía repetida. Por favor, confirme remesa.");
+        setScanInput("");
+        setIsScanning(false);
+        return;
+      } else {
+        setError(`Guía principal ya en lista: ${trackingNumber}`);
+        safeSpeak("Guía en lista.");
+        setIsScanning(false);
+        setScanInput("");
+        return;
+      }
     }
 
     try {
@@ -194,14 +330,26 @@ export default function InboundPackage() {
         setError(result.reason || "No encontrado en sistema")
         safeSpeak("No encontrado.")
       } else {
-        const newShipment: ScannedShipment = {
+
+        const newShipment: InboundShipment = {
           ...result,
+          recipientZip: result.recipientZip ? String(result.recipientZip).trim() : "",
           commitDateTime: new Date(result.commitDateTime),
           isCharge: result.isCharge || false,
           hasPayment: result.hasPayment || false,
-          paymentAmount: result.paymentAmount || 0
+          paymentAmount: result.paymentAmount || 0,
+          pieces: [], 
+          existingPieces: result.existingPieces || [],
+          recipientName: result.recipientName || "",
+          recipientAddress: result.recipientAddress || ""
         }
-        safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence mañana" : "Registrado")
+
+        if (newShipment.existingPieces && newShipment.existingPieces.length > 0) {
+          safeSpeak("Guía existente. Escanee piezas restantes.");
+        } else {
+          safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence mañana" : "Registrado")
+        }
+
         setSession(prev => ({ ...prev, packages: [newShipment, ...prev.packages] }))
         setScanInput("")
       }
@@ -221,48 +369,98 @@ export default function InboundPackage() {
   }, [])
 
   const handleCompleteSession = async () => {
-    setIsScanning(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    // Limpiamos la sesión por completo para el siguiente camión
-    setSession({
-      id: crypto.randomUUID(),
-      vehicle: null,
-      startTime: new Date(),
-      receivedByName: "",
-      enteredByName: "",
-      packages: [],
-      status: "En Proceso",
-      drivers: []
-    })
-    toggleModal("signatures", false)
-    setIsScanning(false)
+    setIsScanning(true);
+    
+    try {
+      const payload = {
+        warehouse: effectiveWarehouseId, // SE ENVÍA LA BODEGA VALIDADA
+        vehicle: typeof session.vehicle?.id === 'object' && session.vehicle?.id !== null
+          ? (session.vehicle.id as any).id 
+          : (session.vehicle?.id || ""), 
+        drivers: session.drivers.map(driver => {
+          if (typeof driver.id === 'object' && driver.id !== null) {
+            return String((driver.id as any).id);
+          }
+          return String(driver.id);
+        }),
+        // Mapeo de los envíos principales
+        shipments: session.packages.map(pkg => ({
+          id: pkg.id,
+          trackingNumber: pkg.trackingNumber,
+          shipmentType: pkg.shipmentType,
+          isCharge: pkg.isCharge || false,
+          
+          // Mapeamos el arreglo de strings a un arreglo de objetos relacionales
+          remittances: (pkg.pieces || []).map(pieceTracking => ({
+            pieceTrackingNumber: pieceTracking,
+            shipmentId: pkg.id 
+          }))
+        }))
+      };
+
+      await saveWarehouseInbound(payload);
+      safeSpeak("Entrada guardada con éxito");
+      
+      setSession({
+        id: crypto.randomUUID(),
+        vehicle: null,
+        startTime: new Date(),
+        receivedByName: "",
+        enteredByName: "",
+        packages: [],
+        status: "En Proceso",
+        drivers: []
+      });
+      
+      toggleModal("signatures", false);
+
+    } catch (error) {
+      console.error("Error al guardar la entrada en bodega:", error);
+      safeSpeak("Error al guardar en el servidor");
+    } finally {
+      setIsScanning(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
   }
 
-  // --- DEFINICIÓN DE COLUMNAS PARA EL DATA-TABLE ---
-  const columns: ColumnDef<ScannedShipment>[] = useMemo(() => [
+  const columns: ColumnDef<InboundShipment>[] = useMemo(() => [
     {
       accessorKey: "trackingNumber",
-      header: "Tracking",
-      cell: ({ row }) => <span className="font-mono text-sm font-medium">{row.getValue("trackingNumber")}</span>,
-    },
-    {
-      id: "shipmentType",
-      accessorKey: "shipmentType",
-      header: "Carrier",
-      cell: ({ row }) => {
-        // CORRECCIÓN AQUÍ: Se leía "carrier" en lugar de "shipmentType" y se le agregó un fallback seguro.
-        const type = (row.getValue("shipmentType") as string) || ""; 
-        if (type.toLowerCase() === 'fedex') {
-          return <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
-        }
-        if (type.toLowerCase() === 'dhl') {
-          return <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
-        }
-        return <Badge variant="outline" className="text-[10px] uppercase">{type}</Badge>
-      },
-      filterFn: (row, id, value: string[]) => {
-        const rowValue = (row.getValue(id) as string).toLowerCase()
-        return value.includes(rowValue)
+      header: "Guía / Remesa",
+      cell: function CellComponent({ row }) {
+        const pkg = row.original;
+        const hasPieces = (pkg.pieces && pkg.pieces.length > 0) || (pkg.existingPieces && pkg.existingPieces.length > 0);
+
+        return (
+          <div className="flex items-center gap-3 w-full">
+            {hasPieces ? (
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  row.toggleExpanded();
+                }}
+                className={`p-1.5 rounded-md hover:bg-slate-200 transition-colors flex-shrink-0 ${row.getIsExpanded() ? 'bg-slate-200 text-slate-800' : 'text-slate-500'}`}
+                title="Desplegar piezas de la remesa"
+              >
+                {row.getIsExpanded() ? <ChevronDown size={18} strokeWidth={2.5} /> : <ChevronRight size={18} strokeWidth={2.5} />}
+              </button>
+            ) : (
+              <div className="w-8 flex-shrink-0" />
+            )}
+            
+            <span className="font-mono text-[14px] font-bold text-slate-900 tracking-tight">
+              {pkg.trackingNumber}
+            </span>
+            
+            {/* Aquí se actualiza el Badge para indicar que es la principal */}
+            {hasPieces && (
+              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 flex gap-1 items-center bg-blue-50 text-blue-700 border-blue-200 border ml-2 uppercase font-bold tracking-wider">
+                <Layers size={10} />
+                Principal
+              </Badge>
+            )}
+          </div>
+        )
       },
     },
     {
@@ -272,9 +470,11 @@ export default function InboundPackage() {
       cell: ({ row }) => {
         const pkg = row.original;
         return (
-          <div className="text-xs text-muted-foreground">
-             {pkg.subsidiary?.name || "S/N"} <br/>
-             <span className="font-mono">CP: {pkg.recipientZip}</span>
+          <div className="text-slate-600 flex flex-col gap-0.5">
+            <span className="font-bold text-slate-800">{pkg.subsidiary?.name || "S/N"}</span>
+            <span className="font-mono text-slate-500">
+              CP: <span className="font-bold text-slate-700">{pkg.recipientZip}</span>
+            </span>
           </div>
         )
       },
@@ -284,17 +484,61 @@ export default function InboundPackage() {
       },
     },
     {
-      id: "alertas",
-      header: "Alertas y Etiquetas",
+      id: "shipmentType",
+      accessorKey: "shipmentType",
+      header: "Carrier",
+      cell: ({ row }) => {
+        const type = (row.getValue("shipmentType") as string) || ""; 
+        if (type.toLowerCase() === 'fedex') {
+          return <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[12px] border-none shadow-sm uppercase font-bold tracking-wider">FedEx</Badge>
+        }
+        if (type.toLowerCase() === 'dhl') {
+          return <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[12px] border-none shadow-sm uppercase font-bold tracking-wider">DHL</Badge>
+        }
+        return <Badge variant="outline" className="text-[12px] uppercase font-bold text-slate-600">{type}</Badge>
+      },
+      filterFn: (row, id, value: string[]) => {
+        const rowValue = (row.getValue(id) as string).toLowerCase()
+        return value.includes(rowValue)
+      },
+    },
+    {
+      id: "destinatario",
+      header: "Destinatario",
       cell: ({ row }) => {
         const pkg = row.original;
         return (
-          <div className="flex gap-1.5 flex-wrap">
-            {isToday(pkg.commitDateTime) && <Badge className="font-bold text-[10px] px-1.5 py-0 bg-red-600 text-white hover:bg-red-700 shadow-sm">Vence Hoy</Badge>}
-            {isTomorrow(pkg.commitDateTime) && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-orange-100 text-orange-800 border-orange-200 border hover:bg-orange-200">Vence Mañana</Badge>}
-            {pkg.isHighValue && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200 border hover:bg-purple-200">Alto Valor</Badge>}
-            {pkg.isCharge && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200 border hover:bg-blue-200">Carga</Badge>}
-            {pkg.hasPayment && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border-amber-200 border hover:bg-amber-200">Cobro: ${pkg.paymentAmount}</Badge>}
+          <div className="flex flex-col gap-1 py-1 min-w-[150px] max-w-[220px]">
+            <div className="flex items-start gap-1.5">
+              <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+              <span className="text-sm font-semibold text-slate-800 leading-tight truncate" title={pkg.recipientName}>
+                {pkg.recipientName || "Sin Nombre"}
+              </span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+              <span className="text-xs text-slate-500 leading-snug line-clamp-2" title={pkg.recipientAddress}>
+                {pkg.recipientAddress || "Dirección no disponible"}
+              </span>
+            </div>
+          </div>
+        )
+      }
+    },
+    {
+      id: "alertas",
+      header: "Etiquetas",
+      cell: ({ row }) => {
+        const pkg = row.original;
+        return (
+          <div className="flex gap-1.5 flex-wrap max-w-[150px]">
+            {isToday(pkg.commitDateTime) && <Badge className="font-bold text-[10px] px-1.5 py-0.5 bg-red-600 text-white hover:bg-red-700 shadow-sm border-none">Vence Hoy</Badge>}
+            {isTomorrow(pkg.commitDateTime) && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-orange-50 text-orange-700 border-orange-200 border hover:bg-orange-100 shadow-sm">Vence Mañana</Badge>}
+            {pkg.isHighValue && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 border-purple-200 border hover:bg-purple-100 shadow-sm">Alto Valor</Badge>}
+            {pkg.isCharge && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 border-blue-200 border hover:bg-blue-100 shadow-sm">Carga</Badge>}
+            {pkg.hasPayment && <Badge className="font-bold text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-300 border hover:bg-amber-100 shadow-sm" variant="secondary">
+              Cobro: ${Number(pkg.paymentAmount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+            </Badge>}
           </div>
         )
       }
@@ -308,11 +552,11 @@ export default function InboundPackage() {
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => handleRemovePackage(row.original.id)} className="h-7 w-7 hover:text-destructive">
-                    <X className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="icon" onClick={() => handleRemovePackage(row.original.id)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
+                    <X className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Eliminar Registro</TooltipContent>
+                <TooltipContent className="bg-red-600 text-white border-none text-xs">Eliminar Registro</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
@@ -321,156 +565,365 @@ export default function InboundPackage() {
     }
   ], [handleRemovePackage])
 
+  // SUB-FILA (DISEÑO SHADCN / TAILWIND)
+  const renderSubComponent = ({ row }: { row: Row<InboundShipment> }) => {
+    const pkg = row.original;
+    const existing = pkg.existingPieces || [];
+    const current = pkg.pieces || [];
+    
+    const totalPieces = 1 + existing.length + current.length;
+
+    return (
+      <div className="p-5 pl-[3.5rem] bg-slate-50/80 border-y border-slate-200 w-full shadow-inner">
+        <div className="flex items-center gap-2 mb-3">
+          <Layers className="w-4 h-4 text-blue-600" />
+          <h4 className="text-sm font-bold text-slate-700">Contenido de la Remesa</h4>
+          <Badge variant="secondary" className="text-[10px] ml-2 h-5 bg-white border-slate-200 text-slate-600 shadow-sm font-semibold">
+            {totalPieces} {totalPieces === 1 ? 'Pieza en total (Incluyendo Principal)' : 'Piezas en total (Incluyendo Principal)'}
+          </Badge>
+        </div>
+        
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm max-w-3xl overflow-hidden">
+          <Table>
+            <TableHeader className="bg-slate-100/50">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-[60px] text-center text-xs font-bold text-slate-500">No.</TableHead>
+                <TableHead className="text-xs font-bold text-slate-500">Código de Seguimiento</TableHead>
+                <TableHead className="text-right text-xs font-bold text-slate-500">Clasificación</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+
+              {/* 2. PIEZAS REGISTRADAS PREVIAMENTE */}
+              {existing.map((pieceId, index) => (
+                <TableRow key={pieceId} className="hover:bg-slate-50/80 transition-colors">
+                  <TableCell className="text-center font-medium text-slate-400 text-xs">
+                    {index + 2}
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <div className="flex items-center gap-2.5">
+                      <Barcode className="w-4 h-4 text-slate-400" />
+                      <span className="font-mono text-[13px] text-slate-600">{pieceId}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right py-3">
+                    <Badge variant="outline" className="text-[10px] text-slate-500 bg-slate-50 border-slate-200">
+                      Registrada
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {/* 3. PIEZAS NUEVAS (Agregadas en este momento) */}
+              {current.map((pieceId, index) => (
+                <TableRow key={pieceId} className="bg-green-50/30 hover:bg-green-50/50 transition-colors">
+                  <TableCell className="text-center font-bold text-green-600/70 text-xs">
+                    {existing.length + index + 2}
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <div className="flex items-center gap-2.5">
+                      <ScanBarcode className="w-4 h-4 text-green-600" />
+                      <span className="font-mono text-[13px] font-bold text-green-800">{pieceId}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right py-3">
+                    <Badge className="text-[10px] bg-green-100 text-green-700 hover:bg-green-200 border-none shadow-sm font-bold uppercase tracking-wider">
+                      Agregada
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="text-slate-900 min-h-screen pt-4"> 
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-              <PackagePlusIcon className="w-8 h-8 text-blue-600" />
-              Gestión de Entradas a Bodega
-            </h1>
-            <p className="text-slate-500 mt-1">Registro y seguimiento de paquetes entrantes a la bodega.</p>
-          </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={() => toggleModal("shortcuts", true)}>
-                  <Keyboard className="w-5 h-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver Atajos de Teclado</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
+        <div className="flex flex-col gap-6 mb-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+                <PackagePlusIcon className="w-8 h-8 text-red-600" />
+                Gestión de Entradas a Bodega
+              </h1>
+              <p className="text-slate-500 mt-1">Registro y seguimiento de paquetes entrantes a la bodega.</p>
+            </div>
 
-        {/* KPIs */}
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="rounded shrink-0 hover:bg-slate-200 text-slate-600" 
+                      onClick={() => toggleModal("shortcuts", true)}
+                    >
+                      <Keyboard className="w-5 h-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver Atajos de Teclado</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <div className="w-full md:w-[250px]">
+                <SucursalSelector
+                  value={effectiveWarehouseId}
+                  returnObject={true}
+                  onlyWarehouses={true}
+                  onValueChange={(val) => {
+                    const sucursalId = typeof val === 'object' && val !== null ? (val as any).id : val;
+                    setSelectedWarehouse(sucursalId);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <Separator className="bg-slate-200" />
+
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
-          <StatCard title="Total" value={session.packages.length} icon={Package} />
-          <div className="rounded-lg border bg-card p-3 flex flex-col justify-center shadow-sm">
+          {/* AQUI SE ACTUALIZO EL VALOR DEL TOTAL PARA USAR LA NUEVA VARIABLE totalCount */}
+          <StatCard title="Total" value={totalCount} icon={Package} />
+          <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col justify-center shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Carrier</span>
-              <Truck className="h-3.5 w-3.5 text-muted-foreground/50" />
+              <span className="text-[12px] font-bold uppercase text-slate-500 tracking-wider">Carrier</span>
+              <Truck className="h-4 w-4 text-slate-300" />
             </div>
             <div className="flex items-center gap-3">
-               <div className="flex-1">
-                 <p className="text-[10px] font-bold text-[#4d148c]">FEDEX</p>
-                 <p className="text-xl font-bold">{fedexCount}</p>
-               </div>
-               <Separator orientation="vertical" className="h-8" />
-               <div className="flex-1 text-right">
-                 <p className="text-[10px] font-bold text-[#d40511]">DHL</p>
-                 <p className="text-xl font-bold">{dhlCount}</p>
-               </div>
+                <div className="flex-1">
+                  <p className="text-[12px] font-bold text-[#4d148c]">FEDEX</p>
+                  <p className="text-xl font-bold text-slate-800">{fedexCount}</p>
+                </div>
+                <Separator orientation="vertical" className="h-8 bg-slate-200" />
+                <div className="flex-1 text-right">
+                  <p className="text-[12px] font-bold text-[#d40511]">DHL</p>
+                  <p className="text-xl font-bold text-slate-800">{dhlCount}</p>
+                </div>
             </div>
           </div>
           <StatCard title="Vencen Hoy" value={expiringTodayPackages.length} icon={Clock} alert={expiringTodayPackages.length > 0} onClick={() => expiringTodayPackages.length > 0 && toggleModal("expiringToday", true)} />
           <StatCard title="Alto Valor" value={highValuePackages.length} icon={ShieldAlert} alert={highValuePackages.length > 0} onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)} />
           <StatCard title="Carga" value={cargoPackages.length} icon={Box} />
-          <StatCard title="Cobros" value={packagesWithCharges.length} subValue={`$${totalChargesAmount}`} icon={DollarSign} alert={packagesWithCharges.length > 0} onClick={() => packagesWithCharges.length > 0 && toggleModal("charges", true)} />
+          <StatCard 
+            title="Cobros" 
+            value={packagesWithCharges.length} 
+            subValue={`$${totalChargesAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`} 
+            icon={DollarSign} 
+            alert={packagesWithCharges.length > 0} 
+            onClick={() => packagesWithCharges.length > 0 && toggleModal("charges", true)} 
+          />
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pt-6">
           
-          {/* TABLA DE INVENTARIO Y FILTROS */}
           <div className="xl:col-span-8 space-y-6">
             <Card className="border-none shadow-none bg-transparent">
-              <div className="pb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold">Inventario</h2>
-                  <Badge variant="secondary">{session.packages.length}</Badge>
+                  <h2 className="text-lg font-bold text-slate-800">Inventario de Escaneo</h2>
                 </div>
               </div>
               
-              <CardContent className="p-0">
-                <div className="">
-                  <DataTable 
-                    columns={columns} 
-                    data={sortedPackages} // <-- Aquí se pasan los paquetes ya ordenados
-                    searchKey="trackingNumber"
-                    filters={tableFilters}
-                  />
-                </div>
+              <CardContent className="p-0 overflow-hidden">
+                <DataTable 
+                  columns={columns} 
+                  data={sortedPackages}
+                  searchKey="trackingNumber"
+                  filters={tableFilters}
+                  renderSubComponent={renderSubComponent} 
+                />
               </CardContent>
             </Card>
           </div>
 
-          {/* ESCÁNER Y RUTA */}
           <div className="xl:col-span-4 space-y-4">
-            <Card className="border-blue-200 shadow-sm">
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2 text-blue-600">
-                  <Barcode className="w-5 h-5" />
-                  <span className="text-sm font-semibold">Escáner de Entrada</span>
+            {/** Escaner */}
+            <Card className="border-red-200">
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2 text-red-600 mb-2">
+                  <span className="text-sm font-bold uppercase tracking-wide">Escáner de Entrada</span>
                 </div>
-                <Input
-                  ref={inputRef}
-                  placeholder="Escanee guía (F1)..."
-                  value={scanInput}
-                  onChange={(e) => setScanInput(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  disabled={isScanning}
-                  className="font-mono text-lg h-12 uppercase"
-                />
-                <Button onClick={handleScan} disabled={isScanning || !scanInput.trim()} className="w-full h-11">
-                  {isScanning ? "Procesando..." : "Registrar"}
-                </Button>
-                {error && <p className="text-xs text-red-600 bg-red-50 p-2 rounded flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {error}</p>}
+
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
+                    <Input
+                      ref={inputRef}
+                      type="text"
+                      placeholder="Código de barras..."
+                      value={scanInput}
+                      onChange={(e) => setScanInput(e.target.value)}
+                      onKeyDown={handleKeyPress}
+                      className="h-12 text-base pl-10 pr-10 font-mono border-slate-300 focus-visible:ring-red-500 shadow-sm"
+                      disabled={isScanning}
+                    />
+                    {scanInput && (
+                      <button
+                        onClick={() => {
+                          setScanInput('')
+                          inputRef.current?.focus()
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <Button 
+                    onClick={handleScan}
+                    disabled={!scanInput.trim() || isScanning}
+                    className="h-12 px-5 bg-red-800 hover:bg-red-900 text-white"
+                  >
+                    {isScanning ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ...
+                      </span>
+                    ) : (
+                      'Agregar'
+                    )}
+                  </Button>
+                </div>  
+
+                {error && (
+                  <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-md flex items-start gap-2 border border-red-100 shadow-sm animate-in fade-in slide-in-from-top-1">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> 
+                    <span className="font-medium">{error}</span>
+                  </div>
+                )}
+
               </CardContent>
             </Card>
 
-            <Card>
+            {/** Asignación de Salida */}
+            <Card className="border-red-200">
               <CardContent className="space-y-4">
-                <Label className="font-semibold">Asignación de Salida</Label>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Unidad de Traslado</Label>
+                <Label className="font-bold text-slate-800 uppercase text-xs tracking-wider">Asignación de Salida</Label>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[12px] font-semibold text-slate-600">Unidad de Traslado</Label>
                     <UnidadSelector 
                       selectedUnidad={session.vehicle?.id || ""} 
                       onSelectionChange={(id) => setSession(s => ({...s, vehicle: { id } as Vehicles }))} 
-                      subsidiaryId={userSubsidiaryId} 
+                      subsidiaryId={effectiveWarehouseId} 
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Chofer Asignado</Label>
+                  <Separator className="bg-slate-100" />
+                  <div className="space-y-1.5">
+                    <Label className="text-[12px] font-semibold text-slate-600">Chofer Asignado</Label>
                     <RepartidorSelector 
                       selectedRepartidores={session.drivers.map(d => d.id)} 
-                      // NOTA: Si onSelectionChange solo devuelve el 'id', el modal mostrará el ID.
-                      // Asegúrate de que el RepartidorSelector devuelva el objeto completo ({id, name}) si quieres que se vea el nombre real en el PDF.
                       onSelectionChange={(ids) => setSession(s => ({...s, drivers: ids.map(id => ({ id } as Driver))}))} 
-                      subsidiaryId={userSubsidiaryId}
+                      subsidiaryId={effectiveWarehouseId}
                     />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* SECCIÓN DE FINALIZACIÓN VALIDADA */}
-            <Card className="bg-slate-50/50">
+            {/** Finalizar Ingreso */}
+            <Card className="border-red-200">
               <CardContent className="space-y-3">
                 {!isReadyToFinish && (
-                  <p className="text-[11px] text-amber-600 font-medium bg-amber-50 p-2 rounded flex items-center gap-2 leading-tight border border-amber-100">
-                    <AlertTriangle className="w-5 h-5 flex-shrink-0" /> 
-                    Seleccione Unidad, Chofer y escanee al menos un paquete para finalizar.
+                  <p className="text-[11px] text-amber-700 font-medium bg-amber-100/50 p-2.5 rounded-md flex items-start gap-2 leading-tight border border-amber-200">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> 
+                    Seleccione Bodega, Unidad, Chofer y escanee paquetes para habilitar el cierre.
                   </p>
                 )}
                 
                 <Button 
                   onClick={() => toggleModal("signatures", true)} 
                   disabled={!isReadyToFinish} 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white shadow-sm h-12 text-sm font-bold tracking-wide"
                 >
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizar Ingreso
+                  <CheckCircle2 className="mr-2 h-5 w-5" /> FINALIZAR INGRESO
                 </Button>
               </CardContent>
             </Card>
           </div>
       </div>
 
-      {/* MODALES REUTILIZADOS */}
+      {/* --- NUEVO DIALOG PARA FLUJO DE REMESAS DHL --- */}
+      <Dialog 
+        open={remittanceDialog.isOpen} 
+        onOpenChange={(v) => {
+          setRemittanceDialog(prev => ({...prev, isOpen: v}))
+          if (!v) setTimeout(() => inputRef.current?.focus(), 100)
+        }}
+      >
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <HelpCircle className="w-5 h-5 text-red-600" />
+              Guía Duplicada Detectada
+            </DialogTitle>
+          </DialogHeader>
+
+          {remittanceDialog.step === "confirm" ? (
+            <div className="space-y-4 py-3">
+              <p className="text-sm text-slate-600">
+                El número de guía <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">{remittanceDialog.masterTracking}</span> ya fue ingresado a la lista. 
+              </p>
+              <p className="text-sm font-semibold text-slate-700">
+                ¿Desea abrir esta guía para agregar piezas de remesa?
+              </p>
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setRemittanceDialog(prev => ({...prev, isOpen: false}))}>No, Cancelar</Button>
+                <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={() => setRemittanceDialog(prev => ({...prev, step: "scan"}))}>
+                  Sí, es una Remesa
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <DialogDescription>
+                Escanee los códigos de barras de las piezas correspondientes a la guía <strong className="font-mono text-slate-800">{remittanceDialog.masterTracking}</strong>.
+              </DialogDescription>
+              
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Código de Pieza</Label>
+                <div className="relative">
+                  <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input 
+                    ref={pieceInputRef}
+                    placeholder="Ej. JJD014600012624033086"
+                    value={remittanceDialog.pieceInput}
+                    onChange={(e) => setRemittanceDialog(prev => ({...prev, pieceInput: e.target.value}))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePieceScan(); } }}
+                    className="pl-9 font-mono text-sm border-red-200 focus-visible:ring-red-500 h-11"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">Presione ENTER después de escanear cada pieza para agregarla a la lista.</p>
+              </div>
+
+              {remittanceDialog.error && (
+                <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-md flex items-center gap-2 border border-red-100 shadow-sm">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> 
+                  <span className="font-medium">{remittanceDialog.error}</span>
+                </div>
+              )}
+
+              <DialogFooter className="mt-6 border-t border-slate-100 pt-4">
+                <Button variant="outline" onClick={() => setRemittanceDialog(prev => ({...prev, isOpen: false}))}>Terminar y Cerrar</Button>
+                <Button className="bg-red-600 hover:bg-red-700" onClick={handlePieceScan}>Agregar Manualmente</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* --- FIN DIALOG REMESAS --- */}
+
       <Dialog open={modals.shortcuts} onOpenChange={(v) => toggleModal("shortcuts", v)}>
         <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Keyboard className="w-4 h-4"/> Atajos de Teclado</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2 text-slate-800"><Keyboard className="w-5 h-5"/> Atajos de Teclado</DialogTitle></DialogHeader>
           <div className="grid gap-2 py-3">
             {[
               { key: "F1", action: "Enfocar campo de Escáner" },
@@ -478,9 +931,9 @@ export default function InboundPackage() {
               { key: "F3", action: "Buscar en listado (Guía o CP)" },
               { key: "ESC", action: "Cerrar modales o ventanas" },
             ].map(({ key, action }) => (
-              <div key={key} className="flex justify-between items-center text-sm border-b pb-2 last:border-0 border-slate-100">
-                <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono text-xs shadow-sm">{key}</kbd>
-                <span className="text-slate-600 text-xs">{action}</span>
+              <div key={key} className="flex justify-between items-center text-sm border-b pb-2.5 pt-1 last:border-0 border-slate-100">
+                <kbd className="px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-slate-700 font-mono text-xs shadow-sm font-bold">{key}</kbd>
+                <span className="text-slate-600 text-xs font-medium">{action}</span>
               </div>
             ))}
           </div>
@@ -511,40 +964,39 @@ export default function InboundPackage() {
         packages={packagesWithCharges}
       />
 
-      {/* MODAL DE FIRMAS REFORZADO */}
       <Dialog open={modals.signatures} onOpenChange={(v) => toggleModal("signatures", v)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Cerrar Recepción y Firmas</DialogTitle>
-            <DialogDescription>
-              Confirme quién recibe la mercancía para habilitar la descarga del PDF y guardar el registro.
+            <DialogTitle className="text-xl">Cerrar Recepción y Firmas</DialogTitle>
+            <DialogDescription className="text-slate-500">
+              Confirme quién recibe la mercancía para habilitar la descarga del PDF y guardar el registro de la sesión.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <Label>Nombre de quien Entrega (Operador Seleccionado)</Label>
+              <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Entregado por (Operador)</Label>
               <Input 
                 value={derivedDriverName} 
                 readOnly
-                className="bg-slate-100 text-slate-500 cursor-not-allowed font-medium"
+                className="bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed font-medium h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label>Nombre de quien Recibe (Personal en Bodega)</Label>
+              <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Recibido por (Bodega)</Label>
               <Input 
                 value={session.receivedByName} 
                 onChange={(e) => setSession({...session, receivedByName: e.target.value})} 
-                placeholder="Ej. Juan Pérez"
+                placeholder="Nombre completo..."
                 autoFocus
+                className="h-11 border-slate-300 focus-visible:ring-green-500"
               />
             </div>
           </div>
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => toggleModal("signatures", false)}>
+          <DialogFooter className="flex flex-col sm:flex-row gap-3 mt-2 border-t border-slate-100 pt-4">
+            <Button variant="ghost" className="w-full sm:w-auto text-slate-500 hover:text-slate-700 hover:bg-slate-100" onClick={() => toggleModal("signatures", false)}>
               Cancelar
             </Button>
             
-            {/* Le pasamos dinámicamente el nombre del operador derivado al PDF */}
             {isClient && canSaveAndGeneratePDF ? (
               <PDFDownloadLink 
                 document={
@@ -557,13 +1009,13 @@ export default function InboundPackage() {
                 className="w-full sm:w-auto"
               >
                 {({ loading }) => (
-                  <Button variant="secondary" className="w-full" disabled={loading}>
+                  <Button variant="outline" className="w-full h-10 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold" disabled={loading}>
                     <Download className="mr-2 h-4 w-4" /> PDF
                   </Button>
                 )}
               </PDFDownloadLink>
             ) : (
-              <Button variant="secondary" className="w-full sm:w-auto" disabled>
+              <Button variant="outline" className="w-full sm:w-auto h-10 border-slate-200 text-slate-400" disabled>
                 <Download className="mr-2 h-4 w-4" /> PDF
               </Button>
             )}
@@ -571,9 +1023,9 @@ export default function InboundPackage() {
             <Button 
               onClick={handleCompleteSession} 
               disabled={!canSaveAndGeneratePDF}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
+              className="w-full sm:w-auto h-10 bg-green-600 hover:bg-green-700 text-white font-bold tracking-wide shadow-sm"
             >
-              Confirmar y Limpiar
+              Confirmar y Guardar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -584,14 +1036,16 @@ export default function InboundPackage() {
 
 function StatCard({ title, value, subValue, icon: Icon, alert = false, onClick }: any) {
   return (
-    <div onClick={onClick} className={`rounded-lg border p-3 shadow-sm transition-colors ${alert ? "border-red-200 bg-red-50/50 cursor-pointer hover:bg-red-50" : "bg-card"}`}>
-      <div className="flex items-center justify-between mb-1">
-        <span className={`text-[10px] font-bold uppercase ${alert ? "text-red-600" : "text-muted-foreground"}`}>{title}</span>
-        <Icon className={`h-3.5 w-3.5 ${alert ? "text-red-500" : "text-muted-foreground/40"}`} />
+    <div onClick={onClick} className={`rounded-xl border p-3.5 shadow-sm transition-all duration-200 ${alert ? "border-red-200 bg-red-50/80 cursor-pointer hover:bg-red-100 hover:border-red-300" : "border-slate-200 bg-white"}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-[10px] font-bold uppercase tracking-wider ${alert ? "text-red-700" : "text-slate-500"}`}>{title}</span>
+        <div className={`p-1.5 rounded-md ${alert ? "bg-red-100" : "bg-slate-50"}`}>
+          <Icon className={`h-4 w-4 ${alert ? "text-red-600" : "text-slate-400"}`} />
+        </div>
       </div>
-      <div className="flex items-baseline gap-2">
-        <p className="text-xl font-bold">{value}</p>
-        {subValue && <p className="text-[10px] text-muted-foreground font-medium">{subValue}</p>}
+      <div className="flex items-baseline gap-2 mt-1">
+        <p className={`text-2xl font-black ${alert ? "text-red-700" : "text-slate-800"}`}>{value}</p>
+        {subValue && <p className="text-[11px] text-slate-500 font-semibold">{subValue}</p>}
       </div>
     </div>
   )
@@ -600,27 +1054,43 @@ function StatCard({ title, value, subValue, icon: Icon, alert = false, onClick }
 function DetailModal({ open, onOpenChange, title, description, packages }: any) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle className="text-xl text-slate-800">{title}</DialogTitle>
+          <DialogDescription className="text-slate-500">{description}</DialogDescription>
         </DialogHeader>
-        <div className="max-h-[400px] overflow-auto border rounded-md">
+        <div className="max-h-[450px] overflow-auto border border-slate-200 rounded-lg shadow-inner mt-2">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
               <TableRow>
-                <TableHead>Guía</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Info</TableHead>
+                <TableHead className="font-bold text-slate-600">Guía / Piezas</TableHead>
+                <TableHead className="font-bold text-slate-600">Destinatario</TableHead>
+                <TableHead className="font-bold text-slate-600">Carrier</TableHead>
+                <TableHead className="text-right font-bold text-slate-600">Info</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {packages.map((pkg: any) => (
-                <TableRow key={pkg.id}>
-                  <TableCell className="font-mono">{pkg.trackingNumber}</TableCell>
-                  <TableCell className="uppercase text-[10px]">{pkg.shipmentType}</TableCell>
-                  <TableCell className="text-right text-[10px]">
-                    {pkg.hasPayment ? `$${pkg.paymentAmount}` : 'OK'}
+                <TableRow key={pkg.id} className="hover:bg-slate-50/50">
+                  <TableCell>
+                    <span className="font-mono text-sm font-bold text-slate-700">{pkg.trackingNumber}</span>
+                    {pkg.pieces && pkg.pieces.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {pkg.pieces.map((p: string) => (
+                          <Badge key={p} variant="outline" className="text-[10px] font-mono bg-slate-100 text-slate-500">{p}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-slate-800">{pkg.recipientName || 'S/N'}</span>
+                      <span className="text-[10px] text-slate-500 truncate max-w-[200px]" title={pkg.recipientAddress}>{pkg.recipientAddress}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="uppercase text-[10px] font-bold text-slate-600">{pkg.shipmentType}</TableCell>
+                  <TableCell className="text-right text-[11px] font-semibold text-slate-700">
+                    {pkg.hasPayment ? <span className="text-amber-600">${Number(pkg.paymentAmount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span> : <span className="text-green-600">OK</span>}
                   </TableCell>
                 </TableRow>
               ))}

@@ -7,7 +7,7 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer"
-import { SessionState } from "./warehouse/inbound-package/inbound-package"
+import { SessionState } from "./warehouse/inbound-package/inbound-package-resp"
 
 const styles = StyleSheet.create({
   // Página con márgenes más eficientes y fuente base un poco más pequeña
