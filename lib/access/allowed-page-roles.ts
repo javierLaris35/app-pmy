@@ -12,10 +12,10 @@ export const allowedPageRoles = {
     reportes: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER],
     bodega: {
         consolidados: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
-        entrada: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
+        entrada: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.SUBADMIN],
         inventarios: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
         recepcionBodega: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
-        salida: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN]
+        salida: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.SUBADMIN]
     },
     operaciones: {
         cargas: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
