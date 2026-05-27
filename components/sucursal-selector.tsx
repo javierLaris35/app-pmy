@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Store } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,7 @@ interface SucursalSelectorProps {
   multi?: boolean
   returnObject?: boolean
   onlyWarehouses?: boolean
+  insideAModal?: boolean
 }
 
 export function SucursalSelector({
@@ -38,7 +39,8 @@ export function SucursalSelector({
   onValueChange,
   multi = false,
   returnObject = false,
-  onlyWarehouses = false
+  onlyWarehouses = false,
+  insideAModal = false
 }: SucursalSelectorProps) {
   const { subsidiaries: rawSubsidiaries, isLoading } = useSubsidiaries()
   const [open, setOpen] = useState(false)
@@ -123,7 +125,8 @@ export function SucursalSelector({
   }, [multi, selectedSucursales, onlyWarehouses])
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={true}>
+    // 1. modal={false} para evitar que el scroll de la página salte
+    <Popover open={open} onOpenChange={setOpen} modal={insideAModal}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -131,16 +134,22 @@ export function SucursalSelector({
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {selectedLabel}
+          {/* 2. Contenedor flex para alinear el icono y el texto */}
+          <div className="flex items-center gap-2 truncate">
+            <Store className="h-4 w-4 shrink-0" /> {/* Puedes cambiar <Store /> por <MapPin /> si lo prefieres */}
+            <span className="truncate">{selectedLabel}</span>
+          </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0">
+      
+      {/* 3. w-[var(--radix-popover-trigger-width)] para igualar el ancho del botón */}
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command>
-          <CommandInput placeholder="Buscar sucursal..." />
+          <CommandInput placeholder={onlyWarehouses ? "Buscar bodega..." : "Buscar sucursal..."} />
           <CommandList className="max-h-64 overflow-y-auto">
             <CommandEmpty>
-              {isLoading ? "Cargando sucursales..." : "No se encontraron sucursales."}
+              {isLoading ? "Cargando..." : "No se encontraron resultados."}
             </CommandEmpty>
             <CommandGroup>
               {filteredSubsidiaries.map((sucursal) => {
@@ -148,13 +157,13 @@ export function SucursalSelector({
                 return (
                   <CommandItem
                     key={sucursal.id}
-                    value={sucursal.id}
+                    value={sucursal.name} // Usamos el nombre para que el buscador funcione correctamente con texto
                     onSelect={() => handleSelect(sucursal)}
                   >
                     <Check
                       className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")}
                     />
-                    {sucursal.name}
+                    <span className="truncate">{sucursal.name}</span>
                   </CommandItem>
                 )
               })}

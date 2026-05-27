@@ -15,14 +15,16 @@ interface RutaSelectorProps {
   selectedRutas: Route[]
   onSelectionChange: (rutas: Route[]) => void
   disabled?: boolean
-  subsidiaryId?: string | null
+  subsidiaryId?: string | null,
+  insideAModal?: boolean
 }
 
 export function RutaSelector({ 
-  selectedRutas, 
+  selectedRutas = [], 
   onSelectionChange, 
   disabled = false,
-  subsidiaryId
+  subsidiaryId,
+  insideAModal = false
 }: RutaSelectorProps) {
   const [open, setOpen] = useState(false)
   const [rutas, setRutas] = useState<Route[]>([])
@@ -79,7 +81,7 @@ export function RutaSelector({
     };
 
     fetchRoutes();
-  }, [effectiveSubsidiaryId, selectedRutas, onSelectionChange]);
+  }, [effectiveSubsidiaryId/*, selectedRutas, onSelectionChange*/]);
 
   const handleSelect = (rutaId: string) => {
     const ruta = rutas.find((r) => r.id === rutaId);
@@ -105,7 +107,8 @@ export function RutaSelector({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen} modal={true}>
+      {/* 1. Cambiamos modal={true} a modal={false} para evitar el salto del scroll */}
+      <Popover open={open} onOpenChange={setOpen} modal={insideAModal}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -125,7 +128,9 @@ export function RutaSelector({
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full p-0">
+        
+        {/* 2. Usamos la variable CSS de Radix para igualar el ancho exacto del trigger */}
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
           <Command>
             <CommandInput placeholder="Buscar ruta..." />
             <CommandList>

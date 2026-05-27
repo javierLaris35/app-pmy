@@ -15,21 +15,22 @@ interface RepartidorSelectorProps {
   selectedRepartidores: Driver[]
   onSelectionChange: (repartidores: Driver[]) => void
   disabled?: boolean
-  subsidiaryId?: string | null // Nueva prop opcional
+  subsidiaryId?: string | null
+  isInsideModal?: boolean
 }
 
 export function RepartidorSelector({
-  selectedRepartidores,
+  selectedRepartidores = [], // 1. Prevención del error de undefined
   onSelectionChange,
   disabled = false,
-  subsidiaryId, // Recibir subsidiaryId como prop
+  subsidiaryId,
+  isInsideModal = false
 }: RepartidorSelectorProps) {
   const [open, setOpen] = useState(false)
   const [repartidores, setRepartidores] = useState<Driver[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const user = useAuthStore((s) => s.user)
 
-  // Usar la subsidiaryId de la prop o la del usuario
   const effectiveSubsidiaryId = subsidiaryId || user?.subsidiary?.id || null
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function RepartidorSelector({
     };
 
     fetchDrivers();
-  }, [effectiveSubsidiaryId]); // Dependencia en effectiveSubsidiaryId
+  }, [effectiveSubsidiaryId]);
 
   const handleSelect = (repartidorId: string) => {
     const repartidor = repartidores.find((r) => r.id === repartidorId);
@@ -76,16 +77,13 @@ export function RepartidorSelector({
       .map((r) => r.name);
   };
 
-  // Función para limpiar selección cuando cambia la sucursal
   useEffect(() => {
     if (selectedRepartidores.length > 0) {
-      // Verificar si algún repartidor seleccionado pertenece a la sucursal actual
       const invalidSelections = selectedRepartidores.filter(selected => {
         return !repartidores.some(r => r.id === selected.id);
       });
 
       if (invalidSelections.length > 0) {
-        // Limpiar selecciones que no pertenecen a la sucursal actual
         const validSelections = selectedRepartidores.filter(selected => 
           repartidores.some(r => r.id === selected.id)
         );
@@ -100,7 +98,8 @@ export function RepartidorSelector({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen} modal={true}>
+      {/* 2. Cambiamos modal={true} a modal={false} */}
+      <Popover open={open} onOpenChange={setOpen} modal={isInsideModal}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -122,13 +121,11 @@ export function RepartidorSelector({
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 absolute right-2 top-1/2 -translate-y-1/2" />
           </Button>
         </PopoverTrigger>
+        
+        {/* 3. Aplicamos la variable CSS nativa como clase para un ancho consistente */}
         <PopoverContent 
-          className="w-full p-0 z-[100]"
+          className="w-[var(--radix-popover-trigger-width)] p-0 z-[100]"
           align="start"
-          style={{ 
-            width: "var(--radix-popover-trigger-width)",
-            maxHeight: "var(--radix-popover-content-available-height)"
-          }}
           avoidCollisions={true}
           collisionPadding={16}
           sideOffset={4}
@@ -157,11 +154,6 @@ export function RepartidorSelector({
                     />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium truncate">{repartidor.name}</span>
-                      {/*{repartidor.employeeId && (
-                        <span className="text-sm text-muted-foreground truncate">
-                          ID: {repartidor.employeeId}
-                        </span>
-                      )}*/}
                     </div>
                   </CommandItem>
                 ))}

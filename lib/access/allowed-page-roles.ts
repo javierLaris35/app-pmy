@@ -6,6 +6,7 @@ export const allowedPageRoles = {
         rutas: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.SUBADMIN],
         choferes: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.SUBADMIN],
         sucursales: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.SUBADMIN],
+        zonas: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.SUBADMIN],
     },
     dashboard: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.AUXILIAR, UserRoleEnum.USER, UserRoleEnum.BODEGA],
     reportes: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER],

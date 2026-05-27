@@ -145,6 +145,11 @@ export interface IncomesResponse {
 
 export type UserRole = 'admin' | 'user' | 'auxiliar' | 'superamin' | 'bodega' | 'subadmin';
 
+export enum OutboundTypeEnum {
+  DISPATCH = 'dispatch',
+  TRANSFER = 'transfer'
+}
+
 export enum UserRoleEnum {
   USER = 'user',
   ADMIN = 'admin',

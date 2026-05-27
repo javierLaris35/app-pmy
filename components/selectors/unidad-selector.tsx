@@ -27,6 +27,7 @@ interface UnidadSelectorProps {
   onSelectionChange: (unidad: Vehicles | undefined) => void
   disabled?: boolean
   subsidiaryId?: string | null
+  isInsideModal?: boolean
 }
 
 const getVehicleIcon = (type: Vehicles["type"]) => {
@@ -48,7 +49,8 @@ export function UnidadSelector({
   selectedUnidad,
   onSelectionChange,
   disabled = false,
-  subsidiaryId, // Nueva prop
+  subsidiaryId,
+  isInsideModal = false
 }: UnidadSelectorProps) {
   const [open, setOpen] = useState(false)
   const [unidades, setUnidades] = useState<Vehicles[]>([])
@@ -111,7 +113,8 @@ export function UnidadSelector({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen} modal={true}>
+      {/* 1. Cambiamos modal={true} a modal={false} para evitar el salto del scroll */}
+      <Popover open={open} onOpenChange={setOpen} modal={isInsideModal}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -132,10 +135,10 @@ export function UnidadSelector({
           </Button>
         </PopoverTrigger>
 
-        <PopoverContent className="w-full p-0">
+        {/* 2. Usamos la variable CSS de Radix para igualar el ancho exacto del trigger */}
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
           <Command>
             <CommandInput placeholder="Buscar unidad..." />
-            {/* === AQUÍ ESTÁ LA CORRECCIÓN DEL SCROLL === */}
             <CommandList className="max-h-64 overflow-y-auto">
               <CommandEmpty>
                 {!effectiveSubsidiaryId 

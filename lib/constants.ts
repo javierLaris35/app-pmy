@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon } from "lucide-react"
 import { ElementType } from "react";
 import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
@@ -52,6 +52,13 @@ export const sidebarMenu = {
           icon: TruckIcon,
           roles: allowedPageRoles.administracion.vehiculos,
           isActive: false
+        },
+        {
+          name: "Zonas",
+          url: "/administracion/zonas",
+          icon: MapIcon,
+          roles: allowedPageRoles.administracion.zonas,
+          isActive: false
         }
       ]
     },
@@ -71,7 +78,7 @@ export const sidebarMenu = {
         {
           name: "Entrada",
           url: "/bodega/entrada",
-          icon: PackageIcon,
+          icon: PackagePlusIcon,
           roles: allowedPageRoles.bodega.entrada,
           isActive: false
         },
@@ -85,14 +92,14 @@ export const sidebarMenu = {
         {
           name: "Recepción en Bodega",
           url: "/operaciones/recepcion-bodega",
-          icon: PackagePlusIcon,
+          icon: PackageCheckIcon,
           roles: allowedPageRoles.bodega.recepcionBodega,
           isActive: false
         },
         {
           name: "Salida",
           url: "/bodega/salida",
-          icon: PackageIcon,
+          icon: PackageMinusIcon,
           roles: allowedPageRoles.bodega.salida,
           isActive: false
         }

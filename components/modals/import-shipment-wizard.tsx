@@ -286,7 +286,8 @@ export function ShipmentWizardModal({
             <Label className={cn(inputErrors.sucursalId && "text-red-600 font-bold")}>Sucursal *</Label>
             <div className={cn(inputErrors.sucursalId && "rounded-md ring-2 ring-red-500 ring-offset-1")}>
               <SucursalSelector 
-                value={sucursalId} 
+                value={sucursalId}
+                insideAModal={true} 
                 onValueChange={(val) => {
                   const id = typeof val === "string" ? val : (val as Subsidiary).id;
                   setSucursalId(id)

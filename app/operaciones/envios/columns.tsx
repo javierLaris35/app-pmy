@@ -7,6 +7,7 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { Button } from "@/components/ui/button"
 import { Diamond, DollarSignIcon, Eye } from "lucide-react"
 import { Shipment } from "@/lib/types"
+import { statusMap } from "@/lib/utils"
 
 export const columns: ColumnDef<Shipment>[] = [
   {
@@ -136,13 +137,6 @@ export const columns: ColumnDef<Shipment>[] = [
     header: ({ column }) => <DataTableColumnHeader column={column} title="Estado" />,
     cell: ({ row }) => {
       const status = row.getValue("status") as Shipment["status"]
-      const statusMap = {
-        recoleccion: { label: "Recolección", color: "bg-blue-50 text-blue-700 ring-blue-700/10" as const },
-        pendiente: { label: "Pendiente", color: "bg-yellow-50 text-yellow-800 ring-yellow-600/20" as const },
-        en_ruta: { label: "En Ruta", color: "bg-purple-50 text-purple-700 ring-purple-700/10" as const },
-        entregado: { label: "Entregado", color: "bg-green-50 text-green-700 ring-green-600/20" as const },
-        no_entregado: { label: "No Entregado", color: "destructive" as const },
-      }
       const { label, color } = statusMap[status] || { label: "Desconocido", color: "default" as const }
       return <Badge className={color}>{label}</Badge>
     },
