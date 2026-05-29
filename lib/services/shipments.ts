@@ -1,6 +1,7 @@
 import { format, toZonedTime } from 'date-fns-tz';
 import { axiosConfig } from "../axios-config";
 import { AddShipmentDto, SearchShipmentDto, Shipment } from "../types";
+import { ParsedDhlShipment } from '@/components/import-components/import-dhl-text-modal';
 
 const url = '/shipments'
 
@@ -204,17 +205,18 @@ const url = '/shipments'
   }
 
   export const uploadShipmentFileDhl = async (
-    text: string, file: File,
+    text: string, 
     onProgress?: (progress: number) => void
-  ): Promise<Shipment[]> => {
+  ): Promise<ParsedDhlShipment[]> => {
     const blob = new Blob([text], { type: 'text/plain' })
     const fileParsed = new File([blob], 'shipment.txt', { type: 'text/plain' })
     const formData = new FormData()
-    formData.append('excelFile', file); // archivo .xlsx
-    formData.append('txtFile', fileParsed); 
     
-
-    const response = await axiosConfig.post<Shipment[]>('/shipments/upload-dhl', formData, {
+    // El backend tiene @UseInterceptors(FileInterceptor('file')), 
+    // por lo que la llave aquí debe ser estrictamente 'file'
+    formData.append('file', fileParsed); 
+    
+    const response = await axiosConfig.post<ParsedDhlShipment[]>('/shipments/process-dhl-txt-file', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

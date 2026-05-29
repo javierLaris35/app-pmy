@@ -733,6 +733,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                   subsidiaryId={selectedSubsidiaryId}
                   selectedRepartidores={selectedRepartidores}
                   onSelectionChange={setSelectedRepartidores}
+                  isInsideModal={true}
                   disabled={isLoading}
                 />
               </div>
@@ -745,6 +746,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                   selectedRutas={selectedRutas} 
                   onSelectionChange={setSelectedRutas} 
                   disabled={isLoading}
+                  isInsideModal={true}
                   subsidiaryId={selectedSubsidiaryId} // ← Esto es lo nuevo
                 />
               </div>
@@ -767,6 +769,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                   onSelectionChange={setSelectedUnidad}
                   disabled={isLoading}
                   subsidiaryId={selectedSubsidiaryId}
+                  isInsideModal={true}
                 />
               </div>
               

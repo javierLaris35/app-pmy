@@ -9,10 +9,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Eye, Upload } from "lucide-react"
+import { Eye, FileText, Upload } from "lucide-react"
 import { columns } from "./columns"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
-import { DhlImportData, Shipment, UserRoleEnum } from "@/lib/types"
+import { Shipment, UserRoleEnum } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
 import { useShipments } from "@/hooks/services/shipments/use-shipments"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,18 +26,17 @@ import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
 import { withAuth } from "@/hoc/withAuth";
 import { useAuthStore } from "@/store/auth.store"
 import { SucursalSelector } from "@/components/sucursal-selector"
-import { updateFromDHL } from "@/lib/services/shipments"
-import { ImportDHLModal } from "@/components/import-components/import-dhl-modal"
-import { format, toZonedTime } from 'date-fns-tz';
+import { updateFromDHL, uploadShipmentFileDhl } from "@/lib/services/shipments"
+import { ImportDhlTextModal, ParsedDhlShipment, FinalDhlSubmission } from "@/components/import-components/import-dhl-text-modal" // <-- Importamos FinalDhlSubmission
 
 function ShipmentsPage() {
   const user = useAuthStore((s) => s.user)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null)
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [consDate, setConsDate] = useState<Date | string | null>(null);
-  const [isDhlModalOpen, setIsDhlModalOpen] = useState(false)
+
+  // DHL MODALS (Limpiamos los estados viejos que ya no se usan)
+  const [isDhlTextModalOpen, setIsDhlTextModalOpen] = useState(false)
 
   // ✅ Determinamos la sucursal actual
   const effectiveSubsidiaryId = selectedSubsidiaryId || user?.subsidiary?.id
@@ -49,7 +48,24 @@ function ShipmentsPage() {
     setSelectedShipment(shipment)
   }, [])
 
-  const handleUpdateFromDHL = async (data: DhlImportData) => {
+  // Handler para el texto plano de DHL (Paso 1 del Wizard)
+  const handleProcessDhlText = async (text: string): Promise<ParsedDhlShipment[]> => {
+    try {
+      // IMPORTANTE: Asegúrate de que uploadShipmentFileDhl retorne el arreglo JSON
+      const responseData = await uploadShipmentFileDhl(text, (progress) => {
+        console.log(`Enviando texto: ${progress}%`);
+      });
+      
+      return responseData; // Retornamos el array para que el modal lo dibuje en el Paso 2
+    } catch (error) {
+      console.error("Error procesando texto plano:", error);
+      toast.error("Hubo un error al procesar el texto.");
+      throw error;
+    }
+  }
+
+  // Handler para el guardado final (Paso 3 del Wizard)
+  const handleFinalSaveDhl = async (data: FinalDhlSubmission) => {
     const formData = new FormData();
     formData.append('file', data.file);
     formData.append('subsidiaryId', data.subsidiaryId);
@@ -66,12 +82,14 @@ function ShipmentsPage() {
 
     try {
       await updateFromDHL(formData, (progress) => {
-        console.log(`Subiendo archivo: ${progress}%`);
+        console.log(`Subiendo archivo final: ${progress}%`);
       });    
       
+      toast.success("Envíos importados correctamente en la base de datos.");
     } catch (error) {
-      console.error("Error capturado antes del modal:", error);
-      throw error; 
+      console.error("Error al guardar en BD:", error);
+      toast.error("Error al importar los datos.");
+      throw error;
     }
   }
 
@@ -120,7 +138,7 @@ function ShipmentsPage() {
             {(user?.role === UserRoleEnum.ADMIN || user?.role === UserRoleEnum.SUPERADMIN) && (
               <div>
                 <SucursalSelector
-                  value={selectedSubsidiaryId}
+                  value={effectiveSubsidiaryId}
                   onValueChange={setSelectedSubsidiaryId}
                 />
               </div>
@@ -129,12 +147,13 @@ function ShipmentsPage() {
             <NewShipmentDialog />
 
             <Button onClick={() => setIsUploadModalOpen(true)}>
-              <Upload className="h-4 w-4" />
+              <Upload className="h-4 w-4 mr-2" />
               Importar Envíos Fedex
             </Button>
 
-            <Button onClick={() => setIsDhlModalOpen(true)}>
-              <Upload className="h-4 w-4" />
+            {/* Nuevo botón para pegar texto e iniciar el Wizard */}
+            <Button onClick={() => setIsDhlTextModalOpen(true)}>
+              <FileText className="h-4 w-4 mr-2" />
               Importar Envíos DHL
             </Button>
 
@@ -144,11 +163,15 @@ function ShipmentsPage() {
               onUploadSuccess={handleUploadSuccess}
             />
 
-            <ImportDHLModal
-              isOpen={isDhlModalOpen}
-              onOpenChange={setIsDhlModalOpen}
-              onSubmit={handleUpdateFromDHL}
+            {/* Renderizado del nuevo modal Wizard */}
+            <ImportDhlTextModal
+              isOpen={isDhlTextModalOpen}
+              onOpenChange={setIsDhlTextModalOpen}
+              onProcessText={handleProcessDhlText} 
+              onFinalSave={handleFinalSaveDhl}     
+              defaultSubsidiaryId={effectiveSubsidiaryId || ""}
             />
+
           </div>
         </div>
 

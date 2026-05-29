@@ -16,7 +16,7 @@ interface RutaSelectorProps {
   onSelectionChange: (rutas: Route[]) => void
   disabled?: boolean
   subsidiaryId?: string | null,
-  insideAModal?: boolean
+  isInsideModal?: boolean
 }
 
 export function RutaSelector({ 
@@ -24,7 +24,7 @@ export function RutaSelector({
   onSelectionChange, 
   disabled = false,
   subsidiaryId,
-  insideAModal = false
+  isInsideModal = false
 }: RutaSelectorProps) {
   const [open, setOpen] = useState(false)
   const [rutas, setRutas] = useState<Route[]>([])
@@ -38,10 +38,7 @@ export function RutaSelector({
   const effectiveSubsidiaryId = subsidiaryId || user?.subsidiary?.id || null
 
   useEffect(() => {
-    console.log("[RutaSelector] effectiveSubsidiaryId:", effectiveSubsidiaryId);
-    
     if (!effectiveSubsidiaryId) {
-      console.log("[RutaSelector] No subsidiaryId, clearing rutas");
       setRutas([]);
       return;
     }
@@ -49,9 +46,7 @@ export function RutaSelector({
     const fetchRoutes = async () => {
       try {
         setIsLoading(true);
-        console.log("[RutaSelector] Fetching routes for subsidiary:", effectiveSubsidiaryId);
         const routes = await getRoutesBySucursalId(effectiveSubsidiaryId);
-        console.log("[RutaSelector] Routes received:", routes);
         setRutas(routes);
         
         // Solo limpiar selecciones si cambió la sucursal (no en la carga inicial)
@@ -65,7 +60,6 @@ export function RutaSelector({
           );
           
           if (validSelections.length !== selectedRutas.length) {
-            console.log(`[RutaSelector] Limpiando ${selectedRutas.length - validSelections.length} selecciones de sucursal anterior`);
             onSelectionChange(validSelections);
           }
         }
@@ -81,13 +75,12 @@ export function RutaSelector({
     };
 
     fetchRoutes();
-  }, [effectiveSubsidiaryId/*, selectedRutas, onSelectionChange*/]);
+  }, [effectiveSubsidiaryId]);
 
   const handleSelect = (rutaId: string) => {
     const ruta = rutas.find((r) => r.id === rutaId);
 
     if (!ruta) {
-      console.warn(`Ruta with ID ${rutaId} not found`);
       return;
     }
 
@@ -107,8 +100,7 @@ export function RutaSelector({
 
   return (
     <div className="space-y-2">
-      {/* 1. Cambiamos modal={true} a modal={false} para evitar el salto del scroll */}
-      <Popover open={open} onOpenChange={setOpen} modal={insideAModal}>
+      <Popover open={open} onOpenChange={setOpen} modal={isInsideModal}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -129,11 +121,11 @@ export function RutaSelector({
           </Button>
         </PopoverTrigger>
         
-        {/* 2. Usamos la variable CSS de Radix para igualar el ancho exacto del trigger */}
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
           <Command>
             <CommandInput placeholder="Buscar ruta..." />
-            <CommandList>
+            {/* ✅ CORRECCIÓN AQUÍ: El max-h va en el CommandList, SIN overflow-y-auto manual */}
+            <CommandList className="max-h-64">
               <CommandEmpty>
                 {!effectiveSubsidiaryId 
                   ? "Selecciona una sucursal primero" 
@@ -141,6 +133,7 @@ export function RutaSelector({
                   ? "Cargando rutas..."
                   : "No se encontraron rutas."}
               </CommandEmpty>
+              {/* ✅ CORRECCIÓN AQUÍ: CommandGroup totalmente limpio */}
               <CommandGroup>
                 {rutas.map((ruta) => (
                   <CommandItem 
@@ -177,15 +170,6 @@ export function RutaSelector({
               {name}
             </Badge>
           ))}
-        </div>
-      )}
-
-      {/* Debug info (opcional, solo en desarrollo) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-muted-foreground mt-1">
-          Sucursal: {effectiveSubsidiaryId ? effectiveSubsidiaryId.substring(0, 8) + "..." : "No seleccionada"} | 
-          Rutas cargadas: {rutas.length} | 
-          Seleccionadas: {selectedRutas.length}
         </div>
       )}
     </div>

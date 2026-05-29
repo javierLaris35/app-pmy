@@ -125,7 +125,7 @@ export function SucursalSelector({
   }, [multi, selectedSucursales, onlyWarehouses])
 
   return (
-    // 1. modal={false} para evitar que el scroll de la página salte
+    // 1. modal maneja correctamente el scroll locking de Radix
     <Popover open={open} onOpenChange={setOpen} modal={insideAModal}>
       <PopoverTrigger asChild>
         <Button
@@ -136,7 +136,7 @@ export function SucursalSelector({
         >
           {/* 2. Contenedor flex para alinear el icono y el texto */}
           <div className="flex items-center gap-2 truncate">
-            <Store className="h-4 w-4 shrink-0" /> {/* Puedes cambiar <Store /> por <MapPin /> si lo prefieres */}
+            <Store className="h-4 w-4 shrink-0" />
             <span className="truncate">{selectedLabel}</span>
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -147,7 +147,8 @@ export function SucursalSelector({
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command>
           <CommandInput placeholder={onlyWarehouses ? "Buscar bodega..." : "Buscar sucursal..."} />
-          <CommandList className="max-h-64 overflow-y-auto">
+          {/* ✅ CORRECCIÓN: Quitamos el overflow-y-auto, Radix lo maneja internamente */}
+          <CommandList className="max-h-64">
             <CommandEmpty>
               {isLoading ? "Cargando..." : "No se encontraron resultados."}
             </CommandEmpty>

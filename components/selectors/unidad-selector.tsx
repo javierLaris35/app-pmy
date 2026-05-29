@@ -113,7 +113,6 @@ export function UnidadSelector({
 
   return (
     <div className="space-y-2">
-      {/* 1. Cambiamos modal={true} a modal={false} para evitar el salto del scroll */}
       <Popover open={open} onOpenChange={setOpen} modal={isInsideModal}>
         <PopoverTrigger asChild>
           <Button
@@ -135,16 +134,17 @@ export function UnidadSelector({
           </Button>
         </PopoverTrigger>
 
-        {/* 2. Usamos la variable CSS de Radix para igualar el ancho exacto del trigger */}
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
           <Command>
             <CommandInput placeholder="Buscar unidad..." />
-            <CommandList className="max-h-64 overflow-y-auto">
+            {/* ✅ CORRECCIÓN: Dejamos el max-h solo en el CommandList */}
+            <CommandList className="max-h-64">
               <CommandEmpty>
                 {!effectiveSubsidiaryId 
                   ? "Selecciona una sucursal primero" 
                   : "No se encontraron unidades."}
               </CommandEmpty>
+              {/* ✅ CORRECCIÓN: CommandGroup limpio, sin overflow manual */}
               <CommandGroup>
                 {unidades.map((unidad) => {
                   if (!unidad) return null
