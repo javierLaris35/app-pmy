@@ -118,7 +118,16 @@ export function ImportDhlTextModal({
       "Vencimiento" 
     ];
 
-    const dataRows = parsedData.map((item, index) => {
+    // 1. Ordenamos los datos por PID alfabéticamente
+    // Hacemos una copia [...parsedData] para no mutar el estado original
+    const sortedData = [...parsedData].sort((a, b) => {
+      const pidA = a.pid || "";
+      const pidB = b.pid || "";
+      return pidA.localeCompare(pidB);
+    });
+
+    // 2. Mapeamos usando los datos ya ordenados (sortedData en lugar de parsedData)
+    const dataRows = sortedData.map((item, index) => {
       const direccionCompleta = [item.receiver.address1, item.receiver.address2]
         .filter(Boolean)
         .join(", ");

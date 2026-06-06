@@ -334,14 +334,13 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
-  // Determinar subsidiaria: primero la del prop, luego la del usuario
   const selectedSubsidiaryId = useMemo(() => {
-    return propSubsidiaryId || user?.subsidiary?.id || null;
-  }, [propSubsidiaryId, user]);
+    return propSubsidiaryId || null; 
+  }, [propSubsidiaryId]);
 
   const selectedSubsidiaryName = useMemo(() => {
-    return propSubsidiaryName || user?.subsidiary?.name || null;
-  }, [propSubsidiaryName, user]);
+    return propSubsidiaryName || null;
+  }, [propSubsidiaryName]);
 
   // Función para verificar días hasta expiración (desde desembarque)
   const getDaysUntilExpiration = useCallback((commitDateTime?: string | null) => {
@@ -904,6 +903,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
 
     setIsLoading(true);
+
     try {
       const payload = {
         subsidiary: { id: selectedSubsidiaryId, name:  selectedSubsidiaryName ?? "" },
@@ -917,6 +917,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
 
       const saved = await saveInventory(payload);
       await handleSendEmail(saved)
+      
       toast({ 
         title: "Inventario guardado", 
         description: `Inventario ${getInventoryTypeLabel(inventoryType)} guardado con éxito.` 
@@ -959,13 +960,18 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         id: `INV-${Date.now()}`,
         trackingNumber: '1234567890123',
         inventoryDate: new Date().toISOString(),
-        subsidiary: { id: user?.subsidiary?.id ?? "", name: user?.subsidiary?.name ?? "" },
+        // Aplica las variables memoizadas que evalúan el prop seleccionado
+        subsidiary: { 
+          id: selectedSubsidiaryId ?? "", 
+          name: selectedSubsidiaryName ?? "" 
+        },
         shipments: shipments,
         chargeShipments: chargeShipments,
         missingTrackings,
         unScannedTrackings,
-        inventoryType: inventoryType,  // Agregar el tipo de inventario
+        inventoryType: inventoryType,
       };
+
       const blob = await pdf(<InventoryPDFReport report={report} />).toBlob();
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
       window.open(blobUrl, "_blank");
@@ -989,13 +995,18 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         id: `INV-${Date.now()}`,
         trackingNumber: '1234567890123',
         inventoryDate: new Date().toISOString(),
-        subsidiary: { id: user?.subsidiary?.id ?? "", name: user?.subsidiary?.name ?? "" },
+        // Aplica las variables memoizadas que evalúan el prop seleccionado
+        subsidiary: { 
+          id: selectedSubsidiaryId ?? "", 
+          name: selectedSubsidiaryName ?? "" 
+        },
         shipments: shipments,
         chargeShipments: chargeShipments,
         missingTrackings,
         unScannedTrackings,
-        inventoryType: inventoryType,  // Agregar el tipo de inventario
+        inventoryType: inventoryType,
       };
+
       await generateInventoryExcel(report, true);
     } catch (err) {
       console.error("Excel export error", err);
