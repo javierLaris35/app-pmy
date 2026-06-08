@@ -884,6 +884,7 @@ export interface ScannedShipment {
   isCharge: boolean
   hasPayment: boolean
   paymentAmount?: number
+  dhlUniqueId?: string
 }
 
 

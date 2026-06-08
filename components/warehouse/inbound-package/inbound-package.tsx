@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import { PDFDownloadLink } from "@react-pdf/renderer"
+import { pdf, PDFDownloadLink } from "@react-pdf/renderer"
 import { useBrowserVoice } from "@/hooks/use-browser-voice" 
 import { ColumnDef, Row } from "@tanstack/react-table"
 
@@ -43,7 +43,8 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
-  HelpCircle
+  HelpCircle,
+  FileSpreadsheet
 } from "lucide-react"
 
 // Selectores especializados
@@ -51,12 +52,16 @@ import { UnidadSelector } from "@/components/selectors/unidad-selector"
 import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
 
 // Servicios y tipos
-import { saveWarehouseInbound, validateShipment } from "@/lib/services/warehouse/warehouse"
+import { saveWarehouseInbound, sendNotificationEmail, validateShipment } from "@/lib/services/warehouse/warehouse"
 import { Driver, ScannedShipment, Vehicles } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { DataTable } from "@/components/data-table/data-table"
 import { tableFilters } from "./filters"
 import { SucursalSelector } from "@/components/sucursal-selector"
+import { getColumns } from "./columns"
+import ExcelJS from "exceljs"
+import { generateWarehouseExcel } from "./excel-generator"
+import { toast } from "@/components/ui/use-toast"
 
 export type InboundShipment = ScannedShipment & {
   pieces?: string[]; 
@@ -134,6 +139,7 @@ export default function InboundPackage() {
   
   // Esta es la fuente de la verdad para toda la vista y el envío
   const effectiveWarehouseId = selectedWarehouse || defaultWarehouseId;
+  const [effectiveWarehouseName, setEffectiveWarehouseName] = useState<string>("")
 
   const [scanInput, setScanInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
@@ -298,39 +304,93 @@ export default function InboundPackage() {
     if (!scanInput.trim()) return
     setIsScanning(true)
     setError(null)
-    const trackingNumber = scanInput.trim().toUpperCase()
+    const scannedCode = scanInput.trim().toUpperCase()
 
-    const existingPackage = session.packages.find((p) => p.trackingNumber === trackingNumber);
+    // 1. PRIMERA DEFENSA LOCAL: ¿Escanearon exactamente un código que ya tenemos en pantalla?
+    const localMatch = session.packages.find(
+      (p) => p.trackingNumber === scannedCode || p.dhlUniqueId === scannedCode
+    );
 
-    if (existingPackage) {
-      if (existingPackage.shipmentType.toLowerCase() === "dhl") {
-        setRemittanceDialog({
-          isOpen: true,
-          step: "confirm",
-          masterTracking: trackingNumber,
-          pieceInput: "",
-          error: null
-        });
-        safeSpeak("Guía repetida. Por favor, confirme remesa.");
+    if (localMatch) {
+      // Si el código escaneado es exactamente un dhlUniqueId que ya tenemos, es pieza duplicada
+      if (localMatch.dhlUniqueId === scannedCode) {
+        setError(`La pieza ${scannedCode} ya está en la lista.`);
+        safeSpeak("Pieza repetida.");
         setScanInput("");
         setIsScanning(false);
         return;
-      } else {
-        setError(`Guía principal ya en lista: ${trackingNumber}`);
-        safeSpeak("Guía en lista.");
-        setIsScanning(false);
+      }
+
+      // Si el código escaneado es el trackingNumber maestro...
+      if (localMatch.trackingNumber === scannedCode) {
+        if (localMatch.shipmentType.toLowerCase() === "dhl") {
+          // Es la guía maestra de DHL: abrimos modal de remesa
+          setRemittanceDialog({
+            isOpen: true,
+            step: "confirm",
+            masterTracking: localMatch.trackingNumber,
+            pieceInput: "",
+            error: null
+          });
+          safeSpeak("Guía principal detectada. Confirme remesa.");
+        } else {
+          // Es una guía de FedEx (o carga) repetida
+          setError(`Guía ya en lista: ${scannedCode}`);
+          safeSpeak("Guía repetida.");
+        }
         setScanInput("");
+        setIsScanning(false);
         return;
       }
     }
 
     try {
-      const result = await validateShipment(trackingNumber)
+      // 2. CONSULTA AL BACKEND
+      const result = await validateShipment(scannedCode)
+      
       if (result.isValid === false) {
         setError(result.reason || "No encontrado en sistema")
         safeSpeak("No encontrado.")
       } else {
 
+        // 3. SEGUNDA DEFENSA (Post-Backend): Aplicamos tu regla de negocio
+        const isDuplicate = session.packages.find((p) => {
+          // Si no comparten el mismo tracking principal, no hay conflicto
+          if (p.trackingNumber !== result.trackingNumber) return false;
+
+          // SI COMPARTEN EL MISMO TRACKING NUMBER (Posible remesa)
+          // Verificamos si ambos tienen un dhlUniqueId asignado
+          if (p.dhlUniqueId && result.dhlUniqueId) {
+            // AQUÍ ESTÁ LA MAGIA: Solo es duplicado si los Unique ID son EXACTAMENTE IGUALES.
+            // Si son diferentes, retornará false y lo dejará pasar a la tabla.
+            return p.dhlUniqueId === result.dhlUniqueId;
+          }
+
+          // Si no usan dhlUniqueId (Ej. FedEx), compartir tracking significa que es un duplicado real
+          return true;
+        });
+
+        // Si la validación determinó que sí es un duplicado real
+        if (isDuplicate) {
+          if (result.shipmentType.toLowerCase() === "dhl") {
+            setRemittanceDialog({
+              isOpen: true,
+              step: "confirm",
+              masterTracking: result.trackingNumber,
+              pieceInput: "",
+              error: null
+            });
+            safeSpeak("Guía repetida. Confirme remesa.");
+          } else {
+            setError(`El paquete con guía ${result.trackingNumber} ya está en la lista.`);
+            safeSpeak("Paquete duplicado.");
+          }
+          setScanInput("");
+          setIsScanning(false);
+          return;
+        }
+
+        // 4. SI LLEGÓ HASTA AQUÍ, ES TOTALMENTE VÁLIDO (Nuevo paquete o Nueva pieza de la remesa)
         const newShipment: InboundShipment = {
           ...result,
           recipientZip: result.recipientZip ? String(result.recipientZip).trim() : "",
@@ -398,8 +458,10 @@ export default function InboundPackage() {
         }))
       };
 
-      await saveWarehouseInbound(payload);
+      const savedInbound = await saveWarehouseInbound(payload);
       safeSpeak("Entrada guardada con éxito");
+
+      await handleSendEmailNotification(savedInbound);
       
       setSession({
         id: crypto.randomUUID(),
@@ -414,6 +476,11 @@ export default function InboundPackage() {
       
       toggleModal("signatures", false);
 
+      toast({ 
+        title: "Entrada a bodega guardada", 
+        description: `Entrada guardada con éxito.` 
+      });
+
     } catch (error) {
       console.error("Error al guardar la entrada en bodega:", error);
       safeSpeak("Error al guardar en el servidor");
@@ -423,147 +490,53 @@ export default function InboundPackage() {
     }
   }
 
-  const columns: ColumnDef<InboundShipment>[] = useMemo(() => [
-    {
-      accessorKey: "trackingNumber",
-      header: "Guía / Remesa",
-      cell: function CellComponent({ row }) {
-        const pkg = row.original;
-        const hasPieces = (pkg.pieces && pkg.pieces.length > 0) || (pkg.existingPieces && pkg.existingPieces.length > 0);
-
-        return (
-          <div className="flex items-center gap-3 w-full">
-            {hasPieces ? (
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  row.toggleExpanded();
-                }}
-                className={`p-1.5 rounded-md hover:bg-slate-200 transition-colors flex-shrink-0 ${row.getIsExpanded() ? 'bg-slate-200 text-slate-800' : 'text-slate-500'}`}
-                title="Desplegar piezas de la remesa"
-              >
-                {row.getIsExpanded() ? <ChevronDown size={18} strokeWidth={2.5} /> : <ChevronRight size={18} strokeWidth={2.5} />}
-              </button>
-            ) : (
-              <div className="w-8 flex-shrink-0" />
-            )}
-            
-            <span className="font-mono text-[14px] font-bold text-slate-900 tracking-tight">
-              {pkg.trackingNumber}
-            </span>
-            
-            {/* Aquí se actualiza el Badge para indicar que es la principal */}
-            {hasPieces && (
-              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 flex gap-1 items-center bg-blue-50 text-blue-700 border-blue-200 border ml-2 uppercase font-bold tracking-wider">
-                <Layers size={10} />
-                Principal
-              </Badge>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      id: "subsidiary",
-      accessorFn: (row) => row.subsidiary, 
-      header: "Destino",
-      cell: ({ row }) => {
-        const pkg = row.original;
-        return (
-          <div className="text-slate-600 flex flex-col gap-0.5">
-            <span className="font-bold text-slate-800">{pkg.subsidiary?.name || "S/N"}</span>
-            <span className="font-mono text-slate-500">
-              CP: <span className="font-bold text-slate-700">{pkg.recipientZip}</span>
-            </span>
-          </div>
-        )
-      },
-      filterFn: (row, id, value: string[]) => {
-        const rowValue = row.getValue(id) as string
-        return value.includes(rowValue)
-      },
-    },
-    {
-      id: "shipmentType",
-      accessorKey: "shipmentType",
-      header: "Carrier",
-      cell: ({ row }) => {
-        const type = (row.getValue("shipmentType") as string) || ""; 
-        if (type.toLowerCase() === 'fedex') {
-          return <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[12px] border-none shadow-sm uppercase font-bold tracking-wider">FedEx</Badge>
-        }
-        if (type.toLowerCase() === 'dhl') {
-          return <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[12px] border-none shadow-sm uppercase font-bold tracking-wider">DHL</Badge>
-        }
-        return <Badge variant="outline" className="text-[12px] uppercase font-bold text-slate-600">{type}</Badge>
-      },
-      filterFn: (row, id, value: string[]) => {
-        const rowValue = (row.getValue(id) as string).toLowerCase()
-        return value.includes(rowValue)
-      },
-    },
-    {
-      id: "destinatario",
-      header: "Destinatario",
-      cell: ({ row }) => {
-        const pkg = row.original;
-        return (
-          <div className="flex flex-col gap-1 py-1 min-w-[150px] max-w-[220px]">
-            <div className="flex items-start gap-1.5">
-              <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-              <span className="text-sm font-semibold text-slate-800 leading-tight truncate" title={pkg.recipientName}>
-                {pkg.recipientName || "Sin Nombre"}
-              </span>
-            </div>
-            <div className="flex items-start gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-              <span className="text-xs text-slate-500 leading-snug line-clamp-2" title={pkg.recipientAddress}>
-                {pkg.recipientAddress || "Dirección no disponible"}
-              </span>
-            </div>
-          </div>
-        )
-      }
-    },
-    {
-      id: "alertas",
-      header: "Etiquetas",
-      cell: ({ row }) => {
-        const pkg = row.original;
-        return (
-          <div className="flex gap-1.5 flex-wrap max-w-[150px]">
-            {isToday(pkg.commitDateTime) && <Badge className="font-bold text-[10px] px-1.5 py-0.5 bg-red-600 text-white hover:bg-red-700 shadow-sm border-none">Vence Hoy</Badge>}
-            {isTomorrow(pkg.commitDateTime) && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-orange-50 text-orange-700 border-orange-200 border hover:bg-orange-100 shadow-sm">Vence Mañana</Badge>}
-            {pkg.isHighValue && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 border-purple-200 border hover:bg-purple-100 shadow-sm">Alto Valor</Badge>}
-            {pkg.isCharge && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 border-blue-200 border hover:bg-blue-100 shadow-sm">Carga</Badge>}
-            {pkg.hasPayment && <Badge className="font-bold text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-300 border hover:bg-amber-100 shadow-sm" variant="secondary">
-              Cobro: ${Number(pkg.paymentAmount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-            </Badge>}
-          </div>
-        )
-      }
-    },
-    {
-      id: "acciones",
-      header: () => <div className="text-right">Acciones</div>,
-      cell: ({ row }) => {
-        return (
-          <div className="text-right">
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => handleRemovePackage(row.original.id)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="bg-red-600 text-white border-none text-xs">Eliminar Registro</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        )
-      }
+  const handleDownloadExcel = async () => {
+    try {
+      safeSpeak("Generando archivo Excel")
+    
+      await generateWarehouseExcel(session, sortedPackages, true);
+    
+      safeSpeak("Archivo excel generado")
+    } catch (err) {
+      console.error("Error al exportar el archivo Excel en cliente:", err)
+      safeSpeak("Error al exportar excel")
     }
-  ], [handleRemovePackage])
+  }
+
+  const handleSendEmailNotification = async (inboundPackage: any) => {
+    try {
+      const blob = await pdf(<PackageEntryPDF session={session} vehicle={session.vehicle} />).toBlob();
+      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
+      window.open(blobUrl, "_blank");
+
+      const pdfFileName = `ENTRADA-${inboundPackage?.warehouse?.name}-${Date.now().toString().slice(0, 10).replace(/\//g, "-")}.pdf`;
+      const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
+
+      const excelBuffer = await generateWarehouseExcel(session, sortedPackages, false) as Buffer;
+      const excelBlob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+       const excelFileName = `ENTRADA--${inboundPackage?.warehouse?.name}--${Date.now().toString().slice(0, 10).replace(/\//g, "-")}.xlsx`;
+      const excelFile = new File([excelBlob], excelFileName, {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      await sendNotificationEmail(
+        pdfFile, 
+        excelFile,
+        effectiveWarehouseName,
+        "inbound",
+        inboundPackage.id
+      );
+
+
+      safeSpeak("Notificación por correo enviada")
+    } catch (err) {
+      console.error("Error en el envío de la notificación por correo:", err)
+    }
+  }
+
+  const columns = useMemo(() => {
+    return getColumns({ handleRemovePackage });
+  }, [handleRemovePackage]);
 
   // SUB-FILA (DISEÑO SHADCN / TAILWIND)
   const renderSubComponent = ({ row }: { row: Row<InboundShipment> }) => {
@@ -642,212 +615,213 @@ export default function InboundPackage() {
   };
 
   return (
-    <div className="text-slate-900 min-h-screen pt-4"> 
-        <div className="flex flex-col gap-6 mb-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-    
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-                <PackagePlusIcon className="w-8 h-8 text-red-600" />
-                Gestión de Entradas a Bodega
-              </h1>
-              <p className="text-slate-500 mt-1">Registro y seguimiento de paquetes entrantes a la bodega.</p>
-            </div>
-
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded shrink-0 hover:bg-slate-200 text-slate-600" 
-                      onClick={() => toggleModal("shortcuts", true)}
-                    >
-                      <Keyboard className="w-5 h-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Ver Atajos de Teclado</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <div className="w-full md:w-[250px]">
-                <SucursalSelector
-                  value={effectiveWarehouseId}
-                  returnObject={true}
-                  onlyWarehouses={true}
-                  onValueChange={(val) => {
-                    const sucursalId = typeof val === 'object' && val !== null ? (val as any).id : val;
-                    setSelectedWarehouse(sucursalId);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <Separator className="bg-slate-200" />
-
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
-          {/* AQUI SE ACTUALIZO EL VALOR DEL TOTAL PARA USAR LA NUEVA VARIABLE totalCount */}
-          <StatCard title="Total" value={totalCount} icon={Package} />
-          <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col justify-center shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[12px] font-bold uppercase text-slate-500 tracking-wider">Carrier</span>
-              <Truck className="h-4 w-4 text-slate-300" />
-            </div>
-            <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-[12px] font-bold text-[#4d148c]">FEDEX</p>
-                  <p className="text-xl font-bold text-slate-800">{fedexCount}</p>
-                </div>
-                <Separator orientation="vertical" className="h-8 bg-slate-200" />
-                <div className="flex-1 text-right">
-                  <p className="text-[12px] font-bold text-[#d40511]">DHL</p>
-                  <p className="text-xl font-bold text-slate-800">{dhlCount}</p>
-                </div>
-            </div>
-          </div>
-          <StatCard title="Vencen Hoy" value={expiringTodayPackages.length} icon={Clock} alert={expiringTodayPackages.length > 0} onClick={() => expiringTodayPackages.length > 0 && toggleModal("expiringToday", true)} />
-          <StatCard title="Alto Valor" value={highValuePackages.length} icon={ShieldAlert} alert={highValuePackages.length > 0} onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)} />
-          <StatCard title="Carga" value={cargoPackages.length} icon={Box} />
-          <StatCard 
-            title="Cobros" 
-            value={packagesWithCharges.length} 
-            subValue={`$${totalChargesAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`} 
-            icon={DollarSign} 
-            alert={packagesWithCharges.length > 0} 
-            onClick={() => packagesWithCharges.length > 0 && toggleModal("charges", true)} 
-          />
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pt-6">
-          
-          <div className="xl:col-span-8 space-y-6">
-            <Card className="border-none shadow-none bg-transparent">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-slate-800">Inventario de Escaneo</h2>
-                </div>
-              </div>
-              
-              <CardContent className="p-0 overflow-hidden">
-                <DataTable 
-                  columns={columns} 
-                  data={sortedPackages}
-                  searchKey="trackingNumber"
-                  filters={tableFilters}
-                  renderSubComponent={renderSubComponent} 
-                />
-              </CardContent>
-            </Card>
+    <div className="text-slate-900 min-h-screen"> 
+      <div className="flex flex-col gap-6 mb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+  
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+              <PackagePlusIcon className="w-8 h-8 text-red-600" />
+              Gestión de Entradas a Bodega
+            </h1>
+            <p className="text-slate-500 mt-1">Registro y seguimiento de paquetes entrantes a la bodega.</p>
           </div>
 
-          <div className="xl:col-span-4 space-y-4">
-            {/** Escaner */}
-            <Card className="border-red-200">
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-red-600 mb-2">
-                  <span className="text-sm font-bold uppercase tracking-wide">Escáner de Entrada</span>
-                </div>
-
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
-                    <Input
-                      ref={inputRef}
-                      type="text"
-                      placeholder="Código de barras..."
-                      value={scanInput}
-                      onChange={(e) => setScanInput(e.target.value)}
-                      onKeyDown={handleKeyPress}
-                      className="h-12 text-base pl-10 pr-10 font-mono border-slate-300 focus-visible:ring-red-500 shadow-sm"
-                      disabled={isScanning}
-                    />
-                    {scanInput && (
-                      <button
-                        onClick={() => {
-                          setScanInput('')
-                          inputRef.current?.focus()
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button 
-                    onClick={handleScan}
-                    disabled={!scanInput.trim() || isScanning}
-                    className="h-12 px-5 bg-red-800 hover:bg-red-900 text-white"
+                    variant="ghost" 
+                    size="icon" 
+                    className="rounded shrink-0 hover:bg-slate-200 text-slate-600" 
+                    onClick={() => toggleModal("shortcuts", true)}
                   >
-                    {isScanning ? (
-                      <span className="flex items-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ...
-                      </span>
-                    ) : (
-                      'Agregar'
-                    )}
+                    <Keyboard className="w-5 h-5" />
                   </Button>
-                </div>  
+                </TooltipTrigger>
+                <TooltipContent>Ver Atajos de Teclado</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
-                {error && (
-                  <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-md flex items-start gap-2 border border-red-100 shadow-sm animate-in fade-in slide-in-from-top-1">
-                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> 
-                    <span className="font-medium">{error}</span>
-                  </div>
-                )}
-
-              </CardContent>
-            </Card>
-
-            {/** Asignación de Salida */}
-            <Card className="border-red-200">
-              <CardContent className="space-y-4">
-                <Label className="font-bold text-slate-800 uppercase text-xs tracking-wider">Asignación de Salida</Label>
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-[12px] font-semibold text-slate-600">Unidad de Traslado</Label>
-                    <UnidadSelector 
-                      selectedUnidad={session.vehicle?.id || ""} 
-                      onSelectionChange={(id) => setSession(s => ({...s, vehicle: { id } as Vehicles }))} 
-                      subsidiaryId={effectiveWarehouseId} 
-                    />
-                  </div>
-                  <Separator className="bg-slate-100" />
-                  <div className="space-y-1.5">
-                    <Label className="text-[12px] font-semibold text-slate-600">Chofer Asignado</Label>
-                    <RepartidorSelector 
-                      selectedRepartidores={session.drivers.map(d => d.id)} 
-                      onSelectionChange={(ids) => setSession(s => ({...s, drivers: ids.map(id => ({ id } as Driver))}))} 
-                      subsidiaryId={effectiveWarehouseId}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/** Finalizar Ingreso */}
-            <Card className="border-red-200">
-              <CardContent className="space-y-3">
-                {!isReadyToFinish && (
-                  <p className="text-[11px] text-amber-700 font-medium bg-amber-100/50 p-2.5 rounded-md flex items-start gap-2 leading-tight border border-amber-200">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> 
-                    Seleccione Bodega, Unidad, Chofer y escanee paquetes para habilitar el cierre.
-                  </p>
-                )}
-                
-                <Button 
-                  onClick={() => toggleModal("signatures", true)} 
-                  disabled={!isReadyToFinish} 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white shadow-sm h-12 text-sm font-bold tracking-wide"
-                >
-                  <CheckCircle2 className="mr-2 h-5 w-5" /> FINALIZAR INGRESO
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="w-full md:w-[250px]">
+              <SucursalSelector
+                value={effectiveWarehouseId}
+                returnObject={true}
+                onlyWarehouses={true}
+                onValueChange={(val) => {
+                  const sucursalId = typeof val === 'object' && val !== null ? (val as any).id : val;
+                  const sucursalName = typeof val === 'object' && val !== null ? (val as any).name : "";
+                  setEffectiveWarehouseName(sucursalName);
+                  setSelectedWarehouse(sucursalId);
+                }}
+              />
+            </div>
           </div>
+        </div>
+      </div>
+      
+      <Separator className="bg-slate-200" />
+
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
+        {/* AQUI SE ACTUALIZO EL VALOR DEL TOTAL PARA USAR LA NUEVA VARIABLE totalCount */}
+        <StatCard title="Total" value={totalCount} icon={Package} />
+        <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col justify-center shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[12px] font-bold uppercase text-slate-500 tracking-wider">Carrier</span>
+            <Truck className="h-4 w-4 text-slate-300" />
+          </div>
+          <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-[12px] font-bold text-[#4d148c]">FEDEX</p>
+                <p className="text-xl font-bold text-slate-800">{fedexCount}</p>
+              </div>
+              <Separator orientation="vertical" className="h-8 bg-slate-200" />
+              <div className="flex-1 text-right">
+                <p className="text-[12px] font-bold text-[#d40511]">DHL</p>
+                <p className="text-xl font-bold text-slate-800">{dhlCount}</p>
+              </div>
+          </div>
+        </div>
+        <StatCard title="Vencen Hoy" value={expiringTodayPackages.length} icon={Clock} alert={expiringTodayPackages.length > 0} onClick={() => expiringTodayPackages.length > 0 && toggleModal("expiringToday", true)} />
+        <StatCard title="Alto Valor" value={highValuePackages.length} icon={ShieldAlert} alert={highValuePackages.length > 0} onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)} />
+        <StatCard title="Carga" value={cargoPackages.length} icon={Box} />
+        <StatCard 
+          title="Cobros" 
+          value={packagesWithCharges.length} 
+          subValue={`$${totalChargesAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`} 
+          icon={DollarSign} 
+          alert={packagesWithCharges.length > 0} 
+          onClick={() => packagesWithCharges.length > 0 && toggleModal("charges", true)} 
+        />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pt-6"> 
+        <div className="xl:col-span-8 space-y-6">
+          <Card className="border-none shadow-none bg-transparent">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-800">Inventario de Escaneo</h2>
+              </div>
+            </div>
+            
+            <CardContent className="p-0 overflow-hidden">
+              <DataTable 
+                columns={columns} 
+                data={sortedPackages}
+                searchKey="trackingNumber"
+                filters={tableFilters}
+                renderSubComponent={renderSubComponent} 
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="xl:col-span-4 space-y-4">
+          {/** Escaner */}
+          <Card className="border-red-200">
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 text-red-600 mb-2">
+                <span className="text-sm font-bold uppercase tracking-wide">Escáner de Entrada</span>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
+                  <Input
+                    ref={inputRef}
+                    type="text"
+                    placeholder="Código de barras..."
+                    value={scanInput}
+                    onChange={(e) => setScanInput(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    className="h-12 text-base pl-10 pr-10 font-mono border-slate-300 focus-visible:ring-red-500 shadow-sm"
+                    disabled={isScanning}
+                  />
+                  {scanInput && (
+                    <button
+                      onClick={() => {
+                        setScanInput('')
+                        inputRef.current?.focus()
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <Button 
+                  onClick={handleScan}
+                  disabled={!scanInput.trim() || isScanning}
+                  className="h-12 px-5 bg-red-800 hover:bg-red-900 text-white"
+                >
+                  {isScanning ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ...
+                    </span>
+                  ) : (
+                    'Agregar'
+                  )}
+                </Button>
+              </div>  
+
+              {error && (
+                <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-md flex items-start gap-2 border border-red-100 shadow-sm animate-in fade-in slide-in-from-top-1">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> 
+                  <span className="font-medium">{error}</span>
+                </div>
+              )}
+
+            </CardContent>
+          </Card>
+
+          {/** Asignación de Salida */}
+          <Card className="border-red-200">
+            <CardContent className="space-y-4">
+              <Label className="font-bold text-slate-800 uppercase text-xs tracking-wider">Asignación de Salida</Label>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-semibold text-slate-600">Unidad de Traslado</Label>
+                  <UnidadSelector 
+                    selectedUnidad={session.vehicle?.id || ""} 
+                    onSelectionChange={(id) => setSession(s => ({...s, vehicle: { id } as Vehicles }))} 
+                    subsidiaryId={effectiveWarehouseId} 
+                  />
+                </div>
+                <Separator className="bg-slate-100" />
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-semibold text-slate-600">Chofer Asignado</Label>
+                  <RepartidorSelector 
+                    selectedRepartidores={session.drivers.map(d => d.id)} 
+                    onSelectionChange={(ids) => setSession(s => ({...s, drivers: ids.map(id => ({ id } as Driver))}))} 
+                    subsidiaryId={effectiveWarehouseId}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/** Finalizar Ingreso */}
+          <Card className="border-red-200">
+            <CardContent className="space-y-3">
+              {!isReadyToFinish && (
+                <p className="text-[11px] text-amber-700 font-medium bg-amber-100/50 p-2.5 rounded-md flex items-start gap-2 leading-tight border border-amber-200">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> 
+                  Seleccione Bodega, Unidad, Chofer y escanee paquetes para habilitar el cierre.
+                </p>
+              )}
+              
+              <Button 
+                onClick={() => toggleModal("signatures", true)} 
+                disabled={!isReadyToFinish} 
+                className="w-full bg-green-600 hover:bg-green-700 text-white shadow-sm h-12 text-sm font-bold tracking-wide"
+              >
+                <CheckCircle2 className="mr-2 h-5 w-5" /> FINALIZAR INGRESO
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* --- NUEVO DIALOG PARA FLUJO DE REMESAS DHL --- */}
@@ -997,6 +971,15 @@ export default function InboundPackage() {
               Cancelar
             </Button>
             
+            <Button 
+              variant="outline" 
+              className="w-full sm:w-auto h-10 border-slate-300 text-green-700 hover:text-green-800 hover:bg-green-50 font-semibold border-green-200" 
+              onClick={handleDownloadExcel}
+              disabled={!canSaveAndGeneratePDF}
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+            </Button>
+
             {isClient && canSaveAndGeneratePDF ? (
               <PDFDownloadLink 
                 document={
@@ -1025,7 +1008,7 @@ export default function InboundPackage() {
               disabled={!canSaveAndGeneratePDF}
               className="w-full sm:w-auto h-10 bg-green-600 hover:bg-green-700 text-white font-bold tracking-wide shadow-sm"
             >
-              Confirmar y Guardar
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
