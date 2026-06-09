@@ -318,7 +318,6 @@ export default function OutboundPackage() {
     setTimeout(() => pieceInputRef.current?.focus(), 50);
   }, [remittanceDialog.pieceInput, remittanceDialog.masterTracking, safeSpeak]);
 
-
   const handleScan = useCallback(async () => {
     if (!scanInput.trim()) return
     setIsScanning(true)
