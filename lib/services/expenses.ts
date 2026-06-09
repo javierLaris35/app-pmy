@@ -23,8 +23,15 @@ const upload = async (formData: FormData) => {
   return response.data; // Es buena práctica retornar la respuesta por si necesitas leerla en el frontend
 }
 
+const deleteById = async(id: string) => {
+  const resposnse = await axiosConfig.delete(`${url}/${id}`);
+  return resposnse.data;
+}
+
+
 export {
     getExpenses,
     saveExpense,
-    upload
+    upload,
+    deleteById
 }

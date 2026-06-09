@@ -59,6 +59,7 @@ import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { DataTable } from "@/components/data-table/data-table";
 import {
+  createDeleteColumn,
   createSelectColumn,
   createSortableColumn,
   createViewColumn,
@@ -76,11 +77,12 @@ import { saveAs } from "file-saver";
 import { useAuthStore } from "@/store/auth.store";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { Loader } from "@/components/loader";
-import { upload } from "@/lib/services/expenses";
+import { deleteById, upload } from "@/lib/services/expenses";
 
 // Importación de Driver.js para el tutorial
 import { driver } from "driver.js"
 import "driver.js/dist/driver.css"
+import { getGastosColumns } from "./columns";
 
 const metodosPago = [
   "Efectivo",
@@ -165,10 +167,6 @@ interface SucursalSplit {
 
 function GastosPage() {
   const user = useAuthStore((s) => s.user);
-
-  // --- ESTADOS DE TUTORIAL ---
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
 
   const startTutorial = useCallback(() => {
     const driverObj = driver({
@@ -358,6 +356,7 @@ function GastosPage() {
   const [vehiculoId, setVehiculoId] = useState<string>("");
   const [selectedVehiculo, setSelectedVehiculo] = useState<Vehicles | undefined>(null);
   const [sucursalesDistribucion, setSucursalesDistribucion] = useState<SucursalSplit[]>([]);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const requiresVehicle = VEHICLE_CATEGORIES.includes(categoriaId);
 
@@ -390,10 +389,6 @@ function GastosPage() {
       .slice(0, 4);
   }, [expenses]);
   
-  if (!expenses || isLoading) {
-    return <Loader />;
-  }
-
   const prefillGasto = (plantilla: Expense) => {
     setCategoriaId(plantilla.category);
     setDescripcion(plantilla.description || "");
@@ -468,14 +463,38 @@ function GastosPage() {
   const openEditGastoDialog = (gasto: Expense) => {
     setEditingGasto(gasto);
     setFecha(new Date(gasto.date));
-    setCategoriaId(gasto.category.id);
+    setCategoriaId(gasto.category); 
     setMonto(gasto.amount);
-    setDescripcion(gasto.description || "");
     setMetodoPago(gasto.paymentMethod || "Efectivo");
     setPeriodoPago(gasto.frequency || "Único");
     setResponsable(gasto.responsible || "");
-    setNotas(gasto.notes || "");
     setComprobante(null);
+
+    // 1. Limpiar Descripción (quitar [Fracción...] y los datos del vehículo)
+    let descLimpia = gasto.description || "";
+    // Quita la etiqueta de distribución
+    descLimpia = descLimpia.replace(/\[Fracción:.*?\]/g, "").trim();
+    // Quita los datos del vehículo concatenados al final (ej. " - ABC-123 (Ford F-150)")
+    descLimpia = descLimpia.replace(/\s*-\s*[A-Za-z0-9-]+\s*\([^)]+\)$/, "").trim();
+    setDescripcion(descLimpia);
+
+    // 2. Limpiar Notas (quitar "Vehículo: X | ")
+    let notasLimpias = gasto.notes || "";
+    if (notasLimpias.startsWith("Vehículo: ")) {
+      const partes = notasLimpias.split(" | ");
+      // Si hay algo después del pipe, lo recuperamos, si no, lo dejamos en blanco
+      notasLimpias = partes.length > 1 ? partes.slice(1).join(" | ").trim() : "";
+    }
+    setNotas(notasLimpias);
+
+    // Lógica para asignar el vehículo (la que agregamos en el paso anterior)
+    if ((gasto as any).vehicle) {
+      setSelectedVehiculo((gasto as any).vehicle);
+      setVehiculoId((gasto as any).vehicle.id);
+    } else {
+      setSelectedVehiculo(undefined);
+      setVehiculoId("");
+    }
 
     setSucursalesDistribucion([{ 
       id: Date.now().toString(), 
@@ -519,41 +538,55 @@ function GastosPage() {
 
     const montoBase = Number(monto);
 
-    // GUARDAR GASTOS POR SUCURSAL
-    // Iteramos la distribución para crear registros prorrateados si hay más de una sucursal involucrada
-    sucursalesDistribucion.forEach((dist) => {
-      const montoProrrateado = montoBase * (dist.porcentaje / 100);
-      
-      // Ajustamos la nota o descripción para reflejar que es un gasto dividido si el % es menor a 100
-      const notaDistribucion = dist.porcentaje < 100 
-        ? `[Fracción: ${dist.porcentaje}% del gasto total de ${formatCurrency(montoBase)}]` 
-        : "";
-
-      const payload: Expense = {
-        subsidiaryId: dist.sucursalId,
-        date: fecha,
-        category: categoriaId,
-        amount: montoProrrateado,
-        description:
-          requiresVehicle && selectedVehiculo
-            ? `${descripcion} - ${selectedVehiculo.plateNumber} (${selectedVehiculo.brand} ${selectedVehiculo.model}) ${notaDistribucion}`.trim()
-            : `${descripcion} ${notaDistribucion}`.trim(),
-        paymentMethod: metodoPago,
-        frequency: periodoPago,
-        responsible: responsable,
-        vehicleId: requiresVehicle ? selectedVehiculo?.id : null,
-        notes:
-          requiresVehicle && selectedVehiculo
-            ? `Vehículo: ${selectedVehiculo.name} | ${notas}`.trim()
-            : notas,
-      };
-
-      save(payload);
-    });
-
     setIsDialogOpen(false);
-    mutate();
-    toast.success("Se registró el gasto y su distribución con éxito.");
+
+    // 3. Usamos toast.promise para la experiencia de carga
+    toast.promise(
+      async () => {
+        // En lugar de forEach, usamos map para recolectar todas las promesas de guardado
+        const promesasGuardado = sucursalesDistribucion.map((dist) => {
+          const montoProrrateado = montoBase * (dist.porcentaje / 100);
+          
+          const notaDistribucion = dist.porcentaje < 100 
+            ? `[Fracción: ${dist.porcentaje}% del gasto total de ${formatCurrency(montoBase)}]` 
+            : "";
+
+          const payload: Expense = {
+            ...(editingGasto ? { id: editingGasto.id } : {}), 
+            subsidiaryId: dist.sucursalId,
+            date: fecha,
+            category: categoriaId,
+            amount: montoProrrateado,
+            description:
+              requiresVehicle && selectedVehiculo
+                ? `${descripcion} - ${selectedVehiculo.plateNumber} (${selectedVehiculo.brand} ${selectedVehiculo.model}) ${notaDistribucion}`.trim()
+                : `${descripcion} ${notaDistribucion}`.trim(),
+            paymentMethod: metodoPago,
+            frequency: periodoPago,
+            responsible: responsable,
+            vehicleId: requiresVehicle ? selectedVehiculo?.id : null,
+            notes:
+              requiresVehicle && selectedVehiculo
+                ? `Vehículo: ${selectedVehiculo.name} | ${notas}`.trim()
+                : notas,
+          };
+
+          // Retornamos la ejecución de guardado
+          return save(payload);
+        });
+
+        // 4. Esperamos a que TODOS los registros se guarden en el backend
+        await Promise.all(promesasGuardado);
+        
+        // 5. Una vez guardados, forzamos la actualización de la tabla
+        await mutate();
+      },
+      {
+        loading: editingGasto ? 'Actualizando gasto...' : 'Guardando y distribuyendo gasto...',
+        success: editingGasto ? 'Gasto actualizado correctamente' : 'Gasto registrado correctamente',
+        error: 'Ocurrió un error al procesar el gasto',
+      }
+    );
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -690,65 +723,42 @@ function GastosPage() {
       toast.error("Hubo un problema al procesar el archivo en el servidor.");
     }
   };
+  
+  const handleDelete = (id: string) => {
+    setDeleteId(id);
+  };
 
-  /** Sacar a un archivo */
-  const columns = [
-    createSelectColumn<Expense>(),
-    createSortableColumn<Expense>(
-      "fecha",
-      "Fecha",
-      (row) => row.date,
-      (value) => format(new Date(value), "dd/MM/yyyy", { locale: es }),
-    ),
-    createSortableColumn<Expense>(
-      "category",
-      "Categoría",
-      (row) => row.category ?? "",
-      (value) => {
-        const cat = categoriasGasto?.find((c) => c.name === value);
-        return (
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${getCategoryColor(value)}`}
-            ></div>
-            <div className="flex flex-col">
-              <span>{value || "Sin categoría"}</span>
-              {cat && (
-                <span className="text-xs text-gray-500">{cat.description}</span>
-              )}
-            </div>
-          </div>
-        );
+  const executeDelete = async () => {
+    if (!deleteId) return;
+
+    const idToProcess = deleteId;
+    setDeleteId(null);
+
+    toast.promise(
+      async () => {
+        await deleteById(idToProcess);
+        await mutate();
       },
-    ),
-    createSortableColumn<Expense>(
-      "descripcion",
-      "Descripción",
-      (row) => row.description || "-",
-    ),
-    createSortableColumn<Expense>(
-      "monto",
-      "Monto",
-      (row) => row.amount,
-      (value) => <span className="font-medium">{formatCurrency(value)}</span>,
-    ),
-    createSortableColumn<Expense>(
-      "metodoPago",
-      "Método de Pago",
-      (row) => row.paymentMethod || "No especificado",
-    ),
-    createSortableColumn<Expense>(
-      "frequency",
-      "Frecuencia",
-      (row) => row.frequency || "Único",
-    ),
-    createSortableColumn<Expense>(
-      "responsable",
-      "Responsable",
-      (row) => row.responsible || "No especificado",
-    ),
-    createViewColumn<Expense>((data) => openEditGastoDialog(data)),
-  ];
+      {
+        loading: 'Eliminando gasto...',
+        success: 'Gasto eliminado correctamente',
+        error: 'Ocurrió un error al eliminar el gasto',
+      }
+    );
+  };
+
+  const columns = useMemo(
+    () =>
+      getGastosColumns({
+        onEdit: openEditGastoDialog,
+        onDelete: handleDelete,
+      }),
+    [] 
+  );
+
+  if (!expenses || isLoading) {
+    return <Loader />;
+  }
 
   return (
     <AppLayout>
@@ -1472,6 +1482,32 @@ function GastosPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Estás seguro de eliminar este registro?</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. El gasto se eliminará de forma permanente del sistema y dejará de reflejarse en los reportes de la sucursal.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteId(null)}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={executeDelete}
+            >
+              Sí, eliminar gasto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </AppLayout>
   );
 }

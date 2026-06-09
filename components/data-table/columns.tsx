@@ -3,7 +3,7 @@
 import type React from "react"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Eye } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -148,6 +148,23 @@ export function createViewColumn<T>(onClick: (data: T) => void): ColumnDef<T, an
         <Button variant="ghost" size="icon" onClick={() => onClick(data)}>
           <Eye className="h-4 w-4" />
           <span className="sr-only">Ver detalles</span>
+        </Button>
+      )
+    },
+    enableSorting: false,
+    enableHiding: false,
+  }
+}
+
+export function createDeleteColumn<T>(onClick: (data: T) => void): ColumnDef<T, any> {
+  return {
+    id: "delete",
+    cell: ({ row }) => {
+      const data = row.original
+      return (
+        <Button variant="default" size="icon" onClick={() => onClick(data)}>
+          <Trash2Icon className="h-4 w-4" />
+          <span className="sr-only">Eliminar</span>
         </Button>
       )
     },
