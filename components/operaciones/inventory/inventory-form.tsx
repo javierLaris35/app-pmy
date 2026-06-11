@@ -1045,8 +1045,10 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      // Subir archivos
-      await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName);
+      // Subir archivos. IMPORTANTE: enviar el id del inventario recién guardado,
+      // porque el backend resuelve el destinatario del correo desde la sucursal
+      // de ESE inventario. Sin el id se enviaba a una sucursal arbitraria.
+      await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName, inventory.id);
 
     } catch (err) {
       console.error("Error enviando inventario:", err);

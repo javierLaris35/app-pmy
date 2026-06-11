@@ -31,12 +31,20 @@ export async function uploadFiles(
     pdfFile: File,
     excelFile: File,
     subsidiaryName: string,
+    inventoryId: string,
     onProgress?: (progress: number) => void
-): Promise<any> { 
+): Promise<any> {
+    if (!inventoryId) {
+        throw new Error('uploadFiles: falta el inventoryId; no se puede enviar el correo al destinatario correcto.');
+    }
+
     const formData = new FormData();
     formData.append('files', pdfFile);
     formData.append('files', excelFile);
     formData.append('subsidiaryName', subsidiaryName);
+    // El backend resuelve el destinatario del correo a partir de la sucursal
+    // guardada en ESTE inventario. Sin el id, cargaría un inventario al azar.
+    formData.append('inventoryId', inventoryId);
 
     try {
         const response = await axiosConfig.post('inventories/upload', formData, {
