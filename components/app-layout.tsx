@@ -10,6 +10,7 @@ import { Loader } from "./loader"
 import { Toaster } from "./ui/sonner"
 import { CommandPalette } from "./search-packages/search-package"
 import { AddShipmentDialog } from "./add-shipment/add-shipment-dialog"
+import { TooltipProvider } from "./ui/tooltip"
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -60,7 +61,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarProvider>
       <AppSidebar user={user} />
       <main className="flex-1 p-4 md:p-6 overflow-auto">
-        {children}
+        <TooltipProvider>
+          {children}
+        </TooltipProvider>
         <CommandPalette />
         <AddShipmentDialog />
       </main>

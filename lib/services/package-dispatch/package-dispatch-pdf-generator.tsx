@@ -12,6 +12,7 @@ import {
 import { format, toZonedTime } from "date-fns-tz";
 import { Driver, PackageInfo, Route, Vehicles, PackageDispatch } from "@/lib/types";
 import { formatMexicanPhoneNumberWithOutMexicanLada } from "@/lib/utils";
+import { sortByZip } from "@/lib/tracking/sort-by-zip";
 
 Font.register({ family: "Helvetica", src: undefined });
 
@@ -163,6 +164,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffe6e6',
     borderLeftColor: colors.accent,
   },
+  zoneSeparator: {
+    borderTopWidth: 2,
+    borderTopColor: colors.primary,
+  },
   footer: {
     marginTop: 2,
     fontSize: 6,
@@ -270,11 +275,14 @@ export const FedExPackageDispatchPDF = ({
   const isHermosillo = subsidiaryName?.toLowerCase().includes('hermosillo');
   const columnWidths = getColumnWidths(isHermosillo);
 
+  // Ordenado por código postal (recipientZip) para seguir la ruta.
+  const orderedPackages = sortByZip(packages);
+
   const calculatePackageStats = () => {
     let f2Count = 0, cargaCount = 0, fedexCount = 0, dhlCount = 0;
     let expiringTodayCount = 0, withPaymentCount = 0, totalPaymentAmount = 0, highValueCount = 0;
 
-    packages.forEach((pkg) => {
+    orderedPackages.forEach((pkg) => {
       if (pkg?.isCharge) f2Count++;
       if (pkg?.isHighValue) { cargaCount++; highValueCount++; }
       if (pkg?.payment?.amount) { withPaymentCount++; totalPaymentAmount += pkg.payment.amount; }
@@ -293,9 +301,9 @@ export const FedExPackageDispatchPDF = ({
     });
 
     return {
-      total: packages.length, f2Count, cargaCount, highValueCount,
+      total: orderedPackages.length, f2Count, cargaCount, highValueCount,
       expiringTodayCount, withPaymentCount, totalPaymentAmount,
-      regularCount: packages.length - f2Count - highValueCount,
+      regularCount: orderedPackages.length - f2Count - highValueCount,
       fedexCount, dhlCount,
     };
   };
@@ -418,28 +426,34 @@ export const FedExPackageDispatchPDF = ({
             <TableCell width={80}>NOMBRE Y FIRMA</TableCell>
           </View>
 
-          {/* Ya no mapeamos "data" en bloques, mapeamos TODA la lista. El wrap hace la división */}
-          {packages.map((pkg, i) => {
+          {/* Ya no mapeamos "data" en bloques, mapeamos TODA la lista (ordenada por CP). El wrap hace la división */}
+          {orderedPackages.map((pkg, i) => {
             const aeIcon = pkg.consolidated?.type === 'aereo' ? '[A]' : '';
             const icons = `${aeIcon}${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
-            
+
             const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
             const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
             const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
             const hasPayment = pkg.payment?.amount != null;
-            
+
             const isExpiringToday = commitDate === formattedDate;
             const isBold = hasPayment || isExpiringToday;
             const textWeight = isBold ? 'bold' : 'normal';
 
+            // Separador de zona: línea gruesa cuando cambian los 2 primeros dígitos del CP.
+            const zone = (pkg.recipientZip || '').slice(0, 2);
+            const prevZone = i > 0 ? (orderedPackages[i - 1].recipientZip || '').slice(0, 2) : null;
+            const zoneChanged = i > 0 && zone !== prevZone;
+
             return (
-              <View 
+              <View
                 style={[
                   styles.tableRow,
                   i % 2 === 0 && styles.tableRowEven,
                   hasPayment && styles.paymentRow,
-                  isExpiringToday && styles.expiringTodayRow
-                ]} 
+                  isExpiringToday && styles.expiringTodayRow,
+                  zoneChanged && styles.zoneSeparator
+                ]}
                 key={i}
               >
                 <TableCell width={columnWidths.number} style={{ fontWeight: textWeight }}>
@@ -495,7 +509,7 @@ export const FedExPackageDispatchPDF = ({
           <View style={[styles.tableContainer, { borderColor: '#ff9999' }]} break>
             <View style={[styles.tableHeader, { backgroundColor: '#ff9999' }]} fixed>
               <Text style={[styles.symbologyText, { color: 'white', fontSize: 10, width: '100%', textAlign: 'center' }]}>
-                🚨 TRACKINGS INVÁLIDOS / NO ENCONTRADOS
+                TRACKINGS INVÁLIDOS / NO ENCONTRADOS
               </Text>
             </View>
             
@@ -513,7 +527,7 @@ export const FedExPackageDispatchPDF = ({
             </View>
 
             {invalidTrackings.map((tracking, index) => {
-              const globalIndex = packages.length + index;
+              const globalIndex = orderedPackages.length + index;
               return (
                 <View 
                   style={[

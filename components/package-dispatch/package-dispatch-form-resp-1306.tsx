@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Trash2, Send, Scan, MapPin, User, Phone, BanknoteIcon, Package, ClipboardPasteIcon, CircleAlertIcon, GemIcon, Loader2, Search, X, Download, Clock } from "lucide-react";
+import { AlertCircle, Trash2, Send, Scan, MapPinIcon, MapPin, User, Phone, BanknoteIcon, Package, ClipboardPasteIcon, CircleAlertIcon, GemIcon, Loader2, Search, Filter, ChevronDown, ChevronUp, X, Download } from "lucide-react";
 import { RepartidorSelector } from "../selectors/repartidor-selector";
 import { RutaSelector } from "../selectors/ruta-selector";
 import { UnidadSelector } from "../selectors/unidad-selector";
@@ -20,28 +20,20 @@ import { BarcodeScannerInput } from "../barcode-scanner-input";
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
-import { normalizeScannedCode, isValidScannedCode } from "@/lib/tracking/normalize-scan";
-import { cn } from "@/lib/utils";
-import { compareByZip } from "@/lib/tracking/sort-by-zip";
-import { OperationHeader } from "@/components/shared/operation-header";
-import { StatBar } from "@/components/shared/stat-bar";
-import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
-import { PackageFilters } from "@/components/shared/package-filters";
-import { PackageListItem } from "@/components/shared/package-list-item";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   selectedSubsidiaryId: string | null;
   subsidiaryName?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
+
+const VALIDATION_REGEX = /^\d{10,12}$/;
 
 const formatMexicanPhoneNumber = (phone: string): string => {
   const cleaned = phone.replace(/\D/g, '');
@@ -57,22 +49,115 @@ const formatMexicanPhoneNumber = (phone: string): string => {
   return phone;
 };
 
-// Señal visual de "vence hoy" (fecha local del navegador).
-const isExpiringTodayLocal = (commitDateTime?: string | null): boolean => {
-  if (!commitDateTime) return false;
-  const d = new Date(commitDateTime);
-  const t = new Date();
+// Componente auxiliar para mostrar cada paquete
+const PackageItem = ({ 
+  pkg, 
+  onRemove, 
+  isLoading 
+}: {
+  pkg: PackageInfo;
+  onRemove: (trackingNumber: string) => void;
+  isLoading: boolean;
+}) => {
   return (
-    d.getFullYear() === t.getFullYear() &&
-    d.getMonth() === t.getMonth() &&
-    d.getDate() === t.getDate()
+    <div className="p-3 hover:bg-muted/20 transition-colors border-b">
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono font-medium text-sm">{pkg.trackingNumber}</span>
+
+            { pkg.shipmentType === 'fedex' ? (
+                <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
+              ) : (
+                <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
+              ) 
+            }  
+
+            <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
+              {pkg.isValid ? "Válido" : "Inválido"}
+            </Badge>
+            
+            {pkg.priority && (
+              <Badge
+                variant={
+                  pkg.priority === Priority.ALTA
+                    ? "destructive"
+                    : pkg.priority === Priority.MEDIA
+                    ? "secondary"
+                    : "outline"
+                }
+                className="text-xs"
+              >
+                {pkg.priority.toUpperCase()}
+              </Badge>
+            )}
+            
+            {pkg.isCharge && (
+              <Badge className="bg-green-600 text-xs">
+                CARGA/F2/31.5
+              </Badge>
+            )}
+            
+            {pkg.isHighValue && (
+              <Badge className="bg-violet-600 text-xs">
+                <GemIcon className="h-3 w-3 mr-1" />
+              </Badge>
+            )}
+            
+            {pkg.payment && (
+              <Badge className="bg-blue-600 text-xs">
+                <BanknoteIcon className="h-3 w-3 mr-1" />
+                A COBRAR: {pkg.payment.type} ${pkg.payment.amount}
+              </Badge>
+            )}
+          </div>
+          
+          {pkg.isValid && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
+              {pkg.recipientAddress && (
+                <div className="flex items-start gap-1">
+                  <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span className="line-clamp-1 text-xs">{pkg.recipientAddress}</span>
+                </div>
+              )}
+              {pkg.recipientName && (
+                <div className="flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  <span className="text-xs">{pkg.recipientName}</span>
+                </div>
+              )}
+              {pkg.recipientPhone && (
+                <div className="flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  <span className="text-xs">{formatMexicanPhoneNumber(pkg.recipientPhone)}</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {!pkg.isValid && (
+            <div className="flex items-center gap-1 text-sm text-destructive">
+              <AlertCircle className="w-3 h-3" />
+              <span className="text-xs">{pkg.reason}</span>
+            </div>
+          )}
+        </div>
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onRemove(pkg.trackingNumber)}
+          disabled={isLoading}
+          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 size={12} />
+        </Button>
+      </div>
+    </div>
   );
 };
 
-
 const PackageDispatchForm: React.FC<Props> = ({
-  open,
-  onOpenChange,
   selectedSubsidiaryId: propSubsidiaryId,
   subsidiaryName: propSubsidiaryName,
   onClose,
@@ -139,11 +224,9 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   // Estados de UI
   const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [filterCarrier, setFilterCarrier] = useState<string>("all");
-  const [onlyToday, setOnlyToday] = useState(false);
-  const [onlyPayment, setOnlyPayment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
@@ -196,32 +279,33 @@ const PackageDispatchForm: React.FC<Props> = ({
   };
 
   const handleValidatePackages = async () => {
-    // 1. Limpiar input inmediatamente
-    const rawData = trackingNumbersRaw;
-    setTrackingNumbersRaw(""); 
-
-    if (!selectedSubsidiaryId || !rawData.trim()) return;
-
-    const lines = rawData.split("\n").map(l => l.trim()).filter(Boolean);
-
-    // Normalizamos cada línea y clasificamos por paquetería (FedEx/DHL).
-    // Es idempotente: aunque el escáner ya normalizó, esto cubre el pegado/tecleo manual.
-    const validCodes = new Set<string>();
-    const invalids: string[] = [];
-
-    for (const line of lines) {
-      const normalized = normalizeScannedCode(line);
-      if (isValidScannedCode(normalized)) {
-        validCodes.add(normalized.code); // dedupe por código final
-      } else {
-        invalids.push(line);
-      }
+    if (!selectedSubsidiaryId) {
+      toast({
+        title: "Error",
+        description: "No se pudo determinar la sucursal. Por favor, selecciona una sucursal.",
+        variant: "destructive",
+      });
+      return;
     }
 
-    const validNumbers = Array.from(validCodes);
+    const lines = trackingNumbersRaw
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+      
+    console.log("🚀 ~ handleValidatePackages ~ lines:", lines)
+
+    const uniqueLines = Array.from(new Set(lines));
+    const validNumbers = uniqueLines.filter((tn) => VALIDATION_REGEX.test(tn));
+    console.log("🚀 ~ handleValidatePackages ~ validNumbers:", validNumbers)
+    const invalids = uniqueLines.filter((tn) => !VALIDATION_REGEX.test(tn));
 
     if (validNumbers.length === 0) {
-      setInvalidNumbers(Array.from(new Set(invalids)));
+      toast({
+        title: "Error",
+        description: "No se ingresaron números válidos.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -230,47 +314,31 @@ const PackageDispatchForm: React.FC<Props> = ({
 
     const results: PackageInfo[] = [];
     for (let i = 0; i < validNumbers.length; i++) {
-      // validatePackageForDispatch ya debe llamar a tu servicio con la lógica de variante
-      const info = await validatePackageForDispatch(validNumbers[i]);
+      const tn = validNumbers[i];
+      const info = await validatePackageForDispatch(tn);
       results.push(info);
       setProgress(Math.round(((i + 1) / validNumbers.length) * 100));
     }
 
-    // 2. FILTRADO ÚNICO Y CORRECTO
-    setPackages((prev) => {
-      // Filtramos los resultados nuevos contra lo que ya existe
-      const newItems = results.filter((r) => {
-        // Usamos dhlUniqueId si existe (DHL), si no, el trackingNumber (FedEx/Otros)
-        const rId = (r as any).dhlUniqueId || r.trackingNumber;
-        
-        // Verificamos si este ID ya existe en el estado previo
-        const exists = prev.some((p) => {
-          const pId = (p as any).dhlUniqueId || p.trackingNumber;
-          return pId === rId;
-        });
-        
-        return !exists;
-      });
-      
-      return [...prev, ...newItems];
-    });
+    const newPackages = results.filter((r) => !packages.some((p) => p.trackingNumber === r.trackingNumber));
 
-    // 3. Eliminamos el segundo setPackages que estaba duplicando todo
-    setInvalidNumbers(Array.from(new Set(invalids)));
+    setPackages((prev) => [...prev, ...newPackages]);
+    setInvalidNumbers(invalids);
+    setTrackingNumbersRaw("");
     setProgress(0);
     setIsLoading(false);
 
+    const validCount = newPackages.filter((p) => p.isValid).length;
+    const invalidCount = newPackages.filter((p) => !p.isValid).length;
+
     toast({
       title: "Validación completada",
-      description: `Se agregaron ${results.length} paquetes.`,
+      description: `Se agregaron ${validCount} paquetes válidos. Paquetes inválidos: ${invalidCount + invalids.length}`,
     });
   };
 
-  const handleRemovePackage = useCallback((identifier: string) => {
-    setPackages((prev) => prev.filter((p) => {
-      const pId = (p as any).dhlUniqueId || p.trackingNumber;
-      return pId !== identifier;
-    }));
+  const handleRemovePackage = useCallback((trackingNumber: string) => {
+    setPackages((prev) => prev.filter((p) => p.trackingNumber !== trackingNumber));
   }, [setPackages]);
 
   // Función para limpiar TODO el almacenamiento
@@ -520,131 +588,134 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   // Revalidar paquetes offline cuando se recupera conexión
   useEffect(() => {
-    // Solo ejecutamos si hay conexión y hay paquetes offline
-    const offlinePackages = packages.filter(pkg => pkg.isOffline);
-    
-    if (isOnline && offlinePackages.length > 0 && selectedSubsidiaryId) {
-      toast({
-        title: "Revalidando paquetes",
-        description: `Revalidando ${offlinePackages.length} paquetes...`,
-      });
-      
-      // Procesamos la revalidación
-      offlinePackages.forEach(async (pkg) => {
-        try {
-          const validated = await validateTrackingNumber(pkg.trackingNumber, selectedSubsidiaryId);
-          
-          // Actualizamos el estado asegurándonos de que ya no tenga isOffline
-          setPackages(prev => prev.map(prevPkg => 
-            prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
-          ));
-        } catch (error) {
-          console.error("Error revalidando paquete offline:", error);
-        }
-      });
+    if (isOnline) {
+      const offlinePackages = packages.filter(pkg => pkg.isOffline);
+      if (offlinePackages.length > 0 && selectedSubsidiaryId) {
+        toast({
+          title: "Revalidando paquetes",
+          description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
+        });
+        
+        offlinePackages.forEach(async (pkg) => {
+          try {
+            const validated = await validateTrackingNumber(pkg.trackingNumber, selectedSubsidiaryId);
+            setPackages(prev => prev.map(prevPkg => 
+              prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
+            ));
+          } catch (error) {
+            console.error("Error revalidando paquete offline:", error);
+          }
+        });
+      }
     }
-  }, [isOnline, selectedSubsidiaryId]);
+  }, [isOnline, packages, selectedSubsidiaryId, setPackages, toast]);
 
   const validPackages = packages.filter((p) => p.isValid);
   const invalidPackages = packages.filter((p) => !p.isValid);
   const canDispatch = selectedRepartidores.length > 0 && selectedRutas.length > 0 && selectedUnidad && validPackages.length > 0 && selectedKms;
 
-  // Resumen de la jornada (sobre paquetes válidos): urgencias y dinero a cobrar.
-  const packageStats = useMemo(() => {
-    let expiringToday = 0, withPayment = 0, totalToCollect = 0, f2 = 0, highValue = 0, fedex = 0, dhl = 0;
-    for (const p of validPackages) {
-      if (isExpiringTodayLocal(p.commitDateTime)) expiringToday++;
-      if (p.payment) { withPayment++; totalToCollect += Number(p.payment.amount) || 0; }
-      if (p.isCharge) f2++;
-      if (p.isHighValue) highValue++;
-      if (p.shipmentType === "fedex") fedex++;
-      if (p.shipmentType === "dhl") dhl++;
-    }
-    return { total: validPackages.length, expiringToday, withPayment, totalToCollect, f2, highValue, fedex, dhl };
-  }, [validPackages]);
-
   // Filtrado de paquetes
   const filteredValidPackages = useMemo(() => {
     return validPackages.filter(pkg => {
-      const uniqueId = pkg.dhlUniqueId || "";
-
-      const matchesSearch = pkg.trackingNumber.includes(searchTerm) ||
-                            uniqueId.includes(searchTerm) ||
+      const matchesSearch = pkg.trackingNumber.includes(searchTerm) || 
                            (pkg.recipientName && pkg.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                           (pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                           (pkg.recipientZip && pkg.recipientZip.includes(searchTerm));
-
+                           (pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase()));
+      
       const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
-      const matchesStatus = filterStatus === "all" ||
+      const matchesStatus = filterStatus === "all" || 
                            (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
                            (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
-      const matchesCarrier = filterCarrier === "all" || pkg.shipmentType === filterCarrier;
-      const matchesToday = !onlyToday || isExpiringTodayLocal(pkg.commitDateTime);
-      const matchesPayment = !onlyPayment || !!pkg.payment;
-
-      return matchesSearch && matchesPriority && matchesStatus && matchesCarrier && matchesToday && matchesPayment;
-    }).sort(compareByZip); // ordenado por código postal (igual que el PDF/Excel)
-  }, [validPackages, searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment]);
-
-  const activeFilterCount =
-    (filterPriority !== "all" ? 1 : 0) +
-    (filterStatus !== "all" ? 1 : 0) +
-    (filterCarrier !== "all" ? 1 : 0) +
-    (onlyToday ? 1 : 0) +
-    (onlyPayment ? 1 : 0);
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setFilterPriority("all");
-    setFilterStatus("all");
-    setFilterCarrier("all");
-    setOnlyToday(false);
-    setOnlyPayment(false);
-  };
+      
+      return matchesSearch && matchesPriority && matchesStatus;
+    });
+  }, [validPackages, searchTerm, filterPriority, filterStatus]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Salida de Paquetes</DialogTitle>
-        </DialogHeader>
+    <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
+      {/* TabHeader */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-muted rounded-lg border">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+              <ClipboardPasteIcon className="h-6 w-6" />
+            </div>
+            Salida de Paquetes
+            {!isOnline && (
+              <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800">
+                ⚡ Modo offline
+              </Badge>
+            )}
+            {packages.length > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {validPackages.length} válidos / {packages.length} total
+              </Badge>
+            )}
+          </h1>
+          <p className="text-muted-foreground">
+            {isOnline 
+              ? "Procesa la salida de paquetes para reparto en ruta" 
+              : "Trabajando en modo offline - los datos se guardan localmente"
+            }
+          </p>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
+            <MapPinIcon className="h-4 w-4" />
+            <span>Sucursal: {selectedSubsidiaryName}</span>
+          </div>
+          
+          {(packages.length > 0 || selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad) && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllStorage}
+                className="gap-2"
+                disabled={isLoading}
+              >
+                <Trash2 className="h-4 w-4" />
+                Limpiar todo
+              </Button>
+              
+              {!isOnline && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="bg-blue-100 text-blue-800 cursor-help">
+                        💾 Datos locales
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Los datos se guardan en tu navegador</p>
+                      <p>Se mantendrán aunque cierres la página</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
-          {/* Header estandarizado */}
-          <OperationHeader
-            icon={ClipboardPasteIcon}
-        title="Salida de Paquetes"
-        description="Procesa la salida de paquetes para reparto en ruta"
-        subsidiaryName={selectedSubsidiaryName}
-        isOffline={!isOnline}
-        actions={
-          (packages.length > 0 || selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad) ? (
-            <TooltipProvider delayDuration={100}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={clearAllStorage}
-                    disabled={isLoading}
-                    className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Limpiar todo</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : null
-        }
-      />
+      {/* Mensaje de advertencia cuando está offline */}
+      {!isOnline && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600" />
+            <div>
+              <h3 className="font-medium text-yellow-800">Modo offline</h3>
+              <p className="text-yellow-700 text-sm">
+                Estás trabajando sin conexión. Los datos se guardan localmente y 
+                se sincronizarán cuando recuperes la conexión.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left Column - Configuration */}
         <div className="xl:col-span-1 space-y-6">
           {/* Team Configuration Card */}
@@ -729,11 +800,10 @@ const PackageDispatchForm: React.FC<Props> = ({
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <BarcodeScannerInput
-                  label=""
-                  multiCarrier
-                  onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)}
+                  label="" 
+                  onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)} 
                   disabled={isLoading || !selectedSubsidiaryId}
-                  placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
+                  placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escribe o escanea números de tracking"}
                 />
               </div>
               
@@ -764,62 +834,103 @@ const PackageDispatchForm: React.FC<Props> = ({
           </Card>
         </div>
 
-        {/* Right Column - Packages List (panel abierto, sin Card) */}
-        <div className="xl:col-span-2 space-y-3">
-          <PackagesPanelHeader subtitle={`${packages.length} en lista`} isOffline={!isOnline} />
-              {/* Banner de urgencia: paquetes que vencen hoy */}
-              {packageStats.expiringToday > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setOnlyToday((v) => !v)}
-                  className="w-full flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-800 hover:bg-red-100 transition-colors"
-                >
-                  <Clock className="h-4 w-4 shrink-0" />
-                  <span className="font-semibold">{packageStats.expiringToday}</span>
-                  paquete(s) vencen <strong>hoy</strong>.
-                  <span className="ml-auto text-xs underline">
-                    {onlyToday ? "Quitar filtro" : "Ver solo estos"}
-                  </span>
-                </button>
-              )}
+        {/* Right Column - Packages List */}
+        <div className="xl:col-span-2 space-y-2">
+          {/* Packages Summary Card */}
+          <Card>
+            <CardHeader className="">
+              <div className="flex flex-col gap-4">
+                {/* Título */}
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Paquetes Validados
+                </CardTitle>
 
-              {/* Resumen de la jornada (StatBar estandarizado) */}
-              {validPackages.length > 0 && (
-                <StatBar
-                  items={[
-                    { label: "Total", value: packageStats.total, icon: Package },
-                    { label: "Vencen hoy", value: packageStats.expiringToday, valueClassName: "text-red-600", icon: Clock },
-                    {
-                      label: "A cobrar",
-                      value: `$${packageStats.totalToCollect.toLocaleString("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
-                      valueClassName: "text-blue-600",
-                      icon: BanknoteIcon,
-                    },
-                    { label: "Con cobro", value: packageStats.withPayment, valueClassName: "text-blue-600" },
-                    { label: "F2 / Carga", value: packageStats.f2, valueClassName: "text-green-600" },
-                    { label: "Alto valor", value: packageStats.highValue, valueClassName: "text-violet-600", icon: GemIcon },
-                    { label: "FedEx", value: packageStats.fedex, valueClassName: "text-[#4d148c]" },
-                    { label: "DHL", value: packageStats.dhl, valueClassName: "text-[#d40511]" },
-                  ]}
-                />
-              )}
+                {/* Simbología */}
+                <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium">Simbología:</span>
 
-              <PackageFilters
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                carrier={filterCarrier}
-                onCarrierChange={setFilterCarrier}
-                onlyToday={onlyToday}
-                onToggleToday={() => setOnlyToday((v) => !v)}
-                onlyPayment={onlyPayment}
-                onTogglePayment={() => setOnlyPayment((v) => !v)}
-                priority={filterPriority}
-                onPriorityChange={setFilterPriority}
-                type={filterStatus}
-                onTypeChange={setFilterStatus}
-                activeFilterCount={activeFilterCount}
-                onClear={clearFilters}
-              />
+                  <div className="flex flex-row flex-wrap justify-end gap-3">
+                    <div className="flex items-center gap-1">
+                      <CircleAlertIcon className="h-3 w-3 text-destructive" />
+                      <span>No Válido</span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Badge className="h-4 text-white bg-green-600">CARGA/F2/31.5</Badge>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Badge className="h-4 bg-violet-600">
+                        <GemIcon className="h-3 w-3" />
+                      </Badge>
+                      <span>Alto Valor</span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Badge className="h-4 bg-blue-600">
+                        <BanknoteIcon className="h-3 w-3" />
+                        <span className="text-white">A COBRAR</span>
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-2">
+              {/* Search and Filters */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por tracking, destinatario o dirección..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                <Collapsible className="w-full sm:w-auto">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1">
+                      <Filter className="h-4 w-4" />
+                      Filtros
+                      {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-3 mt-3 p-4 bg-muted rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Prioridad</Label>
+                        <select 
+                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={filterPriority}
+                          onChange={(e) => setFilterPriority(e.target.value)}
+                        >
+                          <option value="all">Todas las prioridades</option>
+                          <option value="alta">Alta</option>
+                          <option value="media">Media</option>
+                          <option value="baja">Baja</option>
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-sm">Tipo de paquete</Label>
+                        <select 
+                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                        >
+                          <option value="all">Todos los tipos</option>
+                          <option value="special">Especial (carga, alto valor, cobro)</option>
+                          <option value="normal">Paquetes normales</option>
+                        </select>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
 
               {/* Packages Tabs */}
               {packages.length > 0 && (
@@ -839,17 +950,14 @@ const PackageDispatchForm: React.FC<Props> = ({
                     {filteredValidPackages.length > 0 ? (
                       <ScrollArea className="h-[400px] rounded-md border">
                         <div className="grid grid-cols-1 divide-y">
-                          {filteredValidPackages.map(pkg => {
-                            const uniqueKey = pkg.dhlUniqueId || pkg.trackingNumber;
-                            return (
-                              <PackageListItem
-                                key={`todos-${uniqueKey}`}
-                                pkg={pkg}
-                                onRemove={handleRemovePackage}
-                                isLoading={isLoading}
-                              />
-                            );
-                          })}
+                          {filteredValidPackages.map((pkg) => (
+                            <PackageItem 
+                              key={pkg.trackingNumber} 
+                              pkg={pkg} 
+                              onRemove={handleRemovePackage}
+                              isLoading={isLoading}
+                            />
+                          ))}
                         </div>
                       </ScrollArea>
                     ) : (
@@ -865,9 +973,9 @@ const PackageDispatchForm: React.FC<Props> = ({
                       <ScrollArea className="h-[300px] rounded-md border">
                         <div className="grid grid-cols-1 divide-y">
                           {invalidPackages.map((pkg) => (
-                            <PackageListItem
-                              key={pkg.trackingNumber}
-                              pkg={pkg}
+                            <PackageItem 
+                              key={pkg.trackingNumber} 
+                              pkg={pkg} 
                               onRemove={handleRemovePackage}
                               isLoading={isLoading}
                             />
@@ -891,31 +999,71 @@ const PackageDispatchForm: React.FC<Props> = ({
                   <p className="text-muted-foreground">Escanea algunos paquetes para comenzar</p>
                 </div>
               )}
+
+              {/* Summary Stats */}
+              {packages.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{validPackages.length}</div>
+                    <div className="text-sm text-muted-foreground">Válidos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-destructive">{invalidPackages.length}</div>
+                    <div className="text-sm text-muted-foreground">Inválidos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{selectedRepartidores.length}</div>
+                    <div className="text-sm text-muted-foreground">Repartidores</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{selectedRutas.length}</div>
+                    <div className="text-sm text-muted-foreground">Rutas</div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-between items-center p-6 bg-muted rounded-lg border">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose}
+              className="gap-2"
+            >
+              <X className="h-4 w-4" />
+              Cancelar
+            </Button>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                onClick={handlePdfCreate} 
+                disabled={isLoading || validPackages.length === 0} 
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Solo generar PDF
+              </Button>
+              
+              <Button
+                onClick={handleDispatch}
+                disabled={isLoading || !canDispatch}
+                className="gap-2"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Procesar salida
+              </Button>
             </div>
           </div>
         </div>
-
-        <DialogFooter className="flex-row justify-between gap-2 border-t bg-background p-3 sm:p-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="gap-2">
-            <X className="h-4 w-4" /> Cancelar
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              onClick={handlePdfCreate}
-              disabled={isLoading || validPackages.length === 0}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" /> Solo generar PDF
-            </Button>
-            <Button onClick={handleDispatch} disabled={isLoading || !canDispatch} className="gap-2">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Procesar salida
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 };
 

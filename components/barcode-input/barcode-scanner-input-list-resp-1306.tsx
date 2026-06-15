@@ -11,7 +11,6 @@ import classNames from "classnames";
 import { Label } from "@/components/ui/label";
 import { Scan, X, AlertCircle, Calendar, Copy, Check } from "lucide-react";
 import { PackageInfo } from "@/lib/types";
-import { normalizeScannedCode } from "@/lib/tracking/normalize-scan";
 
 export interface BarcodeScannerInputHandle {
   focus: () => void;
@@ -29,13 +28,6 @@ interface BarcodeScannerInputProps {
   onPackagesChange?: (packages: PackageInfo[]) => void;
   onTrackingNumbersChange?: (trackingNumbers: string) => void;
   onHasDueTomorrow?: (has: boolean) => void;
-  /**
-   * Habilita el escaneo mixto FedEx + DHL (normaliza JJD->JD, conserva el
-   * dhlUniqueId completo, limpia símbolos). Por defecto (false) mantiene el
-   * comportamiento histórico para no afectar a los padres existentes
-   * (desembarque, etc.).
-   */
-  multiCarrier?: boolean;
 }
 
 const BarcodeScannerInputComponent = forwardRef<
@@ -50,8 +42,7 @@ const BarcodeScannerInputComponent = forwardRef<
     hasErrors = false,
     onPackagesChange,
     onTrackingNumbersChange,
-    onHasDueTomorrow,
-    multiCarrier = false
+    onHasDueTomorrow
   },
   ref
 ) {
@@ -119,6 +110,7 @@ const BarcodeScannerInputComponent = forwardRef<
   const copyAllTrackingNumbers = useCallback(async () => {
     if (packages.length === 0) return;
     
+    // Copiar solo los números de guía, uno por línea
     const trackingNumbers = packages
       .map(p => p.trackingNumber)
       .join("\n");
@@ -127,16 +119,19 @@ const BarcodeScannerInputComponent = forwardRef<
       await navigator.clipboard.writeText(trackingNumbers);
       setCopied(true);
       
+      // Limpiar timeout anterior si existe
       if (copyTimeoutRef.current) {
         clearTimeout(copyTimeoutRef.current);
       }
       
+      // Resetear después de 2 segundos
       copyTimeoutRef.current = setTimeout(() => {
         setCopied(false);
       }, 2000);
       
     } catch (err) {
       console.error("Error al copiar:", err);
+      // Fallback para navegadores antiguos
       const textArea = document.createElement("textarea");
       textArea.value = trackingNumbers;
       document.body.appendChild(textArea);
@@ -159,29 +154,25 @@ const BarcodeScannerInputComponent = forwardRef<
       setPackages([]);
       onTrackingNumbersChange?.("");
     },
+    /*updateValidatedPackages: validatedPackages => {
+      setPackages(prev =>
+        prev.map(pkg => {
+          const validated = validatedPackages.find(
+            v => v.trackingNumber === pkg.trackingNumber
+          );
+          return validated
+            ? { ...validated, isPendingValidation: false }
+            : pkg;
+        })
+      );
+    }*/
     updateValidatedPackages: validatedPackages => {
       setPackages(prev =>
         prev.map(pkg => {
-          // Generamos variante JJD vs JD del paquete local
-          const localCode = String(pkg.trackingNumber).trim().toUpperCase();
-          let alternateLocalCode = localCode;
-          if (localCode.startsWith("JJD")) {
-            alternateLocalCode = localCode.substring(1);
-          } else if (localCode.startsWith("JD")) {
-            alternateLocalCode = "J" + localCode;
-          }
-
-          // Buscamos coincidencia tanto en trackingNumber como en dhlUniqueId
-          const validated = validatedPackages.find(v => {
-            const vTracking = String(v.trackingNumber || "").trim().toUpperCase();
-            const vUniqueId = String((v as any).dhlUniqueId || "").trim().toUpperCase();
-
-            return (
-              vTracking === localCode || vTracking === alternateLocalCode ||
-              (vUniqueId && (vUniqueId === localCode || vUniqueId === alternateLocalCode))
-            );
-          });
-
+          const validated = validatedPackages.find(
+            // Comparamos asegurando que solo queden números en ambas cadenas
+            v => String(v.trackingNumber).replace(/\D/g, '') === String(pkg.trackingNumber).replace(/\D/g, '')
+          );
           return validated
             ? { ...validated, isPendingValidation: false }
             : pkg;
@@ -217,6 +208,7 @@ const BarcodeScannerInputComponent = forwardRef<
     onHasDueTomorrow?.(dueTomorrow.length > 0);
   }, [packages]);
 
+  // Limpiar timeout al desmontar
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) {
@@ -231,59 +223,21 @@ const BarcodeScannerInputComponent = forwardRef<
     const lines = text
       .split("\n")
       .map(l => {
-        if (multiCarrier) {
-          // FedEx recorta a 12, DHL conserva completo (JJD->JD), limpia símbolos.
-          return normalizeScannedCode(l)?.code ?? null;
-        }
-        // Comportamiento histórico (no tocar para padres existentes).
-        const clean = l.trim().toUpperCase();
-        if (!clean) return null;
-        if (clean.length >= 20 && /^\d+$/.test(clean)) {
-          return clean.slice(-12);
-        }
-        return clean;
+        // 1. Limpiamos cualquier caracter que NO sea número (elimina letras, símbolos, espacios)
+        const clean = l.replace(/[^0-9]/g, '').trim();
+        // 2. Extraemos los últimos 12 (si tiene 10, los pasa intactos)
+        return clean.slice(-12);
       })
-      .filter(Boolean) as string[];
+      .filter(Boolean);
 
     if (!lines.length) return;
 
     setPackages(prev => {
-      // =========================================================================
-      // BLOQUE DE PROTECCIÓN ANTI-DUPLICADOS (Búsqueda en Tracking y UniqueID)
-      // =========================================================================
-      const existingSet = new Set<string>();
-
-      prev.forEach(p => {
-        const keys = [];
-        // Extraemos tracking principal
-        if (p.trackingNumber) keys.push(String(p.trackingNumber).trim().toUpperCase());
-        // Extraemos el sub-id de piezas (JJD/JD) devuelto por el backend
-        if ((p as any).dhlUniqueId) keys.push(String((p as any).dhlUniqueId).trim().toUpperCase());
-
-        // Metemos al Set el código base Y su variante para cubrir cualquier intento futuro
-        keys.forEach(k => {
-          existingSet.add(k);
-          if (k.startsWith("JJD")) existingSet.add(k.substring(1));
-          else if (k.startsWith("JD")) existingSet.add("J" + k);
-        });
-      });
-
+      const existing = prev.map(p => p.trackingNumber);
       const toAdd: PackageInfo[] = [];
 
       lines.forEach(line => {
-        let alternateLine = line;
-        if (line.startsWith("JJD")) {
-          alternateLine = line.substring(1);
-        } else if (line.startsWith("JD")) {
-          alternateLine = "J" + line;
-        }
-
-        // Solo agregamos si el Set no conoce ni el original ni su variante
-        if (!existingSet.has(line) && !existingSet.has(alternateLine)) {
-          // Actualizamos el Set de inmediato por si pegaron varios repetidos de un solo golpe
-          existingSet.add(line);
-          existingSet.add(alternateLine);
-          
+        if (!existing.includes(line)) {
           toAdd.push({
             id: `tmp-${Date.now()}-${Math.random()}`,
             trackingNumber: line,
@@ -297,7 +251,7 @@ const BarcodeScannerInputComponent = forwardRef<
     });
 
     setCurrentScan("");
-  }, [multiCarrier]);
+  }, []);
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
@@ -324,6 +278,7 @@ const BarcodeScannerInputComponent = forwardRef<
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <Label className="flex items-center gap-2 text-base font-medium">
           <Scan className="h-4 w-4" />
@@ -335,6 +290,7 @@ const BarcodeScannerInputComponent = forwardRef<
             Guías: <strong>{packages.length}</strong>
           </span>
           
+          {/* Botón para copiar todas las guías */}
           {packages.length > 0 && (
             <button
               onClick={copyAllTrackingNumbers}
@@ -362,6 +318,7 @@ const BarcodeScannerInputComponent = forwardRef<
         </div>
       </div>
 
+      {/* Body */}
       <div className={classNames("border rounded-md overflow-hidden", {
         "border-red-500": hasErrors,
         "bg-gray-100": disabled
@@ -398,6 +355,7 @@ const BarcodeScannerInputComponent = forwardRef<
                   }
                 )}
               >
+                {/* Línea 1 */}
                 <div className="flex justify-between items-start">
                   <span className="font-mono text-sm">
                     {pkg.trackingNumber}
@@ -422,6 +380,7 @@ const BarcodeScannerInputComponent = forwardRef<
                   </div>
                 </div>
 
+                {/* Línea 2 */}
                 {validated && pkg.commitDateTime && (
                   <div className={classNames("flex items-center gap-1 text-xs",{
                     "bg-red-50 text-red-600 border-red-200 font-semibold":
@@ -475,6 +434,7 @@ const BarcodeScannerInputComponent = forwardRef<
         </div>
       </div>
 
+      {/* Contadores */}
       <div className="flex flex-wrap justify-end gap-3 text-sm">
         <span className="flex items-center gap-1 text-red-700">
           <AlertCircle className="h-4 w-4" />

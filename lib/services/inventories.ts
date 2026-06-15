@@ -1,10 +1,17 @@
 import { axiosConfig } from "../axios-config"
 import { Inventory, InventoryRequest } from "../types"
+import { Paginated, ListParams } from "./pagination"
 
 const url = '/inventories'
 
-const getInventories = async (subsidiaryId: string) => {
-    const response = await axiosConfig.get<Inventory[]>(`${url}/${subsidiaryId}`);
+const getInventories = async (subsidiaryId: string, params: ListParams = {}) => {
+    const response = await axiosConfig.get<Paginated<Inventory>>(`${url}/${subsidiaryId}`, { params });
+    return response.data;
+}
+
+/** Inventario completo (con paquetes) para detalle / Excel. */
+export const getInventoryDetail = async (id: string) => {
+    const response = await axiosConfig.get<Inventory>(`${url}/detail/${id}`);
     return response.data;
 }
 
@@ -18,7 +25,19 @@ const validateInventory = async(trackingNumber: string) => {
     return response.data;
 }
 
-const validateTrackingNumbers = async(trackingNumbers: string[], subsidiaryId: string) => {
+export interface InventoryValidationPayload {
+    trackingNumber: string;
+    /** true = ya validado antes; el backend NO re-consulta la BD y reusa estos datos. */
+    isAlreadyValidated: boolean;
+    isValid?: boolean;
+    isCharge?: boolean;
+    [key: string]: any;
+}
+
+const validateTrackingNumbers = async(
+    trackingNumbers: InventoryValidationPayload[],
+    subsidiaryId: string
+) => {
     const response = await axiosConfig.post(
         `${url}/validate-tracking-numbers`,
         { trackingNumbers, subsidiaryId }

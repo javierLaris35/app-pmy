@@ -657,6 +657,7 @@ const Step2ScanAndValidate = ({
           <div className="space-y-2">
             <BarcodeScannerInput
               ref={barScannerInputRef}
+              multiCarrier
               onPackagesChange={onPackagesChange}
               disabled={isLoading}
               placeholder="Escribe o escanea números de tracking"

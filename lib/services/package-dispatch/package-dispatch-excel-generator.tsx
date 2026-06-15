@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver';
 import { PackageDispatch, PackageInfo } from '@/lib/types';
 import { format, toZonedTime } from 'date-fns-tz';
 import { mapToPackageInfo } from '@/lib/utils';
+import { sortByZip } from '@/lib/tracking/sort-by-zip';
 
 export async function generateDispatchExcelClient(
   data: PackageDispatch,
@@ -12,7 +13,10 @@ export async function generateDispatchExcelClient(
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Despacho');
   const timeZone = 'America/Hermosillo';
-  const packages: PackageInfo[] = mapToPackageInfo(data.shipments, data.chargeShipments);
+  // Ordenado por código postal (recipientZip) para seguir la ruta.
+  const packages: PackageInfo[] = sortByZip(
+    mapToPackageInfo(data.shipments, data.chargeShipments)
+  );
 
   // === ENCABEZADO GENERAL (A:I) ===
   const titleRow = sheet.addRow([`🚚 Salida a Ruta`]);

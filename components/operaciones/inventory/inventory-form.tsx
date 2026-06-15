@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
@@ -26,30 +27,32 @@ import {
   Search,
   Filter,
   ChevronDown,
-  ChevronUp,
   Download,
   X,
-  MapPinIcon
+  Clock,
+  BanknoteIcon
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import {
   saveInventory,
   validateTrackingNumbers,
-  uploadFiles
+  uploadFiles,
+  InventoryValidationPayload
 } from "@/lib/services/inventories";
-import { InventoryPackage as InventoryPackageType, InventoryRequest, PackageInfo, Inventory } from "@/lib/types";
+import { InventoryRequest, PackageInfo, Inventory } from "@/lib/types";
 import { BarcodeScannerInput, BarcodeScannerInputHandle } from "@/components/barcode-input/barcode-scanner-input-list";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn } from "@/lib/utils";
 import { InventoryPDFReport } from "@/lib/services/inventory/inventory-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
 import { generateInventoryExcel } from "@/lib/services/inventory/inventory-excel-generator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Input } from "@/components/ui/input";
 import { LoaderWithOverlay } from "@/components/loader";
 import { ExpirationAlertModal } from "@/components/ExpirationAlertModal";
+import { OperationHeader } from "@/components/shared/operation-header";
+import { StatBar, StatItem } from "@/components/shared/stat-bar";
+import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
+import { PackageFilters } from "@/components/shared/package-filters";
+import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
 import {
   Select,
   SelectContent,
@@ -87,28 +90,12 @@ function useLocalStorage<T>(key: string, initialValue: T) {
 }
 
 interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   selectedSubsidiaryId?: string | null;
   subsidiaryName?: string | null;
   onClose?: () => void;
   onSuccess?: () => void;
-}
-
-interface InventoryPackage {
-  id?: string;
-  trackingNumber: string;
-  isValid: boolean;
-  reason?: string | null;
-  recipientName?: string | null;
-  recipientAddress?: string | null;
-  recipientPhone?: string | null;
-  priority?: "alta" | "media" | "baja" | null;
-  isCharge?: boolean;
-  isHighValue?: boolean;
-  payment?: { type: string; amount: number } | null;
-  commitDateTime?: string | null;
-  isPendingValidation?: boolean;
-  isOffline?: boolean;
-  createdAt?: Date;
 }
 
 enum TrackingNotFoundEnum {
@@ -118,7 +105,7 @@ enum TrackingNotFoundEnum {
 }
 
 // Tipos de inventario
-enum InventoryType {
+export enum InventoryType {
   INITIAL = "initial",      // Inventario Inicial
   DEX = "dex",             // Inventario DEX
   FINAL = "final"          // Inventario Final
@@ -134,157 +121,10 @@ interface ExpiringPackage {
   priority?: string;
 }
 
-const PackageItem = ({
-  pkg,
-  onRemove,
-  isLoading,
-  selectedReasons,
-  onSelectReason,
-  openPopover,
-  setOpenPopover,
-}: {
-  pkg: PackageInfo;
-  onRemove: (trackingNumber: string) => void;
-  isLoading: boolean;
-  selectedReasons: Record<string, string>;
-  onSelectReason: (id: string, value: string) => void;
-  openPopover: string | null;
-  setOpenPopover: (v: string | null) => void;
-}) => {
-  const formatMexicanPhoneNumber = (phone?: string | null) => {
-    if (!phone) return "";
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 10) return `+52 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    if (cleaned.length === 12 && cleaned.startsWith("52")) return `+52 (${cleaned.slice(2, 5)}) ${cleaned.slice(5, 8)}-${cleaned.slice(8)}`;
-    return phone;
-  };
+// Opciones de motivo para guías inválidas (inventario).
+const REASON_OPTIONS = Object.entries(TrackingNotFoundEnum).map(([key, label]) => ({ key, label }));
 
-  const options = Object.entries(TrackingNotFoundEnum).map(([k, v]) => ({ key: k, label: v }));
-
-  return (
-    <div className="p-4 hover:bg-muted/30 transition-colors border-b">
-      <div className="flex justify-between items-start gap-4">
-        <div className="flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono font-medium text-sm">{pkg.trackingNumber}</span>
-
-            { pkg.shipmentType === 'fedex' ? (
-                <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[10px] border-none shadow-sm uppercase">FedEx</Badge>
-              ) : (
-                <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[10px] border-none shadow-sm uppercase">DHL</Badge>
-              ) 
-            }
-
-            <Badge variant={pkg.isValid ? "success" : "destructive"} className="text-xs">
-              {pkg.isValid ? "Válido" : "Inválido"}
-            </Badge>
-
-            {pkg.priority && (
-              <Badge
-                variant={pkg.priority === "alta" ? "destructive" : pkg.priority === "media" ? "secondary" : "outline"}
-                className="text-xs"
-              >
-                {pkg.priority.toUpperCase()}
-              </Badge>
-            )}
-
-            {pkg.isCharge && <Badge className="bg-green-600 text-xs">CARGA/F2/31.5</Badge>}
-            {pkg.isHighValue && (
-              <Badge className="bg-violet-600 text-xs">
-                <GemIcon className="h-3 w-3 mr-1" />
-                Alto Valor
-              </Badge>
-            )}
-            {pkg.payment && (
-              <Badge className="bg-blue-600 text-xs">
-                <DollarSignIcon className="h-3 w-3 mr-1" />
-                {pkg.payment.type} ${pkg.payment.amount}
-              </Badge>
-            )}
-            {pkg.isPendingValidation && (
-              <Badge className="bg-amber-500 text-xs">
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Validando...
-              </Badge>
-            )}
-            {pkg.isOffline && (
-              <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-xs">
-                ⚡ Offline
-              </Badge>
-            )}
-          </div>
-
-          {pkg.isValid && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
-              {pkg.recipientAddress && (
-                <div className="flex items-start gap-1">
-                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span className="line-clamp-1 text-xs">{pkg.recipientAddress}</span>
-                </div>
-              )}
-              {pkg.recipientName && (
-                <div className="flex items-center gap-1">
-                  <User className="w-4 h-4" />
-                  <span className="text-xs">{pkg.recipientName}</span>
-                </div>
-              )}
-              {pkg.recipientPhone && (
-                <div className="flex items-center gap-1">
-                  <Phone className="w-4 w-4" />
-                  <span className="text-xs">{formatMexicanPhoneNumber(pkg.recipientPhone)}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {!pkg.isValid && pkg.reason && (
-            <div className="flex items-center gap-1 text-sm text-destructive">
-              <AlertCircle className="w-4 h-4" />
-              <span className="text-xs">{pkg.reason}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col items-end gap-2">
-          {!pkg.isValid && !pkg.isPendingValidation && (
-            <Popover open={openPopover === pkg.trackingNumber} onOpenChange={(open) => setOpenPopover(open ? pkg.trackingNumber : null)}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="w-32 justify-between text-xs" disabled={isLoading}>
-                  {selectedReasons[pkg.trackingNumber] || "Motivo"}
-                  <ChevronsUpDown className="ml-2 h-3 w-3 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-40 p-0">
-                <Command>
-                  <CommandInput placeholder="Buscar motivo..." className="h-9" />
-                  <CommandList>
-                    <CommandEmpty>No se encontraron motivos.</CommandEmpty>
-                    <CommandGroup>
-                      {options.map((opt) => (
-                        <CommandItem key={opt.key} value={opt.label} onSelect={() => onSelectReason(pkg.trackingNumber, opt.label)} className="text-xs">
-                          <Check className={cn("mr-2 h-4 w-4", selectedReasons[pkg.trackingNumber] === opt.label ? "opacity-100" : "opacity-0")} />
-                          {opt.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {!pkg.isPendingValidation && (
-            <Button variant="ghost" size="icon" onClick={() => onRemove(pkg.trackingNumber)} disabled={isLoading} className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10">
-              <Trash2 size={14} />
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, subsidiaryName: propSubsidiaryName, onClose, onSuccess }: Props) {
+export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId: propSubsidiaryId, subsidiaryName: propSubsidiaryName, onClose, onSuccess }: Props) {
   // Estados persistentes
   const [scannedPackages, setScannedPackages] = useLocalStorage<{trackingNumber: string}[]>(
     'inventory_scanned_packages', 
@@ -317,9 +157,11 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
   const [progress, setProgress] = useState(0);
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterCarrier, setFilterCarrier] = useState<string>("all");
+  const [onlyToday, setOnlyToday] = useState(false);
+  const [onlyPayment, setOnlyPayment] = useState(false);
   const [lastValidated, setLastValidated] = useState("");
   const [isValidationPackages, setIsValidationPackages] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -342,7 +184,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     return propSubsidiaryName || null;
   }, [propSubsidiaryName]);
 
-  // Función para verificar días hasta expiración (desde desembarque)
+  // Funciones de utilidad (Sonidos, expiraciones, etc.)
   const getDaysUntilExpiration = useCallback((commitDateTime?: string | null) => {
     if (!commitDateTime) return -1;
     const commitDate = new Date(commitDateTime);
@@ -353,7 +195,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   }, []);
 
-  // Sonido para paquetes que expiran hoy (desde desembarque)
+  // Sonido para paquetes que VENCEN HOY (doble beep agudo).
   const playExpirationSound = useCallback(() => {
     if (typeof window === "undefined") return;
     try {
@@ -365,7 +207,6 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       oscillator.type = "square";
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
-
       const now = audioContext.currentTime;
       oscillator.frequency.setValueAtTime(1000, now);
       gainNode.gain.setValueAtTime(0.2, now);
@@ -373,7 +214,6 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       oscillator.frequency.setValueAtTime(1000, now + 0.15);
       gainNode.gain.setValueAtTime(0.2, now + 0.15);
       gainNode.gain.setValueAtTime(0, now + 0.25);
-
       oscillator.start(now);
       oscillator.stop(now + 0.3);
     } catch (err) {
@@ -381,7 +221,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   }, []);
 
-  // Sonido para paquetes que expiran mañana (desde desembarque)
+  // Sonido para paquetes que VENCEN MAÑANA (un beep suave).
   const playTomorrowExpirationSound = useCallback(() => {
     if (typeof window === "undefined") return;
     try {
@@ -404,7 +244,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   }, []);
 
-  // Sonido para guías inválidas o no encontradas (desde desembarque)
+  // Sonido para guías INVÁLIDAS / NO ENCONTRADAS (dos tonos descendentes).
   const playInvalidSound = useCallback(() => {
     if (typeof window === "undefined") return;
     try {
@@ -413,10 +253,9 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       const audioContext = new AudioCtx();
       const now = audioContext.currentTime;
 
-      // Primer tono (ping alto)
       const o1 = audioContext.createOscillator();
       const g1 = audioContext.createGain();
-      o1.type = 'triangle';
+      o1.type = "triangle";
       o1.frequency.setValueAtTime(880, now);
       g1.gain.setValueAtTime(0.15, now);
       o1.connect(g1);
@@ -424,11 +263,10 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       o1.start(now);
       o1.stop(now + 0.09);
 
-      // Segundo tono (ping más bajo) separado ligeramente
       const o2 = audioContext.createOscillator();
       const g2 = audioContext.createGain();
       const t2 = now + 0.12;
-      o2.type = 'triangle';
+      o2.type = "triangle";
       o2.frequency.setValueAtTime(660, t2);
       g2.gain.setValueAtTime(0.15, t2);
       o2.connect(g2);
@@ -440,7 +278,6 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   }, []);
 
-  // Función para manejar la detección de expiración (desde desembarque)
   const handleExpirationCheck = useCallback((newPackages: PackageInfo[]) => {
     const expiringToday: ExpiringPackage[] = [];
     const expiringTomorrow: ExpiringPackage[] = [];
@@ -472,7 +309,6 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     if (expiringToday.length > 0) {
       setExpiringPackages(expiringToday);
       setCurrentExpiringIndex(0);
-      // Reproducir sonido de expiración hoy
       playExpirationSound();
       const newShown = new Set(shownExpiringPackages);
       expiringToday.forEach(p => newShown.add(p.trackingNumber));
@@ -482,7 +318,6 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     if (expiringTomorrow.length > 0) {
       setExpiringPackages(expiringTomorrow);
       setCurrentExpiringIndex(0);
-      // Reproducir sonido de expiración mañana
       playTomorrowExpirationSound();
       const newShown = new Set(shownExpiringPackages);
       expiringTomorrow.forEach(p => newShown.add(p.trackingNumber));
@@ -490,86 +325,26 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   }, [getDaysUntilExpiration, shownExpiringPackages, setShownExpiringPackages, playExpirationSound, playTomorrowExpirationSound]);
 
-  // Detectar estado de conexión
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     setIsOnline(navigator.onLine);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // Revalidar paquetes offline cuando se recupera conexión
-  useEffect(() => {
-    if (isOnline) {
-      const offlinePackages = packages.filter(pkg => pkg.isOffline);
-      if (offlinePackages.length > 0 && selectedSubsidiaryId) {
-        toast({
-          title: "Revalidando paquetes",
-          description: `Revalidando ${offlinePackages.length} paquetes creados offline...`,
-        });
-        
-        // Revalidar paquetes offline
-        offlinePackages.forEach(async (pkg) => {
-          try {
-            const result = await validateTrackingNumbers(
-              [pkg.trackingNumber], 
-              selectedSubsidiaryId
-            );
-            
-            let validatedPackages: PackageInfo[] = [];
-            
-            if (Array.isArray(result)) {
-              validatedPackages = result;
-            } else if (result && typeof result === 'object') {
-              if (Array.isArray(result.validatedPackages)) {
-                validatedPackages = result.validatedPackages;
-              } else if (Array.isArray(result.validatedShipments)) {
-                validatedPackages = result.validatedShipments;
-              } else if (Array.isArray(result.packages)) {
-                validatedPackages = result.packages;
-              } else {
-                // Si no es un array, intentar convertirlo
-                validatedPackages = Object.values(result).filter(item => 
-                  item && typeof item === 'object' && 'trackingNumber' in item
-                ) as PackageInfo[];
-              }
-            }
-
-            if (validatedPackages.length > 0) {
-              const validated = validatedPackages[0];
-              setPackages(prev => prev.map(prevPkg => 
-                prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
-              ));
-            }
-          } catch (error) {
-            console.error("Error revalidando paquete offline:", error);
-          }
-        });
-      }
-    }
-  }, [isOnline, packages, selectedSubsidiaryId, setPackages, toast]);
-
-  // Validación automática como en UnloadingForm
   useEffect(() => {
     if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
-    
     const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber).join("\n");
-    
     if (trackingNumbers === lastValidated) return;
-
     const handler = setTimeout(() => {
       handleValidatePackages();
       setLastValidated(trackingNumbers);
     }, 500);
-
     return () => clearTimeout(handler);
   }, [scannedPackages, selectedSubsidiaryId, isLoading, lastValidated]);
 
@@ -586,34 +361,13 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
 
   const simulateScannerEnter = (inputElement: HTMLTextAreaElement | null) => {
     if (!inputElement) return;
-
-    const enterKeyEvent = new KeyboardEvent('keydown', {
-      key: 'Enter',
-      code: 'Enter',
-      keyCode: 13,
-      which: 13,
-      bubbles: true,
-      cancelable: true
-    });
-
+    const enterKeyEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
     inputElement.dispatchEvent(enterKeyEvent);
-
-    const enterKeyUpEvent = new KeyboardEvent('keyup', {
-      key: 'Enter',
-      code: 'Enter',
-      keyCode: 13,
-      which: 13,
-      bubbles: true,
-      cancelable: true
-    });
-
+    const enterKeyUpEvent = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
     inputElement.dispatchEvent(enterKeyUpEvent);
-
     const inputEvent = new Event('input', { bubbles: true });
     inputElement.dispatchEvent(inputEvent);
   };
-
-  const options = Object.entries(TrackingNotFoundEnum).map(([key, value]) => ({ key, label: value }));
 
   const handleSelectMissingTracking = (id: string, value: string) => {
     setSelectedReasons(prev => ({ ...prev, [id]: value }));
@@ -628,11 +382,9 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       setMissingTrackings(prev => prev.filter(item => item !== id));
       setUnScannedTrackings(prev => prev.filter(item => item !== id));
     }
-
     setOpenPopover(null);
   };
 
-  // Función para limpiar TODO el almacenamiento
   const clearAllStorage = useCallback(() => {
     const keys = [
       'inventory_scanned_packages',
@@ -642,57 +394,23 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       'inventory_selected_reasons',
       'inventory_type'
     ];
-
     keys.forEach(key => {
-      try {
-        window.localStorage.removeItem(key);
-      } catch (error) {
-        console.warn(`Error clearing ${key}:`, error);
-      }
+      try { window.localStorage.removeItem(key); } catch (error) { console.warn(`Error clearing ${key}:`, error); }
     });
 
-    // Resetear estados persistentes
     setScannedPackages([]);
     setPackages([]);
     setMissingTrackings([]);
     setUnScannedTrackings([]);
     setSelectedReasons({});
     setInventoryType(InventoryType.INITIAL);
-    // Limpiar también los paquetes mostrados para expiración
     setShownExpiringPackages(new Set());
 
     toast({
       title: "Datos limpiados",
       description: "Todos los datos locales han sido eliminados.",
     });
-  }, [
-    setScannedPackages,
-    setPackages,
-    setMissingTrackings,
-    setUnScannedTrackings,
-    setSelectedReasons,
-    setInventoryType
-  ]);
-
-  // Funciones para manejo de expiración
-  const checkPackageExpiration = useCallback((pkg: PackageInfo): boolean => {
-    if (!pkg.commitDateTime) return false;
-
-    try {
-      const commitDate = new Date(pkg.commitDateTime);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      commitDate.setHours(0, 0, 0, 0);
-
-      const timeDiff = commitDate.getTime() - today.getTime();
-      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-      return daysDiff === 0;
-    } catch (error) {
-      console.error("Error checking package expiration:", error, pkg);
-      return false;
-    }
-  }, []);
+  }, [setScannedPackages, setPackages, setMissingTrackings, setUnScannedTrackings, setSelectedReasons, setInventoryType]);
 
   const handleNextExpiring = useCallback(() => {
     const packagesDueToday = expiringPackages.filter(pkg => pkg.daysUntilExpiration === 0);
@@ -701,17 +419,13 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     } else {
       setExpirationAlertOpen(false);
       setCurrentExpiringIndex(0);
-
       setTimeout(() => {
         if (barScannerInputRef.current) {
           barScannerInputRef.current.focus();
           try {
             const inputElement = barScannerInputRef.current.getInputElement();
             if (inputElement) {
-              inputElement.setSelectionRange(
-                  inputElement.value.length,
-                  inputElement.value.length
-              );
+              inputElement.setSelectionRange(inputElement.value.length, inputElement.value.length);
               simulateScannerEnter(inputElement);
             }
           } catch (e) {
@@ -728,33 +442,30 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   }, [currentExpiringIndex]);
 
-  // Validar paquetes TODOS A LA VEZ como en UnloadingForm
   const handleValidatePackages = async () => {
     if (isLoading || isValidationPackages) return;
 
     if (!selectedSubsidiaryId) {
-      toast({
-        title: "Error",
-        description: "Selecciona una sucursal antes de validar.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Selecciona una sucursal antes de validar.", variant: "destructive" });
       setIsValidationPackages(false);
       return;
     }
 
-    // Obtener tracking numbers de los paquetes escaneados
-    const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber);
-    //const validNumbers = trackingNumbers.filter((tn) => /^\d{12}$/.test(tn));
-    //const invalidNumbers = trackingNumbers.filter((tn) => !/^\d{12}$/.test(tn));
-    const validNumbers = trackingNumbers.filter((tn) => /^[A-Za-z0-9]{10,12}$/.test(tn));
-    const invalidNumbers = trackingNumbers.filter((tn) => !/^[A-Za-z0-9]{10,12}$/.test(tn));
+    // Guías escaneadas (dedup conservando orden de escaneo).
+    const scanned = scannedPackages.map(pkg => pkg.trackingNumber);
+    const seenScan = new Set<string>();
+    const uniqueScanned = scanned.filter(tn => {
+      const k = (tn || "").trim().toUpperCase();
+      if (!k || seenScan.has(k)) return false;
+      seenScan.add(k);
+      return true;
+    });
 
-    if (validNumbers.length === 0) {
-      toast({
-        title: "Error",
-        description: "No se ingresaron números válidos.",
-        variant: "destructive",
-      });
+    const validNumbers = uniqueScanned.filter((tn) => /^[A-Za-z0-9]{8,35}$/.test(tn));
+    const invalidNumbers = uniqueScanned.filter((tn) => !/^[A-Za-z0-9]{8,35}$/.test(tn));
+
+    if (validNumbers.length === 0 && invalidNumbers.length === 0) {
+      toast({ title: "Error", description: "No se ingresaron números.", variant: "destructive" });
       setIsValidationPackages(false);
       return;
     }
@@ -764,72 +475,73 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     setProgress(0);
 
     try {
-      // Validar todos los paquetes a la vez como en UnloadingForm
-      const result = await validateTrackingNumbers(validNumbers, selectedSubsidiaryId);
+      // Códigos ya validados (no pendientes): no se reconsultan.
+      const validatedCodes = new Set<string>();
+      packages.forEach(p => {
+        if (p.isPendingValidation) return;
+        if (p.trackingNumber) validatedCodes.add(p.trackingNumber.trim().toUpperCase());
+        if (p.dhlUniqueId) validatedCodes.add(p.dhlUniqueId.trim().toUpperCase());
+      });
 
-      // Extraer los paquetes validados del resultado
-      let validatedPackages: PackageInfo[] = [];
-      
-      // Diferentes formas en que podría estar estructurada la respuesta
-      if (Array.isArray(result)) {
-        validatedPackages = result;
-      } else if (result && typeof result === 'object') {
-        if (Array.isArray(result.validatedPackages)) {
-          validatedPackages = result.validatedPackages;
-        } else if (Array.isArray(result.validatedShipments)) {
-          validatedPackages = result.validatedShipments;
-        } else if (Array.isArray(result.packages)) {
-          validatedPackages = result.packages;
-        } else {
-          // Si no es un array, intentar convertirlo
-          validatedPackages = Object.values(result).filter(item => 
-            item && typeof item === 'object' && 'trackingNumber' in item
-          ) as PackageInfo[];
-        }
+      // Solo lo NUEVO pega al backend => validación "en vivo" (payload liviano).
+      const newCodes = validNumbers.filter(tn => !validatedCodes.has(tn.trim().toUpperCase()));
+
+      let newlyValidated: PackageInfo[] = [];
+      if (newCodes.length > 0) {
+        const payload: InventoryValidationPayload[] = newCodes.map(tn => ({
+          trackingNumber: tn,
+          isAlreadyValidated: false,
+        }));
+        const result = await validateTrackingNumbers(payload, selectedSubsidiaryId);
+        newlyValidated = Array.isArray(result?.validatedShipments) ? result.validatedShipments : [];
       }
 
-      // Actualizar los paquetes escaneados con la información validada
-      if (barScannerInputRef.current && barScannerInputRef.current.updateValidatedPackages) {
-        barScannerInputRef.current.updateValidatedPackages(validatedPackages);
-      }
+      // Inválidos de formato (no van al backend) para que se vean en el listado.
+      const locallyInvalidPackages = invalidNumbers.map(tn => ({
+        id: `invalid-${Date.now()}-${Math.random()}`,
+        trackingNumber: tn,
+        isValid: false,
+        reason: "Formato de guía inválido",
+        isPendingValidation: false,
+      } as unknown as PackageInfo));
 
-      // Filtrar paquetes que ya no están en la lista escaneada
-      const currentTrackingNumbers = scannedPackages.map(p => p.trackingNumber);
-      setPackages(prev => prev.filter(p => currentTrackingNumbers.includes(p.trackingNumber)));
+      // Merge local: conservamos lo ya validado que sigue escaneado + lo nuevo + inválidos.
+      // Indexamos por código (los nuevos sobre-escriben para quedarnos con lo más reciente).
+      const byCode = new Map<string, PackageInfo>();
+      const indexPkg = (p: PackageInfo) => {
+        [p.trackingNumber, p.dhlUniqueId]
+          .filter(Boolean)
+          .forEach(c => byCode.set((c as string).trim().toUpperCase(), p));
+      };
+      packages.forEach(p => { if (!p.isPendingValidation) indexPkg(p); });
+      newlyValidated.forEach(indexPkg);
+      locallyInvalidPackages.forEach(indexPkg);
 
-      // Agregar nuevos paquetes validados
-      const newValidPackages = validatedPackages.filter(
-        (r) => !packages.some((p) => p.trackingNumber === r.trackingNumber)
-      );
+      // Reconstruir en ORDEN de escaneo, deduplicando.
+      const allProcessedPackages: PackageInfo[] = [];
+      const added = new Set<string>();
+      uniqueScanned.forEach(tn => {
+        const p = byCode.get(tn.trim().toUpperCase());
+        if (!p) return;
+        const id = ((p.dhlUniqueId || p.trackingNumber) || "").toUpperCase();
+        if (added.has(id)) return;
+        added.add(id);
+        allProcessedPackages.push(p);
+      });
 
-      setPackages((prev) => [...prev, ...newValidPackages]);
+      // Reflejar en el escáner (pendiente -> validado) y refrescar la lista.
+      barScannerInputRef.current?.updateValidatedPackages?.(allProcessedPackages);
+      setPackages(allProcessedPackages);
       setMissingTrackings(invalidNumbers);
       setUnScannedTrackings([]);
 
-      // Detectar paquetes que expiran hoy/mañana y reproducir sonidos
-      handleExpirationCheck(newValidPackages);
+      handleExpirationCheck(newlyValidated);
 
-      // Detectar paquetes inválidos y reproducir sonido
-      const invalidCount = newValidPackages.filter((p: PackageInfo) => !p.isValid).length;
-      const invalidNumbersCount = invalidNumbers.length;
-      
-      if (invalidCount + invalidNumbersCount > 0) {
-        // Reproducir sonido para guías inválidas/no encontradas
+      if (newlyValidated.some(p => !p.isValid) || invalidNumbers.length > 0) {
         playInvalidSound();
       }
-
-      const validCount = newValidPackages.filter((p: PackageInfo) => p.isValid).length;
-
-      toast({
-        title: "Validación completada",
-        description: `Se agregaron ${validCount} paquetes válidos. Paquetes inválidos: ${
-          invalidCount + invalidNumbers.length
-        }`,
-      });
     } catch (error) {
       console.error("Error validating packages:", error);
-      
-      // Modo offline: crear paquetes offline
       if (!isOnline) {
         const offlinePackages: PackageInfo[] = validNumbers.map(tn => ({
           id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -838,21 +550,17 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
           reason: "Sin conexión - validar cuando se restablezca internet",
           isOffline: true,
           createdAt: new Date(),
-        } as PackageInfo));
-        
+        } as unknown as PackageInfo));
+
         setPackages((prev) => [...prev, ...offlinePackages]);
         setMissingTrackings(invalidNumbers);
         
         toast({
           title: "Modo offline activado",
-          description: `Se guardaron ${validNumbers.length} paquetes localmente. Se validarán cuando se recupere la conexión.`,
+          description: `Se guardaron localmente. Se validarán cuando se recupere la conexión.`,
         });
       } else {
-        toast({
-          title: "Error",
-          description: "Hubo un problema al validar los paquetes.",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
       }
     } finally {
       setIsValidationPackages(false);
@@ -865,10 +573,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
           try {
             const inputElement = barScannerInputRef.current.getInputElement();
             if (inputElement) {
-              inputElement.setSelectionRange(
-                  inputElement.value.length,
-                  inputElement.value.length
-              );
+              inputElement.setSelectionRange(inputElement.value.length, inputElement.value.length);
               inputElement.value += '\n';
             }
           } catch (e) {
@@ -879,18 +584,51 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   };
 
-  const handleRemovePackage = useCallback((trackingNumber: string) => {
-    setPackages(prev => prev.filter(p => p.trackingNumber !== trackingNumber));
-    setScannedPackages(prev => prev.filter(p => p.trackingNumber !== trackingNumber));
-    // Remover también del set de paquetes mostrados para expiración
+  // ==========================================
+  // CORRECCIÓN: ELIMINAR BASADO EN UNIQUE ID
+  // ==========================================
+  const handleRemovePackage = useCallback((identifier: string) => {
+    setPackages(prev => prev.filter(p => {
+      const pId = (p as any).dhlUniqueId || p.trackingNumber;
+      return pId !== identifier;
+    }));
+    setScannedPackages(prev => prev.filter(p => {
+      // scannedPackages podría tener el input del usuario (ej. JD1234), lo comparamos
+      return p.trackingNumber !== identifier && p.trackingNumber !== `J${identifier}` && `J${p.trackingNumber}` !== identifier;
+    }));
+    
     setShownExpiringPackages(prev => {
       const newSet = new Set(prev);
-      newSet.delete(trackingNumber);
+      newSet.delete(identifier);
       return newSet;
     });
   }, [setPackages, setScannedPackages, setShownExpiringPackages]);
 
   const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
+
+  // Contadores estandarizados (StatBar) para el resumen de la jornada.
+  const inventoryStats = useMemo<StatItem[]>(() => {
+    let today = 0, tomorrow = 0, withPayment = 0, f2 = 0, highValue = 0;
+    for (const p of validPackages) {
+      const d = daysUntilCommit(p.commitDateTime);
+      if (d === 0) today++;
+      else if (d === 1) tomorrow++;
+      if (p.payment) withPayment++;
+      if (p.isCharge) f2++;
+      if (p.isHighValue) highValue++;
+    }
+    return [
+      { label: "Total", value: packages.length, icon: Package },
+      { label: "Válidos", value: validPackages.length, valueClassName: "text-green-600" },
+      { label: "Vencen hoy", value: today, valueClassName: "text-red-600", icon: Clock },
+      { label: "Vencen mañana", value: tomorrow, valueClassName: "text-amber-600", icon: Clock },
+      { label: "Con cobro", value: withPayment, valueClassName: "text-blue-600", icon: BanknoteIcon },
+      { label: "F2 / Carga", value: f2, valueClassName: "text-green-600" },
+      { label: "Alto valor", value: highValue, valueClassName: "text-violet-600", icon: GemIcon },
+      { label: "Sin escaneo", value: unScannedTrackings.length, valueClassName: "text-amber-600" },
+      { label: "Faltantes", value: missingTrackings.length, valueClassName: "text-red-600" },
+    ];
+  }, [validPackages, packages.length, unScannedTrackings.length, missingTrackings.length]);
 
   const handleSaveInventory = async () => {
     if (!selectedSubsidiaryId) {
@@ -912,20 +650,14 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         missingTrackings,
         inventoryDate: new Date().toISOString(),
         unScannedTrackings,
-        inventoryType: inventoryType,  // Agregar el tipo de inventario
+        inventoryType: inventoryType,  
       } as InventoryRequest;
 
       const saved = await saveInventory(payload);
       await handleSendEmail(saved)
       
-      toast({ 
-        title: "Inventario guardado", 
-        description: `Inventario ${getInventoryTypeLabel(inventoryType)} guardado con éxito.` 
-      });
-
-      // Limpiar storage después de éxito
+      toast({ title: "Inventario guardado", description: `Inventario ${getInventoryTypeLabel(inventoryType)} guardado con éxito.` });
       clearAllStorage();
-
       onSuccess?.();
     } catch (error) {
       console.error("saveInventory error", error);
@@ -935,47 +667,38 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   };
 
-  // Función para obtener el label del tipo de inventario
   const getInventoryTypeLabel = (type: InventoryType): string => {
     switch (type) {
-      case InventoryType.INITIAL:
-        return "Inicial";
-      case InventoryType.DEX:
-        return "DEX";
-      case InventoryType.FINAL:
-        return "Final";
-      default:
-        return "Inicial";
+      case InventoryType.INITIAL: return "Inicial";
+      case InventoryType.DEX: return "DEX";
+      case InventoryType.FINAL: return "Final";
+      default: return "Inicial";
     }
+  };
+
+  const buildInventoryReport = (): InventoryRequest => {
+    const validForExport = packages.filter(p => p.isValid && !p.isPendingValidation);
+    return {
+      id: `INV-${Date.now()}`,
+      trackingNumber: "1234567890123",
+      inventoryDate: new Date().toISOString(),
+      subsidiary: { id: selectedSubsidiaryId ?? "", name: selectedSubsidiaryName ?? "" },
+      shipments: validForExport.filter(p => !p.isCharge),
+      chargeShipments: validForExport.filter(p => p.isCharge),
+      missingTrackings,
+      unScannedTrackings,
+      inventoryType,
+    } as unknown as InventoryRequest;
   };
 
   const handleExportPDF = async () => {
     setIsLoading(true);
     try {
-      const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
-      const shipments = validPackages.filter(p => !p.isCharge);
-      const chargeShipments = validPackages.filter(p => p.isCharge);
-
-      const report: InventoryRequest = {
-        id: `INV-${Date.now()}`,
-        trackingNumber: '1234567890123',
-        inventoryDate: new Date().toISOString(),
-        // Aplica las variables memoizadas que evalúan el prop seleccionado
-        subsidiary: { 
-          id: selectedSubsidiaryId ?? "", 
-          name: selectedSubsidiaryName ?? "" 
-        },
-        shipments: shipments,
-        chargeShipments: chargeShipments,
-        missingTrackings,
-        unScannedTrackings,
-        inventoryType: inventoryType,
-      };
-
+      const report = buildInventoryReport();
       const blob = await pdf(<InventoryPDFReport report={report} />).toBlob();
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
       window.open(blobUrl, "_blank");
-      handleExportExcel()
+      await handleExportExcel();
     } catch (err) {
       console.error("PDF export error", err);
       toast({ title: "Error", description: "No se pudo generar el PDF.", variant: "destructive" });
@@ -987,26 +710,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
   const handleExportExcel = async () => {
     setIsLoading(true);
     try {
-      const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
-      const shipments = validPackages.filter(p => !p.isCharge);
-      const chargeShipments = validPackages.filter(p => p.isCharge);
-
-      const report: InventoryRequest = {
-        id: `INV-${Date.now()}`,
-        trackingNumber: '1234567890123',
-        inventoryDate: new Date().toISOString(),
-        // Aplica las variables memoizadas que evalúan el prop seleccionado
-        subsidiary: { 
-          id: selectedSubsidiaryId ?? "", 
-          name: selectedSubsidiaryName ?? "" 
-        },
-        shipments: shipments,
-        chargeShipments: chargeShipments,
-        missingTrackings,
-        unScannedTrackings,
-        inventoryType: inventoryType,
-      };
-
+      const report = buildInventoryReport();
       await generateInventoryExcel(report, true);
     } catch (err) {
       console.error("Excel export error", err);
@@ -1015,41 +719,39 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
       setIsLoading(false);
     }
   };
-  
+
   const handleSendEmail = async (inventory: Inventory) => {
     setIsLoading(true);
-
     try {
-      // Generar PDF
-      const blob = await pdf(<InventoryPDFReport report={inventory} />).toBlob();
+      // PDF
+      const blob = await pdf(<InventoryPDFReport report={inventory as any} />).toBlob();
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
       window.open(blobUrl, "_blank");
 
-      // Nombre de archivo para PDF incluyendo el tipo de inventario
       const currentDate = new Date().toLocaleDateString("es-ES", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       });
       const inventoryTypeLabel = getInventoryTypeLabel(inventoryType);
-      const pdfFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.pdf`;
+      const safeDate = currentDate.replace(/\//g, "-");
+
+      const pdfFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${safeDate}.pdf`;
       const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
 
-      // Generar Excel
-      const excelBuffer = await generateInventoryExcel(inventory, true);
+      // Excel
+      const excelBuffer = await generateInventoryExcel(inventory as any, true);
       const excelBlob = new Blob([excelBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const excelFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${currentDate.replace(/\//g, "-")}.xlsx`;
+      const excelFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${safeDate}.xlsx`;
       const excelFile = new File([excelBlob], excelFileName, {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      // Subir archivos. IMPORTANTE: enviar el id del inventario recién guardado,
-      // porque el backend resuelve el destinatario del correo desde la sucursal
-      // de ESE inventario. Sin el id se enviaba a una sucursal arbitraria.
-      await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName, inventory.id);
-
+      // IMPORTANTE: enviar el id del inventario para que el backend resuelva el
+      // correo de la sucursal correcta (fix que se había perdido al condensar el archivo).
+      await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName ?? "", inventory.id);
     } catch (err) {
       console.error("Error enviando inventario:", err);
       toast({
@@ -1062,460 +764,350 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
     }
   };
 
-  const filteredValidPackages = useMemo(() => {
-    return validPackages.filter(pkg => {
-      const matchesSearch = pkg.trackingNumber.includes(searchTerm) ||
-        (pkg.recipientName && pkg.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
-      const matchesStatus = filterStatus === "all" ||
-        (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
-        (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
-      return matchesSearch && matchesPriority && matchesStatus;
-    });
-  }, [validPackages, searchTerm, filterPriority, filterStatus]);
+  // ==========================================
+  // CORRECCIÓN: BÚSQUEDA POR UNIQUE ID
+  // ==========================================
+  // Predicado de filtros compartido por las pestañas (Todos y Válidos).
+  const matchesFilters = useCallback((pkg: PackageInfo) => {
+    const term = searchTerm.trim().toLowerCase();
+    const uniqueId = (pkg.dhlUniqueId || "").toLowerCase();
+    const matchesSearch = !term ||
+      pkg.trackingNumber.toLowerCase().includes(term) ||
+      uniqueId.includes(term) ||
+      (pkg.recipientZip && pkg.recipientZip.includes(term)) ||
+      (pkg.recipientName && pkg.recipientName.toLowerCase().includes(term)) ||
+      (pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(term));
+    const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
+    const matchesStatus = filterStatus === "all" ||
+      (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
+      (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
+    const matchesCarrier = filterCarrier === "all" || pkg.shipmentType === filterCarrier;
+    const matchesToday = !onlyToday || daysUntilCommit(pkg.commitDateTime) === 0;
+    const matchesPayment = !onlyPayment || !!pkg.payment;
+    return matchesSearch && matchesPriority && matchesStatus && matchesCarrier && matchesToday && matchesPayment;
+  }, [searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment]);
 
-  // Función para probar sonidos (opcional)
-  const testSounds = () => {
-    console.log("Probando sonidos...");
-    playExpirationSound();
-    setTimeout(() => playTomorrowExpirationSound(), 500);
-    setTimeout(() => playInvalidSound(), 1000);
+  const filteredValidPackages = useMemo(() => validPackages.filter(matchesFilters), [validPackages, matchesFilters]);
+  const filteredPackages = useMemo(() => packages.filter(matchesFilters), [packages, matchesFilters]);
+
+  const activeFilterCount =
+    (filterPriority !== "all" ? 1 : 0) +
+    (filterStatus !== "all" ? 1 : 0) +
+    (filterCarrier !== "all" ? 1 : 0) +
+    (onlyToday ? 1 : 0) +
+    (onlyPayment ? 1 : 0);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterPriority("all");
+    setFilterStatus("all");
+    setFilterCarrier("all");
+    setOnlyToday(false);
+    setOnlyPayment(false);
   };
 
   return (
     <>
-      <Card className="w-full max-w-7xl mx-auto border-0 shadow-none">
-        {isValidationPackages && (
-          <LoaderWithOverlay
-            overlay
-            transparent
-            text="Validando paquetes..."
-            className="rounded-lg"
-          />
-        )}
-        
-        {/* Indicador de modo offline */}
-        {!isOnline && (
-          <div className="bg-yellow-50 border-b border-yellow-200 p-2 text-center">
-            <span className="text-yellow-800 text-sm flex items-center justify-center gap-2">
-              ⚡ Modo offline - Los datos se guardan localmente
-            </span>
-          </div>
-        )}
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Inventario de Paquetes</DialogTitle>
+          </DialogHeader>
 
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="space-y-1">
-              <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-primary text-primary-foreground">
-                  <PackageCheckIcon className="h-6 w-6" />
-                </div>
-                <span>Inventario de Paquetes</span>
-                {packages.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 text-sm">
-                    {validPackages.length} válidos / {packages.length} total
-                  </Badge>
-                )}
-              </CardTitle>
-              <CardDescription>Escanea paquetes y valida su estatus en el sistema</CardDescription>
-            </div>
+          {isValidationPackages && (
+            <LoaderWithOverlay overlay transparent text="Validando paquetes..." className="rounded-lg" />
+          )}
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
-                <MapPinIcon className="h-4 w-4" />
-                <span>Sucursal: {selectedSubsidiaryName}</span>
-              </div>
-              
-              {/* Select para el tipo de inventario */}
-              <div className="flex items-center gap-2">
-                <Select
-                  value={inventoryType}
-                  onValueChange={(value: InventoryType) => setInventoryType(value)}
-                  disabled={isLoading || packages.length > 0}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Tipo de inventario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={InventoryType.INITIAL}>Inventario Inicial</SelectItem>
-                    <SelectItem value={InventoryType.DEX}>Inventario DEX</SelectItem>
-                    <SelectItem value={InventoryType.FINAL}>Inventario Final</SelectItem>
-                  </SelectContent>
-                </Select>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help">
-                        <CircleAlertIcon className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="max-w-xs">
-                        <strong>Inventario Inicial:</strong> Al inicio del turno<br/>
-                        <strong>Inventario DEX:</strong> Después de envíos DEX<br/>
-                        <strong>Inventario Final:</strong> Al final del turno
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              
-              {(packages.length > 0) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearAllStorage}
-                  className="gap-2"
-                  disabled={isLoading}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Limpiar todo
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+            <OperationHeader
+              icon={PackageCheckIcon}
+              title="Inventario de Paquetes"
+              description="Escanea y valida paquetes"
+              subsidiaryName={selectedSubsidiaryName}
+              isOffline={!isOnline}
+              actions={
+                <TooltipProvider delayDuration={100}>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Select
+                      value={inventoryType}
+                      onValueChange={(value: InventoryType) => setInventoryType(value)}
+                      disabled={isLoading || packages.length > 0}
+                    >
+                      <SelectTrigger className="h-9 flex-1 sm:flex-none sm:w-[170px]">
+                        <SelectValue placeholder="Tipo de inventario" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={InventoryType.INITIAL}>Inventario Inicial</SelectItem>
+                        <SelectItem value={InventoryType.DEX}>Inventario DEX</SelectItem>
+                        <SelectItem value={InventoryType.FINAL}>Inventario Final</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            
-            {/* COLUMNA IZQUIERDA - Componente de escaneo */}
-            <div className="xl:col-span-1 space-y-6">
-              <Card>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <BarcodeScannerInput
-                      ref={barScannerInputRef}
-                      onPackagesChange={setScannedPackages}
-                      disabled={isValidationPackages || !selectedSubsidiaryId}
-                      placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escribe o escanea números de tracking"}
-                    />
-                  </div>
-
-                  {(isValidationPackages || isLoading) && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label>Progreso de validación</Label>
-                        <span className="text-sm text-muted-foreground">{progress}%</span>
-                      </div>
-                      <Progress value={progress} className="h-2" />
-                    </div>
-                  )}
-
-                  <Button 
-                    onClick={handleValidatePackages} 
-                    disabled={isValidationPackages || isLoading || !selectedSubsidiaryId || scannedPackages.length === 0} 
-                    className="w-full gap-2"
-                    variant="outline"
-                  >
-                    {isValidationPackages ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
-                    {isValidationPackages ? "Validando..." : "Validar paquetes"}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Botones de acción en la columna izquierda */}
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  <Button 
-                    onClick={handleSaveInventory} 
-                    disabled={isLoading || isValidationPackages || validPackages.length === 0} 
-                    className="w-full gap-2"
-                  >
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Guardar Inventario {getInventoryTypeLabel(inventoryType)}
-                  </Button>
-
-                  <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button 
-                          onClick={handleExportPDF} 
-                          disabled={isLoading || isValidationPackages || packages.length === 0} 
-                          variant="outline" 
-                          className="w-full gap-2"
-                        >
-                          <Download className="h-4 w-4" /> Exportar PDF
-                        </Button>
+                        <span className="cursor-help text-muted-foreground hover:text-foreground transition-colors">
+                          <CircleAlertIcon className="h-4 w-4" />
+                        </span>
                       </TooltipTrigger>
-                      <TooltipContent><p>Generar reporte PDF de los paquetes actuales</p></TooltipContent>
+                      <TooltipContent>
+                        <p className="max-w-xs">
+                          <strong>Inicial:</strong> al inicio del turno<br />
+                          <strong>DEX:</strong> después de envíos DEX<br />
+                          <strong>Final:</strong> al final del turno
+                        </p>
+                      </TooltipContent>
                     </Tooltip>
-                  </TooltipProvider>
 
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => onClose?.()} 
-                    className="w-full gap-2"
-                  >
-                    <X className="h-4 w-4" /> Cancelar
-                  </Button>
-
-                  {/* Botón para probar sonidos (opcional, puedes quitarlo después) */}
-                  {/* <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={testSounds}
-                    className="w-full gap-2 text-xs"
-                  >
-                    Probar Sonidos
-                  </Button> */}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* COLUMNA DERECHA - Tabla de validaciones MEJORADA */}
-            <div className="xl:col-span-2">
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  
-                  {/* Header mejorado */}
-                  <div className="flex flex-col gap-4 pb-4 border-b">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Package className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold">Paquetes Validados</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Tipo: <span className="font-medium">{getInventoryTypeLabel(inventoryType)}</span> • {packages.length} paquetes procesados
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          {validPackages.length} válidos
-                        </Badge>
-                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                          {unScannedTrackings.length} sin escaneo
-                        </Badge>
-                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                          {missingTrackings.length} faltantes
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Simbología compacta */}
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      <span className="font-medium">Leyenda:</span>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                        <span>Válido</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                        <span>Inválido</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Badge className="h-4 px-1 text-xs bg-green-600">CARGA</Badge>
-                        <span>Carga especial</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Badge className="h-4 px-1 text-xs bg-violet-600">
-                          <GemIcon className="h-3 w-3" />
-                        </Badge>
-                        <span>Alto Valor</span>
-                      </div>
-                      {!isOnline && (
-                        <div className="flex items-center gap-1">
-                          <Badge variant="outline" className="h-4 bg-yellow-100 text-yellow-800">
-                            ⚡
-                          </Badge>
-                          <span>Offline</span>
-                        </div>
-                      )}
-                    </div>
+                    {packages.length > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={clearAllStorage}
+                            disabled={isLoading}
+                            className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Limpiar todo</TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
+                </TooltipProvider>
+              }
+            />
 
-                  {/* Barra de búsqueda y filtros mejorada */}
-                  <div className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-3 rounded-lg">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="Buscar tracking, destinatario o dirección..." 
-                        value={searchTerm} 
-                        onChange={(e) => setSearchTerm(e.target.value)} 
-                        className="pl-10 bg-background" 
+            {packages.length > 0 && <StatBar items={inventoryStats} />}
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              
+              {/* COLUMNA IZQUIERDA - Componente de escaneo */}
+              <div className="xl:col-span-1 space-y-4">
+                <Card>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <BarcodeScannerInput
+                        ref={barScannerInputRef}
+                        multiCarrier
+                        onPackagesChange={setScannedPackages}
+                        disabled={isValidationPackages || !selectedSubsidiaryId}
+                        placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
                       />
                     </div>
 
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-1">
-                          <Filter className="h-4 w-4" />
-                          Filtros
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80">
-                        <div className="grid gap-4">
-                          <div className="space-y-2">
-                            <h4 className="font-medium">Filtrar por</h4>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-2">
-                                <Label className="text-sm">Prioridad</Label>
-                                <select 
-                                  className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm" 
-                                  value={filterPriority} 
-                                  onChange={(e) => setFilterPriority(e.target.value)}
-                                >
-                                  <option value="all">Todas</option>
-                                  <option value="alta">Alta</option>
-                                  <option value="media">Media</option>
-                                  <option value="baja">Baja</option>
-                                </select>
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label className="text-sm">Tipo</Label>
-                                <select 
-                                  className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm" 
-                                  value={filterStatus} 
-                                  onChange={(e) => setFilterStatus(e.target.value)}
-                                >
-                                  <option value="all">Todos</option>
-                                  <option value="special">Especial</option>
-                                  <option value="normal">Normal</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
+                    {(isValidationPackages || isLoading) && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Label>Progreso de validación</Label>
+                          <span className="text-sm text-muted-foreground">{progress}%</span>
                         </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                        <Progress value={progress} className="h-2" />
+                      </div>
+                    )}
 
-                  {/* Contenido principal */}
-                  {packages.length > 0 ? (
-                    <>
-                      <Tabs defaultValue="todos" className="w-full">
-                        <TabsList className="grid w-full grid-cols-4 mb-4">
-                          <TabsTrigger value="todos" className="flex items-center gap-1 text-xs py-2">
-                            <Package className="h-3 w-3" /> Todos
-                            <Badge variant="secondary" className="ml-1 text-xs">{packages.length}</Badge>
-                          </TabsTrigger>
-                          <TabsTrigger value="validos" className="flex items-center gap-1 text-xs py-2">
-                            <Check className="h-3 w-3" /> Válidos
-                            <Badge variant="secondary" className="ml-1 text-xs">{validPackages.length}</Badge>
-                          </TabsTrigger>
-                          <TabsTrigger value="sin-escaneo" className="flex items-center gap-1 text-xs py-2">
-                            <AlertCircle className="h-3 w-3" /> Sin escaneo
-                            <Badge variant="secondary" className="ml-1 text-xs">{unScannedTrackings.length}</Badge>
-                          </TabsTrigger>
-                          <TabsTrigger value="faltantes" className="flex items-center gap-1 text-xs py-2">
-                            <CircleAlertIcon className="h-3 w-3" /> Faltantes
-                            <Badge variant="secondary" className="ml-1 text-xs">{missingTrackings.length}</Badge>
-                          </TabsTrigger>
-                        </TabsList>
+                    <Button 
+                      onClick={handleValidatePackages} 
+                      disabled={isValidationPackages || isLoading || !selectedSubsidiaryId || scannedPackages.length === 0} 
+                      className="w-full gap-2"
+                      variant="outline"
+                    >
+                      {isValidationPackages ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
+                      {isValidationPackages ? "Validando..." : "Validar paquetes"}
+                    </Button>
+                  </CardContent>
+                </Card>
 
-                        <TabsContent value="todos" className="space-y-3">
-                          <div className="max-h-[400px] overflow-y-auto rounded-md border">
-                            <div className="grid grid-cols-1 divide-y">
-                              {packages.map(pkg => (
-                                <PackageItem
-                                  key={pkg.trackingNumber}
+              </div>
+
+              {/* COLUMNA DERECHA - Tabla de validaciones */}
+              <div className="xl:col-span-2 space-y-3">
+                <PackagesPanelHeader
+                  subtitle={<>Tipo: <span className="font-medium">{getInventoryTypeLabel(inventoryType)}</span></>}
+                  isOffline={!isOnline}
+                />
+
+                <PackageFilters
+                  searchTerm={searchTerm}
+                  onSearchChange={setSearchTerm}
+                  searchPlaceholder="Buscar ID de pieza, tracking maestro, CP, destinatario..."
+                  carrier={filterCarrier}
+                  onCarrierChange={setFilterCarrier}
+                  onlyToday={onlyToday}
+                  onToggleToday={() => setOnlyToday((v) => !v)}
+                  onlyPayment={onlyPayment}
+                  onTogglePayment={() => setOnlyPayment((v) => !v)}
+                  priority={filterPriority}
+                  onPriorityChange={setFilterPriority}
+                  type={filterStatus}
+                  onTypeChange={setFilterStatus}
+                  activeFilterCount={activeFilterCount}
+                  onClear={clearFilters}
+                />
+
+                {/* Listado Principal */}
+                {packages.length > 0 ? (
+                  <>
+                    <Tabs defaultValue="todos" className="w-full">
+                      <TabsList className="grid w-full grid-cols-4 mb-4">
+                        <TabsTrigger value="todos" className="flex items-center gap-1 text-xs py-2">
+                          <Package className="h-3 w-3" /> Todos
+                          <Badge variant="secondary" className="ml-1 text-xs">{packages.length}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="validos" className="flex items-center gap-1 text-xs py-2">
+                          <Check className="h-3 w-3" /> Válidos
+                          <Badge variant="secondary" className="ml-1 text-xs">{validPackages.length}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="sin-escaneo" className="flex items-center gap-1 text-xs py-2">
+                          <AlertCircle className="h-3 w-3" /> Sin escaneo
+                          <Badge variant="secondary" className="ml-1 text-xs">{unScannedTrackings.length}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="faltantes" className="flex items-center gap-1 text-xs py-2">
+                          <CircleAlertIcon className="h-3 w-3" /> Faltantes
+                          <Badge variant="secondary" className="ml-1 text-xs">{missingTrackings.length}</Badge>
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="todos" className="space-y-3">
+                        <div className="max-h-[400px] overflow-y-auto rounded-md border">
+                          <div className="grid grid-cols-1 divide-y">
+                            {filteredPackages.map(pkg => {
+                              const pkgId = pkg.dhlUniqueId || pkg.trackingNumber;
+                              return (
+                                <PackageListItem
+                                  key={`todos-${pkgId}`}
                                   pkg={pkg}
                                   onRemove={handleRemovePackage}
                                   isLoading={isLoading || isValidationPackages}
-                                  selectedReasons={selectedReasons}
-                                  onSelectReason={handleSelectMissingTracking}
-                                  openPopover={openPopover}
-                                  setOpenPopover={setOpenPopover}
+                                  reasonPicker={{
+                                    options: REASON_OPTIONS,
+                                    selected: selectedReasons[pkgId],
+                                    onSelect: handleSelectMissingTracking,
+                                    open: openPopover === pkgId,
+                                    onOpenChange: (o) => setOpenPopover(o ? pkgId : null),
+                                  }}
                                 />
-                              ))}
-                            </div>
+                              );
+                            })}
                           </div>
-                        </TabsContent>
+                        </div>
+                      </TabsContent>
 
-                        <TabsContent value="validos" className="space-y-3">
-                          {filteredValidPackages.length > 0 ? (
-                            <div className="max-h-[400px] overflow-y-auto rounded-md border">
-                              <div className="grid grid-cols-1 divide-y">
-                                {filteredValidPackages.map(pkg => (
-                                  <PackageItem
-                                    key={pkg.trackingNumber}
+                      <TabsContent value="validos" className="space-y-3">
+                        {filteredValidPackages.length > 0 ? (
+                          <div className="max-h-[400px] overflow-y-auto rounded-md border">
+                            <div className="grid grid-cols-1 divide-y">
+                              {filteredValidPackages.map(pkg => {
+                                const pkgId = pkg.dhlUniqueId || pkg.trackingNumber;
+                                return (
+                                  <PackageListItem
+                                    key={`validos-${pkgId}`}
                                     pkg={pkg}
                                     onRemove={handleRemovePackage}
                                     isLoading={isLoading}
-                                    selectedReasons={selectedReasons}
-                                    onSelectReason={handleSelectMissingTracking}
-                                    openPopover={openPopover}
-                                    setOpenPopover={setOpenPopover}
+                                    reasonPicker={{
+                                      options: REASON_OPTIONS,
+                                      selected: selectedReasons[pkgId],
+                                      onSelect: handleSelectMissingTracking,
+                                      open: openPopover === pkgId,
+                                      onOpenChange: (o) => setOpenPopover(o ? pkgId : null),
+                                    }}
                                   />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-12 text-muted-foreground border rounded-md">
+                            <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                            <p>No se encontraron paquetes válidos</p>
+                          </div>
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="sin-escaneo" className="space-y-3">
+                        {unScannedTrackings.length > 0 ? (
+                          <div className="max-h-[300px] overflow-y-auto rounded-md border">
+                            <div className="p-4">
+                              <div className="grid gap-2">
+                                {unScannedTrackings.map(tracking => (
+                                  <div key={`unscanned-${tracking}`} className="flex justify-between items-center p-3 rounded-md bg-amber-50 border border-amber-200">
+                                    <span className="font-mono text-sm">{tracking}</span>
+                                    <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">Sin escaneo</Badge>
+                                  </div>
                                 ))}
                               </div>
                             </div>
-                          ) : (
-                            <div className="text-center py-12 text-muted-foreground border rounded-md">
-                              <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                              <p>No se encontraron paquetes válidos</p>
-                            </div>
-                          )}
-                        </TabsContent>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground border rounded-md">
+                            <p>No hay guías sin escaneo</p>
+                          </div>
+                        )}
+                      </TabsContent>
 
-                        <TabsContent value="sin-escaneo" className="space-y-3">
-                          {unScannedTrackings.length > 0 ? (
-                            <div className="max-h-[300px] overflow-y-auto rounded-md border">
-                              <div className="p-4">
-                                <div className="grid gap-2">
-                                  {unScannedTrackings.map(tracking => (
-                                    <div key={tracking} className="flex justify-between items-center p-3 rounded-md bg-amber-50 border border-amber-200">
-                                      <span className="font-mono text-sm">{tracking}</span>
-                                      <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">
-                                        Sin escaneo
-                                      </Badge>
-                                    </div>
-                                  ))}
-                                </div>
+                      <TabsContent value="faltantes" className="space-y-3">
+                        {missingTrackings.length > 0 ? (
+                          <div className="max-h-[300px] overflow-y-auto rounded-md border">
+                            <div className="p-4">
+                              <div className="grid gap-2">
+                                {missingTrackings.map(tracking => (
+                                  <div key={`missing-${tracking}`} className="flex justify-between items-center p-3 rounded-md bg-red-50 border border-red-200">
+                                    <span className="font-mono text-sm">{tracking}</span>
+                                    <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">Faltante</Badge>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          ) : (
-                            <div className="text-center py-8 text-muted-foreground border rounded-md">
-                              <p>No hay guías sin escaneo</p>
-                            </div>
-                          )}
-                        </TabsContent>
-
-                        <TabsContent value="faltantes" className="space-y-3">
-                          {missingTrackings.length > 0 ? (
-                            <div className="max-h-[300px] overflow-y-auto rounded-md border">
-                              <div className="p-4">
-                                <div className="grid gap-2">
-                                  {missingTrackings.map(tracking => (
-                                    <div key={tracking} className="flex justify-between items-center p-3 rounded-md bg-red-50 border border-red-200">
-                                      <span className="font-mono text-sm">{tracking}</span>
-                                      <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">
-                                        Faltante
-                                      </Badge>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 text-muted-foreground border rounded-md">
-                              <p>No hay guías faltantes</p>
-                            </div>
-                          )}
-                        </TabsContent>
-                      </Tabs>
-                    </>
-                  ) : (
-                    <div className="text-center py-16 border-2 border-dashed border-muted rounded-lg">
-                      <Package className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-                      <h3 className="text-lg font-medium text-muted-foreground mb-2">Sin paquetes escaneados</h3>
-                      <p className="text-muted-foreground">Escanea algunos paquetes para comenzar</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground border rounded-md">
+                            <p>No hay guías faltantes</p>
+                          </div>
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  </>
+                ) : (
+                  <div className="text-center py-16 border-2 border-dashed border-muted rounded-lg">
+                    <Package className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
+                    <h3 className="text-lg font-medium text-muted-foreground mb-2">Sin paquetes escaneados</h3>
+                    <p className="text-muted-foreground">Escanea algunos paquetes para comenzar</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <DialogFooter className="flex-row justify-end gap-2 border-t bg-background p-3 sm:p-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading} className="gap-2">
+              <X className="h-4 w-4" /> Cancelar
+            </Button>
+            <Button
+              onClick={handleExportPDF}
+              disabled={isLoading || isValidationPackages || packages.length === 0}
+              variant="outline"
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" /> Exportar PDF
+            </Button>
+            <Button
+              onClick={handleSaveInventory}
+              disabled={isLoading || isValidationPackages || validPackages.length === 0}
+              className="gap-2"
+            >
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Guardar {getInventoryTypeLabel(inventoryType)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ExpirationAlertModal
         isOpen={expirationAlertOpen}
         onClose={handleNextExpiring}
@@ -1524,6 +1116,7 @@ export default function InventoryForm({ selectedSubsidiaryId: propSubsidiaryId, 
         onNext={handleNextExpiring}
         onPrevious={handlePreviousExpiring}
       />
+
     </>
   );
 }

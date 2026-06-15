@@ -1,3 +1,5 @@
+import { InventoryType } from "@/components/operaciones/inventory/inventory-form"
+
 export type Subsidiary = {
   id?: string
   name: string
@@ -623,6 +625,7 @@ export interface PackageInfo {
   status?: ShipmentStatusType
   exceptionCode?: string
   statusHistory?: StatusHistory[]
+  dhlUniqueId?: string
 }
 
 export interface SearchShipmentDto {
@@ -786,6 +789,7 @@ export interface Inventory {
   // Listas especiales
   missingTrackings: string[];   // deberían estar pero no se escanearon
   unScannedTrackings: string[]; // aparecieron extra, no registrados en sistema
+  type: InventoryType
 }
 
 

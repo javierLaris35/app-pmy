@@ -1,23 +1,28 @@
 import { getUnloadingById, getUnloadings, saveUnloading } from "@/lib/services/unloadings";
 import { Unloading, UnloadingResponse } from "@/lib/types";
+import { ListParams, Paginated } from "@/lib/services/pagination";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 
-export function useUnLoadings(subsidiaryId: string | null) {
+export function useUnLoadings(subsidiaryId: string | null, params: ListParams = {}) {
     // Verificar que subsidiaryId sea una string válida
     const isValid = subsidiaryId && typeof subsidiaryId === 'string' && subsidiaryId.length > 0;
-    
-    const { data, error, isLoading, mutate } = useSWR<UnloadingResponse[]>(
+    const { page, limit, from, to, search } = params;
+
+    const { data, error, isLoading, mutate } = useSWR<Paginated<UnloadingResponse>>(
         isValid
-          ? [`/unloadings/subsidiary/`, subsidiaryId]
+          ? [`/unloadings/subsidiary/`, subsidiaryId, page, limit, from, to, search]
           : null,
-        isValid 
-          ? ([, id]: [string, string]) => getUnloadings(id)
-          : null // Si no es válido, no pasar fetcher
+        isValid
+          ? () => getUnloadings(subsidiaryId as string, params)
+          : null, // Si no es válido, no pasar fetcher
+        { keepPreviousData: true }
     );
 
     return {
-        unloadings: data || [],
+        unloadings: data?.data ?? [],
+        total: data?.total ?? 0,
+        totalPages: data?.totalPages ?? 0,
         isLoading: isValid ? isLoading : false,
         isError: !!error,
         mutate

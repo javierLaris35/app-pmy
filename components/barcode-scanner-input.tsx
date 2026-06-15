@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHand
 import classNames from "classnames";
 import { Label } from "./ui/label";
 import { Scan } from "lucide-react";
+import { normalizeScannedCode } from "@/lib/tracking/normalize-scan";
 
 export interface BarcodeScannerInputHandle {
   focus: () => void;
@@ -16,7 +17,18 @@ interface BarcodeScannerInputProps {
   disabled?: boolean;
   hasErrors?: boolean;
   onTrackingNumbersChange?: (trackingNumbers: string) => void;
+  /**
+   * Habilita el escaneo mixto FedEx + DHL. Cuando es true, los códigos DHL
+   * (JJD/JD o numéricos de longitud DHL) se conservan completos y solo los
+   * FedEx se recortan a los últimos 12. Por defecto (false) mantiene el
+   * comportamiento histórico: recorte ciego a los últimos 12 dígitos.
+   */
+  multiCarrier?: boolean;
 }
+
+/** Limpia y recorta un código a los últimos 12 (comportamiento clásico FedEx). */
+const legacyTrim = (line: string): string =>
+  line.replace(/[^A-Za-z0-9]/g, "").trim().slice(-12);
 
 const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, BarcodeScannerInputProps>(
     function BarcodeScannerInput({
@@ -26,6 +38,7 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
         disabled = false,
         hasErrors = false,
         onTrackingNumbersChange,
+        multiCarrier = false,
       }: BarcodeScannerInputProps, ref) {
       const textareaRef = useRef<HTMLTextAreaElement>(null);
       const wasPastedRef = useRef(false);
@@ -71,10 +84,10 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
                 const codes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
                 
                 pastedLines.forEach(line => {
-                  // 1. Limpiamos cualquier basura invisible o espacios
-                  const cleanLine = line.replace(/[^A-Za-z0-9]/g, '').trim();
-                  // 2. Extraemos los últimos 12 (si tiene 10, los pasa intactos)
-                  const code = cleanLine.slice(-12);
+                  // FedEx -> últimos 12; DHL -> completo (solo si multiCarrier).
+                  const code = multiCarrier
+                    ? normalizeScannedCode(line)?.code ?? ""
+                    : legacyTrim(line);
                   if (code) codes.add(code);
                 });
 
@@ -85,10 +98,11 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
               // Procesamiento normal para escaneo (ej. pistola)
               const lines = currentScan.split("\n").filter(Boolean);
               const lastLine = lines[lines.length - 1] || "";
-              
-              // Limpiamos la línea de caracteres extraños antes de cortar
-              const cleanLastLine = lastLine.replace(/[^A-Za-z0-9]/g, '').trim();
-              const newCode = cleanLastLine.slice(-12);
+
+              // FedEx -> últimos 12; DHL -> completo (solo si multiCarrier).
+              const newCode = multiCarrier
+                ? normalizeScannedCode(lastLine)?.code ?? ""
+                : legacyTrim(lastLine);
 
               if (newCode) {
                 const existingCodes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
@@ -102,7 +116,7 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
               }
             }
           },
-          [currentScan, trackingNumbersRaw]
+          [currentScan, trackingNumbersRaw, multiCarrier]
       );
 
       const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {

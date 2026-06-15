@@ -294,26 +294,18 @@ const updatedColumns = columns.map((col) =>
         </Card>
       </div>
 
-      {/* Dispatch Dialog */}
-      <Dialog open={isDispatchDialogOpen} onOpenChange={(open) => setIsDispatchDialogOpen(open)}>
-        <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto"
-          onInteractOutside={(event) => event.preventDefault()} // bloquea click fuera
-          onEscapeKeyDown={(event) => event.preventDefault()}   // bloquea ESC
-        >
-          <DialogTitle className="hidden"></DialogTitle>
-          <DialogHeader>
-          </DialogHeader>
-          <PackageDispatchForm
-            selectedSubsidiaryId={effectiveSucursalId}
-            subsidiaryName={effectiveSucursalName}
-            onClose={() => setIsDispatchDialogOpen(false)}
-            onSuccess={() => {
-              mutate()
-              setIsDispatchDialogOpen(false)
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Dispatch Dialog (el form es dueño de su propio Dialog) */}
+      <PackageDispatchForm
+        open={isDispatchDialogOpen}
+        onOpenChange={setIsDispatchDialogOpen}
+        selectedSubsidiaryId={effectiveSucursalId}
+        subsidiaryName={effectiveSucursalName}
+        onClose={() => setIsDispatchDialogOpen(false)}
+        onSuccess={() => {
+          mutate()
+          setIsDispatchDialogOpen(false)
+        }}
+      />
 
       {/* Package Dispatch Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={(open) => setIsDetailsDialogOpen(open)}>

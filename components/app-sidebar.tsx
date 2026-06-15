@@ -47,7 +47,7 @@ export function AppSidebar({ user, ...props }: { user: User }) {
             />
           </div>
         ) : (
-          <div className="flex size-12 items-center justify-center rounded-xl bg-white border border-sidebar-border shadow-md overflow-hidden p-1">
+          <div className="flex size-12 items-center justify-center rounded-xl overflow-hidden p-1">
             {/* En pequeño, le damos un poco más de tamaño (size-12) */}
             <Image 
               src="/pmy_logo.png" 

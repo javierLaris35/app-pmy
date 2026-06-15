@@ -6,11 +6,16 @@ import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { useBrowserVoice } from "@/hooks/use-browser-voice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Loader2, Search, Filter, ChevronDown, ChevronUp, Download, X, Eye, HelpCircle, MailIcon } from "lucide-react";
+import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Loader2, Search, Filter, ChevronDown, ChevronUp, Download, X, Eye, HelpCircle, MailIcon, Clock, BanknoteIcon } from "lucide-react";
+import { OperationHeader } from "@/components/shared/operation-header";
+import { StatBar, StatItem } from "@/components/shared/stat-bar";
+import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
+import { PackageFilters } from "@/components/shared/package-filters";
+import { PackageListItem } from "@/components/shared/package-list-item";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useAuthStore } from "@/store/auth.store";
@@ -33,7 +38,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoaderWithOverlay } from "@/components/loader";
 import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAlertModal";
 import { CorrectTrackingModal } from "./correct-tracking-modal";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
 // Hook useLocalStorage
@@ -105,7 +110,12 @@ enum TrackingNotFoundEnum {
   NOT_IN_CHARGE = "No Llego en la Carga"
 }
 
+// Opciones de motivo para guías inválidas/faltantes.
+const REASON_OPTIONS = Object.entries(TrackingNotFoundEnum).map(([key, label]) => ({ key, label }));
+
 interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onClose: () => void;
   onSuccess: () => void;
   selectedSubsidiaryId?: string | null;
@@ -444,6 +454,8 @@ const MissingPackageItem = ({ pkg }: { pkg: { trackingNumber: string; recipientN
 };
 
 export default function UnloadingForm({
+  open,
+  onOpenChange,
   onClose,
   onSuccess,
   selectedSubsidiaryId: parentSubsidiaryId,
@@ -480,6 +492,9 @@ export default function UnloadingForm({
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterCarrier, setFilterCarrier] = useState<string>("all");
+  const [onlyToday, setOnlyToday] = useState(false);
+  const [onlyPayment, setOnlyPayment] = useState(false);
   const [lastValidated, setLastValidated] = useState("");
   const [isValidationPackages, setIsValidationPackages] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -973,6 +988,36 @@ export default function UnloadingForm({
 
   const shipmentsArray = useMemo(() => Array.isArray(shipments) ? shipments : [], [shipments]);
 
+  // Contadores estandarizados (StatBar) para el resumen del desembarque.
+  const unloadingStats = useMemo<StatItem[]>(() => {
+    const sameDay = (dt: any, offset: number) => {
+      if (!dt) return false;
+      const d = new Date(dt);
+      const t = new Date();
+      const ref = new Date(t.getFullYear(), t.getMonth(), t.getDate() + offset);
+      return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate();
+    };
+    let today = 0, tomorrow = 0, withPayment = 0, f2 = 0, highValue = 0;
+    for (const p of validShipments) {
+      if (sameDay((p as any).commitDateTime, 0)) today++;
+      else if (sameDay((p as any).commitDateTime, 1)) tomorrow++;
+      if ((p as any).payment) withPayment++;
+      if ((p as any).isCharge) f2++;
+      if ((p as any).isHighValue) highValue++;
+    }
+    return [
+      { label: "Total", value: shipmentsArray.length, icon: Package },
+      { label: "Válidos", value: validShipments.length, valueClassName: "text-green-600" },
+      { label: "Vencen hoy", value: today, valueClassName: "text-red-600", icon: Clock },
+      { label: "Vencen mañana", value: tomorrow, valueClassName: "text-amber-600", icon: Clock },
+      { label: "Con cobro", value: withPayment, valueClassName: "text-blue-600", icon: BanknoteIcon },
+      { label: "F2 / Carga", value: f2, valueClassName: "text-green-600", hidden: f2 === 0 },
+      { label: "Alto valor", value: highValue, valueClassName: "text-violet-600", icon: GemIcon, hidden: highValue === 0 },
+      { label: "Faltantes", value: safeMissingPackages.length, valueClassName: "text-red-600" },
+      { label: "Sobrantes", value: safeSurplusTrackings.length, valueClassName: "text-amber-600" },
+    ];
+  }, [validShipments, shipmentsArray.length, safeMissingPackages.length, safeSurplusTrackings.length]);
+
   // 🚨 SOLUCIÓN 3: useEffect de validación automática estabilizado 🚨
   useEffect(() => {
     if (!Array.isArray(safeScannedPackages) || safeScannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
@@ -1040,18 +1085,46 @@ export default function UnloadingForm({
 
   const filteredValidShipments = useMemo(() => {
     if (!Array.isArray(validShipments)) return [];
-    return validShipments.filter(pkg => {
+    const term = searchTerm.trim().toLowerCase();
+    return validShipments.filter((pkg: any) => {
       if (!pkg) return false;
-      const matchesSearch = pkg.trackingNumber?.includes(searchTerm) ||
-        (pkg.recipientName && typeof pkg.recipientName === 'string' && pkg.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (pkg.recipientAddress && typeof pkg.recipientAddress === 'string' && pkg.recipientAddress.toLowerCase().includes(searchTerm.toLowerCase()));
+      const uniqueId = (pkg.dhlUniqueId || "").toLowerCase();
+      const matchesSearch = !term ||
+        (pkg.trackingNumber && String(pkg.trackingNumber).toLowerCase().includes(term)) ||
+        uniqueId.includes(term) ||
+        (pkg.recipientZip && String(pkg.recipientZip).includes(term)) ||
+        (pkg.recipientName && typeof pkg.recipientName === 'string' && pkg.recipientName.toLowerCase().includes(term)) ||
+        (pkg.recipientAddress && typeof pkg.recipientAddress === 'string' && pkg.recipientAddress.toLowerCase().includes(term));
       const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
       const matchesStatus = filterStatus === "all" ||
         (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
         (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
-      return matchesSearch && matchesPriority && matchesStatus;
+      const matchesCarrier = filterCarrier === "all" || pkg.shipmentType === filterCarrier;
+      const matchesToday = !onlyToday || (() => {
+        if (!pkg.commitDateTime) return false;
+        const d = new Date(pkg.commitDateTime), t = new Date();
+        return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+      })();
+      const matchesPayment = !onlyPayment || !!pkg.payment;
+      return matchesSearch && matchesPriority && matchesStatus && matchesCarrier && matchesToday && matchesPayment;
     });
-  }, [validShipments, searchTerm, filterPriority, filterStatus]);
+  }, [validShipments, searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment]);
+
+  const activeFilterCount =
+    (filterPriority !== "all" ? 1 : 0) +
+    (filterStatus !== "all" ? 1 : 0) +
+    (filterCarrier !== "all" ? 1 : 0) +
+    (onlyToday ? 1 : 0) +
+    (onlyPayment ? 1 : 0);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterPriority("all");
+    setFilterStatus("all");
+    setFilterCarrier("all");
+    setOnlyToday(false);
+    setOnlyPayment(false);
+  };
 
   const canUnload = !!selectedUnidad && validShipments.length > 0;
 
@@ -1195,54 +1268,67 @@ export default function UnloadingForm({
 
   return (
     <>
-      <Card className="w-full max-w-6xl mx-auto border-0 shadow-none">
-        {isValidationPackages && (
-          <LoaderWithOverlay overlay transparent text="Validando paquetes..." className="rounded-lg" />
-        )}
-        {isLoading && !isValidationPackages && (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex justify-center items-center z-50">
-            <LoaderWithOverlay overlay text="Procesando desembarque..." className="rounded-lg" />
-          </div>
-        )}
-        {!isOnline && (
-          <div className="bg-yellow-50 border-b border-yellow-200 p-2 text-center">
-            <span className="text-yellow-800 text-sm">⚡ Modo offline activado</span>
-          </div>
-        )}
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Desembarque de Paquetes</DialogTitle>
+          </DialogHeader>
 
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="space-y-1">
-              <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-primary text-primary-foreground">
-                  <PackageCheckIcon className="h-6 w-6" />
-                </div>
-                <span>Desembarque de Paquetes</span>
-                {shipmentsArray.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {validShipments.length} válidos
-                  </Badge>
-                )}
-              </CardTitle>
+          {isValidationPackages && (
+            <LoaderWithOverlay overlay transparent text="Validando paquetes..." className="rounded-lg" />
+          )}
+          {isLoading && !isValidationPackages && (
+            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex justify-center items-center z-50">
+              <LoaderWithOverlay overlay text="Procesando desembarque..." className="rounded-lg" />
             </div>
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-sm text-primary-foreground bg-primary px-3 py-1.5 rounded-full">
-                  <MapPinIcon className="h-4 w-4" />
-                  <span>Sucursal: {selectedSubsidiaryName}</span>
-                </div>
-                <Button id="unloading-tutorial-button" variant="ghost" size="sm" onClick={startTutorial}>
-                  <HelpCircle className="h-4 w-4" />
-                </Button>
-              {(shipmentsArray.length > 0 || selectedUnidad) && (
-                <Button variant="outline" size="sm" onClick={() => { clearAllStorage(); clearMissingPackages(); }} disabled={isLoading}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
+          )}
 
-        <CardContent className="p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+          <OperationHeader
+            icon={PackageCheckIcon}
+            title="Desembarque de Paquetes"
+            description="Escanea y valida la llegada de paquetes a bodega"
+            subsidiaryName={selectedSubsidiaryName}
+            isOffline={!isOnline}
+            actions={
+              <TooltipProvider delayDuration={100}>
+                <div className="flex items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button id="unloading-tutorial-button" variant="outline" size="icon" onClick={startTutorial} className="h-9 w-9 shrink-0">
+                        <HelpCircle className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Ver tutorial</TooltipContent>
+                  </Tooltip>
+
+                  {(shipmentsArray.length > 0 || selectedUnidad) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => { clearAllStorage(); clearMissingPackages(); }}
+                          disabled={isLoading}
+                          className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Limpiar todo</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </TooltipProvider>
+            }
+          />
+
+          {shipmentsArray.length > 0 && <StatBar items={unloadingStats} />}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
               <div id="unloading-filters-section" className="space-y-2">
@@ -1268,6 +1354,7 @@ export default function UnloadingForm({
             <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
               <BarcodeScannerInput
                 ref={barScannerInputRef}
+                multiCarrier
                 onPackagesChange={setScannedPackages}
                 disabled={isLoading || !selectedSubsidiaryId}
                 placeholder={!selectedSubsidiaryId ? "Selecciona sucursal" : "Escanear..."}
@@ -1282,16 +1369,26 @@ export default function UnloadingForm({
           </div>
 
           {shipmentsArray.length > 0 && (
-            <div className="mt-6 space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setShowFilters(!showFilters)}>
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </div>
+            <div className="mt-2 space-y-3">
+              <PackagesPanelHeader subtitle={`${shipmentsArray.length} en lista`} isOffline={!isOnline} />
+
+              <PackageFilters
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Buscar por guía, CP, destinatario o dirección..."
+                carrier={filterCarrier}
+                onCarrierChange={setFilterCarrier}
+                onlyToday={onlyToday}
+                onToggleToday={() => setOnlyToday((v) => !v)}
+                onlyPayment={onlyPayment}
+                onTogglePayment={() => setOnlyPayment((v) => !v)}
+                priority={filterPriority}
+                onPriorityChange={setFilterPriority}
+                type={filterStatus}
+                onTypeChange={setFilterStatus}
+                activeFilterCount={activeFilterCount}
+                onClear={clearFilters}
+              />
 
               <Tabs defaultValue="validos" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
@@ -1302,9 +1399,26 @@ export default function UnloadingForm({
                 <TabsContent value="validos" className="mt-4">
                   <ScrollArea className="h-[400px] rounded-md border">
                     <div className="divide-y">
-                      {filteredValidShipments.map((pkg) => pkg && (
-                        <PackageItem key={pkg.trackingNumber} pkg={pkg} onRemove={handleRemovePackage} isLoading={isLoading} selectedReasons={selectedReasons} onSelectReason={handleSelectMissingTracking} openPopover={openPopover} setOpenPopover={setOpenPopover} onCompleteData={handleOpenCompleteData} />
-                      ))}
+                      {filteredValidShipments.map((pkg) => {
+                        if (!pkg) return null;
+                        const pkgId = (pkg as any).dhlUniqueId || pkg.trackingNumber;
+                        return (
+                          <PackageListItem
+                            key={pkgId}
+                            pkg={pkg as any}
+                            onRemove={handleRemovePackage}
+                            isLoading={isLoading}
+                            onCompleteData={handleOpenCompleteData as any}
+                            reasonPicker={{
+                              options: REASON_OPTIONS,
+                              selected: selectedReasons[pkgId],
+                              onSelect: handleSelectMissingTracking,
+                              open: openPopover === pkgId,
+                              onOpenChange: (o) => setOpenPopover(o ? pkgId : null),
+                            }}
+                          />
+                        );
+                      })}
                     </div>
                   </ScrollArea>
                 </TabsContent>
@@ -1331,19 +1445,21 @@ export default function UnloadingForm({
             </div>
           )}
 
-          <div className="flex justify-between items-center p-4 bg-muted/20 rounded-lg">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          </div>
+
+          <DialogFooter className="flex-row justify-between gap-2 border-t bg-background p-3 sm:p-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2">Cancelar</Button>
             <div className="flex gap-2">
-              <Button id="process-button" onClick={handleUnloading} disabled={isLoading || !canUnload || packagesNeedingData.length > 0}>
+              <Button id="process-button" onClick={handleUnloading} disabled={isLoading || !canUnload || packagesNeedingData.length > 0} className="gap-2">
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Procesar
               </Button>
-              <Button variant="outline" onClick={handleExport} disabled={isLoading || shipmentsArray.length === 0}>
+              <Button variant="outline" onClick={handleExport} disabled={isLoading || shipmentsArray.length === 0} className="gap-2">
                 <Download className="h-4 w-4" />
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CompleteDataModal isOpen={completeDataModalOpen} onClose={handleCloseCompleteData} package={selectedPackageForData} onSave={handleSavePackageData} />
       <CorrectTrackingModal 

@@ -1,10 +1,17 @@
 import { axiosConfig } from "../axios-config"
 import { Consolidateds, Unloading, UnloadingFormData, UnloadingResponse, UnloadingValidationTrackings, ValidTrackingAndConsolidateds } from "@/lib/types"
+import { Paginated, ListParams } from "./pagination"
 
 const url = '/unloadings'
 
-const getUnloadings = async (subsidiaryId: string) => {
-    const response = await axiosConfig.get<UnloadingResponse[]>(`${url}/subsidiary/${subsidiaryId}`);
+const getUnloadings = async (subsidiaryId: string, params: ListParams = {}) => {
+    const response = await axiosConfig.get<Paginated<UnloadingResponse>>(`${url}/subsidiary/${subsidiaryId}`, { params });
+    return response.data;
+}
+
+/** Desembarque completo (con paquetes) para detalle / Excel. */
+const getUnloadingDetail = async (id: string) => {
+    const response = await axiosConfig.get<Unloading>(`${url}/detail/${id}`);
     return response.data;
 }
 
@@ -72,6 +79,7 @@ export async function uploadPDFile(
 
 export {
     getUnloadings,
+    getUnloadingDetail,
     saveUnloading,
     getUnloadingById,
     validateTrackingNumbers,

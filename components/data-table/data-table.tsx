@@ -6,6 +6,8 @@ import {
   type VisibilityState,
   type ExpandedState,
   type Row,
+  type PaginationState,
+  type OnChangeFn,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -31,6 +33,11 @@ interface DataTableProps<TData, TValue> {
   onTableReady?: (table: ReturnType<typeof useReactTable>) => void
   // NUEVA PROPIEDAD OPCIONAL PARA RENDERIZAR SUB-FILAS
   renderSubComponent?: (props: { row: Row<TData> }) => React.ReactNode
+  // Paginación server-side (opt-in). Si no se pasan, el comportamiento es client-side como siempre.
+  manualPagination?: boolean
+  pageCount?: number
+  pagination?: PaginationState
+  onPaginationChange?: OnChangeFn<PaginationState>
 }
 
 export function DataTable<TData, TValue>({
@@ -40,6 +47,10 @@ export function DataTable<TData, TValue>({
   filters,
   onTableReady,
   renderSubComponent,
+  manualPagination = false,
+  pageCount,
+  pagination,
+  onPaginationChange,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -60,7 +71,12 @@ export function DataTable<TData, TValue>({
       columnFilters,
       globalFilter,
       expanded,
+      ...(manualPagination && pagination ? { pagination } : {}),
     },
+    // Paginación server-side: react-table no corta los datos y usa pageCount.
+    manualPagination,
+    pageCount: manualPagination ? (pageCount ?? -1) : undefined,
+    onPaginationChange,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,

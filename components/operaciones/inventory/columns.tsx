@@ -1,10 +1,6 @@
 // app/(inventory)/inventory/columns.ts
 import { ColumnDef } from "@tanstack/react-table";
-import { Inventory, PackageInfo } from "@/lib/types";
-import { format, toZonedTime } from "date-fns-tz";
-import { mapToPackageInfo } from "@/lib/utils";
-
-const MX_TZ = "America/Hermosillo";
+import { Inventory } from "@/lib/types";
 
 export const columns: ColumnDef<Inventory>[] = [
   {
@@ -23,18 +19,14 @@ export const columns: ColumnDef<Inventory>[] = [
     id: "packages",
     header: "Paquetes",
     cell: ({ row }) => {
-        const shipments = row.original.shipments;
-        const chargeShipments = row.original.chargeShipments
-        const packageDispatchShipments: PackageInfo[] = mapToPackageInfo(shipments, chargeShipments)
-        
-        if (!packageDispatchShipments || packageDispatchShipments.length === 0) return "Sin paquetes";
-
-        return (
-          <span className="font-mono">
-            {packageDispatchShipments.length} paquete{packageDispatchShipments.length > 1 ? "s" : ""}
-          </span>
-        );
-
+      // El listado ahora devuelve conteos (no arrays) para no desbordar memoria.
+      const total = (row.original as any).totalPackages ?? 0;
+      if (!total) return "Sin paquetes";
+      return (
+        <span className="font-mono">
+          {total} paquete{total > 1 ? "s" : ""}
+        </span>
+      );
     },
     enableSorting: true,
   },
@@ -60,6 +52,31 @@ export const columns: ColumnDef<Inventory>[] = [
           {row.original.unScannedTrackings.length}
         </span>
       )
+    },
+    enableSorting: true,
+  },
+  {
+    id: "type",
+    header: "Tipo",
+    accessorFn: (r) => r.type ?? "—",
+    cell: ({ row }) => {
+      const type = row.getValue("type") as string;
+      
+      // Mapeo de traducciones
+      const typeMap: Record<string, string> = {
+        initial: "Inicial",
+        dex: "DEX",
+        final: "Final"
+      };
+
+      // Retorna el valor mapeado, o el valor original si no está en el mapa, o "—" si no hay valor
+      const displayType = typeMap[type] || type || "—";
+
+      return (
+        <span className="capitalize">
+          {displayType}
+        </span>
+      );
     },
     enableSorting: true,
   },

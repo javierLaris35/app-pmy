@@ -16,6 +16,13 @@ import UnloadingForm from "./unloading-form"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateUnloadingExcelClient } from "@/lib/services/unloading/unloading-excel-generator"
 import UnloadingDetails from "./unloading-details"
+import { WeekRangePicker } from "@/components/shared/week-range-picker"
+import { getWeekRange, WeekRange } from "@/lib/week"
+import type { PaginationState } from "@tanstack/react-table"
+import { Input } from "@/components/ui/input"
+import { Search } from "lucide-react"
+import { getUnloadingDetail } from "@/lib/services/unloadings"
+import { toast } from "sonner"
 
 export default function UnLoadingPageControl() {
   // Estados
@@ -24,7 +31,21 @@ export default function UnLoadingPageControl() {
   const [isUnloadingDialogOpen, setIsUnloadingDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [selectedUnloading, setSelectedUnloading] = useState<Unloading | null>(null)
-  
+  const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
+  const [searchInput, setSearchInput] = useState("")
+  const [search, setSearch] = useState("")
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+
+  // Debounce de la búsqueda por número de seguimiento (server-side).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(searchInput.trim())
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
   // Obtener usuario y estado de hidratación
   const user = useAuthStore((s) => s.user)
   const hasHydrated = useAuthStore((s) => s.hasHydrated)
@@ -52,8 +73,9 @@ export default function UnLoadingPageControl() {
   // SOLUCIÓN CRÍTICA: Solo usar el hook cuando tengamos auth hidratado y un ID válido
   const shouldFetch = hasHydrated && effectiveSucursalId && effectiveSucursalId.length > 0
   
-  const { unloadings, isError, isLoading, mutate } = useUnLoadings(
-    shouldFetch ? effectiveSucursalId : null
+  const { unloadings, totalPages, isError, isLoading, mutate } = useUnLoadings(
+    shouldFetch ? effectiveSucursalId : null,
+    { page: pagination.pageIndex + 1, limit: pagination.pageSize, from: week.from, to: week.to, search: search || undefined }
   )
 
   console.log("[UnloadingPage] Debug:", {
@@ -71,6 +93,12 @@ export default function UnLoadingPageControl() {
     console.log("[UnloadingPage] handleSucursalChange -> id:", id, "name:", name)
     setSelectedSucursalId(id || null)
     setSelectedSucursalName(name || "")
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+
+  const handleWeekChange = (range: WeekRange) => {
+    setWeek(range)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
   const openUnloadingDialog = () => {
@@ -78,13 +106,33 @@ export default function UnLoadingPageControl() {
     setIsUnloadingDialogOpen(true)
   }
 
-  const openDetailsDialog = (unloading: Unloading) => {
-    setSelectedUnloading(unloading)
+  // El listado devuelve conteos (sin paquetes). Para el detalle traemos el registro completo por id.
+  const openDetailsDialog = async (row: Unloading) => {
+    if (!row?.id) return
     setIsDetailsDialogOpen(true)
+    setSelectedUnloading(null)
+    setIsDetailLoading(true)
+    try {
+      const full = await getUnloadingDetail(row.id)
+      setSelectedUnloading(full)
+    } catch (error) {
+      console.error("[UnloadingPage] Error al cargar el detalle:", error)
+      toast.error("No se pudo cargar el detalle del desembarque")
+      setIsDetailsDialogOpen(false)
+    } finally {
+      setIsDetailLoading(false)
+    }
   }
 
-  const handleExcelFileCreation = async (unLoading: Unloading) => {
-    return await generateUnloadingExcelClient(unLoading, true)
+  const handleExcelFileCreation = async (row: Unloading) => {
+    if (!row?.id) return
+    try {
+      const full = await getUnloadingDetail(row.id)
+      return await generateUnloadingExcelClient(full, true)
+    } catch (error) {
+      console.error("[UnloadingPage] Error al generar el Excel:", error)
+      toast.error("No se pudo generar el Excel")
+    }
   }
 
   const updatedColumns = columns.map((col) =>
@@ -180,10 +228,22 @@ export default function UnLoadingPageControl() {
         {/* Dispatches Table */}
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-lg font-semibold">Historial de Desembarques</h3>
-                <p className="text-muted-foreground">Desembarque de paquetes procesados</p>
+                <p className="text-muted-foreground">Desembarques de la semana seleccionada</p>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="relative w-full sm:w-[260px]">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por número de seguimiento..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
               </div>
             </div>
 
@@ -201,36 +261,31 @@ export default function UnLoadingPageControl() {
                 <p className="text-muted-foreground text-red-600">Error al cargar los desembarques</p>
               </div>
             ) : (
-              <DataTable columns={updatedColumns} data={unloadings || []} />
+              <DataTable
+                columns={updatedColumns}
+                data={unloadings || []}
+                manualPagination
+                pageCount={totalPages}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+              />
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Dialog
+      {/* Desembarque (el form es dueño de su propio Dialog) */}
+      <UnloadingForm
         open={isUnloadingDialogOpen}
-        onOpenChange={(open) => setIsUnloadingDialogOpen(open)}
-      >
-        <DialogContent
-          className="max-w-6xl max-h-[95vh] overflow-y-auto"
-          onInteractOutside={(event) => event.preventDefault()}
-          onEscapeKeyDown={(event) => event.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle></DialogTitle>
-          </DialogHeader>
-
-          <UnloadingForm
-            onClose={() => setIsUnloadingDialogOpen(false)}
-            onSuccess={() => {
-              mutate()
-              setIsUnloadingDialogOpen(false)
-            }}
-            selectedSubsidiaryId={effectiveSucursalId}
-            selectedSubsidiaryName={effectiveSucursalName}
-          />
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setIsUnloadingDialogOpen}
+        onClose={() => setIsUnloadingDialogOpen(false)}
+        onSuccess={() => {
+          mutate()
+          setIsUnloadingDialogOpen(false)
+        }}
+        selectedSubsidiaryId={effectiveSucursalId}
+        selectedSubsidiaryName={effectiveSucursalName}
+      />
 
       {/* Unloading Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
@@ -241,12 +296,16 @@ export default function UnLoadingPageControl() {
               Visualiza los detalles del desembarque, incluyendo paquetes validados y guías no procesadas.
             </DialogDescription>
           </DialogHeader>
-          {selectedUnloading && (
+          {isDetailLoading ? (
+            <div className="flex h-[200px] items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : selectedUnloading ? (
             <UnloadingDetails
               unloading={selectedUnloading}
               onClose={() => setIsDetailsDialogOpen(false)}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </AppLayout>
