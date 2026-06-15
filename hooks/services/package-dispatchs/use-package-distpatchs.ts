@@ -1,21 +1,28 @@
 import { getPackageDispatchById, getPackageDispatchs, savePackageDispatch } from "@/lib/services/package-dispatchs";
 import { PackageDispatch } from "@/lib/types";
+import { ListParams, Paginated } from "@/lib/services/pagination";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 
-export function usePackageDispatchs(subsidiaryId: string) {
-    const isValid = subsidiaryId;
-    
-    const { data, error, isLoading, mutate } = useSWR<PackageDispatch[]>(
+export function usePackageDispatchs(subsidiaryId: string | null, params: ListParams = {}) {
+    const isValid = subsidiaryId && subsidiaryId.length > 0;
+    const { page, limit, from, to, search } = params;
+
+    const { data, error, isLoading, mutate } = useSWR<Paginated<PackageDispatch>>(
         isValid
-          ? [`/package-dispatchs/subsidiary`, subsidiaryId]
+          ? [`/package-dispatchs/subsidiary`, subsidiaryId, page, limit, from, to, search]
           : null,
-        ([, subsidiaryId]: [string, string]) => getPackageDispatchs(subsidiaryId)
+        isValid
+          ? () => getPackageDispatchs(subsidiaryId as string, params)
+          : null,
+        { keepPreviousData: true }
     );
 
     return {
-        packageDispatchs: data || [],
-        isLoading,
+        packageDispatchs: data?.data ?? [],
+        total: data?.total ?? 0,
+        totalPages: data?.totalPages ?? 0,
+        isLoading: isValid ? isLoading : false,
         isError: !!error,
         mutate
     }

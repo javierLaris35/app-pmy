@@ -388,7 +388,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         drivers: selectedRepartidores,
         routes: selectedRutas,
         vehicle: selectedUnidad,
-        shipments: validPackages.map((p) => p.id),
+        shipments: validPackages.map((p) => p.id).filter(Boolean),
         subsidiary: { 
           id: selectedSubsidiaryId, 
           name: selectedSubsidiaryName || "Unknown" 

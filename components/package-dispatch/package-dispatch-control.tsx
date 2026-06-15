@@ -18,6 +18,11 @@ import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/pac
 import PackageDispatchDetails from "./package-dispatch-details"
 import ClosePackageDisptach from "./close-package-dispatch-form"
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
+import { WeekRangePicker } from "@/components/shared/week-range-picker"
+import { getWeekRange, WeekRange } from "@/lib/week"
+import type { PaginationState } from "@tanstack/react-table"
+import { Input } from "@/components/ui/input"
+import { Search } from "lucide-react"
 
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
@@ -26,8 +31,24 @@ export default function PackageDispatchControl() {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isRouteClouserDialogOpen, setIsRouteClouserDialogOpen] = useState(false);
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
+  const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
+  const [searchInput, setSearchInput] = useState("")
+  const [search, setSearch] = useState("")
 
-  const { packageDispatchs, isError, isLoading, mutate } = usePackageDispatchs(selectedSucursalId)
+  // Debounce de la búsqueda por folio de salida (server-side).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(searchInput.trim())
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
+  const { packageDispatchs, totalPages, isError, isLoading, mutate } = usePackageDispatchs(
+    selectedSucursalId,
+    { page: pagination.pageIndex + 1, limit: pagination.pageSize, from: week.from, to: week.to, search: search || undefined }
+  )
   // Obtener usuario y estado de hidratación
   const user = useAuthStore((s) => s.user)
   const hasHydrated = useAuthStore((s) => s.hasHydrated)
@@ -82,6 +103,12 @@ export default function PackageDispatchControl() {
   const handleSucursalChange = (id: string, name?: string) => {
     setSelectedSucursalId(id || null)
     setSelectedSucursalName(name || "")
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+
+  const handleWeekChange = (range: WeekRange) => {
+    setWeek(range)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
   const handleExcelFileCreation = async (packageDispatch: PackageDispatch) => {
@@ -276,19 +303,46 @@ const updatedColumns = columns.map((col) =>
         {/* Dispatches Table */}
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-lg font-semibold">Historial de Salidas</h3>
-                <p className="text-muted-foreground">Salidas de paquetes procesadas</p>
+                <p className="text-muted-foreground">Salidas de la semana seleccionada</p>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="relative w-full sm:w-[260px]">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por folio de salida..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
               </div>
             </div>
 
-            {selectedSucursalId ? (
-              <DataTable columns={updatedColumns} data={packageDispatchs} />
-            ) : (
+            {!selectedSucursalId ? (
               <div className="flex h-[200px] items-center justify-center">
                 <p className="text-muted-foreground">Selecciona una sucursal para ver las salidas</p>
               </div>
+            ) : isLoading ? (
+              <div className="flex h-[200px] items-center justify-center">
+                <p className="text-muted-foreground">Cargando salidas...</p>
+              </div>
+            ) : isError ? (
+              <div className="flex h-[200px] items-center justify-center">
+                <p className="text-red-600">Error al cargar las salidas</p>
+              </div>
+            ) : (
+              <DataTable
+                columns={updatedColumns}
+                data={packageDispatchs}
+                manualPagination
+                pageCount={totalPages}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+              />
             )}
           </CardContent>
         </Card>

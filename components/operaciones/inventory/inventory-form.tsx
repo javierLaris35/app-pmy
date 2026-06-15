@@ -162,7 +162,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const [filterCarrier, setFilterCarrier] = useState<string>("all");
   const [onlyToday, setOnlyToday] = useState(false);
   const [onlyPayment, setOnlyPayment] = useState(false);
-  const [lastValidated, setLastValidated] = useState("");
   const [isValidationPackages, setIsValidationPackages] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
@@ -173,6 +172,8 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const [shownExpiringPackages, setShownExpiringPackages] = useState<Set<string>>(new Set());
 
   const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
+  // Firma del último contenido validado (ver efecto de auto-validación).
+  const lastSignatureRef = useRef<string>("");
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
@@ -337,16 +338,30 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     };
   }, []);
 
+  // Auto-validación "en vivo". Se dispara comparando una FIRMA estable del
+  // contenido escaneado (por dhlUniqueId || trackingNumber):
+  //  - Es estable cuando el backend resuelve una guía DHL (la pieza escaneada
+  //    pasa a su guía maestra) porque el token sigue siendo el dhlUniqueId →
+  //    evita el bucle de re-validación que congelaba la UI con 80+ guías.
+  //  - Cambia al agregar o quitar guías → re-sincroniza la lista del padre y
+  //    resuelve los pendientes (incluso los que ya estaban validados, vía merge
+  //    local sin pegarle al backend) para que el escáner no quede en "Validando…".
   useEffect(() => {
-    if (scannedPackages.length === 0 || isLoading || !selectedSubsidiaryId) return;
-    const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber).join("\n");
-    if (trackingNumbers === lastValidated) return;
+    if (isLoading || isValidationPackages || !selectedSubsidiaryId) return;
+    if (scannedPackages.length === 0) return;
+
+    const signature = scannedPackages
+      .map(p => (((p as any).dhlUniqueId || p.trackingNumber) || "").trim().toUpperCase())
+      .sort()
+      .join("|");
+    if (signature === lastSignatureRef.current) return;
+
     const handler = setTimeout(() => {
       handleValidatePackages();
-      setLastValidated(trackingNumbers);
+      lastSignatureRef.current = signature;
     }, 500);
     return () => clearTimeout(handler);
-  }, [scannedPackages, selectedSubsidiaryId, isLoading, lastValidated]);
+  }, [scannedPackages, selectedSubsidiaryId, isLoading, isValidationPackages]);
 
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => { if (e.ctrlKey) e.preventDefault(); };
@@ -405,6 +420,9 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     setSelectedReasons({});
     setInventoryType(InventoryType.INITIAL);
     setShownExpiringPackages(new Set());
+    // Resetear la firma para que volver a escanear el mismo set vuelva a validar.
+    lastSignatureRef.current = "";
+    barScannerInputRef.current?.clear();
 
     toast({
       title: "Datos limpiados",

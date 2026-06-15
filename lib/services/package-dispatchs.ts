@@ -1,10 +1,11 @@
 import { axiosConfig } from "../axios-config"
 import { DispatchFormData, PackageDispatch, PackageInfo } from "../types"
+import { Paginated, ListParams } from "./pagination"
 
 const url = '/package-dispatchs'
 
-const getPackageDispatchs = async (subsidiaryId: string) => {
-    const response = await axiosConfig.get<PackageDispatch[]>(`${url}/subsidiary/${subsidiaryId}`);
+const getPackageDispatchs = async (subsidiaryId: string, params: ListParams = {}) => {
+    const response = await axiosConfig.get<Paginated<PackageDispatch>>(`${url}/subsidiary/${subsidiaryId}`, { params });
     return response.data;
 }
 

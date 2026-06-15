@@ -5,13 +5,37 @@ import {
   useEffect,
   forwardRef,
   useImperativeHandle,
-  useMemo
+  useMemo,
+  type ComponentType,
 } from "react";
 import classNames from "classnames";
-import { Label } from "@/components/ui/label";
-import { Scan, X, AlertCircle, Calendar, Copy, Check } from "lucide-react";
+import { Scan, AlertCircle, Calendar, Copy, Check, HelpCircle, Inbox, Trash2, BanknoteIcon, BarcodeIcon } from "lucide-react";
 import { PackageInfo } from "@/lib/types";
 import { normalizeScannedCode } from "@/lib/tracking/normalize-scan";
+
+/** Chip de métrica del pie del escáner (vencen hoy / mañana / no encontradas). */
+const MetricChip = ({
+  icon: Icon,
+  label,
+  value,
+  className,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  className?: string;
+}) => (
+  <span
+    className={classNames(
+      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium",
+      className
+    )}
+  >
+    <Icon className="h-3.5 w-3.5" />
+    {label}
+    <span className="font-bold tabular-nums">{value}</span>
+  </span>
+);
 
 export interface BarcodeScannerInputHandle {
   focus: () => void;
@@ -316,180 +340,196 @@ const BarcodeScannerInputComponent = forwardRef<
     }
   };
 
-  const removePackage = (index: number) => {
-    setPackages(prev => prev.filter((_, i) => i !== index));
-  };
+  // Elimina por identificador (dhlUniqueId || trackingNumber), no por índice.
+  const removeById = useCallback((id: string) => {
+    setPackages(prev =>
+      prev.filter(p => ((p as any).dhlUniqueId || p.trackingNumber) !== id)
+    );
+  }, []);
 
   /* ===================== Render ===================== */
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex justify-between items-center">
-        <Label className="flex items-center gap-2 text-base font-medium">
-          <Scan className="h-4 w-4" />
-          {label}
-        </Label>
-
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">
-            Guías: <strong>{packages.length}</strong>
+    <div className="flex flex-col gap-3">
+      {/* Encabezado: identidad + contador prominente + copiar */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground ring-1 ring-primary/20">
+            <BarcodeIcon className="h-4 w-4" />
           </span>
-          
-          {packages.length > 0 && (
-            <button
-              onClick={copyAllTrackingNumbers}
-              disabled={disabled}
-              className={classNames(
-                "flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors",
-                copied
-                  ? "bg-green-100 text-green-700 border border-green-200"
-                  : "bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200"
-              )}
-              title={copied ? "¡Copiado!" : "Copiar todas las guías al portapapeles"}
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  <span>{packages.length}</span>
-                </>
-              )}
-            </button>
-          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold leading-tight">{label}</p>
+            <p className="text-xs leading-tight text-muted-foreground">
+              <span className="font-bold tabular-nums text-foreground">{packages.length}</span>{" "}
+              {packages.length === 1 ? "guía escaneada" : "guías escaneadas"}
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div className={classNames("border rounded-md overflow-hidden", {
-        "border-red-500": hasErrors,
-        "bg-gray-100": disabled
-      })}>
-        <ul
-          ref={packagesListRef}
-          className="max-h-60 overflow-y-auto p-2 bg-white space-y-1"
-        >
-          {packages.length === 0 && (
-            <li className="text-center text-gray-400 text-sm py-6">
-              No se han escaneado códigos
-            </li>
-          )}
-
-          {packages.map((pkg, index) => {
-            const validated = !pkg.isPendingValidation;
-            const isNotFound =
-              validated && !pkg.commitDateTime && !pkg.payment;
-
-            return (
-              <li
-                key={pkg.trackingNumber}
-                className={classNames(
-                  "p-2 rounded border flex flex-col gap-1",
-                  {
-                    "bg-red-50 text-red-600 border-red-200 font-semibold":
-                      validated && isDueToday(pkg.commitDateTime),
-                    "bg-amber-50 text-amber-600 border-amber-200 font-semibold":
-                      validated && isDueTomorrow(pkg.commitDateTime),
-                    "bg-slate-100 text-slate-600 border-slate-300 text-slate-700":
-                      isNotFound,
-                    "bg-cyan-50 text-cyan-600 border-cyan-200":
-                      pkg.isPendingValidation
-                  }
-                )}
-              >
-                <div className="flex justify-between items-start">
-                  <span className="font-mono text-sm">
-                    {pkg.trackingNumber}
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    {validated && pkg.payment?.amount && (
-                      <span className="text-xs text-indigo-700 font-medium">
-                        💰 {pkg.payment?.type} {pkg.payment?.amount}
-                      </span>
-                    )}
-
-                    {!disabled && (
-                      <button
-                        onClick={() => removePackage(index)}
-                        className="text-gray-400 hover:text-red-500"
-                        title="Eliminar guía"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {validated && pkg.commitDateTime && (
-                  <div className={classNames("flex items-center gap-1 text-xs",{
-                    "bg-red-50 text-red-600 border-red-200 font-semibold":
-                      validated && isDueToday(pkg.commitDateTime),
-                    "bg-amber-50 text-amber-600 border-amber-200 font-semibold":
-                      validated && isDueTomorrow(pkg.commitDateTime),
-                    "bg-slate-100 text-slate-600 border-slate-300 text-slate-700":
-                      isNotFound,
-                    "bg-cyan-50 text-cyan-600 border-cyan-200":
-                      pkg.isPendingValidation
-                  })}>
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(pkg.commitDateTime)}
-                    {isDueToday(pkg.commitDateTime) && (
-                      <span className="ml-1 font-semibold">(Vence hoy)</span>
-                    )}
-                    {isDueTomorrow(pkg.commitDateTime) && (
-                      <span className="ml-1 font-semibold">(Vence mañana)</span>
-                    )}
-                  </div>
-                )}
-
-                {isNotFound && (
-                  <span className="text-xs italic">
-                    Guía no encontrada
-                  </span>
-                )}
-
-                {pkg.isPendingValidation && (
-                  <span className="text-xs italic">
-                    Validando…
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="border-t p-2 bg-gray-50">
-          <textarea
-            ref={textareaRef}
-            value={currentScan}
-            onChange={e => setCurrentScan(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={placeholder}
+        {packages.length > 0 && (
+          <button
+            type="button"
+            onClick={copyAllTrackingNumbers}
             disabled={disabled}
-            rows={2}
-            className="w-full resize-none border rounded p-2"
-          />
+            className={classNames(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              copied
+                ? "bg-green-100 text-green-700 border-green-200"
+                : "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200",
+              disabled && "cursor-not-allowed opacity-50"
+            )}
+            title={copied ? "¡Copiado!" : "Copiar todas las guías al portapapeles"}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5" /> Copiado
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" /> Copiar
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Zona de escaneo destacada */}
+      <div
+        className={classNames(
+          "rounded-xl border-2 border-dashed bg-muted/30 transition-colors focus-within:border-primary focus-within:bg-background",
+          hasErrors && "border-red-500",
+          disabled && "opacity-60"
+        )}
+      >
+        <textarea
+          ref={textareaRef}
+          value={currentScan}
+          onChange={e => setCurrentScan(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={placeholder}
+          disabled={disabled}
+          rows={2}
+          className="w-full resize-none bg-transparent p-3 text-sm font-mono placeholder:font-sans placeholder:text-muted-foreground focus:outline-none"
+        />
+      </div>
+
+      {/* Lista de guías (registro compacto) */}
+      <div className="overflow-hidden rounded-xl border bg-background">
+        <ul ref={packagesListRef} className="max-h-72 overflow-y-auto [&>li:last-child]:border-b-0">
+          {packages.length === 0 ? (
+            <li className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+              <Inbox className="h-8 w-8 text-muted-foreground/40" />
+              <span className="text-sm text-muted-foreground">No se han escaneado guías</span>
+            </li>
+          ) : (
+            packages.map(pkg => {
+              const validated = !pkg.isPendingValidation;
+              const isNotFound = validated && !pkg.commitDateTime && !pkg.payment;
+              const today = validated && isDueToday(pkg.commitDateTime);
+              const tomorrow = validated && isDueTomorrow(pkg.commitDateTime);
+              const isDhl = pkg.shipmentType === "dhl";
+              const accent = !validated
+                ? "border-l-cyan-400"
+                : today
+                ? "border-l-red-500"
+                : tomorrow
+                ? "border-l-amber-400"
+                : pkg.payment
+                ? "border-l-blue-400"
+                : isNotFound
+                ? "border-l-slate-300"
+                : "border-l-transparent";
+
+              return (
+                <li
+                  key={(pkg as any).dhlUniqueId ?? pkg.trackingNumber}
+                  className={classNames(
+                    "flex items-start justify-between gap-2 border-b border-l-4 px-3 py-2 transition-colors hover:bg-muted/30",
+                    accent
+                  )}
+                >
+                  <div className="min-w-0 flex-1 space-y-1">
+                    {/* Línea principal: tipo + guía + estado/cobro */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {pkg.shipmentType && (
+                        <span
+                          className={classNames(
+                            "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                            isDhl ? "bg-[#ffcc00] text-[#d40511]" : "bg-[#4d148c] text-white"
+                          )}
+                        >
+                          {isDhl ? "DHL" : "FedEx"}
+                        </span>
+                      )}
+
+                      <span className="truncate font-mono text-sm font-medium">
+                        {pkg.trackingNumber}
+                      </span>
+
+                      {pkg.isPendingValidation && (
+                        <span className="inline-flex items-center rounded-md bg-cyan-100 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-700">
+                          Validando…
+                        </span>
+                      )}
+
+                      {validated && pkg.payment?.amount != null && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                          <BanknoteIcon className="h-3 w-3" />
+                          {pkg.payment?.type} ${pkg.payment?.amount}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Fecha de vencimiento (clave para el operador) */}
+                    {validated && pkg.commitDateTime && (
+                      <div
+                        className={classNames(
+                          "flex items-center gap-1 text-xs",
+                          today
+                            ? "font-semibold text-red-600"
+                            : tomorrow
+                            ? "font-semibold text-amber-600"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        <Calendar className="h-3 w-3 shrink-0" />
+                        <span>{formatDate(pkg.commitDateTime)}</span>
+                        {today && <span>(Vence hoy)</span>}
+                        {tomorrow && <span>(Vence mañana)</span>}
+                      </div>
+                    )}
+
+                    {isNotFound && (
+                      <span className="text-xs italic text-slate-500">Guía no encontrada</span>
+                    )}
+                  </div>
+
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={() => removeById((pkg as any).dhlUniqueId || pkg.trackingNumber)}
+                      className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      title="Eliminar guía"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </div>
+
+      {/* Métricas */}
+      {packages.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <MetricChip icon={AlertCircle} label="Hoy" value={dueTodayCount} className="border-red-200 bg-red-50 text-red-700" />
+          <MetricChip icon={Calendar} label="Mañana" value={dueTomorrowCount} className="border-amber-200 bg-amber-50 text-amber-700" />
+          <MetricChip icon={HelpCircle} label="No encontradas" value={notFoundCount} className="border-slate-200 bg-slate-50 text-slate-600" />
         </div>
-      </div>
-
-      <div className="flex flex-wrap justify-end gap-3 text-sm">
-        <span className="flex items-center gap-1 text-red-700">
-          <AlertCircle className="h-4 w-4" />
-          Hoy: <strong>{dueTodayCount}</strong>
-        </span>
-
-        <span className="flex items-center gap-1 text-amber-700">
-          <Calendar className="h-4 w-4" />
-          Mañana: <strong>{dueTomorrowCount}</strong>
-        </span>
-
-        <span className="flex items-center gap-1 text-slate-700">
-          ❓ No encontradas: <strong>{notFoundCount}</strong>
-        </span>
-      </div>
+      )}
     </div>
   );
 });
