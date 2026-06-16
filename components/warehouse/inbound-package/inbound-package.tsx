@@ -44,7 +44,8 @@ import {
   ChevronDown,
   Layers,
   HelpCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  History
 } from "lucide-react"
 
 // Selectores especializados
@@ -62,6 +63,7 @@ import { getColumns } from "./columns"
 import ExcelJS from "exceljs"
 import { generateWarehouseExcel } from "./excel-generator"
 import { toast } from "@/components/ui/use-toast"
+import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
 
 export type InboundShipment = ScannedShipment & {
   pieces?: string[]; 
@@ -144,6 +146,7 @@ export default function InboundPackage() {
   const [scanInput, setScanInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Estado para el modal de remesas
   const [remittanceDialog, setRemittanceDialog] = useState<RemittanceDialogState>({
@@ -300,128 +303,6 @@ export default function InboundPackage() {
   }, [remittanceDialog.pieceInput, remittanceDialog.masterTracking, safeSpeak]);
 
 
-  const handleScanResp = useCallback(async () => {
-    if (!scanInput.trim()) return
-    setIsScanning(true)
-    setError(null)
-    const scannedCode = scanInput.trim().toUpperCase()
-
-    // 1. PRIMERA DEFENSA LOCAL: ¿Escanearon exactamente un código que ya tenemos en pantalla?
-    const localMatch = session.packages.find(
-      (p) => p.trackingNumber === scannedCode || p.dhlUniqueId === scannedCode
-    );
-
-    if (localMatch) {
-      // Si el código escaneado es exactamente un dhlUniqueId que ya tenemos, es pieza duplicada
-      if (localMatch.dhlUniqueId === scannedCode) {
-        setError(`La pieza ${scannedCode} ya está en la lista.`);
-        safeSpeak("Pieza repetida.");
-        setScanInput("");
-        setIsScanning(false);
-        return;
-      }
-
-      // Si el código escaneado es el trackingNumber maestro...
-      if (localMatch.trackingNumber === scannedCode) {
-        if (localMatch.shipmentType.toLowerCase() === "dhl") {
-          // Es la guía maestra de DHL: abrimos modal de remesa
-          setRemittanceDialog({
-            isOpen: true,
-            step: "confirm",
-            masterTracking: localMatch.trackingNumber,
-            pieceInput: "",
-            error: null
-          });
-          safeSpeak("Guía principal detectada. Confirme remesa.");
-        } else {
-          // Es una guía de FedEx (o carga) repetida
-          setError(`Guía ya en lista: ${scannedCode}`);
-          safeSpeak("Guía repetida.");
-        }
-        setScanInput("");
-        setIsScanning(false);
-        return;
-      }
-    }
-
-    try {
-      // 2. CONSULTA AL BACKEND
-      const result = await validateShipment(scannedCode)
-      
-      if (result.isValid === false) {
-        setError(result.reason || "No encontrado en sistema")
-        safeSpeak("No encontrado.")
-      } else {
-
-        // 3. SEGUNDA DEFENSA (Post-Backend): Aplicamos tu regla de negocio
-        const isDuplicate = session.packages.find((p) => {
-          // Si no comparten el mismo tracking principal, no hay conflicto
-          if (p.trackingNumber !== result.trackingNumber) return false;
-
-          // SI COMPARTEN EL MISMO TRACKING NUMBER (Posible remesa)
-          // Verificamos si ambos tienen un dhlUniqueId asignado
-          if (p.dhlUniqueId && result.dhlUniqueId) {
-            // AQUÍ ESTÁ LA MAGIA: Solo es duplicado si los Unique ID son EXACTAMENTE IGUALES.
-            // Si son diferentes, retornará false y lo dejará pasar a la tabla.
-            return p.dhlUniqueId === result.dhlUniqueId;
-          }
-
-          // Si no usan dhlUniqueId (Ej. FedEx), compartir tracking significa que es un duplicado real
-          return true;
-        });
-
-        // Si la validación determinó que sí es un duplicado real
-        if (isDuplicate) {
-          if (result.shipmentType.toLowerCase() === "dhl") {
-            setRemittanceDialog({
-              isOpen: true,
-              step: "confirm",
-              masterTracking: result.trackingNumber,
-              pieceInput: "",
-              error: null
-            });
-            safeSpeak("Guía repetida. Confirme remesa.");
-          } else {
-            setError(`El paquete con guía ${result.trackingNumber} ya está en la lista.`);
-            safeSpeak("Paquete duplicado.");
-          }
-          setScanInput("");
-          setIsScanning(false);
-          return;
-        }
-
-        // 4. SI LLEGÓ HASTA AQUÍ, ES TOTALMENTE VÁLIDO (Nuevo paquete o Nueva pieza de la remesa)
-        const newShipment: InboundShipment = {
-          ...result,
-          recipientZip: result.recipientZip ? String(result.recipientZip).trim() : "",
-          commitDateTime: new Date(result.commitDateTime),
-          isCharge: result.isCharge || false,
-          hasPayment: result.hasPayment || false,
-          paymentAmount: result.paymentAmount || 0,
-          pieces: [], 
-          existingPieces: result.existingPieces || [],
-          recipientName: result.recipientName || "",
-          recipientAddress: result.recipientAddress || ""
-        }
-
-        if (newShipment.existingPieces && newShipment.existingPieces.length > 0) {
-          safeSpeak("Guía existente. Escanee piezas restantes.");
-        } else {
-          safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence mañana" : "Registrado")
-        }
-
-        setSession(prev => ({ ...prev, packages: [newShipment, ...prev.packages] }))
-        setScanInput("")
-      }
-    } catch (err) {
-      setError("Error de servidor")
-      safeSpeak("Error de sistema")
-    } finally {
-      setIsScanning(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
-  }, [scanInput, session.packages, safeSpeak])
-
   const handleScan = useCallback(async () => {
     if (!scanInput.trim()) return
     setIsScanning(true)
@@ -481,8 +362,8 @@ export default function InboundPackage() {
 
     try {
       // 2. CONSULTA AL BACKEND (usando el scannedCode ya validado/recortado)
-      const result = await validateShipment(scannedCode)
-      
+      const result = await validateShipment(scannedCode, effectiveWarehouseId, "inbound")
+
       if (result.isValid === false) {
         setError(result.reason || "No encontrado en sistema")
         safeSpeak("No encontrado.")
@@ -538,7 +419,11 @@ export default function InboundPackage() {
           recipientAddress: result.recipientAddress || ""
         }
 
-        if (newShipment.existingPieces && newShipment.existingPieces.length > 0) {
+        if (result.statusWarning) {
+          // Aviso no bloqueante: el operador decide si lo ingresa.
+          setError(result.statusWarning)
+          safeSpeak("Atención, revise el estado del paquete.")
+        } else if (newShipment.existingPieces && newShipment.existingPieces.length > 0) {
           safeSpeak("Guía existente. Escanee piezas restantes.");
         } else {
           safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence mañana" : "Registrado")
@@ -644,12 +529,13 @@ export default function InboundPackage() {
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
       window.open(blobUrl, "_blank");
 
-      const pdfFileName = `ENTRADA-${inboundPackage?.warehouse?.name}-${Date.now().toString().slice(0, 10).replace(/\//g, "-")}.pdf`;
+      const safeDate = new Date().toLocaleDateString("es-MX").replace(/\//g, "-");
+      const pdfFileName = `ENTRADA-${effectiveWarehouseName || "Bodega"}-${safeDate}.pdf`;
       const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
 
       const excelBuffer = await generateWarehouseExcel(session, sortedPackages, false) as Buffer;
       const excelBlob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-       const excelFileName = `ENTRADA--${inboundPackage?.warehouse?.name}--${Date.now().toString().slice(0, 10).replace(/\//g, "-")}.xlsx`;
+       const excelFileName = `ENTRADA--${effectiveWarehouseName || "Bodega"}--${safeDate}.xlsx`;
       const excelFile = new File([excelBlob], excelFileName, {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
@@ -766,10 +652,23 @@ export default function InboundPackage() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="rounded shrink-0 hover:bg-slate-200 text-slate-600" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded shrink-0 hover:bg-slate-200 text-slate-600"
+                    onClick={() => setShowHistory(true)}
+                  >
+                    <History className="w-5 h-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Historial de entradas</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded shrink-0 hover:bg-slate-200 text-slate-600"
                     onClick={() => toggleModal("shortcuts", true)}
                   >
                     <Keyboard className="w-5 h-5" />
@@ -1148,6 +1047,14 @@ export default function InboundPackage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WarehouseHistoryDialog
+        open={showHistory}
+        onOpenChange={setShowHistory}
+        kind="inbound"
+        subsidiaryId={effectiveWarehouseId}
+        subsidiaryName={effectiveWarehouseName}
+      />
     </div>
   )
 }

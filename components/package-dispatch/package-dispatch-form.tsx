@@ -32,6 +32,7 @@ import { StatBar } from "@/components/shared/stat-bar";
 import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
 import { PackageFilters } from "@/components/shared/package-filters";
 import { PackageListItem } from "@/components/shared/package-list-item";
+import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Props = {
@@ -150,6 +151,10 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   const user = useAuthStore((s) => s.user);
   const { toast } = useToast();
+
+  // Traspaso inline (corregir paquete mal enrutado) — solo roles elevados.
+  const canTransfer = ["subadmin", "admin", "superadmin"].includes((user?.role as string) || "");
+  const [transferPkg, setTransferPkg] = useState<PackageInfo | null>(null);
 
   // Determinar subsidiaria: primero la del prop, luego la del usuario
   const selectedSubsidiaryId = useMemo(() => {
@@ -603,11 +608,13 @@ const PackageDispatchForm: React.FC<Props> = ({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
+        showCloseButton={false}
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Salida de Paquetes</DialogTitle>
@@ -870,6 +877,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                               pkg={pkg}
                               onRemove={handleRemovePackage}
                               isLoading={isLoading}
+                              onTransfer={canTransfer ? setTransferPkg : undefined}
                             />
                           ))}
                         </div>
@@ -916,6 +924,34 @@ const PackageDispatchForm: React.FC<Props> = ({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <TransferPackageDialog
+      open={!!transferPkg}
+      onOpenChange={(o) => !o && setTransferPkg(null)}
+      pkg={transferPkg}
+      currentSubsidiaryId={selectedSubsidiaryId}
+      currentSubsidiaryName={selectedSubsidiaryName}
+      source="package_dispatch"
+      onSuccess={(pkg, destinationId) => {
+        const id = (pkg as any).dhlUniqueId || pkg.trackingNumber;
+        if (destinationId === selectedSubsidiaryId) {
+          // Traspasado a la sucursal actual: ahora pertenece -> pasa a "válidos".
+          setPackages(prev =>
+            prev.map(p => {
+              const pid = (p as any).dhlUniqueId || p.trackingNumber;
+              return pid === id
+                ? { ...p, isValid: true, reason: undefined, subsidiary: { ...((p as any).subsidiary || {}), id: destinationId } }
+                : p;
+            })
+          );
+        } else {
+          // Enviado a otra sucursal: ya no está aquí -> quitarlo.
+          handleRemovePackage(id);
+        }
+        setTransferPkg(null);
+      }}
+    />
+    </>
   );
 };
 

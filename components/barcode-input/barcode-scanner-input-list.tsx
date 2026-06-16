@@ -524,7 +524,7 @@ const BarcodeScannerInputComponent = forwardRef<
 
       {/* Métricas */}
       {packages.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-justify gap-3">
           <MetricChip icon={AlertCircle} label="Hoy" value={dueTodayCount} className="border-red-200 bg-red-50 text-red-700" />
           <MetricChip icon={Calendar} label="Mañana" value={dueTomorrowCount} className="border-amber-200 bg-amber-50 text-amber-700" />
           <MetricChip icon={HelpCircle} label="No encontradas" value={notFoundCount} className="border-slate-200 bg-slate-50 text-slate-600" />

@@ -1273,6 +1273,7 @@ export default function UnloadingForm({
           className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
+          showCloseButton={false}
         >
           <DialogHeader className="sr-only">
             <DialogTitle>Desembarque de Paquetes</DialogTitle>

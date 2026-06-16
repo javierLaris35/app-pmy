@@ -49,7 +49,8 @@ import {
   Building2,
   Route,
   ArrowRightLeft,
-  GaugeIcon
+  GaugeIcon,
+  History
 } from "lucide-react"
 
 // Selectores especializados
@@ -64,6 +65,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { tableFilters } from "./filters"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { RutaSelector } from "@/components/selectors/ruta-selector"
+import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
 
 export type OutboundShipment = ScannedShipment & {
   pieces?: string[]; 
@@ -86,6 +88,7 @@ export type OutboundSessionState = {
   routes: Routes[]
   initialKms: number | null
   destinationSubsidiary?: string
+  destinationSubsidiaryName?: string
 }
 
 type RemittanceDialogState = {
@@ -142,7 +145,9 @@ export default function OutboundPackage() {
   })
   
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("")
+  const [effectiveWarehouseName, setEffectiveWarehouseName] = useState<string>("")
   const effectiveWarehouseId = selectedWarehouse || defaultWarehouseId;
+  const [showHistory, setShowHistory] = useState(false)
 
   const [scanInput, setScanInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
@@ -322,38 +327,56 @@ export default function OutboundPackage() {
     if (!scanInput.trim()) return
     setIsScanning(true)
     setError(null)
-    const trackingNumber = scanInput.trim().toUpperCase()
 
-    const existingPackage = session.packages.find((p) => p.trackingNumber === trackingNumber);
+    let scannedCode = scanInput.trim().toUpperCase()
 
-    if (existingPackage) {
-      if (existingPackage.shipmentType.toLowerCase() === "dhl") {
-        setRemittanceDialog({
-          isOpen: true,
-          step: "confirm",
-          masterTracking: trackingNumber,
-          pieceInput: "",
-          error: null
-        });
-        safeSpeak("Guia repetida. Por favor, confirme remesa.");
-        setScanInput("");
-        setIsScanning(false);
-        return;
-      } else {
-        setError(`Guia principal ya en lista: ${trackingNumber}`);
-        safeSpeak("Guia en lista.");
-        setIsScanning(false);
-        setScanInput("");
-        return;
+    // FedEx: recortar códigos numéricos largos (>=20) a los últimos 12 dígitos.
+    // (DHL con letras JJD/JD pasa intacto.)
+    if (scannedCode.length >= 20 && /^\d+$/.test(scannedCode)) {
+      scannedCode = scannedCode.slice(-12)
+    }
+
+    // Defensa local: ¿ya está en la lista?
+    const localMatch = session.packages.find(
+      (p) => p.trackingNumber === scannedCode || p.dhlUniqueId === scannedCode
+    );
+    if (localMatch) {
+      if (localMatch.dhlUniqueId === scannedCode) {
+        setError(`La pieza ${scannedCode} ya está en la lista.`)
+        safeSpeak("Pieza repetida."); setScanInput(""); setIsScanning(false); return;
+      }
+      if (localMatch.trackingNumber === scannedCode) {
+        if (localMatch.shipmentType.toLowerCase() === "dhl") {
+          setRemittanceDialog({ isOpen: true, step: "confirm", masterTracking: localMatch.trackingNumber, pieceInput: "", error: null });
+          safeSpeak("Guía principal detectada. Confirme remesa.");
+        } else {
+          setError(`Guía ya en lista: ${scannedCode}`); safeSpeak("Guía repetida.");
+        }
+        setScanInput(""); setIsScanning(false); return;
       }
     }
 
     try {
-      const result = await validateShipment(trackingNumber)
+      const result = await validateShipment(scannedCode, effectiveWarehouseId, "outbound")
       if (result.isValid === false) {
         setError(result.reason || "No encontrado en sistema")
         safeSpeak("No encontrado.")
       } else {
+        // Dedup post-backend (DHL: solo si coincide el dhlUniqueId).
+        const isDuplicate = session.packages.find((p) => {
+          if (p.trackingNumber !== result.trackingNumber) return false;
+          if (p.dhlUniqueId && result.dhlUniqueId) return p.dhlUniqueId === result.dhlUniqueId;
+          return true;
+        });
+        if (isDuplicate) {
+          if (result.shipmentType.toLowerCase() === "dhl") {
+            setRemittanceDialog({ isOpen: true, step: "confirm", masterTracking: result.trackingNumber, pieceInput: "", error: null });
+            safeSpeak("Guía repetida. Confirme remesa.");
+          } else {
+            setError(`El paquete con guía ${result.trackingNumber} ya está en la lista.`); safeSpeak("Paquete duplicado.");
+          }
+          setScanInput(""); setIsScanning(false); return;
+        }
 
         const newShipment: OutboundShipment = {
           ...result,
@@ -362,16 +385,20 @@ export default function OutboundPackage() {
           isCharge: result.isCharge || false,
           hasPayment: result.hasPayment || false,
           paymentAmount: result.paymentAmount || 0,
-          pieces: [], 
+          pieces: [],
           existingPieces: result.existingPieces || [],
           recipientName: result.recipientName || "",
           recipientAddress: result.recipientAddress || ""
         }
 
-        if (newShipment.existingPieces && newShipment.existingPieces.length > 0) {
-          safeSpeak("Guia existente. Escanee piezas restantes.");
+        // Aviso de estado (no bloquea: el operador decide).
+        if (result.statusWarning) {
+          setError(result.statusWarning)
+          safeSpeak("Atención, revise el estado del paquete.")
+        } else if (newShipment.existingPieces && newShipment.existingPieces.length > 0) {
+          safeSpeak("Guía existente. Escanee piezas restantes.");
         } else {
-          safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence manana" : "Registrado")
+          safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence mañana" : "Registrado")
         }
 
         setSession(prev => ({ ...prev, packages: [newShipment, ...prev.packages] }))
@@ -384,7 +411,7 @@ export default function OutboundPackage() {
       setIsScanning(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }, [scanInput, session.packages, safeSpeak])
+  }, [scanInput, session.packages, safeSpeak, effectiveWarehouseId])
 
   const handleKeyPress = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); handleScan() } }
 
@@ -698,10 +725,23 @@ export default function OutboundPackage() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded shrink-0 hover:bg-slate-200 text-slate-600" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded shrink-0 hover:bg-slate-200 text-slate-600"
+                      onClick={() => setShowHistory(true)}
+                    >
+                      <History className="w-5 h-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Historial de salidas</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded shrink-0 hover:bg-slate-200 text-slate-600"
                       onClick={() => toggleModal("shortcuts", true)}
                     >
                       <Keyboard className="w-5 h-5" />
@@ -718,6 +758,8 @@ export default function OutboundPackage() {
                   onlyWarehouses={true}
                   onValueChange={(val) => {
                     const sucursalId = typeof val === 'object' && val !== null ? (val as any).id : val;
+                    const sucursalName = typeof val === 'object' && val !== null ? (val as any).name : "";
+                    setEffectiveWarehouseName(sucursalName);
                     setSelectedWarehouse(sucursalId);
                   }}
                 />
@@ -856,7 +898,8 @@ export default function OutboundPackage() {
                       returnObject={true}
                       onValueChange={(val) => {
                         const sucursalId = typeof val === 'object' && val !== null ? (val as any).id : val;
-                        setSession(s => ({...s, destinationSubsidiary: sucursalId}));
+                        const sucursalName = typeof val === 'object' && val !== null ? (val as any).name : "";
+                        setSession(s => ({...s, destinationSubsidiary: sucursalId, destinationSubsidiaryName: sucursalName}));
                       }}
                     />
                   </div>
@@ -1089,19 +1132,19 @@ export default function OutboundPackage() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
-              {session.outputType === "ruta" ? <Route className="w-5 h-5 text-orange-600" /> : <ArrowRightLeft className="w-5 h-5 text-blue-600" />}
-              {session.outputType === "ruta" ? "Cerrar Salida a Ruta" : "Cerrar Traspaso a Sucursal"}
+              {session.outputType === OutboundTypeEnum.DISPATCH ? <Route className="w-5 h-5 text-orange-600" /> : <ArrowRightLeft className="w-5 h-5 text-blue-600" />}
+              {session.outputType === OutboundTypeEnum.DISPATCH ? "Cerrar Salida a Ruta" : "Cerrar Traspaso a Sucursal"}
             </DialogTitle>
             <DialogDescription className="text-slate-500">
               Confirme quien entrega y quien recibe la mercancia para habilitar la descarga del PDF y guardar el registro de la sesion.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5 py-4">
-            {session.outputType === "traspaso" && (
+            {session.outputType === OutboundTypeEnum.TRANSFER && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm font-semibold text-blue-800 flex items-center gap-2">
                   <Building2 className="w-4 h-4" />
-                  Destino: {session.destinationSubsidiary || "Sin seleccionar"}
+                  Destino: {session.destinationSubsidiaryName || session.destinationSubsidiary || "Sin seleccionar"}
                 </p>
               </div>
             )}
@@ -1116,7 +1159,7 @@ export default function OutboundPackage() {
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                {session.outputType === "ruta" ? "Recibido por (Chofer)" : "Recibido por (Sucursal Destino)"}
+                {session.outputType === OutboundTypeEnum.DISPATCH ? "Recibido por (Chofer)" : "Recibido por (Sucursal Destino)"}
               </Label>
               <Input 
                 value={session.receivedByName} 
@@ -1165,6 +1208,14 @@ export default function OutboundPackage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WarehouseHistoryDialog
+        open={showHistory}
+        onOpenChange={setShowHistory}
+        kind="outbound"
+        subsidiaryId={effectiveWarehouseId}
+        subsidiaryName={effectiveWarehouseName}
+      />
     </div>
   )
 }

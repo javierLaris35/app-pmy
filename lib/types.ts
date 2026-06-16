@@ -889,6 +889,10 @@ export interface ScannedShipment {
   hasPayment: boolean
   paymentAmount?: number
   dhlUniqueId?: string
+  /** Piezas (remesas) ya registradas para esta guía maestra. */
+  existingPieces?: string[]
+  /** Aviso si el estado del paquete no es apropiado para la operación. */
+  statusWarning?: string
 }
 
 

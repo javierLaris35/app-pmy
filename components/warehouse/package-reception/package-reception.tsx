@@ -1,119 +1,138 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { 
-  Package, 
-  ScanBarcode, 
-  User, 
-  MapPin, 
-  Calendar, 
-  Hash,
-  CheckCircle2,
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import {
+  Package,
+  ScanBarcode,
   X,
-  Trash2,
-  Clock,
   AlertCircle,
-  Phone,
-  Building2,
-  Box,
-  Truck,
   Keyboard,
   History,
-  Printer,
   Search,
-  AlertTriangle
+  Home,
+  PackageCheck,
+  GemIcon,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import { Card, CardContent } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogDescription,
-  DialogFooter
+  DialogFooter,
 } from '@/components/ui/dialog'
-import { getTrackingNumberInfo, savePackageReception } from '@/lib/services/package-reception/package-reception'
-import { formatDateToShortDate, formatShortDate } from '@/utils/date.utils'
-
-
-interface CustomerInfo {
-  recipientName: string
-  recipientPhone: string
-  recipientCity: string
-  recipientZip: string
-  recipientAddress: string
-}
-
-interface PackageDetails {
-  trackingNumber: string
-  shipmentType: string
-  priority: string
-  commitDateTime: string | Date
-  carrierCode: string
-  consNumber: string
-  consolidatedId: string
-  isHighValue: boolean
-}
+import {
+  getTrackingNumberInfo,
+  savePackageReception,
+  PickUpType,
+} from '@/lib/services/package-reception/package-reception'
+import { SucursalSelector } from '@/components/sucursal-selector'
+import { useAuthStore } from '@/store/auth.store'
+import { OperationHeader } from '@/components/shared/operation-header'
+import { StatBar, StatItem } from '@/components/shared/stat-bar'
+import { PackagesPanelHeader } from '@/components/shared/packages-panel-header'
+import { PackageListItem } from '@/components/shared/package-list-item'
+import { WeekRangePicker } from '@/components/shared/week-range-picker'
+import { getWeekRange, WeekRange } from '@/lib/week'
+import { usePickUpHistory } from '@/hooks/services/pick-up/use-pick-up-history'
+import { useToast } from '@/components/ui/use-toast'
+import { PackageInfo } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 interface ScannedPackage {
-  shipmentId?: string
-  chargeShipmentId?: string
+  shipmentId?: string | null
+  chargeShipmentId?: string | null
   trackingNumber: string
-  recipientName: string
   shipmentType: string
-  status: 'ready' | 'pending' | 'delivered'
-  scannedAt: string
   isCharge: boolean
-  customerInfo: CustomerInfo
-  packageDetails: PackageDetails
+  isHighValue: boolean
+  priority: string
+  recipientName: string
+  recipientAddress: string
+  recipientPhone: string
+  recipientZip: string
+  commitDateTime: string | Date
 }
 
-// Reusable detail row component
-function DetailRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
-      <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-      <span className="text-sm text-muted-foreground min-w-24">{label}</span>
-      <span className="text-sm font-medium text-foreground ml-auto text-right">{value}</span>
-    </div>
-  )
-}
+/** Los dos tipos de registro que maneja este módulo. */
+const TYPE_OPTIONS: { value: PickUpType; label: string; icon: React.ElementType }[] = [
+  { value: 'ocurre', label: 'Ocurre', icon: Home },
+  { value: 'entrega_bodega', label: 'Entrega en bodega', icon: PackageCheck },
+]
+
+const typeLabel = (t: PickUpType | null) => TYPE_OPTIONS.find((o) => o.value === t)?.label ?? '—'
 
 export default function PackageReception() {
+  const { toast } = useToast()
+  const user = useAuthStore((s) => s.user)
+  const hasHydrated = useAuthStore((s) => s.hasHydrated)
+
+  // Sucursal (selector obligatorio, igual que los demás módulos)
+  const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
+  const [selectedSucursalName, setSelectedSucursalName] = useState<string>('')
+  const effectiveSucursalId = hasHydrated
+    ? selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || null
+    : null
+  const effectiveSucursalName = hasHydrated
+    ? selectedSucursalName || user?.subsidiary?.name || user?.subsidiaryName || ''
+    : ''
+
+  useEffect(() => {
+    if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
+      setSelectedSucursalId(user.subsidiary.id)
+      setSelectedSucursalName(user.subsidiary.name || '')
+    } else if (hasHydrated && user?.subsidiaryId && !selectedSucursalId && !user?.subsidiary?.id) {
+      setSelectedSucursalId(user.subsidiaryId)
+      setSelectedSucursalName(user.subsidiaryName || '')
+    }
+  }, [hasHydrated, user, selectedSucursalId])
+
+  const handleSucursalChange = (id: string, name?: string) => {
+    setSelectedSucursalId(id || null)
+    setSelectedSucursalName(name || '')
+  }
+
+  // Tipo activo (define a qué lista van los escaneos y cuál se muestra).
+  const [pickUpType, setPickUpType] = useState<PickUpType>('entrega_bodega')
+
+  // Dos listas persistentes: cambiar de tipo NO pierde la otra.
+  const [lists, setLists] = useState<Record<PickUpType, ScannedPackage[]>>({
+    ocurre: [],
+    entrega_bodega: [],
+  })
+
   const [scanInput, setScanInput] = useState('')
-  const [scannedPackages, setScannedPackages] = useState<ScannedPackage[]>([])
-  const [selectedPackage, setSelectedPackage] = useState<string | null>(null)
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null)
-  const [packageDetails, setPackageDetails] = useState<PackageDetails | null>(null)
   const [isScanning, setIsScanning] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Focus input on mount and when returning from dialogs
-  useEffect(() => {
-    if (!showConfirmDialog && !showShortcuts) {
-      inputRef.current?.focus()
-    }
-  }, [showConfirmDialog, showShortcuts])
+  const activeList = lists[pickUpType]
+  const counts = { ocurre: lists.ocurre.length, entrega_bodega: lists.entrega_bodega.length }
+  const total = counts.ocurre + counts.entrega_bodega
 
-  // Keyboard shortcuts
+  useEffect(() => {
+    if (!showConfirmDialog && !showShortcuts && !showHistory) inputRef.current?.focus()
+  }, [showConfirmDialog, showShortcuts, showHistory])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in input
       if (e.target instanceof HTMLInputElement) return
-      
       if (e.key === 'F1') {
         e.preventDefault()
         inputRef.current?.focus()
-      } else if (e.key === 'F2' && scannedPackages.length > 0) {
+      } else if (e.key === 'F2' && total > 0) {
         e.preventDefault()
         setShowConfirmDialog(true)
       } else if (e.key === 'Escape') {
@@ -123,602 +142,544 @@ export default function PackageReception() {
         setShowShortcuts(true)
       }
     }
-
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [scannedPackages.length])
+  }, [total])
 
   const handleScan = useCallback(async () => {
     if (!scanInput.trim()) return
-    
+    if (!effectiveSucursalId) {
+      setError('Selecciona una sucursal antes de escanear.')
+      return
+    }
+
+    const trackingNumber = scanInput.trim().toUpperCase()
+
+    // Dedup CRUZADO: una guía solo puede estar en UNA de las dos listas.
+    const existsIn = lists.ocurre.some((p) => p.trackingNumber === trackingNumber)
+      ? 'ocurre'
+      : lists.entrega_bodega.some((p) => p.trackingNumber === trackingNumber)
+      ? 'entrega_bodega'
+      : null
+    if (existsIn) {
+      setError(`Este paquete ya está en la lista de ${typeLabel(existsIn as PickUpType)}.`)
+      setScanInput('')
+      inputRef.current?.focus()
+      return
+    }
+
     setIsScanning(true)
     setError(null)
 
-    const trackingNumber = scanInput.trim().toUpperCase();
-
     try {
-      // API call
-      const trackingInfo: any = await getTrackingNumberInfo(trackingNumber);   
-      console.log("🚀 ~ PackageReception ~ trackingInfo:", trackingInfo)
-      
-      // Check if already scanned
-      if (scannedPackages.some(p => p.trackingNumber === trackingNumber)) {
-        setError('Este paquete ya fue escaneado')
-        setIsScanning(false)
-        setScanInput('')
-        inputRef.current?.focus()
-        return
-      }
-
+      const info: any = await getTrackingNumberInfo(trackingNumber)
       const newPackage: ScannedPackage = {
-        // Si ES carga, shipmentId es null. Si NO es carga, lleva el id.
-        shipmentId: trackingInfo.isCharge ? null : trackingInfo.id,
-        
-        // Si ES carga, chargeShipmentId lleva el id. Si NO es carga, es null.
-        chargeShipmentId: trackingInfo.isCharge ? trackingInfo.id : null,
+        shipmentId: info.isCharge ? null : info.id,
+        chargeShipmentId: info.isCharge ? info.id : null,
         trackingNumber,
-        recipientName: trackingInfo?.recipientName || 'Cliente no especificado',
-        shipmentType: trackingInfo?.shipmentType || 'Estándar',
-        status: 'ready',
-        isCharge: trackingInfo?.isCharge || false,
-        customerInfo: {
-          recipientName: trackingInfo.recipientName || 'N/A',
-          recipientPhone: trackingInfo.recipientPhone || 'N/A',
-          recipientCity: trackingInfo.recipientCity || 'N/A',
-          recipientZip: trackingInfo.recipientZip || 'N/A',
-          recipientAddress: trackingInfo.recipientAddress || 'N/A'
-        },
-        packageDetails: {
-          trackingNumber: trackingInfo.trackingNumber || trackingNumber,
-          shipmentType: trackingInfo.shipmentType || 'N/A',
-          priority: trackingInfo.priority || 'BAJA',
-          carrierCode: trackingInfo.carrierCode || 'N/A',
-          commitDateTime: trackingInfo.commitDateTime || new Date(),
-          consNumber: trackingInfo.consNumber || 'N/A',
-          consolidatedId: trackingInfo.consolidatedId || 'N/A',
-          isHighValue: trackingInfo.isHighValue || false
-        },
-        scannedAt: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+        shipmentType: info?.shipmentType || 'fedex',
+        isCharge: info?.isCharge || false,
+        isHighValue: info?.isHighValue || false,
+        priority: info?.priority || 'baja',
+        recipientName: info?.recipientName || '—',
+        recipientAddress: info?.recipientAddress || '—',
+        recipientPhone: info?.recipientPhone || '',
+        recipientZip: info?.recipientZip || '',
+        commitDateTime: info?.commitDateTime || new Date(),
       }
-      
-      setScannedPackages(prev => [newPackage, ...prev])
-      setSelectedPackage(trackingNumber)
-      
-      if (trackingInfo) {
-        setCustomerInfo({
-          recipientName: trackingInfo.recipientName || 'N/A',
-          recipientPhone: trackingInfo.recipientPhone || 'N/A',
-          recipientCity: trackingInfo.recipientCity || 'N/A',
-          recipientZip: trackingInfo.recipientZip || 'N/A',
-          recipientAddress: trackingInfo.recipientAddress || 'N/A'
-        })
-        setPackageDetails({
-          trackingNumber: trackingInfo.trackingNumber || trackingNumber,
-          shipmentType: trackingInfo.shipmentType || 'N/A',
-          priority: trackingInfo.priority || 'BAJA',
-          carrierCode: trackingInfo.carrierCode || 'N/A',
-          commitDateTime: trackingInfo.commitDateTime || new Date(),
-          consNumber: trackingInfo.consNumber || 'N/A',
-          consolidatedId: trackingInfo.consolidatedId || 'N/A',
-          isHighValue: trackingInfo.isHighValue || false
-        })
-      } else {
-        setCustomerInfo({
-          recipientName: 'Cliente ' + trackingNumber.slice(-4),
-          recipientPhone: 'No registrado',
-          recipientCity: 'Ciudad Local',
-          recipientZip: '00000',
-          recipientAddress: 'Dirección pendiente'
-        })
-        setPackageDetails({
-          trackingNumber,
-          shipmentType: 'FEDEX',
-          priority: 'NORMAL',
-          carrierCode: 'FDX',
-          commitDateTime: new Date(),
-          consNumber: '-',
-          consolidatedId: '-',
-          isHighValue: false
-        })
-      }
-    } catch (err) {
-      setError('Error al conectar con el servidor')
+      setLists((prev) => ({ ...prev, [pickUpType]: [newPackage, ...prev[pickUpType]] }))
+    } catch (err: any) {
+      const status = err?.response?.status
+      setError(
+        status === 404
+          ? `No se encontró la guía ${trackingNumber} en el sistema.`
+          : 'Error al consultar la guía. Intenta de nuevo.'
+      )
     }
-    
+
     setScanInput('')
     setIsScanning(false)
     inputRef.current?.focus()
-  }, [scanInput, scannedPackages])
+  }, [scanInput, lists, pickUpType, effectiveSucursalId])
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleScan()
-    }
+    if (e.key === 'Enter') handleScan()
   }
 
-  const handleRemovePackage = (id: string) => {
-    const pkg = scannedPackages.find(p => p.id === id)
-    setScannedPackages(prev => prev.filter(p => p.id !== id))
-    if (pkg && pkg.trackingNumber === selectedPackage) {
-      setSelectedPackage(null)
-      setCustomerInfo(null)
-      setPackageDetails(null)
-    }
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }
+  const handleRemovePackage = useCallback(
+    (trackingNumber: string) => {
+      setLists((prev) => ({
+        ...prev,
+        [pickUpType]: prev[pickUpType].filter((p) => p.trackingNumber !== trackingNumber),
+      }))
+      setTimeout(() => inputRef.current?.focus(), 0)
+    },
+    [pickUpType]
+  )
 
-  const handleSelectPackage = (trackingNumber: string) => {
-    setSelectedPackage(trackingNumber)
-    // Buscamos si existe en mockPackages si es que recargamos (en un caso real, haríamos otra llamada a la BD o buscaríamos del estado general)
-    const pkg = scannedPackages.find(p => p.trackingNumber === trackingNumber)
-    if (pkg) {
-      setCustomerInfo(pkg.customerInfo)
-      setPackageDetails(pkg.packageDetails)
+  const handleConfirm = async () => {
+    if (!effectiveSucursalId) {
+      toast({ title: 'Error', description: 'Selecciona una sucursal antes de registrar.', variant: 'destructive' })
+      return
     }
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }
-
-  const handleConfirmDelivery = async () => {
     setShowConfirmDialog(false)
-    setIsScanning(true)
-    await savePackageReception(scannedPackages)
-    
-    setScannedPackages(prev => prev.map(p => ({ ...p, status: 'delivered' as const })))
-    setShowSuccess(true)
-    setIsScanning(false)
-    
-    setTimeout(() => {
-      setShowSuccess(false)
-      setScannedPackages([])
-      setSelectedPackage(null)
-      setCustomerInfo(null)
-      setPackageDetails(null)
-      inputRef.current?.focus()
-    }, 2000)
+    setIsSaving(true)
+    try {
+      // Guarda AMBAS listas en un solo envío, con el tipo por paquete.
+      const items = (['ocurre', 'entrega_bodega'] as PickUpType[]).flatMap((t) =>
+        lists[t].map((p) => ({
+          trackingNumber: p.trackingNumber,
+          type: t,
+          shipmentId: p.shipmentId ?? null,
+          chargeShipmentId: p.chargeShipmentId ?? null,
+        }))
+      )
+      await savePackageReception({ subsidiaryId: effectiveSucursalId, items })
+      setShowSuccess(true)
+      toast({
+        title: 'Registro exitoso',
+        description: `${total} paquete(s): ${counts.ocurre} ocurre, ${counts.entrega_bodega} entrega.`,
+      })
+      setTimeout(() => {
+        setShowSuccess(false)
+        setLists({ ocurre: [], entrega_bodega: [] })
+        inputRef.current?.focus()
+      }, 1500)
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'No se pudo completar el registro. Intenta de nuevo.'
+      toast({ title: 'Error al registrar', description: String(msg), variant: 'destructive' })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const totalPackages = scannedPackages.length
-  const readyPackages = scannedPackages.filter(p => p.status === 'ready').length
+  // Mapeo a PackageInfo para reusar el item estandarizado (lista activa).
+  const listPackages = useMemo<PackageInfo[]>(
+    () =>
+      activeList.map(
+        (p) =>
+          ({
+            id: p.trackingNumber,
+            trackingNumber: p.trackingNumber,
+            shipmentType: p.shipmentType,
+            recipientName: p.recipientName,
+            recipientAddress: p.recipientAddress,
+            recipientPhone: p.recipientPhone,
+            recipientZip: p.recipientZip,
+            commitDateTime:
+              typeof p.commitDateTime === 'string' ? p.commitDateTime : new Date(p.commitDateTime).toISOString(),
+            isCharge: p.isCharge,
+            isHighValue: p.isHighValue,
+            priority: p.priority,
+            isValid: true,
+            isPendingValidation: false,
+          } as unknown as PackageInfo)
+      ),
+    [activeList]
+  )
+
+  const stats = useMemo<StatItem[]>(() => {
+    const all = [...lists.ocurre, ...lists.entrega_bodega]
+    const charge = all.filter((p) => p.isCharge).length
+    const highValue = all.filter((p) => p.isHighValue).length
+    return [
+      { label: 'Ocurre', value: counts.ocurre, valueClassName: 'text-amber-600', icon: Home },
+      { label: 'Entrega', value: counts.entrega_bodega, valueClassName: 'text-green-600', icon: PackageCheck },
+      { label: 'Total', value: total, icon: Package },
+      { label: 'Carga / F2', value: charge, valueClassName: 'text-green-600' },
+      { label: 'Alto valor', value: highValue, valueClassName: 'text-violet-600', icon: GemIcon },
+    ]
+  }, [lists, counts.ocurre, counts.entrega_bodega, total])
+
+  const canConfirm = total > 0 && !!effectiveSucursalId && !isScanning && !isSaving && !showSuccess
+
+  if (!hasHydrated) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-full">
-      {/* Header */}
-      <header className="shrink-0 sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur supports-backdrop-blur:bg-card/60">
-        <div className="flex items-center justify-between pr-6 py-3">
-          <div className="flex items-center gap-4">
-            <div>
-              <h1 className="text-lg font-semibold text-foreground">Registro Ocurre/Entrega Bodega</h1>
-              <p className="text-xs text-muted-foreground"></p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
+    <TooltipProvider delayDuration={100}>
+      <div className="space-y-3">
+        <OperationHeader
+          icon={PackageCheck}
+          title="Registro Ocurre / Entrega en Bodega"
+          description="Escanea y registra paquetes que quedan en sucursal"
+          subsidiaryName={effectiveSucursalName}
+          actions={
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="w-[220px]">
+                <SucursalSelector
+                  value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ''}
+                  returnObject={true}
+                  onValueChange={(val) => {
+                    if (typeof val === 'string') handleSucursalChange(val)
+                    else if (Array.isArray(val)) {
+                      const first = val[0] as any
+                      handleSucursalChange(first?.id ?? '', first?.name ?? '')
+                    } else if (val && typeof val === 'object') {
+                      handleSucursalChange((val as any).id, (val as any).name)
+                    }
+                  }}
+                />
+              </div>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowShortcuts(true)}>
-                    <Keyboard className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Atajos de teclado (?)</TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setShowHistory(true)}>
                     <History className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Historial</TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setShowShortcuts(true)}>
+                    <Keyboard className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Atajos de teclado (?)</TooltipContent>
+              </Tooltip>
             </div>
-          </div>
-        </div>
-      </header>
+          }
+        />
 
-      {/* Main Content - Split Panel */}
-      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-        {/* Left Panel - Scanner and Package List */}
-        <div className="w-full lg:w-1/2 border-b lg:border-b-0 lg:border-r border-border flex flex-col bg-card overflow-hidden shrink-0 lg:shrink">
-          {/* Scanner Section */}
-          <div className="shrink-0 py-5 px-2 border-b border-border">
-            <div className="flex items-center gap-2 mb-4">
-              <ScanBarcode className="w-5 h-5 text-primary" />
-              <h2 className="font-semibold text-foreground">Escanear Paquete</h2>
-              <Badge variant="default" className="ml-auto text-xs hidden sm:inline-flex">F1 para enfocar</Badge>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="Escanear codigo de barras o ingresar tracking..."
-                  value={scanInput}
-                  onChange={(e) => setScanInput(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="h-12 text-base pl-10 pr-10 font-mono w-full"
-                  disabled={isScanning}
-                />
-                {scanInput && (
-                  <button
-                    onClick={() => {
-                      setScanInput('')
-                      inputRef.current?.focus()
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <Button 
-                onClick={handleScan}
-                disabled={!scanInput.trim() || isScanning}
-                className="h-12 px-5 w-full sm:w-auto"
-              >
-                {isScanning ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    <span className="sm:hidden">Escaneando</span>
-                  </span>
-                ) : (
-                  'Agregar'
-                )}
-              </Button>
-            </div>
+        {total > 0 && <StatBar items={stats} />}
 
-            {error && (
-              <div className="flex items-center gap-2 mt-3 p-2.5 rounded-md bg-destructive/10 text-destructive text-sm">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Package List */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="px-5 py-3 bg-muted/40 border-b border-border sticky top-0 z-10 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-foreground">
-                  Paquetes Escaneados
-                </h3>
-                {totalPackages > 0 && (
-                  <Badge className="bg-secondary/10 text-secondary hover:bg-secondary/20 border-0">
-                    {readyPackages} listo{readyPackages !== 1 ? 's' : ''}
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {scannedPackages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-muted-foreground p-4 text-center">
-                <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                  <Package className="w-8 h-8 opacity-50" />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          {/* Columna izquierda: tipo + escaneo + confirmar */}
+          <div className="xl:col-span-1 space-y-4">
+            <Card>
+              <CardContent className="space-y-4 pt-6">
+                {/* Tipo de registro (a qué lista van los escaneos) + contador por tipo */}
+                <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+                  {TYPE_OPTIONS.map((opt) => {
+                    const Icon = opt.icon
+                    const active = pickUpType === opt.value
+                    const count = counts[opt.value]
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPickUpType(opt.value)}
+                        className={cn(
+                          'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs sm:text-sm font-medium transition-colors',
+                          active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {opt.label}
+                        {count > 0 && (
+                          <span
+                            className={cn(
+                              'ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold',
+                              active ? 'bg-primary text-primary-foreground' : 'bg-foreground/10 text-foreground'
+                            )}
+                          >
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
-                <p className="font-medium">No hay paquetes escaneados</p>
-                <p className="text-sm mt-1">Escanee un codigo de barras para comenzar</p>
+
+                <div className="flex items-center gap-2">
+                  <ScanBarcode className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">Escanear paquete</span>
+                  <Badge variant="secondary" className="ml-auto text-[10px] hidden sm:inline-flex">F1</Badge>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    ref={inputRef}
+                    type="text"
+                    placeholder={effectiveSucursalId ? 'Escanea o ingresa el tracking...' : 'Selecciona una sucursal'}
+                    value={scanInput}
+                    onChange={(e) => setScanInput(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    className="h-11 pl-9 pr-9 font-mono"
+                    disabled={isScanning || !effectiveSucursalId}
+                  />
+                  {scanInput && (
+                    <button
+                      onClick={() => {
+                        setScanInput('')
+                        inputRef.current?.focus()
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <Button onClick={handleScan} disabled={!scanInput.trim() || isScanning || !effectiveSucursalId} variant="outline" className="w-full gap-2">
+                  {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanBarcode className="h-4 w-4" />}
+                  {isScanning ? 'Consultando...' : 'Agregar'}
+                </Button>
+
+                {error && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 text-destructive text-sm">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <Button
+                  onClick={() => setShowConfirmDialog(true)}
+                  disabled={!canConfirm}
+                  className={cn('w-full gap-2', showSuccess && 'bg-green-600 hover:bg-green-600 text-white')}
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  {showSuccess ? 'Registro confirmado' : `Confirmar registro (${total})`}
+                  {!showSuccess && <Badge variant="secondary" className="ml-1 text-[10px] hidden sm:inline-flex">F2</Badge>}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Columna derecha: lista estandarizada */}
+          <div className="xl:col-span-2 space-y-3">
+            <PackagesPanelHeader
+              title="Paquetes escaneados"
+              subtitle={
+                <>
+                  Tipo: <span className="font-medium">{typeLabel(pickUpType)}</span>
+                </>
+              }
+            />
+
+            {listPackages.length > 0 ? (
+              <div className="max-h-[480px] overflow-y-auto rounded-md border">
+                <div className="grid grid-cols-1 divide-y">
+                  {listPackages.map((pkg) => (
+                    <PackageListItem key={pkg.trackingNumber} pkg={pkg} onRemove={handleRemovePackage} isLoading={isSaving} />
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className="divide-y divide-border pb-4">
-                {scannedPackages.map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    onClick={() => handleSelectPackage(pkg.trackingNumber)}
-                    className={`px-5 py-4 cursor-pointer transition-all ${
-                      selectedPackage === pkg.trackingNumber 
-                        ? 'bg-primary/5 border-l-2 border-l-primary' 
-                        : 'hover:bg-muted/50 border-l-2 border-l-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-sm font-semibold text-foreground">
-                            {pkg.trackingNumber}
-                          </span>
-                          <Badge 
-                            variant={pkg.status === 'delivered' ? 'default' : 'secondary'}
-                            className={`text-[10px] sm:text-xs ${
-                              pkg.status === 'delivered' 
-                                ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-500/20' 
-                                : ''
-                            }`}
-                          >
-                            {pkg.status === 'delivered' ? 'Entregado' : 'Listo'}
-                          </Badge>
-                          { pkg.isCharge && (
-                            <Badge variant="success" className="text-[10px] sm:text-xs">
-                              Carga
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1 truncate">
-                          {pkg.recipientName}
-                        </p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Box className="w-3 h-3" />
-                            {pkg.shipmentType}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {pkg.scannedAt}
-                          </span>
-                        </div>
-                      </div>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleRemovePackage(pkg.id)
-                            }}
-                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Remover paquete</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-center py-16 border-2 border-dashed border-muted rounded-lg">
+                <Package className="h-16 w-16 mx-auto text-muted-foreground/40 mb-4" />
+                <h3 className="text-lg font-medium text-muted-foreground mb-1">Sin paquetes escaneados</h3>
+                <p className="text-muted-foreground text-sm">Escanea un código de barras para comenzar</p>
               </div>
             )}
           </div>
-
-          {/* Confirm Delivery Button */}
-          <div className="shrink-0 p-5 border-t border-border bg-card">
-            <Button
-              onClick={() => setShowConfirmDialog(true)}
-              disabled={scannedPackages.length === 0 || isScanning || showSuccess}
-              size="lg"
-              className={`w-full h-12 sm:h-14 text-sm sm:text-base font-semibold transition-all ${
-                showSuccess 
-                  ? 'bg-green-500 hover:bg-green-500 text-white' 
-                  : ''
-              }`}
-            >
-              {showSuccess ? (
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" />
-                  Entrega Confirmada
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" />
-                  Confirmar Entrega ({totalPackages})
-                  <Badge variant="secondary" className="ml-2 text-xs bg-primary-foreground/20 hidden sm:inline-flex">F2</Badge>
-                </span>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Right Panel - Details */}
-        <div className="w-full lg:w-1/2 bg-muted/20 flex flex-col overflow-y-auto">
-          {!selectedPackage ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
-              <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                <Package className="w-10 h-10 opacity-30" />
-              </div>
-              <p className="text-lg font-medium">Sin Paquete Seleccionado</p>
-              <p className="text-sm mt-1 text-center">Escanee o seleccione un paquete para ver los detalles</p>
-            </div>
-          ) : (
-            <div className="p-5 space-y-5">
-              {/* Customer Card */}
-              <Card>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-2">
-                    <User className="w-5 h-5 text-primary" />
-                    <CardTitle className="text-base">Información del Cliente</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {customerInfo && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
-                          <User className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-foreground">{customerInfo.recipientName}</p>
-                          <p className="text-sm text-muted-foreground">{customerInfo.recipientCity}, C.P. {customerInfo.recipientZip}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                          <Phone className="w-4 h-4 text-muted-foreground" />
-                          <div className="overflow-hidden">
-                            <p className="text-xs text-muted-foreground">Teléfono</p>
-                            <p className="text-sm font-medium text-foreground truncate">{customerInfo.recipientPhone}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                          <Building2 className="w-4 h-4 text-muted-foreground" />
-                          <div className="overflow-hidden">
-                            <p className="text-xs text-muted-foreground">Ciudad</p>
-                            <p className="text-sm font-medium text-foreground truncate">{customerInfo.recipientCity}</p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
-                        <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Dirección Exacta</p>
-                          <p className="text-sm font-medium text-foreground">{customerInfo.recipientAddress}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Package Details Card with Tabs */}
-              <Card className="flex-1">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="w-5 h-5 text-primary" />
-                      <CardTitle className="text-base">Detalles del Envío</CardTitle>
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Imprimir etiqueta</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {packageDetails && (
-                    <Tabs defaultValue="general" className="w-full">
-                      <TabsList className="w-full mb-4">
-                        <TabsTrigger value="general" className="flex-1">General</TabsTrigger>
-                        <TabsTrigger value="shipping" className="flex-1">Logística</TabsTrigger>
-                        <TabsTrigger value="value" className="flex-1">Valor</TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="general" className="mt-0 space-y-4">
-                        {/* Tracking Number Highlight */}
-                        <div className="p-4 bg-primary/5 rounded-lg border border-primary/10">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Hash className="w-4 h-4 text-primary" />
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Número de Rastreo</p>
-                          </div>
-                          <p className="text-xl font-mono font-bold text-primary">{packageDetails.trackingNumber}</p>
-                        </div>
-
-                        <div className="space-y-1">
-                          <DetailRow icon={Box} label="Tipo de Envío" value={packageDetails.shipmentType} />
-                          <DetailRow icon={AlertCircle} label="Prioridad" value={packageDetails.priority} />
-                          <DetailRow icon={Truck} label="Carrier Code" value={packageDetails.carrierCode || 'N/A'} />
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="shipping" className="mt-0 space-y-1">
-                        <DetailRow icon={Calendar} label="Fecha Compromiso" value={formatDateToShortDate(packageDetails.commitDateTime)} />
-                        <DetailRow icon={Hash} label="Consolidado ID" value={packageDetails.consolidatedId || 'Sin consolidar'} />
-                        <DetailRow icon={Package} label="Cons Number" value={packageDetails.consNumber || 'N/A'} />
-                      </TabsContent>
-                      
-                      <TabsContent value="value" className="mt-0">
-                        {packageDetails.isHighValue ? (
-                          <div className="p-6 bg-amber-50 rounded-lg border border-amber-200 text-center">
-                            <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                            <p className="text-sm text-amber-700 uppercase tracking-wide mb-1 font-semibold">Atención Requerida</p>
-                            <p className="text-2xl font-bold text-amber-700">PAQUETE DE ALTO VALOR</p>
-                            <p className="text-xs text-amber-600 mt-2">Este envío requiere protocolos de seguridad adicionales durante su entrega.</p>
-                          </div>
-                        ) : (
-                          <div className="p-6 bg-slate-50 rounded-lg border border-slate-200 text-center">
-                            <CheckCircle2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                            <p className="text-lg font-medium text-slate-600">Valor Estándar</p>
-                            <p className="text-xs text-slate-500 mt-1">No requiere protocolos especiales de alto valor.</p>
-                          </div>
-                        )}
-                      </TabsContent>
-                    </Tabs>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Confirm Delivery Dialog */}
+      {/* Confirm Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-primary" />
-              Confirmar Entrega
+              Confirmar registro
             </DialogTitle>
             <DialogDescription>
-              Esta a punto de confirmar la entrega de {totalPackages} paquete{totalPackages !== 1 ? 's' : ''} al cliente.
+              Vas a registrar {total} paquete{total !== 1 ? 's' : ''} en {effectiveSucursalName || 'la sucursal'}.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="py-4">
-            <div className="p-4 rounded-lg bg-muted/50 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Cliente:</span>
-                <span className="font-medium">{customerInfo?.recipientName || '-'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Ciudad:</span>
-                <span className="font-medium">{customerInfo?.recipientCity || '-'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Paquetes:</span>
-                <span className="font-medium">{totalPackages}</span>
-              </div>
+
+          <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><Home className="h-3.5 w-3.5" /> Ocurre:</span>
+              <span className="font-medium">{counts.ocurre}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><PackageCheck className="h-3.5 w-3.5" /> Entrega en bodega:</span>
+              <span className="font-medium">{counts.entrega_bodega}</span>
+            </div>
+            <div className="flex justify-between text-sm border-t pt-3">
+              <span className="text-muted-foreground">Sucursal:</span>
+              <span className="font-medium">{effectiveSucursalName || '-'}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Total:</span>
+              <span className="font-medium">{total}</span>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleConfirmDelivery} className="gap-2">
-              <CheckCircle2 className="w-4 h-4" />
-              Confirmar Entrega
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>Cancelar</Button>
+            <Button onClick={handleConfirm} className="gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Keyboard Shortcuts Dialog */}
+      {/* History Dialog */}
+      <PickUpHistoryDialog
+        open={showHistory}
+        onOpenChange={setShowHistory}
+        subsidiaryId={effectiveSucursalId}
+        subsidiaryName={effectiveSucursalName}
+      />
+
+      {/* Shortcuts Dialog */}
       <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Keyboard className="w-5 h-5 text-primary" />
-              Atajos de Teclado
+              Atajos de teclado
             </DialogTitle>
-            <DialogDescription>
-              Use estos atajos para trabajar mas rapido.
-            </DialogDescription>
+            <DialogDescription>Usa estos atajos para trabajar más rápido.</DialogDescription>
           </DialogHeader>
-          
-          <div className="py-4 space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm">Enfocar campo de escaneo</span>
-              <Badge variant="outline">F1</Badge>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm">Confirmar entrega</span>
-              <Badge variant="outline">F2</Badge>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm">Escanear paquete</span>
-              <Badge variant="outline">Enter</Badge>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm">Cerrar dialogo</span>
-              <Badge variant="outline">Esc</Badge>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-sm">Mostrar atajos</span>
-              <Badge variant="outline">?</Badge>
-            </div>
+          <div className="py-2 space-y-3">
+            {[
+              ['Enfocar campo de escaneo', 'F1'],
+              ['Confirmar registro', 'F2'],
+              ['Escanear paquete', 'Enter'],
+              ['Cerrar diálogo', 'Esc'],
+              ['Mostrar atajos', '?'],
+            ].map(([label, key]) => (
+              <div key={key} className="flex justify-between items-center py-2 border-b border-border last:border-0">
+                <span className="text-sm">{label}</span>
+                <Badge variant="outline">{key}</Badge>
+              </div>
+            ))}
           </div>
-
           <DialogFooter>
-            <Button onClick={() => setShowShortcuts(false)}>
-              Entendido
-            </Button>
+            <Button onClick={() => setShowShortcuts(false)}>Entendido</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </TooltipProvider>
+  )
+}
+
+/** Diálogo de historial de lo registrado en bodega (semana + paginado). */
+function PickUpHistoryDialog({
+  open,
+  onOpenChange,
+  subsidiaryId,
+  subsidiaryName,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  subsidiaryId: string | null
+  subsidiaryName?: string
+}) {
+  const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
+  const [page, setPage] = useState(1)
+  const [typeFilter, setTypeFilter] = useState<'all' | PickUpType>('all')
+  const limit = 50
+
+  useEffect(() => {
+    if (open) setPage(1)
+  }, [open, week.from, week.to, typeFilter])
+
+  const { history, total, totalPages, isLoading, isError } = usePickUpHistory(
+    subsidiaryId,
+    { page, limit, from: week.from, to: week.to, type: typeFilter !== 'all' ? typeFilter : undefined },
+    open
+  )
+
+  const TYPE_FILTERS: { value: 'all' | PickUpType; label: string }[] = [
+    { value: 'all', label: 'Todos' },
+    { value: 'ocurre', label: 'Ocurre' },
+    { value: 'entrega_bodega', label: 'Entrega' },
+  ]
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="w-5 h-5 text-primary" />
+            Historial de bodega
+          </DialogTitle>
+          <DialogDescription>
+            Paquetes registrados en {subsidiaryName || 'la sucursal'} durante la semana seleccionada.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+            {TYPE_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setTypeFilter(f.value)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  typeFilter === f.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">{total} registro(s)</span>
+            <WeekRangePicker value={week} onChange={setWeek} disabled={isLoading} />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto rounded-md border">
+          {isLoading ? (
+            <div className="flex h-40 items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : isError ? (
+            <div className="flex h-40 items-center justify-center text-red-600 text-sm">Error al cargar el historial</div>
+          ) : history.length === 0 ? (
+            <div className="flex h-40 flex-col items-center justify-center text-muted-foreground">
+              <Package className="h-8 w-8 opacity-40 mb-2" />
+              <p className="text-sm">Sin registros en la semana seleccionada</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted/60 backdrop-blur-sm text-left">
+                <tr className="border-b">
+                  <th className="px-3 py-2 font-medium">Guía</th>
+                  <th className="px-3 py-2 font-medium">Destinatario</th>
+                  <th className="px-3 py-2 font-medium">Tipo</th>
+                  <th className="px-3 py-2 font-medium">Fecha</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {history.map((row) => (
+                  <tr key={row.id} className="hover:bg-muted/30">
+                    <td className="px-3 py-2 font-mono">{row.trackingNumber}</td>
+                    <td className="px-3 py-2 truncate max-w-[220px]">{row.recipientName || '—'}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant="secondary" className="text-[11px]">{typeLabel(row.type)}</Badge>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {row.date
+                        ? new Date(row.date).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Página {page} de {totalPages}</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1 || isLoading} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              Anterior
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading} onClick={() => setPage((p) => p + 1)}>
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

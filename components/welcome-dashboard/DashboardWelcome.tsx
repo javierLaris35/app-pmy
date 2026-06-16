@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Package,
   AlertTriangle,
   Clock,
   Calendar,
-  CheckCircle,
-  XCircle,
+  CheckCircle2,
   Loader2,
-  X,
-  ExternalLink,
+  RefreshCw,
+  ArrowRight,
+  ShieldCheck,
+  ShieldAlert,
   Truck,
-  FileText,
-  Bell,
+  FileWarning,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,15 +25,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useAuthStore } from "@/store/auth.store";
+import { getWelcomeDashboard } from "@/lib/services/dashboard";
+import { cn } from "@/lib/utils";
 
-// Tipos de datos
 interface PendingPackage {
   id: string;
   trackingNumber: string;
@@ -72,742 +72,460 @@ interface DashboardWelcomeProps {
   userId: string;
 }
 
-export default function DashboardWelcome({
-  open,
-  onOpenChange,
-  userId,
-}: DashboardWelcomeProps) {
+type Tone = "critical" | "warn" | "info";
+type FilterKey = "all" | "critical" | "expiring" | "dex" | "pending";
+
+interface FeedItem {
+  key: string;
+  kind: "expiring" | "dex" | "pending";
+  tone: Tone;
+  rank: number;
+  trackingNumber: string;
+  recipientName: string;
+  subsidiaryName: string;
+  carrier?: string;
+  metric: string;
+  sub?: string;
+  actionLabel: string;
+  route: string;
+}
+
+const TONE_ACCENT: Record<Tone, string> = {
+  critical: "border-l-red-500",
+  warn: "border-l-amber-400",
+  info: "border-l-slate-300",
+};
+
+const TONE_CHIP: Record<Tone, string> = {
+  critical: "bg-red-100 text-red-700",
+  warn: "bg-amber-100 text-amber-700",
+  info: "bg-slate-100 text-slate-600",
+};
+
+const daysOverdue = (iso: string) => {
+  if (!iso) return 0;
+  const d = new Date(iso).getTime();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((today.getTime() - d) / 86_400_000));
+};
+
+export default function DashboardWelcome({ open, onOpenChange, userId }: DashboardWelcomeProps) {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const subsidiaryId = user?.subsidiary?.id || (user as any)?.subsidiaryId || undefined;
+
   const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    pendingYesterday: 0,
-    withoutDEX: 0,
-    expiringToday: 0,
-  });
+  const [stats, setStats] = useState<DashboardStats>({ pendingYesterday: 0, withoutDEX: 0, expiringToday: 0 });
   const [pendingPackages, setPendingPackages] = useState<PendingPackage[]>([]);
   const [withoutDEXPackages, setWithoutDEXPackages] = useState<WithoutDEXPackage[]>([]);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
-  const [activeTab, setActiveTab] = useState("summary");
+  const [filter, setFilter] = useState<FilterKey>("all");
 
-  // Simular carga de datos (reemplazar con tu API real)
   useEffect(() => {
-    if (open) {
-      fetchDashboardData();
-    }
-  }, [open, userId]);
+    if (open) fetchDashboardData();
+  }, [open, userId, subsidiaryId]);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Aquí llamarías a tus servicios reales
-      // Por ahora simulamos datos
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Datos simulados
-      const mockPending: PendingPackage[] = [
-        {
-          id: "1",
-          trackingNumber: "TRK123456789",
-          recipientName: "Juan Pérez",
-          status: "pendiente",
-          subsidiaryName: "Sucursal Norte",
-          createdAt: "2024-01-15T08:00:00Z",
-          reason: "Dirección incorrecta"
-        },
-        {
-          id: "2",
-          trackingNumber: "TRK987654321",
-          recipientName: "María García",
-          status: "reprogramado",
-          subsidiaryName: "Sucursal Sur",
-          createdAt: "2024-01-15T09:30:00Z",
-        }
-      ];
-
-      const mockWithoutDEX: WithoutDEXPackage[] = [
-        {
-          id: "1",
-          trackingNumber: "TRK555555555",
-          recipientName: "Carlos López",
-          subsidiaryName: "Sucursal Centro",
-          carrier: "FedEx",
-          missingDocument: "DEX 67"
-        },
-        {
-          id: "2",
-          trackingNumber: "TRK666666666",
-          recipientName: "Ana Martínez",
-          subsidiaryName: "Sucursal Este",
-          carrier: "DHL",
-          missingDocument: "Guía aérea"
-        }
-      ];
-
-      const mockExpiring: ExpiringPackage[] = [
-        {
-          id: "1",
-          trackingNumber: "TRK777777777",
-          recipientName: "Roberto Sánchez",
-          expiryDate: "2024-01-16T18:00:00Z",
-          subsidiaryName: "Sucursal Oeste",
-          hoursRemaining: 6
-        },
-        {
-          id: "2",
-          trackingNumber: "TRK888888888",
-          recipientName: "Laura Fernández",
-          expiryDate: "2024-01-16T20:00:00Z",
-          subsidiaryName: "Sucursal Norte",
-          hoursRemaining: 8
-        }
-      ];
-
-      setPendingPackages(mockPending);
-      setWithoutDEXPackages(mockWithoutDEX);
-      setExpiringPackages(mockExpiring);
-      setStats({
-        pendingYesterday: mockPending.length,
-        withoutDEX: mockWithoutDEX.length,
-        expiringToday: mockExpiring.length,
-      });
+      const data = await getWelcomeDashboard(subsidiaryId);
+      setPendingPackages(data.pendingPackages ?? []);
+      setWithoutDEXPackages(data.withoutDEXPackages ?? []);
+      setExpiringPackages(data.expiringPackages ?? []);
+      setStats(data.stats ?? { pendingYesterday: 0, withoutDEX: 0, expiringToday: 0 });
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
+      setPendingPackages([]);
+      setWithoutDEXPackages([]);
+      setExpiringPackages([]);
+      setStats({ pendingYesterday: 0, withoutDEX: 0, expiringToday: 0 });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "dd/MM/yyyy HH:mm", { locale: es });
+  const goTo = (route: string) => {
+    onOpenChange(false);
+    router.push(route);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'pendiente':
-        return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">Pendiente</Badge>;
-      case 'reprogramado':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">Reprogramado</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  // Feed unificado, ordenado por urgencia: lo más accionable primero.
+  const feed = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [];
 
-  const getHoursRemainingBadge = (hours: number) => {
-    if (hours <= 4) {
-      return <Badge className="bg-red-500 hover:bg-red-600">Crítico ({hours}h)</Badge>;
-    } else if (hours <= 12) {
-      return <Badge className="bg-orange-500 hover:bg-orange-600">Urgente ({hours}h)</Badge>;
-    } else {
-      return <Badge className="bg-yellow-500 hover:bg-yellow-600">Próximo ({hours}h)</Badge>;
-    }
-  };
+    expiringPackages.forEach((p, i) => {
+      const h = p.hoursRemaining ?? 0;
+      const tone: Tone = h <= 4 ? "critical" : h <= 12 ? "warn" : "info";
+      items.push({
+        key: `exp-${p.id}-${i}`,
+        kind: "expiring",
+        tone,
+        rank: tone === "critical" ? h : 30 + h,
+        trackingNumber: p.trackingNumber,
+        recipientName: p.recipientName,
+        subsidiaryName: p.subsidiaryName,
+        metric: h <= 0 ? "Vence hoy" : `Vence en ${h} h`,
+        sub: p.expiryDate ? `Compromiso ${format(new Date(p.expiryDate), "HH:mm")}` : undefined,
+        actionLabel: "Gestionar",
+        route: "/operaciones/monitoreo",
+      });
+    });
+
+    withoutDEXPackages.forEach((p, i) => {
+      items.push({
+        key: `dex-${p.id}-${i}`,
+        kind: "dex",
+        tone: "warn",
+        rank: 20,
+        trackingNumber: p.trackingNumber,
+        recipientName: p.recipientName,
+        subsidiaryName: p.subsidiaryName,
+        carrier: p.carrier,
+        metric: `Falta ${p.missingDocument}`,
+        sub: "Bloquea procesamiento",
+        actionLabel: "Revisar en inventario",
+        route: "/operaciones/inventarios",
+      });
+    });
+
+    pendingPackages.forEach((p, i) => {
+      const d = daysOverdue(p.createdAt);
+      items.push({
+        key: `pen-${p.id}-${i}`,
+        kind: "pending",
+        tone: "info",
+        rank: 100 + i,
+        trackingNumber: p.trackingNumber,
+        recipientName: p.recipientName,
+        subsidiaryName: p.subsidiaryName,
+        metric: d > 0 ? `Vencido hace ${d} ${d === 1 ? "día" : "días"}` : "Pendiente",
+        sub: p.status,
+        actionLabel: "Dar seguimiento",
+        route: "/operaciones/monitoreo",
+      });
+    });
+
+    return items.sort((a, b) => a.rank - b.rank);
+  }, [expiringPackages, withoutDEXPackages, pendingPackages]);
+
+  const criticalCount = feed.filter((f) => f.tone === "critical").length;
+  const totalAttention = stats.expiringToday + stats.withoutDEX + stats.pendingYesterday;
+
+  const filtered = feed.filter((it) => {
+    if (filter === "all") return true;
+    if (filter === "critical") return it.tone === "critical";
+    return it.kind === filter;
+  });
+
+  // Salud general (para gerencia): un vistazo del estado.
+  const health =
+    criticalCount > 0
+      ? { label: "Atención crítica", cls: "bg-red-100 text-red-700 border-red-200", Icon: ShieldAlert }
+      : totalAttention > 0
+      ? { label: "Requiere atención", cls: "bg-amber-100 text-amber-700 border-amber-200", Icon: ShieldAlert }
+      : { label: "Todo al día", cls: "bg-green-100 text-green-700 border-green-200", Icon: ShieldCheck };
+
+  const distribution = [
+    { key: "expiring" as FilterKey, label: "Vencen hoy", value: stats.expiringToday, bar: "bg-red-500", dot: "bg-red-500" },
+    { key: "dex" as FilterKey, label: "Sin 67", value: stats.withoutDEX, bar: "bg-amber-500", dot: "bg-amber-500" },
+    { key: "pending" as FilterKey, label: "Pendientes", value: stats.pendingYesterday, bar: "bg-slate-400", dot: "bg-slate-400" },
+  ];
+
+  const segments: { key: FilterKey; label: string; count: number }[] = [
+    { key: "all", label: "Todos", count: feed.length },
+    { key: "critical", label: "Críticos", count: criticalCount },
+    { key: "expiring", label: "Vencen hoy", count: stats.expiringToday },
+    { key: "dex", label: "Sin 67", count: stats.withoutDEX },
+    { key: "pending", label: "Pendientes", count: stats.pendingYesterday },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <DialogTitle className="text-2xl flex items-center gap-2">
-                <Bell className="h-6 w-6 text-primary" />
-                Bienvenido al Sistema de Logística
-              </DialogTitle>
-              <DialogDescription>
-                Resumen de alertas y pendientes para hoy {format(new Date(), "dd 'de' MMMM, yyyy", { locale: es })}
-              </DialogDescription>
+      <DialogContent className="max-w-5xl p-0 gap-0 max-h-[92vh] flex flex-col overflow-hidden" showCloseButton={false}>
+        {/* Header */}
+        <DialogHeader className="space-y-0 border-b p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20">
+                <Package className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <DialogTitle className="text-lg sm:text-xl">Resumen operativo</DialogTitle>
+                <DialogDescription className="truncate">
+                  {format(new Date(), "EEEE dd 'de' MMMM", { locale: es })}
+                  {user?.subsidiary?.name ? ` · ${user.subsidiary.name}` : ""}
+                </DialogDescription>
+              </div>
             </div>
+            <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium self-start", health.cls)}>
+              <health.Icon className="h-4 w-4" />
+              {health.label}
+            </span>
           </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 mb-6">
-            <TabsTrigger value="summary" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Resumen
-            </TabsTrigger>
-            <TabsTrigger value="details" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Detalles
-            </TabsTrigger>
-            <TabsTrigger value="actions" className="flex items-center gap-2">
-              <Truck className="h-4 w-4" />
-              Acciones
-            </TabsTrigger>
-          </TabsList>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {isLoading ? (
+            <div className="flex h-64 flex-col items-center justify-center text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+              <span>Cargando resumen…</span>
+            </div>
+          ) : (
+            <>
+              {/* Hero: magnitud + distribución (visión gerencial) */}
+              <div className="rounded-xl border bg-gradient-to-br from-muted/40 to-background p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                  <div className="shrink-0">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Requieren tu atención</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className={cn("text-5xl font-bold tabular-nums", totalAttention === 0 ? "text-green-600" : "text-foreground")}>
+                        {totalAttention}
+                      </span>
+                      <span className="text-sm text-muted-foreground">paquete{totalAttention === 1 ? "" : "s"}</span>
+                    </div>
+                    {criticalCount > 0 && (
+                      <p className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-red-600">
+                        <AlertTriangle className="h-3.5 w-3.5" /> {criticalCount} crítico{criticalCount === 1 ? "" : "s"} (vencen ≤ 4 h)
+                      </p>
+                    )}
+                  </div>
 
-          {/* Pestaña de Resumen */}
-          <TabsContent value="summary" className="space-y-6">
-            <ScrollArea className="h-[calc(90vh-250px)] pr-4">
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-2">Cargando alertas...</span>
+                  <div className="flex-1 min-w-0">
+                    {totalAttention > 0 ? (
+                      <>
+                        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                          {distribution.map(
+                            (d) =>
+                              d.value > 0 && (
+                                <div
+                                  key={d.key}
+                                  className={cn("h-full", d.bar)}
+                                  style={{ width: `${(d.value / totalAttention) * 100}%` }}
+                                  title={`${d.label}: ${d.value}`}
+                                />
+                              )
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                          {distribution.map((d) => (
+                            <span key={d.key} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <span className={cn("h-2 w-2 rounded-full", d.dot)} />
+                              {d.label} <span className="font-semibold text-foreground">{d.value}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-green-600">
+                        <CheckCircle2 className="h-5 w-5" />
+                        Sin pendientes ni vencimientos para hoy. ¡Todo en orden!
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <>
-                {/* Tarjetas de estadísticas */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Paquetes pendientes de ayer */}
-                  <Card className="border-2 border-amber-200 hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center justify-between">
-                        <span className="text-amber-700 flex items-center gap-2">
-                          <Clock className="h-5 w-5" />
-                          Pendientes de ayer
-                        </span>
-                        <Badge className="bg-amber-500 hover:bg-amber-600">
-                          {stats.pendingYesterday}
-                        </Badge>
-                      </CardTitle>
-                      <CardDescription>
-                        Paquetes no procesados del día anterior
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-4xl font-bold text-amber-700 mb-2">
-                        {stats.pendingYesterday}
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Requieren atención prioritaria
-                      </p>
-                      {pendingPackages.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="mt-4 w-full text-amber-700 hover:text-amber-800 hover:bg-amber-50"
-                          onClick={() => setActiveTab("details")}
-                        >
-                          Ver detalles
-                          <ExternalLink className="h-3 w-3 ml-2" />
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
 
-                  {/* Sin DEX/67 */}
-                  <Card className="border-2 border-red-200 hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center justify-between">
-                        <span className="text-red-700 flex items-center gap-2">
-                          <AlertTriangle className="h-5 w-5" />
-                          Sin DEX/67
-                        </span>
-                        <Badge className="bg-red-500 hover:bg-red-600">
-                          {stats.withoutDEX}
-                        </Badge>
-                      </CardTitle>
-                      <CardDescription>
-                        Paquetes sin documentación completa
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-4xl font-bold text-red-700 mb-2">
-                        {stats.withoutDEX}
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Documentación pendiente
-                      </p>
-                      {withoutDEXPackages.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="mt-4 w-full text-red-700 hover:text-red-800 hover:bg-red-50"
-                          onClick={() => setActiveTab("details")}
-                        >
-                          Ver detalles
-                          <ExternalLink className="h-3 w-3 ml-2" />
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Vencen hoy */}
-                  <Card className="border-2 border-blue-200 hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center justify-between">
-                        <span className="text-blue-700 flex items-center gap-2">
-                          <Calendar className="h-5 w-5" />
-                          Vencen hoy
-                        </span>
-                        <Badge className="bg-blue-500 hover:bg-blue-600">
-                          {stats.expiringToday}
-                        </Badge>
-                      </CardTitle>
-                      <CardDescription>
-                        Paquetes que vencen en las próximas horas
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-4xl font-bold text-blue-700 mb-2">
-                        {stats.expiringToday}
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Atención inmediata requerida
-                      </p>
-                      {expiringPackages.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="mt-4 w-full text-blue-700 hover:text-blue-800 hover:bg-blue-50"
-                          onClick={() => setActiveTab("details")}
-                        >
-                          Ver detalles
-                          <ExternalLink className="h-3 w-3 ml-2" />
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Resumen rápido */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      Estado general del sistema
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {stats.pendingYesterday === 0 ? (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-amber-500" />
-                          )}
-                          <span>Paquetes pendientes de ayer</span>
-                        </div>
-                        <Badge variant={stats.pendingYesterday === 0 ? "outline" : "destructive"}>
-                          {stats.pendingYesterday === 0 ? "Al día" : `${stats.pendingYesterday} pendientes`}
-                        </Badge>
-                      </div>
-
-                      <Separator />
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {stats.withoutDEX === 0 ? (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-500" />
-                          )}
-                          <span>Paquetes sin DEX/67</span>
-                        </div>
-                        <Badge variant={stats.withoutDEX === 0 ? "outline" : "destructive"}>
-                          {stats.withoutDEX === 0 ? "Completo" : `${stats.withoutDEX} incompletos`}
-                        </Badge>
-                      </div>
-
-                      <Separator />
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {stats.expiringToday === 0 ? (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-blue-500" />
-                          )}
-                          <span>Paquetes que vencen hoy</span>
-                        </div>
-                        <Badge variant={stats.expiringToday === 0 ? "outline" : "secondary"}>
-                          {stats.expiringToday === 0 ? "Ninguno" : `${stats.expiringToday} por vencer`}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-            </ScrollArea>
-          </TabsContent>
-
-          {/* Pestaña de Detalles */}
-          <TabsContent value="details" className="space-y-6">
-            <ScrollArea className="h-[calc(90vh-250px)] pr-4">
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-2">Cargando detalles...</span>
+              {/* KPIs accionables */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <KpiCard
+                  active={filter === "expiring"}
+                  onClick={() => setFilter("expiring")}
+                  icon={Clock}
+                  label="Vencen hoy"
+                  value={stats.expiringToday}
+                  hint={criticalCount > 0 ? `${criticalCount} en estado crítico` : "Próximos a vencer"}
+                  tone={stats.expiringToday > 0 ? (criticalCount > 0 ? "critical" : "warn") : "ok"}
+                />
+                <KpiCard
+                  active={filter === "dex"}
+                  onClick={() => setFilter("dex")}
+                  icon={FileWarning}
+                  label="Sin DEX / 67"
+                  value={stats.withoutDEX}
+                  hint="Bloquean procesamiento"
+                  tone={stats.withoutDEX > 0 ? "warn" : "ok"}
+                />
+                <KpiCard
+                  active={filter === "pending"}
+                  onClick={() => setFilter("pending")}
+                  icon={Calendar}
+                  label="Pendientes"
+                  value={stats.pendingYesterday}
+                  hint="De días anteriores"
+                  tone={stats.pendingYesterday > 0 ? "info" : "ok"}
+                />
               </div>
-            ) : (
-              <>
-                {/* Paquetes pendientes de ayer */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-amber-700">
-                      <Clock className="h-5 w-5" />
-                      Paquetes pendientes de ayer ({pendingPackages.length})
-                    </CardTitle>
-                    <CardDescription>
-                      Detalles de los paquetes no procesados del día anterior
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {pendingPackages.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
-                        <p>No hay paquetes pendientes de ayer</p>
-                        <p className="text-sm mt-1">¡Excelente trabajo!</p>
-                      </div>
-                    ) : (
-                      <ScrollArea className="h-64">
-                        <div className="space-y-3">
-                          {pendingPackages.map((pkg) => (
-                            <div
-                              key={pkg.id}
-                              className="p-4 border rounded-lg hover:bg-amber-50 transition-colors"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Package className="h-4 w-4 text-amber-600" />
-                                    <code className="font-mono font-bold text-gray-800">
-                                      {pkg.trackingNumber}
-                                    </code>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    {pkg.recipientName}
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {pkg.subsidiaryName} • {formatDate(pkg.createdAt)}
-                                  </div>
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
-                                  {getStatusBadge(pkg.status)}
-                                  {pkg.reason && (
-                                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700">
-                                      {pkg.reason}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    )}
-                  </CardContent>
-                </Card>
 
-                {/* Paquetes sin DEX/67 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-red-700">
-                      <AlertTriangle className="h-5 w-5" />
-                      Paquetes sin DEX/67 ({withoutDEXPackages.length})
-                    </CardTitle>
-                    <CardDescription>
-                      Paquetes que requieren documentación adicional
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {withoutDEXPackages.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
-                        <p>Todos los paquetes tienen documentación completa</p>
-                        <p className="text-sm mt-1">Documentación en orden</p>
-                      </div>
-                    ) : (
-                      <ScrollArea className="h-64">
-                        <div className="space-y-3">
-                          {withoutDEXPackages.map((pkg) => (
-                            <div
-                              key={pkg.id}
-                              className="p-4 border rounded-lg hover:bg-red-50 transition-colors"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Truck className="h-4 w-4 text-red-600" />
-                                    <code className="font-mono font-bold text-gray-800">
-                                      {pkg.trackingNumber}
-                                    </code>
-                                    <Badge variant="outline" className="text-xs">
-                                      {pkg.carrier}
-                                    </Badge>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    {pkg.recipientName}
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {pkg.subsidiaryName}
-                                  </div>
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
-                                  <Badge className="bg-red-500 hover:bg-red-600">
-                                    Falta: {pkg.missingDocument}
-                                  </Badge>
-                                  <Button size="sm" variant="outline" className="text-xs">
-                                    Subir documento
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Paquetes que vencen hoy */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-blue-700">
-                      <Calendar className="h-5 w-5" />
-                      Paquetes que vencen hoy ({expiringPackages.length})
-                    </CardTitle>
-                    <CardDescription>
-                      Paquetes con vencimiento en las próximas horas
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {expiringPackages.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
-                        <p>No hay paquetes por vencer hoy</p>
-                        <p className="text-sm mt-1">Todo bajo control</p>
-                      </div>
-                    ) : (
-                      <ScrollArea className="h-64">
-                        <div className="space-y-3">
-                          {expiringPackages.map((pkg) => (
-                            <div
-                              key={pkg.id}
-                              className="p-4 border rounded-lg hover:bg-blue-50 transition-colors"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Clock className="h-4 w-4 text-blue-600" />
-                                    <code className="font-mono font-bold text-gray-800">
-                                      {pkg.trackingNumber}
-                                    </code>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    {pkg.recipientName}
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {pkg.subsidiaryName} • Vence: {formatDate(pkg.expiryDate)}
-                                  </div>
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
-                                  {getHoursRemainingBadge(pkg.hoursRemaining)}
-                                  <Button size="sm" variant="outline" className="text-xs">
-                                    Gestionar
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-            </ScrollArea>
-          </TabsContent>
-
-          {/* Pestaña de Acciones */}
-          <TabsContent value="actions" className="space-y-6">
-            <ScrollArea className="h-[calc(90vh-250px)] pr-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Truck className="h-5 w-5 text-primary" />
-                  Acciones Recomendadas
-                </CardTitle>
-                <CardDescription>
-                  Tareas pendientes para mantener el sistema al día
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Acción 1: Revisar pendientes */}
-                  <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-amber-100 rounded-lg">
-                        <Clock className="h-5 w-5 text-amber-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Revisar paquetes pendientes de ayer</div>
-                        <div className="text-sm text-gray-500">
-                          {stats.pendingYesterday} paquetes requieren atención
-                        </div>
-                      </div>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant={stats.pendingYesterday > 0 ? "default" : "outline"}
-                      disabled={stats.pendingYesterday === 0}
-                      onClick={() => setActiveTab("details")}
-                    >
-                      {stats.pendingYesterday > 0 ? "Revisar ahora" : "Completado"}
-                    </Button>
-                  </div>
-
-                  {/* Acción 2: Completar DEX */}
-                  <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-red-100 rounded-lg">
-                        <AlertTriangle className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Completar documentación DEX/67</div>
-                        <div className="text-sm text-gray-500">
-                          {stats.withoutDEX} paquetes sin documentación completa
-                        </div>
-                      </div>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant={stats.withoutDEX > 0 ? "destructive" : "outline"}
-                      disabled={stats.withoutDEX === 0}
-                      onClick={() => setActiveTab("details")}
-                    >
-                      {stats.withoutDEX > 0 ? "Completar DEX" : "Completado"}
-                    </Button>
-                  </div>
-
-                  {/* Acción 3: Gestionar vencimientos */}
-                  <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Calendar className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Gestionar paquetes por vencer</div>
-                        <div className="text-sm text-gray-500">
-                          {stats.expiringToday} paquetes vencen hoy
-                        </div>
-                      </div>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant={stats.expiringToday > 0 ? "default" : "outline"}
-                      disabled={stats.expiringToday === 0}
-                      onClick={() => setActiveTab("details")}
-                    >
-                      {stats.expiringToday > 0 ? "Gestionar ahora" : "Completado"}
-                    </Button>
-                  </div>
-
-                  {/* Acción 4: Reporte diario */}
-                  <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <FileText className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Generar reporte de inicio</div>
-                        <div className="text-sm text-gray-500">
-                          Resumen del estado actual del sistema
-                        </div>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline">
-                      Generar PDF
-                    </Button>
+              {/* Feed priorizado */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <ChevronRight className="h-4 w-4 text-primary" />
+                    Prioridad de atención
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {segments.map((s) => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setFilter(s.key)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                          filter === s.key ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {s.label}
+                        <span className={cn("tabular-nums", filter === s.key ? "opacity-90" : "text-foreground/70")}>{s.count}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Indicadores de prioridad */}
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-              <CardHeader>
-                <CardTitle className="text-blue-800">Indicadores de Prioridad</CardTitle>
-                <CardDescription>
-                  Orden de atención recomendada
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <div className="flex-1">
-                      <div className="font-medium">Crítico: Paquetes que vencen en menos de 4 horas</div>
-                      <div className="text-sm text-gray-500">Atención inmediata requerida</div>
-                    </div>
-                    <Badge className="bg-red-500">Alta prioridad</Badge>
+                {filtered.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-12 text-center">
+                    <CheckCircle2 className="h-12 w-12 text-green-500 mb-2" />
+                    <p className="font-medium">Nada en esta vista</p>
+                    <p className="text-sm text-muted-foreground">No hay paquetes que atender aquí.</p>
                   </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border [&>div:last-child]:border-b-0">
+                    {filtered.map((it) => (
+                      <div
+                        key={it.key}
+                        className={cn("flex items-center justify-between gap-3 border-b border-l-4 px-3 py-2.5 transition-colors hover:bg-muted/40", TONE_ACCENT[it.tone])}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {it.carrier && (
+                              <span
+                                className={cn(
+                                  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                                  it.carrier.toUpperCase() === "DHL" ? "bg-[#ffcc00] text-[#d40511]" : "bg-[#4d148c] text-white"
+                                )}
+                              >
+                                {it.carrier}
+                              </span>
+                            )}
+                            <span className="font-mono text-sm font-semibold truncate">{it.trackingNumber}</span>
+                            <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold", TONE_CHIP[it.tone])}>
+                              {it.metric}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="truncate">{it.recipientName}</span>
+                            {it.sub && <span className="text-muted-foreground/50">·</span>}
+                            {it.sub && <span className="truncate capitalize">{it.sub}</span>}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 gap-1 text-xs"
+                          onClick={() => goTo(it.route)}
+                        >
+                          {it.actionLabel}
+                          <ArrowRight className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                    <div className="flex-1">
-                      <div className="font-medium">Alta: Paquetes sin DEX/67</div>
-                      <div className="text-sm text-gray-500">Sin documentación no pueden ser procesados</div>
-                    </div>
-                    <Badge className="bg-orange-500">Prioridad media</Badge>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                    <div className="flex-1">
-                      <div className="font-medium">Media: Paquetes pendientes de ayer</div>
-                      <div className="text-sm text-gray-500">Requieren atención pero no son críticos</div>
-                    </div>
-                    <Badge className="bg-amber-500">Prioridad baja</Badge>
-                  </div>
+                {/* Atajos a módulos (decisión rápida) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  <ShortcutButton icon={Truck} label="Monitoreo" onClick={() => goTo("/operaciones/monitoreo")} />
+                  <ShortcutButton icon={Package} label="Inventarios" onClick={() => goTo("/operaciones/inventarios")} />
+                  <ShortcutButton icon={ArrowRight} label="Salidas a ruta" onClick={() => goTo("/operaciones/salidas-a-ruta")} />
                 </div>
-              </CardContent>
-            </Card>
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </>
+          )}
+        </div>
 
-        {/* Pie del diálogo */}
-        <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm text-gray-500">
-            Última actualización: {format(new Date(), "HH:mm")}
-          </div>
+        {/* Footer */}
+        <div className="border-t p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <label htmlFor="dontShowAgain" className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              id="dontShowAgain"
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              onChange={(e) => {
+                const userPrefsKey = `dashboard_prefs_${userId}`;
+                localStorage.setItem(userPrefsKey, JSON.stringify({ showDailyWelcome: !e.target.checked }));
+              }}
+            />
+            No mostrar este resumen al iniciar sesión
+          </label>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cerrar
             </Button>
-            <Button
-              onClick={fetchDashboardData}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Actualizando...
-                </>
-              ) : (
-                "Actualizar datos"
-              )}
+            <Button onClick={fetchDashboardData} disabled={isLoading} className="gap-2">
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+              Actualizar
             </Button>
           </div>
-          
         </div>
-        <div className="flex items-center space-x-2">
-                <input
-                    type="checkbox"
-                    id="dontShowAgain"
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    onChange={(e) => {
-                        // Guardar preferencia
-                        const userPrefsKey = `dashboard_prefs_${userId}`;
-                        const userPrefs = {
-                        showDailyWelcome: !e.target.checked
-                        };
-                        localStorage.setItem(userPrefsKey, JSON.stringify(userPrefs));
-                    }}
-                />
-                <label
-                    htmlFor="dontShowAgain"
-                    className="text-sm text-gray-600 cursor-pointer"
-                    >
-                    No mostrar este resumen al iniciar sesión
-                </label>
-          </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Tarjeta KPI clicable que filtra el feed. */
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone,
+  active,
+  onClick,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+  hint: string;
+  tone: "critical" | "warn" | "info" | "ok";
+  active?: boolean;
+  onClick: () => void;
+}) {
+  const toneCls =
+    tone === "critical"
+      ? "text-red-600"
+      : tone === "warn"
+      ? "text-amber-600"
+      : tone === "info"
+      ? "text-slate-600"
+      : "text-green-600";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group rounded-xl border p-4 text-left transition-all hover:shadow-sm",
+        active ? "border-primary ring-1 ring-primary/30 bg-primary/5" : "hover:border-foreground/20"
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <Icon className={cn("h-4 w-4", toneCls)} />
+      </div>
+      <div className={cn("mt-1 text-3xl font-bold tabular-nums", value === 0 ? "text-green-600" : toneCls)}>{value}</div>
+      <p className="mt-0.5 text-xs text-muted-foreground">{value === 0 ? "Al día" : hint}</p>
+    </button>
+  );
+}
+
+function ShortcutButton({ icon: Icon, label, onClick }: { icon: React.ElementType; label: string; onClick: () => void }) {
+  return (
+    <Button variant="ghost" onClick={onClick} className="justify-between border bg-muted/30 hover:bg-muted">
+      <span className="flex items-center gap-2 text-sm">
+        <Icon className="h-4 w-4 text-primary" />
+        {label}
+      </span>
+      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+    </Button>
   );
 }

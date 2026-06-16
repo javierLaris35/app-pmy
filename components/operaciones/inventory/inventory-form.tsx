@@ -53,6 +53,7 @@ import { StatBar, StatItem } from "@/components/shared/stat-bar";
 import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
 import { PackageFilters } from "@/components/shared/package-filters";
 import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
+import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
 import {
   Select,
   SelectContent,
@@ -98,12 +99,6 @@ interface Props {
   onSuccess?: () => void;
 }
 
-enum TrackingNotFoundEnum {
-  NOT_SCANNED = "Guia sin escaneo",
-  NOT_TRACKING = "Guia faltante",
-  NOT_IN_CHARGE = "No Llego en la Carga"
-}
-
 // Tipos de inventario
 export enum InventoryType {
   INITIAL = "initial",      // Inventario Inicial
@@ -121,8 +116,6 @@ interface ExpiringPackage {
   priority?: string;
 }
 
-// Opciones de motivo para guías inválidas (inventario).
-const REASON_OPTIONS = Object.entries(TrackingNotFoundEnum).map(([key, label]) => ({ key, label }));
 
 export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId: propSubsidiaryId, subsidiaryName: propSubsidiaryName, onClose, onSuccess }: Props) {
   // Estados persistentes
@@ -142,10 +135,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     'inventory_unscanned_trackings', 
     []
   );
-  const [selectedReasons, setSelectedReasons] = useLocalStorage<Record<string, string>>(
-    'inventory_selected_reasons', 
-    {}
-  );
   // Estado para el tipo de inventario
   const [inventoryType, setInventoryType] = useLocalStorage<InventoryType>(
     'inventory_type',
@@ -155,7 +144,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   // Estados regulares
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -176,6 +164,10 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const lastSignatureRef = useRef<string>("");
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
+
+  // Traspaso inline (corregir paquete mal enrutado) — solo roles elevados.
+  const canTransfer = ["subadmin", "admin", "superadmin"].includes((user?.role as string) || "");
+  const [transferPkg, setTransferPkg] = useState<PackageInfo | null>(null);
 
   const selectedSubsidiaryId = useMemo(() => {
     return propSubsidiaryId || null; 
@@ -384,29 +376,12 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     inputElement.dispatchEvent(inputEvent);
   };
 
-  const handleSelectMissingTracking = (id: string, value: string) => {
-    setSelectedReasons(prev => ({ ...prev, [id]: value }));
-
-    if (value === TrackingNotFoundEnum.NOT_TRACKING) {
-      setMissingTrackings(prev => [...prev, id]);
-      setUnScannedTrackings(prev => prev.filter(item => item !== id));
-    } else if (value === TrackingNotFoundEnum.NOT_SCANNED) {
-      setUnScannedTrackings(prev => [...prev, id]);
-      setMissingTrackings(prev => prev.filter(item => item !== id));
-    } else if (value === TrackingNotFoundEnum.NOT_IN_CHARGE) {
-      setMissingTrackings(prev => prev.filter(item => item !== id));
-      setUnScannedTrackings(prev => prev.filter(item => item !== id));
-    }
-    setOpenPopover(null);
-  };
-
   const clearAllStorage = useCallback(() => {
     const keys = [
       'inventory_scanned_packages',
       'inventory_packages',
       'inventory_missing_trackings',
       'inventory_unscanned_trackings',
-      'inventory_selected_reasons',
       'inventory_type'
     ];
     keys.forEach(key => {
@@ -417,7 +392,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     setPackages([]);
     setMissingTrackings([]);
     setUnScannedTrackings([]);
-    setSelectedReasons({});
     setInventoryType(InventoryType.INITIAL);
     setShownExpiringPackages(new Set());
     // Resetear la firma para que volver a escanear el mismo set vuelva a validar.
@@ -428,7 +402,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       title: "Datos limpiados",
       description: "Todos los datos locales han sido eliminados.",
     });
-  }, [setScannedPackages, setPackages, setMissingTrackings, setUnScannedTrackings, setSelectedReasons, setInventoryType]);
+  }, [setScannedPackages, setPackages, setMissingTrackings, setUnScannedTrackings, setInventoryType]);
 
   const handleNextExpiring = useCallback(() => {
     const packagesDueToday = expiringPackages.filter(pkg => pkg.daysUntilExpiration === 0);
@@ -826,11 +800,12 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={onOpenChange} >
         <DialogContent
           className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
+          showCloseButton={false}
         >
           <DialogHeader className="sr-only">
             <DialogTitle>Inventario de Paquetes</DialogTitle>
@@ -848,56 +823,54 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
               subsidiaryName={selectedSubsidiaryName}
               isOffline={!isOnline}
               actions={
-                <TooltipProvider delayDuration={100}>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Select
-                      value={inventoryType}
-                      onValueChange={(value: InventoryType) => setInventoryType(value)}
-                      disabled={isLoading || packages.length > 0}
-                    >
-                      <SelectTrigger className="h-9 flex-1 sm:flex-none sm:w-[170px]">
-                        <SelectValue placeholder="Tipo de inventario" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={InventoryType.INITIAL}>Inventario Inicial</SelectItem>
-                        <SelectItem value={InventoryType.DEX}>Inventario DEX</SelectItem>
-                        <SelectItem value={InventoryType.FINAL}>Inventario Final</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help text-muted-foreground hover:text-foreground transition-colors">
+                        <CircleAlertIcon className="h-4 w-4" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        <strong>Inicial:</strong> al inicio del turno<br />
+                        <strong>DEX:</strong> después de envíos DEX<br />
+                        <strong>Final:</strong> al final del turno
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
 
+                  <Select
+                    value={inventoryType}
+                    onValueChange={(value: InventoryType) => setInventoryType(value)}
+                    disabled={isLoading || packages.length > 0}
+                  >
+                    <SelectTrigger className="h-9 flex-1 sm:flex-none sm:w-[170px]">
+                      <SelectValue placeholder="Tipo de inventario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={InventoryType.INITIAL}>Inventario Inicial</SelectItem>
+                      <SelectItem value={InventoryType.DEX}>Inventario DEX</SelectItem>
+                      <SelectItem value={InventoryType.FINAL}>Inventario Final</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {packages.length > 0 && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="cursor-help text-muted-foreground hover:text-foreground transition-colors">
-                          <CircleAlertIcon className="h-4 w-4" />
-                        </span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={clearAllStorage}
+                          disabled={isLoading}
+                          className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-xs">
-                          <strong>Inicial:</strong> al inicio del turno<br />
-                          <strong>DEX:</strong> después de envíos DEX<br />
-                          <strong>Final:</strong> al final del turno
-                        </p>
-                      </TooltipContent>
+                      <TooltipContent>Limpiar todo</TooltipContent>
                     </Tooltip>
-
-                    {packages.length > 0 && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={clearAllStorage}
-                            disabled={isLoading}
-                            className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Limpiar todo</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </TooltipProvider>
+                  )}
+                </div>
               }
             />
 
@@ -929,7 +902,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                       </div>
                     )}
 
-                    <Button 
+                    {/*<Button 
                       onClick={handleValidatePackages} 
                       disabled={isValidationPackages || isLoading || !selectedSubsidiaryId || scannedPackages.length === 0} 
                       className="w-full gap-2"
@@ -937,7 +910,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                     >
                       {isValidationPackages ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
                       {isValidationPackages ? "Validando..." : "Validar paquetes"}
-                    </Button>
+                    </Button>*/}
                   </CardContent>
                 </Card>
 
@@ -1002,13 +975,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                                   pkg={pkg}
                                   onRemove={handleRemovePackage}
                                   isLoading={isLoading || isValidationPackages}
-                                  reasonPicker={{
-                                    options: REASON_OPTIONS,
-                                    selected: selectedReasons[pkgId],
-                                    onSelect: handleSelectMissingTracking,
-                                    open: openPopover === pkgId,
-                                    onOpenChange: (o) => setOpenPopover(o ? pkgId : null),
-                                  }}
+                                  onTransfer={canTransfer ? setTransferPkg : undefined}
                                 />
                               );
                             })}
@@ -1028,13 +995,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                                     pkg={pkg}
                                     onRemove={handleRemovePackage}
                                     isLoading={isLoading}
-                                    reasonPicker={{
-                                      options: REASON_OPTIONS,
-                                      selected: selectedReasons[pkgId],
-                                      onSelect: handleSelectMissingTracking,
-                                      open: openPopover === pkgId,
-                                      onOpenChange: (o) => setOpenPopover(o ? pkgId : null),
-                                    }}
                                   />
                                 );
                               })}
@@ -1133,6 +1093,33 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
         currentIndex={currentExpiringIndex}
         onNext={handleNextExpiring}
         onPrevious={handlePreviousExpiring}
+      />
+
+      <TransferPackageDialog
+        open={!!transferPkg}
+        onOpenChange={(o) => !o && setTransferPkg(null)}
+        pkg={transferPkg}
+        currentSubsidiaryId={selectedSubsidiaryId}
+        currentSubsidiaryName={selectedSubsidiaryName}
+        source="inventory"
+        onSuccess={(pkg, destinationId) => {
+          const id = (pkg as any).dhlUniqueId || pkg.trackingNumber;
+          if (destinationId === selectedSubsidiaryId) {
+            // Se traspasó a la sucursal actual: ahora sí pertenece -> revalidar a "válido".
+            setPackages(prev =>
+              prev.map(p => {
+                const pid = (p as any).dhlUniqueId || p.trackingNumber;
+                return pid === id
+                  ? { ...p, isValid: true, reason: undefined, subsidiary: { ...((p as any).subsidiary || {}), id: destinationId } }
+                  : p;
+              })
+            );
+          } else {
+            // Se mandó a otra sucursal: ya no está aquí -> quitarlo.
+            handleRemovePackage(id);
+          }
+          setTransferPkg(null);
+        }}
       />
 
     </>

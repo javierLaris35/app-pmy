@@ -1,6 +1,7 @@
 import * as React from "react";
 import {
   AlertCircle,
+  ArrowRightLeft,
   BanknoteIcon,
   Check,
   ChevronsUpDown,
@@ -91,6 +92,8 @@ export interface PackageListItemProps {
   reasonPicker?: ReasonPicker;
   /** Si se pasa, las guías válidas con datos incompletos muestran "Completar datos" (desembarque). */
   onCompleteData?: (pkg: PackageInfo) => void;
+  /** Si se pasa, las guías que "no pertenecen a la sucursal" muestran "Traspasar" (subadmin+). */
+  onTransfer?: (pkg: PackageInfo) => void;
 }
 
 /**
@@ -98,7 +101,7 @@ export interface PackageListItemProps {
  * salidas a ruta y desembarque): borde de acento por urgencia, pill de carrier,
  * ID prominente, chips de indicadores y datos del destinatario.
  */
-export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onCompleteData }: PackageListItemProps) {
+export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onCompleteData, onTransfer }: PackageListItemProps) {
   const pkgId = pkg.dhlUniqueId || pkg.trackingNumber;
   const needsData = pkg.isValid && (!pkg.recipientName || !pkg.recipientAddress || !pkg.recipientPhone);
   const isDhl = pkg.shipmentType === "dhl";
@@ -230,6 +233,22 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
               Completar datos
             </Button>
           )}
+
+          {onTransfer &&
+            !pkg.isValid &&
+            !pkg.isPendingValidation &&
+            (pkg.reason || "").toLowerCase().includes("sucursal") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onTransfer(pkg)}
+                disabled={isLoading}
+                className="gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+              >
+                <ArrowRightLeft className="h-3 w-3" />
+                Traspasar
+              </Button>
+            )}
 
           {reasonPicker && !pkg.isValid && !pkg.isPendingValidation && (
             <Popover open={reasonPicker.open} onOpenChange={reasonPicker.onOpenChange}>

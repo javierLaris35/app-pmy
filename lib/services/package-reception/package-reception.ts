@@ -1,40 +1,49 @@
 import { axiosConfig } from "@/lib/axios-config";
-import { useAuthStore } from "@/store/auth.store";
+import { ListParams, Paginated } from "@/lib/services/pagination";
 
-const url = 'pick-up'
+const url = "pick-up";
 
-const getScannedPackages = async (subsidiaryId: string) => {
-    const token = useAuthStore.getState().token;
-    const response = await axiosConfig.get(`${url}/${subsidiaryId}/scanned-packages`, {
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
-    });
-    return response.data;
-};
+/** Tipo de registro en bodega. */
+export type PickUpType = "ocurre" | "entrega_bodega";
+
+export interface PickUpItem {
+  trackingNumber: string;
+  type: PickUpType;
+  shipmentId?: string | null;
+  chargeShipmentId?: string | null;
+}
+
+export interface SavePickUpPayload {
+  subsidiaryId: string;
+  items: PickUpItem[];
+}
+
+export interface PickUpHistoryRow {
+  id: string;
+  trackingNumber: string;
+  date: string;
+  isCharge: boolean;
+  type: PickUpType | null;
+  status: string | null;
+  recipientName: string | null;
+  recipientCity: string | null;
+  recipientZip: string | null;
+  shipmentType: string | null;
+}
 
 const getTrackingNumberInfo = async (trackingNumber: string) => {
-    const token = useAuthStore.getState().token;
-    const response = await axiosConfig.get(`${url}/tracking-info/${trackingNumber}`, {
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
-    });
-    return response.data;
+  const response = await axiosConfig.get(`${url}/tracking-info/${trackingNumber}`);
+  return response.data;
 };
 
-const savePackageReception = async (packageData: any) => {
-    const token = useAuthStore.getState().token;
-    const response = await axiosConfig.post(`${url}/save`, packageData, {
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
-    });
-    return response.data;
+const savePackageReception = async (payload: SavePickUpPayload) => {
+  const response = await axiosConfig.post(`${url}/save`, payload);
+  return response.data;
 };
 
-export {
-    getScannedPackages,
-    getTrackingNumberInfo,
-    savePackageReception
+const getPickUpHistory = async (subsidiaryId: string, params: ListParams = {}) => {
+  const response = await axiosConfig.get<Paginated<PickUpHistoryRow>>(`${url}/subsidiary/${subsidiaryId}`, { params });
+  return response.data;
 };
+
+export { getTrackingNumberInfo, savePackageReception, getPickUpHistory };
