@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { pdf, PDFDownloadLink } from "@react-pdf/renderer"
-import { useBrowserVoice } from "@/hooks/use-browser-voice" 
-import { ColumnDef, Row } from "@tanstack/react-table"
+import { useBrowserVoice } from "@/hooks/use-browser-voice"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,22 +29,16 @@ import {
   CheckCircle2,
   Keyboard,
   Package,
-  Barcode,
-  ShieldAlert,
   Clock,
   DollarSign,
   Box,
   Truck,
   PackagePlusIcon,
   ScanBarcode,
-  User,
-  MapPin,
-  ChevronRight,
-  ChevronDown,
-  Layers,
   HelpCircle,
   FileSpreadsheet,
-  History
+  History,
+  GemIcon
 } from "lucide-react"
 
 // Selectores especializados
@@ -57,14 +50,15 @@ import { saveWarehouseInbound, sendNotificationEmail, validateShipment } from "@
 import { Driver, ScannedShipment, Vehicles } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
-import { DataTable } from "@/components/data-table/data-table"
-import { tableFilters } from "./filters"
+import { PackagesList } from "@/components/shared/packages-list"
+import { toPackageInfo, RemittancePiecesPanel, hasRemittancePieces, groupRemittances } from "@/components/warehouse/shared/warehouse-package-list.helpers"
+import { RemittanceGroupToggle } from "@/components/warehouse/shared/remittance-group-toggle"
 import { SucursalSelector } from "@/components/sucursal-selector"
-import { getColumns } from "./columns"
-import ExcelJS from "exceljs"
 import { generateWarehouseExcel } from "./excel-generator"
 import { toast } from "@/components/ui/use-toast"
 import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
+import { StatCard } from "@/components/shared/stat-card"
+import { cn } from "@/lib/utils"
 
 export type InboundShipment = ScannedShipment & {
   pieces?: string[]; 
@@ -167,6 +161,8 @@ export default function InboundPackage() {
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  // Vista de remesas: agrupadas (default) o cada pieza por separado.
+  const [groupRemesas, setGroupRemesas] = useState(true)
 
   // Estado para el modal de remesas
   const [remittanceDialog, setRemittanceDialog] = useState<RemittanceDialogState>({
@@ -464,9 +460,26 @@ export default function InboundPackage() {
 
   const handleKeyPress = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); handleScan() } }
 
-  const handleRemovePackage = useCallback((id: string) => {
-    setSession(prev => ({ ...prev, packages: prev.packages.filter((p) => p.id !== id) }))
-  }, [])
+  // PackageListItem llama onRemove con (dhlUniqueId || trackingNumber).
+  const handleRemovePackage = useCallback((identifier: string) => {
+    setSession(prev => {
+      if (groupRemesas) {
+        // En vista agrupada el identificador es la guía principal: quitamos toda la remesa (mismo trackingNumber).
+        const target = prev.packages.find((p) => (p.dhlUniqueId || p.trackingNumber) === identifier)
+        if (target?.trackingNumber) {
+          return { ...prev, packages: prev.packages.filter((p) => p.trackingNumber !== target.trackingNumber) }
+        }
+      }
+      return { ...prev, packages: prev.packages.filter((p) => (p.dhlUniqueId || p.trackingNumber) !== identifier) }
+    })
+  }, [groupRemesas])
+
+  // Adaptamos los paquetes locales al formato estandarizado (mismo estilo que inventario/salidas).
+  // En DHL, varias guías con el mismo trackingNumber y distinto dhlUniqueId se agrupan como una remesa.
+  const listPackages = useMemo(() => {
+    const mapped = sortedPackages.map(toPackageInfo)
+    return groupRemesas ? groupRemittances(mapped) : mapped
+  }, [sortedPackages, groupRemesas])
 
   const handleCompleteSession = async () => {
     setIsScanning(true);
@@ -575,86 +588,6 @@ export default function InboundPackage() {
     }
   }
 
-  const columns = useMemo(() => {
-    return getColumns({ handleRemovePackage });
-  }, [handleRemovePackage]);
-
-  // SUB-FILA (DISEÑO SHADCN / TAILWIND)
-  const renderSubComponent = ({ row }: { row: Row<InboundShipment> }) => {
-    const pkg = row.original;
-    const existing = pkg.existingPieces || [];
-    const current = pkg.pieces || [];
-    
-    const totalPieces = 1 + existing.length + current.length;
-
-    return (
-      <div className="p-5 pl-[3.5rem] bg-slate-50/80 border-y border-slate-200 w-full shadow-inner">
-        <div className="flex items-center gap-2 mb-3">
-          <Layers className="w-4 h-4 text-blue-600" />
-          <h4 className="text-sm font-bold text-slate-700">Contenido de la Remesa</h4>
-          <Badge variant="secondary" className="text-[10px] ml-2 h-5 bg-white border-slate-200 text-slate-600 shadow-sm font-semibold">
-            {totalPieces} {totalPieces === 1 ? 'Pieza en total (Incluyendo Principal)' : 'Piezas en total (Incluyendo Principal)'}
-          </Badge>
-        </div>
-        
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm max-w-3xl overflow-hidden">
-          <Table>
-            <TableHeader className="bg-slate-100/50">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[60px] text-center text-xs font-bold text-slate-500">No.</TableHead>
-                <TableHead className="text-xs font-bold text-slate-500">Código de Seguimiento</TableHead>
-                <TableHead className="text-right text-xs font-bold text-slate-500">Clasificación</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-
-              {/* 2. PIEZAS REGISTRADAS PREVIAMENTE */}
-              {existing.map((pieceId, index) => (
-                <TableRow key={pieceId} className="hover:bg-slate-50/80 transition-colors">
-                  <TableCell className="text-center font-medium text-slate-400 text-xs">
-                    {index + 2}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-2.5">
-                      <Barcode className="w-4 h-4 text-slate-400" />
-                      <span className="font-mono text-[13px] text-slate-600">{pieceId}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right py-3">
-                    <Badge variant="outline" className="text-[10px] text-slate-500 bg-slate-50 border-slate-200">
-                      Registrada
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {/* 3. PIEZAS NUEVAS (Agregadas en este momento) */}
-              {current.map((pieceId, index) => (
-                <TableRow key={pieceId} className="bg-green-50/30 hover:bg-green-50/50 transition-colors">
-                  <TableCell className="text-center font-bold text-green-600/70 text-xs">
-                    {existing.length + index + 2}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-2.5">
-                      <ScanBarcode className="w-4 h-4 text-green-600" />
-                      <span className="font-mono text-[13px] font-bold text-green-800">{pieceId}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right py-3">
-                    <Badge className="text-[10px] bg-green-100 text-green-700 hover:bg-green-200 border-none shadow-sm font-bold uppercase tracking-wider">
-                      Agregada
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="text-slate-900 min-h-screen"> 
       <div className="flex flex-col gap-6 mb-4">
@@ -719,26 +652,37 @@ export default function InboundPackage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
         {/* AQUI SE ACTUALIZO EL VALOR DEL TOTAL PARA USAR LA NUEVA VARIABLE totalCount */}
-        <StatCard title="Total" value={totalCount} icon={Package} />
+        <StatCard title="Total" value={totalCount} icon={Package} isTotal={true}/>
+
+
         <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col justify-center shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-bold uppercase text-slate-500 tracking-wider">Carrier</span>
-            <Truck className="h-4 w-4 text-slate-300" />
-          </div>
           <div className="flex items-center gap-3">
               <div className="flex-1">
                 <p className="text-[12px] font-bold text-[#4d148c]">FEDEX</p>
-                <p className="text-xl font-bold text-slate-800">{fedexCount}</p>
+                <p className="text-2xl font-black tracking-tight text-slate-800">{fedexCount}</p>
               </div>
-              <Separator orientation="vertical" className="h-8 bg-slate-200" />
+              <Separator orientation="vertical" className="h-10 bg-slate-200" />
               <div className="flex-1 text-right">
                 <p className="text-[12px] font-bold text-[#d40511]">DHL</p>
-                <p className="text-xl font-bold text-slate-800">{dhlCount}</p>
+                <p className="text-2xl font-black tracking-tight text-slate-800">{dhlCount}</p>
               </div>
           </div>
+          <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3">
+            <span
+              className={cn(
+                "text-[12px] font-bold uppercase tracking-widest truncate text-slate-500",
+              )}
+            >
+              Carrier
+            </span>
+          </div>
+          {/*<div className="flex items-center justify-between mb-2">
+            <span className="text-[12px] font-bold uppercase text-slate-500 tracking-wider">Carrier</span>
+            <Truck className="h-4 w-4 text-slate-300" />
+          </div>*/}
         </div>
         <StatCard title="Vencen Hoy" value={expiringTodayPackages.length} icon={Clock} alert={expiringTodayPackages.length > 0} onClick={() => expiringTodayPackages.length > 0 && toggleModal("expiringToday", true)} />
-        <StatCard title="Alto Valor" value={highValuePackages.length} icon={ShieldAlert} alert={highValuePackages.length > 0} onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)} />
+        <StatCard title="Alto Valor" value={highValuePackages.length} icon={GemIcon} alert={highValuePackages.length > 0} onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)} />
         <StatCard title="Carga" value={cargoPackages.length} icon={Box} />
         <StatCard 
           title="Cobros" 
@@ -755,17 +699,19 @@ export default function InboundPackage() {
           <Card className="border-none shadow-none bg-transparent">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-800">Inventario de Escaneo</h2>
+                <h2 className="text-lg font-bold text-slate-800">Guías Escaneadas</h2>
               </div>
+              <RemittanceGroupToggle grouped={groupRemesas} onToggle={() => setGroupRemesas((v) => !v)} />
             </div>
             
             <CardContent className="p-0 overflow-hidden">
-              <DataTable 
-                columns={columns} 
-                data={sortedPackages}
-                searchKey="trackingNumber"
-                filters={tableFilters}
-                renderSubComponent={renderSubComponent} 
+              <PackagesList
+                packages={listPackages}
+                onRemove={handleRemovePackage}
+                renderExpanded={(pkg) => (hasRemittancePieces(pkg) ? <RemittancePiecesPanel pkg={pkg} /> : null)}
+                maxHeightClass="max-h-[640px]"
+                emptyTitle="Sin paquetes escaneados"
+                emptyDescription="Escanee un código de barras para comenzar el ingreso."
               />
             </CardContent>
           </Card>
@@ -1079,22 +1025,45 @@ export default function InboundPackage() {
   )
 }
 
-function StatCard({ title, value, subValue, icon: Icon, alert = false, onClick }: any) {
+{/*function StatCard({ 
+  title, 
+  value, 
+  subValue, 
+  icon: Icon, 
+  alert = false, 
+  isTotal = false, // <-- Nuevo prop agregado aquí
+  onClick 
+}: any) {
   return (
-    <div onClick={onClick} className={`rounded-xl border p-3.5 shadow-sm transition-all duration-200 ${alert ? "border-red-200 bg-red-50/80 cursor-pointer hover:bg-red-100 hover:border-red-300" : "border-slate-200 bg-white"}`}>
+    <div 
+      onClick={onClick} 
+      className={`rounded-xl border p-3.5 shadow-sm transition-all duration-200 ${
+        alert 
+          ? "border-red-200 bg-red-50/80 cursor-pointer hover:bg-red-100 hover:border-red-300" 
+          : "border-slate-200 bg-white"
+      }`}
+    >
       <div className="flex items-center justify-between mb-2">
-        <span className={`text-[10px] font-bold uppercase tracking-wider ${alert ? "text-red-700" : "text-slate-500"}`}>{title}</span>
+        <span className={`text-[10px] font-bold uppercase tracking-wider ${alert ? "text-red-700" : "text-slate-500"}`}>
+          {title}
+        </span>
         <div className={`p-1.5 rounded-md ${alert ? "bg-red-100" : "bg-slate-50"}`}>
           <Icon className={`h-4 w-4 ${alert ? "text-red-600" : "text-slate-400"}`} />
         </div>
       </div>
+      
       <div className="flex items-baseline gap-2 mt-1">
-        <p className={`text-2xl font-black ${alert ? "text-red-700" : "text-slate-800"}`}>{value}</p>
-        {subValue && <p className="text-[11px] text-slate-500 font-semibold">{subValue}</p>}
+        <p className={`${isTotal ? "text-4xl md:text-5xl" : "text-2xl"} font-black ${alert ? "text-red-700" : "text-slate-800"}`}>
+          {value}
+        </p>
+        
+        {subValue && (
+          <p className="text-[11px] text-slate-500 font-semibold">{subValue}</p>
+        )}
       </div>
     </div>
   )
-}
+}*/}
 
 function DetailModal({ open, onOpenChange, title, description, packages }: any) {
   return (

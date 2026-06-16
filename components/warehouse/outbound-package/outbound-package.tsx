@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { PDFDownloadLink } from "@react-pdf/renderer"
-import { useBrowserVoice } from "@/hooks/use-browser-voice" 
-import { ColumnDef, Row } from "@tanstack/react-table"
+import { useBrowserVoice } from "@/hooks/use-browser-voice"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,7 +30,6 @@ import {
   CheckCircle2,
   Keyboard,
   Package,
-  Barcode,
   ShieldAlert,
   Clock,
   DollarSign,
@@ -39,11 +37,6 @@ import {
   Truck,
   PackageMinus,
   ScanBarcode,
-  User,
-  MapPin,
-  ChevronRight,
-  ChevronDown,
-  Layers,
   HelpCircle,
   Send,
   Building2,
@@ -62,8 +55,9 @@ import { saveWarehouseOutbound, validateShipment } from "@/lib/services/warehous
 import { Driver, ScannedShipment, Vehicles, Route as Routes, OutboundTypeEnum} from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
-import { DataTable } from "@/components/data-table/data-table"
-import { tableFilters } from "./filters"
+import { PackagesList } from "@/components/shared/packages-list"
+import { toPackageInfo, RemittancePiecesPanel, hasRemittancePieces, groupRemittances } from "@/components/warehouse/shared/warehouse-package-list.helpers"
+import { RemittanceGroupToggle } from "@/components/warehouse/shared/remittance-group-toggle"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { RutaSelector } from "@/components/selectors/ruta-selector"
 import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
@@ -173,6 +167,8 @@ export default function OutboundPackage() {
   const [error, setError] = useState<string | null>("")
   const [selectedRutas, setSelectedRutas] = useState<Routes[]>([]);
   const [selectedKms, setSelectedKms] = useState<number | null>(0);
+  // Vista de remesas: agrupadas (default) o cada pieza por separado.
+  const [groupRemesas, setGroupRemesas] = useState(true)
 
   const [remittanceDialog, setRemittanceDialog] = useState<RemittanceDialogState>({
     isOpen: false,
@@ -434,9 +430,26 @@ export default function OutboundPackage() {
 
   const handleKeyPress = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); handleScan() } }
 
-  const handleRemovePackage = useCallback((id: string) => {
-    setSession(prev => ({ ...prev, packages: prev.packages.filter((p) => p.id !== id) }))
-  }, [])
+  // PackageListItem llama onRemove con (dhlUniqueId || trackingNumber).
+  const handleRemovePackage = useCallback((identifier: string) => {
+    setSession(prev => {
+      if (groupRemesas) {
+        // En vista agrupada el identificador es la guía principal: quitamos toda la remesa (mismo trackingNumber).
+        const target = prev.packages.find((p) => (p.dhlUniqueId || p.trackingNumber) === identifier)
+        if (target?.trackingNumber) {
+          return { ...prev, packages: prev.packages.filter((p) => p.trackingNumber !== target.trackingNumber) }
+        }
+      }
+      return { ...prev, packages: prev.packages.filter((p) => (p.dhlUniqueId || p.trackingNumber) !== identifier) }
+    })
+  }, [groupRemesas])
+
+  // Adaptamos los paquetes locales al formato estandarizado (mismo estilo que inventario/entradas).
+  // En DHL, varias guías con el mismo trackingNumber y distinto dhlUniqueId se agrupan como una remesa.
+  const listPackages = useMemo(() => {
+    const mapped = sortedPackages.map(toPackageInfo)
+    return groupRemesas ? groupRemittances(mapped) : mapped
+  }, [sortedPackages, groupRemesas])
 
   const handleCompleteSession = async () => {
     setIsScanning(true);
@@ -514,218 +527,6 @@ export default function OutboundPackage() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }
-
-  const columns: ColumnDef<OutboundShipment>[] = useMemo(() => [
-    {
-      accessorKey: "trackingNumber",
-      header: "Guia / Remesa",
-      cell: function CellComponent({ row }) {
-        const pkg = row.original;
-        const hasPieces = (pkg.pieces && pkg.pieces.length > 0) || (pkg.existingPieces && pkg.existingPieces.length > 0);
-
-        return (
-          <div className="flex items-center gap-3 w-full">
-            {hasPieces ? (
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  row.toggleExpanded();
-                }}
-                className={`p-1.5 rounded-md hover:bg-slate-200 transition-colors flex-shrink-0 ${row.getIsExpanded() ? 'bg-slate-200 text-slate-800' : 'text-slate-500'}`}
-                title="Desplegar piezas de la remesa"
-              >
-                {row.getIsExpanded() ? <ChevronDown size={18} strokeWidth={2.5} /> : <ChevronRight size={18} strokeWidth={2.5} />}
-              </button>
-            ) : (
-              <div className="w-8 flex-shrink-0" />
-            )}
-            
-            <span className="font-mono text-[14px] font-bold text-slate-900 tracking-tight">
-              {pkg.trackingNumber}
-            </span>
-            
-            {hasPieces && (
-              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 flex gap-1 items-center bg-blue-50 text-blue-700 border-blue-200 border ml-2 uppercase font-bold tracking-wider">
-                <Layers size={10} />
-                Principal
-              </Badge>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      id: "subsidiary",
-      accessorFn: (row) => row.subsidiary, 
-      header: "Destino",
-      cell: ({ row }) => {
-        const pkg = row.original;
-        return (
-          <div className="text-slate-600 flex flex-col gap-0.5">
-            <span className="font-bold text-slate-800">{pkg.subsidiary?.name || "S/N"}</span>
-            <span className="font-mono text-slate-500">
-              CP: <span className="font-bold text-slate-700">{pkg.recipientZip}</span>
-            </span>
-          </div>
-        )
-      },
-      filterFn: (row, id, value: string[]) => {
-        const rowValue = row.getValue(id) as string
-        return value.includes(rowValue)
-      },
-    },
-    {
-      id: "shipmentType",
-      accessorKey: "shipmentType",
-      header: "Carrier",
-      cell: ({ row }) => {
-        const type = (row.getValue("shipmentType") as string) || ""; 
-        if (type.toLowerCase() === 'fedex') {
-          return <Badge className="bg-[#4d148c] text-white hover:bg-[#4d148c]/90 text-[12px] border-none shadow-sm uppercase font-bold tracking-wider">FedEx</Badge>
-        }
-        if (type.toLowerCase() === 'dhl') {
-          return <Badge className="bg-[#ffcc00] text-[#d40511] hover:bg-[#ffcc00]/90 text-[12px] border-none shadow-sm uppercase font-bold tracking-wider">DHL</Badge>
-        }
-        return <Badge variant="outline" className="text-[12px] uppercase font-bold text-slate-600">{type}</Badge>
-      },
-      filterFn: (row, id, value: string[]) => {
-        const rowValue = (row.getValue(id) as string).toLowerCase()
-        return value.includes(rowValue)
-      },
-    },
-    {
-      id: "destinatario",
-      header: "Destinatario",
-      cell: ({ row }) => {
-        const pkg = row.original;
-        return (
-          <div className="flex flex-col gap-1 py-1 min-w-[150px] max-w-[220px]">
-            <div className="flex items-start gap-1.5">
-              <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-              <span className="text-sm font-semibold text-slate-800 leading-tight truncate" title={pkg.recipientName}>
-                {pkg.recipientName || "Sin Nombre"}
-              </span>
-            </div>
-            <div className="flex items-start gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-              <span className="text-xs text-slate-500 leading-snug line-clamp-2" title={pkg.recipientAddress}>
-                {pkg.recipientAddress || "Direccion no disponible"}
-              </span>
-            </div>
-          </div>
-        )
-      }
-    },
-    {
-      id: "alertas",
-      header: "Etiquetas",
-      cell: ({ row }) => {
-        const pkg = row.original;
-        return (
-          <div className="flex gap-1.5 flex-wrap max-w-[150px]">
-            {isToday(pkg.commitDateTime) && <Badge className="font-bold text-[10px] px-1.5 py-0.5 bg-red-600 text-white hover:bg-red-700 shadow-sm border-none">Vence Hoy</Badge>}
-            {isTomorrow(pkg.commitDateTime) && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-orange-50 text-orange-700 border-orange-200 border hover:bg-orange-100 shadow-sm">Vence Manana</Badge>}
-            {pkg.isHighValue && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 border-purple-200 border hover:bg-purple-100 shadow-sm">Alto Valor</Badge>}
-            {pkg.isCharge && <Badge variant="secondary" className="font-bold text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 border-blue-200 border hover:bg-blue-100 shadow-sm">Carga</Badge>}
-            {pkg.hasPayment && <Badge className="font-bold text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-300 border hover:bg-amber-100 shadow-sm" variant="secondary">
-              Cobro: ${Number(pkg.paymentAmount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-            </Badge>}
-          </div>
-        )
-      }
-    },
-    {
-      id: "acciones",
-      header: () => <div className="text-right">Acciones</div>,
-      cell: ({ row }) => {
-        return (
-          <div className="text-right">
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => handleRemovePackage(row.original.id)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="bg-red-600 text-white border-none text-xs">Eliminar Registro</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        )
-      }
-    }
-  ], [handleRemovePackage])
-
-  const renderSubComponent = ({ row }: { row: Row<OutboundShipment> }) => {
-    const pkg = row.original;
-    const existing = pkg.existingPieces || [];
-    const current = pkg.pieces || [];
-    
-    const totalPieces = 1 + existing.length + current.length;
-
-    return (
-      <div className="p-5 pl-[3.5rem] bg-slate-50/80 border-y border-slate-200 w-full shadow-inner">
-        <div className="flex items-center gap-2 mb-3">
-          <Layers className="w-4 h-4 text-blue-600" />
-          <h4 className="text-sm font-bold text-slate-700">Contenido de la Remesa</h4>
-          <Badge variant="secondary" className="text-[10px] ml-2 h-5 bg-white border-slate-200 text-slate-600 shadow-sm font-semibold">
-            {totalPieces} {totalPieces === 1 ? 'Pieza en total (Incluyendo Principal)' : 'Piezas en total (Incluyendo Principal)'}
-          </Badge>
-        </div>
-        
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm max-w-3xl overflow-hidden">
-          <Table>
-            <TableHeader className="bg-slate-100/50">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[60px] text-center text-xs font-bold text-slate-500">No.</TableHead>
-                <TableHead className="text-xs font-bold text-slate-500">Codigo de Seguimiento</TableHead>
-                <TableHead className="text-right text-xs font-bold text-slate-500">Clasificacion</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {existing.map((pieceId, index) => (
-                <TableRow key={pieceId} className="hover:bg-slate-50/80 transition-colors">
-                  <TableCell className="text-center font-medium text-slate-400 text-xs">
-                    {index + 2}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-2.5">
-                      <Barcode className="w-4 h-4 text-slate-400" />
-                      <span className="font-mono text-[13px] text-slate-600">{pieceId}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right py-3">
-                    <Badge variant="outline" className="text-[10px] text-slate-500 bg-slate-50 border-slate-200">
-                      Registrada
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {current.map((pieceId, index) => (
-                <TableRow key={pieceId} className="bg-green-50/30 hover:bg-green-50/50 transition-colors">
-                  <TableCell className="text-center font-bold text-green-600/70 text-xs">
-                    {existing.length + index + 2}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-2.5">
-                      <ScanBarcode className="w-4 h-4 text-green-600" />
-                      <span className="font-mono text-[13px] font-bold text-green-800">{pieceId}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right py-3">
-                    <Badge className="text-[10px] bg-green-100 text-green-700 hover:bg-green-200 border-none shadow-sm font-bold uppercase tracking-wider">
-                      Agregada
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="text-slate-900 min-h-screen pt-4"> 
@@ -829,15 +630,17 @@ export default function OutboundPackage() {
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-bold text-slate-800">Inventario de Salida</h2>
                 </div>
+                <RemittanceGroupToggle grouped={groupRemesas} onToggle={() => setGroupRemesas((v) => !v)} />
               </div>
               
               <CardContent className="p-0 overflow-hidden">
-                <DataTable 
-                  columns={columns} 
-                  data={sortedPackages}
-                  searchKey="trackingNumber"
-                  filters={tableFilters}
-                  renderSubComponent={renderSubComponent} 
+                <PackagesList
+                  packages={listPackages}
+                  onRemove={handleRemovePackage}
+                  renderExpanded={(pkg) => (hasRemittancePieces(pkg) ? <RemittancePiecesPanel pkg={pkg} /> : null)}
+                  maxHeightClass="max-h-[640px]"
+                  emptyTitle="Sin paquetes escaneados"
+                  emptyDescription="Escanee un código de barras para comenzar la salida."
                 />
               </CardContent>
             </Card>
