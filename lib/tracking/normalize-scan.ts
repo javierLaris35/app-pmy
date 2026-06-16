@@ -12,8 +12,10 @@
  *   - Numérico puro: 18 dígitos       -> "008860660448181145"
  *
  * Detalle del prefijo:
- *   - El LECTOR de barras entrega "JJD"; en la BD/correo se guarda como "JD".
- *     Por eso normalizamos "JJD" -> "JD" (si no, el escaneo no haría match).
+ *   - El LECTOR de barras puede entregar "JJD" o "JD". NO transformamos uno en
+ *     otro: el código se conserva tal cual se escanea (algunas guías reales son
+ *     "JJD"). El backend resuelve el match buscando ambas variantes (JJD <-> JD),
+ *     así que transformar aquí solo limitaría/mutilaría el código.
  *
  * Regla anti-colisión: FedEx escaneado SIEMPRE viene >20 dígitos y el master
  * son 12; por eso un numérico de 18 no puede ser FedEx -> es DHL.
@@ -36,8 +38,8 @@ const DHL_NUMERIC_LENGTH = 18;
 /** Longitud final de una guía master FedEx. */
 export const FEDEX_CODE_LENGTH = 12;
 
-/** dhlUniqueId válido: "JD" + 16-20 dígitos, o numérico puro de 18. */
-const DHL_VALID = new RegExp(`^(JD\\d{16,20}|\\d{${DHL_NUMERIC_LENGTH}})$`);
+/** dhlUniqueId válido: "JD"/"JJD" + 16-20 dígitos, o numérico puro de 18. */
+const DHL_VALID = new RegExp(`^(J?JD\\d{16,20}|\\d{${DHL_NUMERIC_LENGTH}})$`);
 
 /** Guía FedEx válida (master). */
 const FEDEX_VALID = /^\d{10,12}$/;
@@ -54,9 +56,10 @@ export function normalizeScannedCode(raw: string): NormalizedScan | null {
   const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   if (!clean) return null;
 
-  // 2. DHL con prefijo: JJD (lector) o JD (correo/BD) -> normalizar a "JD" y conservar completo.
+  // 2. DHL con prefijo: JJD o JD -> se conserva TAL CUAL (no transformamos).
+  //    El backend hace el match buscando ambas variantes.
   if (DHL_PREFIX.test(clean)) {
-    return { code: clean.replace(/^JJD/, "JD"), carrier: "dhl" };
+    return { code: clean, carrier: "dhl" };
   }
 
   // 3. DHL numérico puro (longitud fija conocida) -> conservar completo.

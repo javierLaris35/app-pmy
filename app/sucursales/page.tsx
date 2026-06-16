@@ -51,6 +51,8 @@ import { useSaveSubsidiary, useSubsidiaries, useDeleteSubsidiary } from "@/hooks
 import { withAuth } from "@/hoc/withAuth"
 import { toast } from "sonner"
 import { getColumns } from "./columns"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useZones } from "@/hooks/services/zones/use-zones"
 
 const initialFormState = {
   name: "",
@@ -68,6 +70,7 @@ const initialFormState = {
   isWarehouse: false,
   officeEmail: "",
   officeEmailToCopy: "",
+  zoneId: "",
 }
 
 function SucursalesPage() {
@@ -79,6 +82,7 @@ function SucursalesPage() {
   const [formData, setFormData] = useState(initialFormState)
 
   const { subsidiaries, isLoading, isError, mutate } = useSubsidiaries()
+  const { zones } = useZones()
   const { save, isSaving } = useSaveSubsidiary()
   const { deleteSubsidiary, isDeleting } = useDeleteSubsidiary()
 
@@ -116,6 +120,7 @@ function SucursalesPage() {
       isWarehouse: sucursal.isWarehouse || false,
       officeEmail: sucursal.officeEmail || "",
       officeEmailToCopy: sucursal.officeEmailToCopy || "",
+      zoneId: sucursal.zoneId || "",
     })
     setIsDialogOpen(true)
   }
@@ -136,7 +141,8 @@ function SucursalesPage() {
     const subsidiaryData = {
       ...formData,
       officeEmail: formData.officeEmail || undefined,
-      officeEmailToCopy: formData.officeEmailToCopy || undefined
+      officeEmailToCopy: formData.officeEmailToCopy || undefined,
+      zoneId: formData.zoneId || null,
     }
 
     try {
@@ -505,6 +511,29 @@ function SucursalesPage() {
                       onChange={(e) => handleFormChange("secondAbordAmount", +e.target.value)}
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="zoneId">Zona</Label>
+                  <Select
+                    value={formData.zoneId || "none"}
+                    onValueChange={(v) => handleFormChange("zoneId", v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger id="zoneId">
+                      <SelectValue placeholder="Selecciona una zona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin zona</SelectItem>
+                      {zones.map((z) => (
+                        <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Las bodegas usan la zona para tomar choferes/unidades de su sucursal de ciudad.
+                  </p>
                 </div>
               </div>
 

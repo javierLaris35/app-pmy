@@ -41,7 +41,6 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
         multiCarrier = false,
       }: BarcodeScannerInputProps, ref) {
       const textareaRef = useRef<HTMLTextAreaElement>(null);
-      const wasPastedRef = useRef(false);
       const [trackingNumbersRaw, setTrackingNumbersRaw] = useState("");
       const [currentScan, setCurrentScan] = useState("");
 
@@ -67,23 +66,24 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
         }
       }, [trackingNumbersRaw, onTrackingNumbersChange]);
 
-      const handlePaste = useCallback(() => {
-        wasPastedRef.current = true;
-      }, []);
-
       const handleKeyDown = useCallback(
           (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             if (e.key === 'Enter' || e.key === 'Tab') {
               e.preventDefault();
 
-              // Si fue pegado, permitimos procesar normalmente
-              if (wasPastedRef.current) {
-                wasPastedRef.current = false; // resetea el flag
+              // Normalizamos TODAS las líneas (no solo la última) y deduplicamos.
+              // Esto evita el doble JJD/JD: el lector entrega "JJD..." y la
+              // normalización lo vuelve "JD...", así ambas colapsan al mismo
+              // código. Funciona igual para escaneo, pegado o tecleo manual.
+              const codes = new Set<string>(
+                trackingNumbersRaw.split("\n").filter(Boolean),
+              );
 
-                const pastedLines = currentScan.split("\n").filter(Boolean);
-                const codes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
-                
-                pastedLines.forEach(line => {
+              currentScan
+                .split("\n")
+                .map((l) => l.trim())
+                .filter(Boolean)
+                .forEach((line) => {
                   // FedEx -> últimos 12; DHL -> completo (solo si multiCarrier).
                   const code = multiCarrier
                     ? normalizeScannedCode(line)?.code ?? ""
@@ -91,29 +91,11 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
                   if (code) codes.add(code);
                 });
 
-                setTrackingNumbersRaw(Array.from(codes).join("\n"));
-                return;
-              }
-
-              // Procesamiento normal para escaneo (ej. pistola)
-              const lines = currentScan.split("\n").filter(Boolean);
-              const lastLine = lines[lines.length - 1] || "";
-
-              // FedEx -> últimos 12; DHL -> completo (solo si multiCarrier).
-              const newCode = multiCarrier
-                ? normalizeScannedCode(lastLine)?.code ?? ""
-                : legacyTrim(lastLine);
-
-              if (newCode) {
-                const existingCodes = new Set(trackingNumbersRaw.split("\n").filter(Boolean));
-                existingCodes.add(newCode);
-                setTrackingNumbersRaw(Array.from(existingCodes).join("\n"));
-
-                setCurrentScan((prev) => {
-                  const prevLines = prev.split("\n").slice(0, -1);
-                  return [...prevLines, newCode, ""].join("\n");
-                });
-              }
+              const merged = Array.from(codes);
+              setTrackingNumbersRaw(merged.join("\n"));
+              // El textarea muestra los códigos ya normalizados + una línea
+              // lista para el siguiente escaneo.
+              setCurrentScan(merged.length ? merged.join("\n") + "\n" : "");
             }
           },
           [currentScan, trackingNumbersRaw, multiCarrier]
@@ -139,7 +121,6 @@ const BarcodeScannerInputComponent = forwardRef<BarcodeScannerInputHandle, Barco
               value={currentScan}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
               placeholder={placeholder}
               disabled={disabled}
               className={classNames(

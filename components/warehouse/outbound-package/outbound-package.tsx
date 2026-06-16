@@ -61,6 +61,7 @@ import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
 import { saveWarehouseOutbound, validateShipment } from "@/lib/services/warehouse/warehouse"
 import { Driver, ScannedShipment, Vehicles, Route as Routes, OutboundTypeEnum} from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { DataTable } from "@/components/data-table/data-table"
 import { tableFilters } from "./filters"
 import { SucursalSelector } from "@/components/sucursal-selector"
@@ -97,6 +98,12 @@ type RemittanceDialogState = {
   masterTracking: string;
   pieceInput: string;
   error: string | null;
+}
+
+// Normaliza el flag isWarehouse (puede venir como bit/Buffer del backend).
+const checkIsWarehouse = (val: any): boolean => {
+  if (val && typeof val === "object" && "data" in val) return val.data[0] === 1
+  return Boolean(val)
 }
 
 const isToday = (date: Date) => new Date().toDateString() === new Date(date).toDateString()
@@ -148,6 +155,18 @@ export default function OutboundPackage() {
   const [effectiveWarehouseName, setEffectiveWarehouseName] = useState<string>("")
   const effectiveWarehouseId = selectedWarehouse || defaultWarehouseId;
   const [showHistory, setShowHistory] = useState(false)
+
+  // Choferes/unidades/rutas cuelgan de la sucursal de CIUDAD, no de la bodega.
+  // Resolvemos la sucursal operativa por ZONA. Fallback: la bodega misma.
+  const { subsidiaries: allSubsidiaries } = useSubsidiaries()
+  const operationalSubsidiaryId = useMemo(() => {
+    const wh = allSubsidiaries.find((s) => s.id === effectiveWarehouseId)
+    if (!wh?.zoneId) return effectiveWarehouseId
+    const city = allSubsidiaries.find(
+      (s) => s.zoneId === wh.zoneId && s.id !== effectiveWarehouseId && !checkIsWarehouse(s.isWarehouse),
+    )
+    return city?.id || effectiveWarehouseId
+  }, [allSubsidiaries, effectiveWarehouseId])
 
   const [scanInput, setScanInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
@@ -880,7 +899,7 @@ export default function OutboundPackage() {
                       <RutaSelector
                         selectedRutas={selectedRutas}
                         onSelectionChange={setSelectedRutas}
-                        subsidiaryId={effectiveWarehouseId}
+                        subsidiaryId={operationalSubsidiaryId}
                       />
                     </div>
 
@@ -972,19 +991,19 @@ export default function OutboundPackage() {
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-[12px] font-semibold text-slate-600">Unidad de Traslado</Label>
-                    <UnidadSelector 
-                      selectedUnidad={session.vehicle?.id || ""} 
-                      onSelectionChange={(id) => setSession(s => ({...s, vehicle: { id } as Vehicles }))} 
-                      subsidiaryId={effectiveWarehouseId} 
+                    <UnidadSelector
+                      selectedUnidad={session.vehicle?.id || ""}
+                      onSelectionChange={(id) => setSession(s => ({...s, vehicle: { id } as Vehicles }))}
+                      subsidiaryId={operationalSubsidiaryId}
                     />
                   </div>
                   <Separator className="bg-slate-100" />
                   <div className="space-y-1.5">
                     <Label className="text-[12px] font-semibold text-slate-600">Chofer Asignado</Label>
-                    <RepartidorSelector 
-                      selectedRepartidores={session.drivers.map(d => d.id)} 
-                      onSelectionChange={(ids) => setSession(s => ({...s, drivers: ids.map(id => ({ id } as Driver))}))} 
-                      subsidiaryId={effectiveWarehouseId}
+                    <RepartidorSelector
+                      selectedRepartidores={session.drivers.map(d => d.id)}
+                      onSelectionChange={(ids) => setSession(s => ({...s, drivers: ids.map(id => ({ id } as Driver))}))}
+                      subsidiaryId={operationalSubsidiaryId}
                     />
                   </div>
                 </div>

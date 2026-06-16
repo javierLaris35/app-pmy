@@ -18,6 +18,17 @@ export type Subsidiary = {
   secondAbordAmount: number;
   isWarehouse: boolean
   createdBy?: string;
+  zoneId?: string | null
+  zone?: Zone | null
+}
+
+export type Zone = {
+  id: string
+  name: string
+  description?: string
+  createdById?: string
+  createdBy?: { name: string }
+  createdAt?: string | Date
 }
 
 export type Collection = {
@@ -875,9 +886,14 @@ export interface DhlImportData {
 }
 
 export interface ScannedShipment {
+  /** Discriminante para la unión ScannedShipment | ValidationError (en éxito no viene; queda undefined). */
+  isValid?: true
   id: string
   trackingNumber: string
   shipmentType: ShipmentType
+  recipientName?: string
+  recipientAddress?: string
+  recipientPhone?: string
   recipientZip: string
   subsidiary: Subsidiary
   commitDateTime: Date
