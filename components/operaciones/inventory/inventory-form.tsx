@@ -440,7 +440,16 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       const indexPkg = (p: PackageInfo) => {
         [p.trackingNumber, p.dhlUniqueId]
           .filter(Boolean)
-          .forEach(c => byCode.set((c as string).trim().toUpperCase(), p));
+          .forEach(c => {
+            const k = (c as string).trim().toUpperCase();
+            byCode.set(k, p);
+            // DHL: indexamos también la variante JJD<->JD. El backend devuelve la
+            // forma de la BD (p. ej. "JD..."), pero el escaneo pudo ser "JJD..." (o
+            // viceversa); sin esto la reconstrucción por orden de escaneo no
+            // encontraría el paquete y la guía "no se leería".
+            if (k.startsWith("JJD")) byCode.set(k.substring(1), p);
+            else if (k.startsWith("JD")) byCode.set("J" + k, p);
+          });
       };
       packages.forEach(p => { if (!p.isPendingValidation) indexPkg(p); });
       newlyValidated.forEach(indexPkg);

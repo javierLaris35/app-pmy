@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { UnloadingPDFReport } from "@/lib/services/unloading/unloading-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
 import { generateUnloadingExcelClient } from "@/lib/services/unloading/unloading-excel-generator";
+import { normalizeScannedCode, isValidScannedCode } from "@/lib/tracking/normalize-scan";
 import ConsolidateDetails from "./consolidate-details";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
@@ -847,8 +848,10 @@ export default function UnloadingForm({
     }
 
     const trackingNumbers = safeScannedPackages.map(p => p.trackingNumber);
-    const validNumbers = trackingNumbers.filter(t => /^\d{10,12}$/.test(t));
-    const invalidNumbers = trackingNumbers.filter(t => !/^\d{10,12}$/.test(t));
+    // Aceptamos FedEx (numérico) y DHL (JD/JJD o numérico de 18). El filtro previo
+    // (/^\d{10,12}$/) descartaba TODO DHL, por eso los JD/JJD "no se leían".
+    const validNumbers = trackingNumbers.filter(t => isValidScannedCode(normalizeScannedCode(t)));
+    const invalidNumbers = trackingNumbers.filter(t => !isValidScannedCode(normalizeScannedCode(t)));
     
     if (validNumbers.length === 0) return;
 
