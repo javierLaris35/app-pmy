@@ -4,6 +4,13 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import useUnloadingStore from "@/store/unloading.store";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { useBrowserVoice } from "@/hooks/use-browser-voice";
+import {
+  initScannerFeedback,
+  playExpiresTodaySound,
+  playExpiresTomorrowSound,
+  playNotFoundSound,
+  playInvalidSound,
+} from "@/lib/scanner-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -693,89 +700,19 @@ export default function UnloadingForm({
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   }, []);
 
-  const playExpirationSound = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const audioContext = new AudioCtx();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      oscillator.type = "square";
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+  // Sonidos del escáner: usan un AudioContext compartido y reanudado por gesto
+  // (ver lib/scanner-feedback). Antes cada beep creaba un AudioContext nuevo,
+  // por eso "se colgaban" tras varios escaneos y a veces no se oían.
+  const playExpirationSound = useCallback(() => playExpiresTodaySound(), []);
+  const playTomorrowExpirationSound = useCallback(() => playExpiresTomorrowSound(), []);
+  // Sobrante (guía escaneada que no estaba en el manifiesto) = no encontrada.
+  const playSurplusSound = useCallback(() => playNotFoundSound(), []);
+  // Formato de guía inválido.
+  const playInvalidSnd = useCallback(() => playInvalidSound(), []);
 
-      const now = audioContext.currentTime;
-      oscillator.frequency.setValueAtTime(1000, now);
-      gainNode.gain.setValueAtTime(0.2, now);
-      gainNode.gain.setValueAtTime(0, now + 0.1);
-      oscillator.frequency.setValueAtTime(1000, now + 0.15);
-      gainNode.gain.setValueAtTime(0.2, now + 0.15);
-      gainNode.gain.setValueAtTime(0, now + 0.25);
-
-      oscillator.start(now);
-      oscillator.stop(now + 0.3);
-    } catch (err) {
-      console.warn("playExpirationSound error:", err);
-    }
-  }, []);
-
-  const playTomorrowExpirationSound = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const audioContext = new AudioCtx();
-      const osc = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      osc.type = "sine";
-      osc.connect(gain);
-      gain.connect(audioContext.destination);
-      const now = audioContext.currentTime;
-      osc.frequency.setValueAtTime(700, now);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.setValueAtTime(0, now + 0.12);
-      osc.start(now);
-      osc.stop(now + 0.14);
-    } catch (err) {
-      console.warn("playTomorrowExpirationSound error:", err);
-    }
-  }, []);
-
-  // Sonido para guías sobrantes (breve tono)
-  const playSurplusSound = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const audioContext = new AudioCtx();
-      const now = audioContext.currentTime;
-
-      // Primer tono (ping alto)
-      const o1 = audioContext.createOscillator();
-      const g1 = audioContext.createGain();
-      o1.type = 'triangle';
-      o1.frequency.setValueAtTime(880, now);
-      g1.gain.setValueAtTime(0.15, now);
-      o1.connect(g1);
-      g1.connect(audioContext.destination);
-      o1.start(now);
-      o1.stop(now + 0.09);
-
-      // Segundo tono (ping más bajo) separado ligeramente
-      const o2 = audioContext.createOscillator();
-      const g2 = audioContext.createGain();
-      const t2 = now + 0.12;
-      o2.type = 'triangle';
-      o2.frequency.setValueAtTime(660, t2);
-      g2.gain.setValueAtTime(0.15, t2);
-      o2.connect(g2);
-      g2.connect(audioContext.destination);
-      o2.start(t2);
-      o2.stop(t2 + 0.12);
-    } catch (err) {
-      console.warn("playSurplusSound error:", err);
-    }
+  // Prepara el feedback sonoro y enlaza el desbloqueo por gesto (autoplay policy).
+  useEffect(() => {
+    initScannerFeedback();
   }, []);
 
   const handleExpirationCheck = useCallback((newShipments: PackageInfoForUnloading[]) => {
@@ -948,7 +885,12 @@ export default function UnloadingForm({
       
       if (newSurplusItems.length > 0) {
         speakMessage("La guía no se encontró. Por favor, verifica.");
-        try { playSurplusSound(); } catch (err) {}
+        // Sonido diferenciado: formato inválido vs. sobrante (no encontrada en manifiesto).
+        const hasNewInvalid = newSurplusItems.some(s => invalidNumbers.includes(s));
+        try {
+          if (hasNewInvalid) playInvalidSnd();
+          else playSurplusSound();
+        } catch (err) {}
       }
       
       setSurplusTrackings(allSurplus);
@@ -983,7 +925,7 @@ export default function UnloadingForm({
       setTimeout(() => { try { barScannerInputRef.current?.focus(); } catch {} }, 150);
     }
   }, [
-    isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound
+    isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound, playInvalidSnd
   ]);
 
   const shipmentsArray = useMemo(() => Array.isArray(shipments) ? shipments : [], [shipments]);

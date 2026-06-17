@@ -31,8 +31,15 @@ import { OperationHeader } from "@/components/shared/operation-header";
 import { StatBar } from "@/components/shared/stat-bar";
 import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
 import { PackageFilters } from "@/components/shared/package-filters";
-import { PackageListItem } from "@/components/shared/package-list-item";
+import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
 import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
+import {
+  initScannerFeedback,
+  playExpiresTodaySound,
+  playExpiresTomorrowSound,
+  playNotFoundSound,
+  playInvalidSound,
+} from "@/lib/scanner-feedback";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Props = {
@@ -175,6 +182,9 @@ const PackageDispatchForm: React.FC<Props> = ({
 
     setIsOnline(navigator.onLine);
 
+    // Prepara el feedback sonoro y enlaza el desbloqueo por gesto (autoplay policy).
+    initScannerFeedback();
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -264,6 +274,19 @@ const PackageDispatchForm: React.FC<Props> = ({
     setInvalidNumbers(Array.from(new Set(invalids)));
     setProgress(0);
     setIsLoading(false);
+
+    // Feedback sonoro estandarizado (mismo que inventario/desembarque).
+    const validResults = results.filter(r => r.isValid);
+    if (validResults.some(r => daysUntilCommit(r.commitDateTime) === 0)) {
+      playExpiresTodaySound();
+    } else if (validResults.some(r => daysUntilCommit(r.commitDateTime) === 1)) {
+      playExpiresTomorrowSound();
+    }
+    if (invalids.length > 0) {
+      playInvalidSound();
+    } else if (results.some(r => !r.isValid)) {
+      playNotFoundSound();
+    }
 
     toast({
       title: "Validación completada",

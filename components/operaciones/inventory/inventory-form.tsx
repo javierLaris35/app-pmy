@@ -55,6 +55,13 @@ import { PackageFilters } from "@/components/shared/package-filters";
 import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
 import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
 import {
+  initScannerFeedback,
+  playExpiresTodaySound,
+  playExpiresTomorrowSound,
+  playNotFoundSound,
+  playInvalidSound,
+} from "@/lib/scanner-feedback";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -188,88 +195,13 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   }, []);
 
-  // Sonido para paquetes que VENCEN HOY (doble beep agudo).
-  const playExpirationSound = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const audioContext = new AudioCtx();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      oscillator.type = "square";
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      const now = audioContext.currentTime;
-      oscillator.frequency.setValueAtTime(1000, now);
-      gainNode.gain.setValueAtTime(0.2, now);
-      gainNode.gain.setValueAtTime(0, now + 0.1);
-      oscillator.frequency.setValueAtTime(1000, now + 0.15);
-      gainNode.gain.setValueAtTime(0.2, now + 0.15);
-      gainNode.gain.setValueAtTime(0, now + 0.25);
-      oscillator.start(now);
-      oscillator.stop(now + 0.3);
-    } catch (err) {
-      console.warn("playExpirationSound error:", err);
-    }
-  }, []);
-
-  // Sonido para paquetes que VENCEN MAÑANA (un beep suave).
-  const playTomorrowExpirationSound = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const audioContext = new AudioCtx();
-      const osc = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      osc.type = "sine";
-      osc.connect(gain);
-      gain.connect(audioContext.destination);
-      const now = audioContext.currentTime;
-      osc.frequency.setValueAtTime(700, now);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.setValueAtTime(0, now + 0.12);
-      osc.start(now);
-      osc.stop(now + 0.14);
-    } catch (err) {
-      console.warn("playTomorrowExpirationSound error:", err);
-    }
-  }, []);
-
-  // Sonido para guías INVÁLIDAS / NO ENCONTRADAS (dos tonos descendentes).
-  const playInvalidSound = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const audioContext = new AudioCtx();
-      const now = audioContext.currentTime;
-
-      const o1 = audioContext.createOscillator();
-      const g1 = audioContext.createGain();
-      o1.type = "triangle";
-      o1.frequency.setValueAtTime(880, now);
-      g1.gain.setValueAtTime(0.15, now);
-      o1.connect(g1);
-      g1.connect(audioContext.destination);
-      o1.start(now);
-      o1.stop(now + 0.09);
-
-      const o2 = audioContext.createOscillator();
-      const g2 = audioContext.createGain();
-      const t2 = now + 0.12;
-      o2.type = "triangle";
-      o2.frequency.setValueAtTime(660, t2);
-      g2.gain.setValueAtTime(0.15, t2);
-      o2.connect(g2);
-      g2.connect(audioContext.destination);
-      o2.start(t2);
-      o2.stop(t2 + 0.12);
-    } catch (err) {
-      console.warn("playInvalidSound error:", err);
-    }
-  }, []);
+  // Sonidos del escáner: usan un AudioContext compartido y reanudado por gesto
+  // (ver lib/scanner-feedback). Antes cada beep creaba un AudioContext nuevo,
+  // por eso "se colgaban" tras varios escaneos y a veces no se oían.
+  const playExpirationSound = useCallback(() => playExpiresTodaySound(), []);
+  const playTomorrowExpirationSound = useCallback(() => playExpiresTomorrowSound(), []);
+  const playNotFoundSnd = useCallback(() => playNotFoundSound(), []);
+  const playInvalidSnd = useCallback(() => playInvalidSound(), []);
 
   const handleExpirationCheck = useCallback((newPackages: PackageInfo[]) => {
     const expiringToday: ExpiringPackage[] = [];
@@ -317,6 +249,11 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       setShownExpiringPackages(newShown);
     }
   }, [getDaysUntilExpiration, shownExpiringPackages, setShownExpiringPackages, playExpirationSound, playTomorrowExpirationSound]);
+
+  // Prepara el feedback sonoro y enlaza el desbloqueo por gesto (autoplay policy).
+  useEffect(() => {
+    initScannerFeedback();
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -529,8 +466,11 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
 
       handleExpirationCheck(newlyValidated);
 
-      if (newlyValidated.some(p => !p.isValid) || invalidNumbers.length > 0) {
-        playInvalidSound();
+      // Sonido diferenciado: formato inválido vs. no encontrada en sistema.
+      if (invalidNumbers.length > 0) {
+        playInvalidSnd();
+      } else if (newlyValidated.some(p => !p.isValid)) {
+        playNotFoundSnd();
       }
     } catch (error) {
       console.error("Error validating packages:", error);
