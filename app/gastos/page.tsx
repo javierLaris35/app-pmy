@@ -951,7 +951,7 @@ function GastosPage() {
           </CardHeader>
           <CardContent>
             {effectiveSubsidiaryId ? (
-              <DataTable columns={columns} data={expenses} />
+              <DataTable columns={columns} data={expenses} autoResetPageIndex={false} />
             ) : (
               <div className="flex h-[200px] items-center justify-center border-2 border-dashed rounded-md">
                 <p className="text-muted-foreground">

@@ -38,6 +38,13 @@ interface DataTableProps<TData, TValue> {
   pageCount?: number
   pagination?: PaginationState
   onPaginationChange?: OnChangeFn<PaginationState>
+  /**
+   * Resetear a la página 1 cuando cambian los datos. Por defecto true (comportamiento
+   * histórico). Ponlo en false para datos 100% locales servidos por SWR: si no, cada
+   * revalidación (foco de ventana, mutate, etc.) devuelve un nuevo array y la tabla
+   * brinca a la página 1, impidiendo navegar/ver el resto de los datos.
+   */
+  autoResetPageIndex?: boolean
 }
 
 export function DataTable<TData, TValue>({
@@ -51,6 +58,7 @@ export function DataTable<TData, TValue>({
   pageCount,
   pagination,
   onPaginationChange,
+  autoResetPageIndex = true,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -60,6 +68,15 @@ export function DataTable<TData, TValue>({
   
   // NUEVO ESTADO PARA CONTROLAR LAS FILAS EXPANDIDAS
   const [expanded, setExpanded] = React.useState<ExpandedState>({})
+
+  // Estado de paginación interno para el modo cliente. IMPORTANTE: TanStack
+  // congela la paginación si se le pasa `onPaginationChange: undefined` (eso
+  // sobrescribe su updater interno por defecto). Por eso aquí siempre proveemos
+  // un estado + setter; solo delegamos a los props cuando es server-side.
+  const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  })
 
   const table = useReactTable({
     data,
@@ -71,12 +88,13 @@ export function DataTable<TData, TValue>({
       columnFilters,
       globalFilter,
       expanded,
-      ...(manualPagination && pagination ? { pagination } : {}),
+      pagination: manualPagination ? (pagination ?? internalPagination) : internalPagination,
     },
     // Paginación server-side: react-table no corta los datos y usa pageCount.
     manualPagination,
     pageCount: manualPagination ? (pageCount ?? -1) : undefined,
-    onPaginationChange,
+    onPaginationChange: manualPagination ? (onPaginationChange ?? setInternalPagination) : setInternalPagination,
+    autoResetPageIndex,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
