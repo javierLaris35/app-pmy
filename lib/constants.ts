@@ -238,6 +238,13 @@ export const sidebarMenu = {
   ],
   secondary: [
     {
+      title: "Auditoría",
+      url: "/auditoria",
+      icon: HistoryIcon,
+      isActive: false,
+      roles: allowedPageRoles.auditoria,
+    },
+    {
       title: "Configuración",
       url: "/configuracion",
       icon: SettingsIcon,

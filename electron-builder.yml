@@ -1,12 +1,37 @@
-appId: "io.pmy.jlaris.electron-next"
-productName: "Pmy-App"
-copyright: "Copyright (c) 2025 Pmy"
+appId: com.pmy.app
+productName: PmyApp
+copyright: Copyright (c) 2025 PMY
+
+directories:
+  output: dist-electron
+  buildResources: build
+
+# Solo lo necesario para la app empaquetada (Next exportado en /out + Electron).
+files:
+  - main/**/*
+  - out/**/*
+  - build/icon.png
+  - package.json
+
 win:
-  target: ["dir", "portable", "zip"]
-  icon: "resources/logo-no-fondo.ico"
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PmyApp
+  artifactName: PmyApp-Setup-${version}.${ext}
+
+# (Opcional) otras plataformas
 linux:
-  target: ["dir", "appimage", "zip"]
-  icon: "resources/icon.png"
+  target: ["AppImage"]
+  icon: build/icon.png
 mac:
-  target: ["dir", "dmg", "zip"]
-  icon: "resources/icon.icns"
+  target: ["dmg"]
+  icon: build/icon.png

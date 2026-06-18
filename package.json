@@ -1,16 +1,16 @@
 {
   "name": "app-pmy",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Aplicación para paquetería y mensajería del yaqui.",
   "author": {
     "name": "Ing. Javier Laris"
   },
-  "main": "main/main.js",
+  "main": "main/main.cjs",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 4000",
-    "dev-electron": "concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"next dev -p 4000\" \"electron .\"",
+    "dev": "next dev -H 0.0.0.0 -p 4000",
+    "dev-electron": "concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"next dev -H 0.0.0.0 -p 4000\" \"electron .\"",
     "check:stubs": "node scripts/check-no-stubs.mjs",
     "build": "node scripts/check-no-stubs.mjs && next build",
     "build-electron": "next build && electron-builder",
@@ -102,24 +102,5 @@
     "electron-builder": "^26.8.1",
     "postcss": "^8",
     "typescript": "^6"
-  },
-  "build": {
-    "appId": "com.pmy.app",
-    "productName": "PMY App",
-    "files": [
-      "dist/**/*",
-      "assets/**/*",
-      "main/**/*",
-      "node_modules/**/*",
-      "package.json"
-    ],
-    "directories": {
-      "output": "dist-electron",
-      "buildResources": "assets"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "assets/icons/icon.ico"
-    }
   }
 }

@@ -37,4 +37,6 @@ export const allowedPageRoles = {
         historial: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
     },
     configuracion: [UserRoleEnum.SUPERADMIN],
+    // Auditoría: EXCLUSIVO superadmin (incluye variante histórica 'superamin').
+    auditoria: [UserRoleEnum.SUPERADMIN, 'superamin' as UserRoleEnum],
 };
