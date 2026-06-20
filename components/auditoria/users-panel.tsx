@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   Search, Activity, Monitor, MapPin, Globe, LogIn, LogOut, Loader2, Download, Boxes, ArrowUpDown, AlertTriangle,
@@ -18,28 +18,23 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuditUsers, useAuditUserDetail } from "@/hooks/services/audit/use-audit";
 import { exportAuditExcel } from "@/lib/services/audit";
+import { formatModule, formatAction, fmtDateTime, fmtRelative } from "@/lib/audit-format";
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 
 const AVATAR_COLORS = ["bg-indigo-500","bg-violet-500","bg-pink-500","bg-amber-500","bg-emerald-500","bg-cyan-500","bg-rose-500","bg-lime-500"];
 const initials = (s?: string) => (s || "?").split(/[\s@.]/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase()).join("") || "?";
 const colorFor = (s?: string) => AVATAR_COLORS[(s || "").length % AVATAR_COLORS.length];
-const fmt = (d?: string | null) => (d ? format(new Date(d), "dd/MM/yyyy HH:mm") : "—");
-const relative = (d?: string | null) => {
-  if (!d) return "nunca";
-  const diff = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
-  if (diff < 60) return `hace ${diff}s`;
-  if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`;
-  return `hace ${Math.floor(diff / 86400)}d`;
-};
+const fmt = (d?: string | null) => fmtDateTime(d, "dd/MM/yyyy HH:mm");
+const relative = (d?: string | null) => (d ? fmtRelative(d) : "nunca");
 
-function Bars({ rows, labelKey }: { rows: any[]; labelKey: string }) {
+function Bars({ rows, labelKey, fmtLabel }: { rows: any[]; labelKey: string; fmtLabel?: (v: string) => string }) {
   const max = Math.max(1, ...rows.map((r) => Number(r.count)));
   if (rows.length === 0) return <p className="text-xs text-muted-foreground">Sin datos.</p>;
   return (
     <div className="space-y-2">
       {rows.map((r, i) => (
         <div key={i}>
-          <div className="flex justify-between text-xs mb-0.5"><span className="truncate">{r[labelKey] || "—"}</span><span className="font-semibold tabular-nums">{Number(r.count)}</span></div>
+          <div className="flex justify-between text-xs mb-0.5"><span className="truncate">{fmtLabel ? fmtLabel(r[labelKey]) : (r[labelKey] || "—")}</span><span className="font-semibold tabular-nums">{Number(r.count)}</span></div>
           <div className="h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary" style={{ width: `${(Number(r.count) / max) * 100}%` }} /></div>
         </div>
       ))}
@@ -66,6 +61,8 @@ function UserDetailDialog({ userId, onClose }: { userId: string | null; onClose:
   const toISO = `${to}T23:59:59`;
 
   const { detail, isLoading, error } = useAuditUserDetail(userId, fromISO, toISO);
+  const { subsidiaries } = useSubsidiaries();
+  const subMap = useMemo(() => new Map((subsidiaries || []).map((s: any) => [s.id, s.name])), [subsidiaries]);
   const d = detail;
 
   const doExport = async () => {
@@ -139,8 +136,8 @@ function UserDetailDialog({ userId, onClose }: { userId: string | null; onClose:
                 </TabsList>
 
                 <TabsContent value="resumen" className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card><CardContent className="p-4"><p className="text-sm font-semibold mb-2 flex items-center gap-2"><Activity className="h-4 w-4 text-indigo-500" /> Acciones</p><Bars rows={d.byAction || []} labelKey="action" /></CardContent></Card>
-                  <Card><CardContent className="p-4"><p className="text-sm font-semibold mb-2 flex items-center gap-2"><Boxes className="h-4 w-4 text-purple-500" /> Módulos</p><Bars rows={d.byModule || []} labelKey="module" /></CardContent></Card>
+                  <Card><CardContent className="p-4"><p className="text-sm font-semibold mb-2 flex items-center gap-2"><Activity className="h-4 w-4 text-indigo-500" /> Acciones</p><Bars rows={d.byAction || []} labelKey="action" fmtLabel={formatAction} /></CardContent></Card>
+                  <Card><CardContent className="p-4"><p className="text-sm font-semibold mb-2 flex items-center gap-2"><Boxes className="h-4 w-4 text-purple-500" /> Módulos</p><Bars rows={d.byModule || []} labelKey="module" fmtLabel={formatModule} /></CardContent></Card>
                 </TabsContent>
 
                 <TabsContent value="accesos" className="mt-3 space-y-4">
@@ -198,11 +195,13 @@ function UserDetailDialog({ userId, onClose }: { userId: string | null; onClose:
                   <Card><CardContent className="p-2">
                     <ScrollArea className="h-[300px]">
                       <div className="space-y-1 p-2">{(d.recent || []).map((e: any) => (
-                        <div key={e.id} className="flex items-center gap-2 text-xs border-b py-1.5 last:border-0">
-                          <Badge variant="secondary" className="text-[10px]">{e.action}</Badge>
-                          <span className="font-medium">{e.module}</span>
-                          <span className="text-muted-foreground font-mono truncate">{e.entityId || ""}</span>
-                          <span className="ml-auto text-muted-foreground shrink-0">{fmt(e.createdAt)}</span>
+                        <div key={e.id} className="flex items-start gap-2 text-xs border-b py-1.5 last:border-0">
+                          <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${e.result === "error" ? "bg-rose-500" : "bg-emerald-500"}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium leading-snug break-words">{e.description || `${formatAction(e.action)} · ${formatModule(e.module)}`}</p>
+                            <p className="text-[10px] text-muted-foreground">{formatModule(e.module)} · {formatAction(e.action)}{(e.subsidiaryName || subMap.get(e.subsidiaryId)) ? ` · ${e.subsidiaryName || subMap.get(e.subsidiaryId)}` : ""}</p>
+                          </div>
+                          <span className="text-muted-foreground shrink-0">{fmt(e.createdAt)}</span>
                         </div>
                       ))}
                       {(d.recent || []).length === 0 && <p className="text-xs text-muted-foreground p-2">Sin eventos en el rango.</p>}

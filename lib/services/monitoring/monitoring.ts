@@ -34,17 +34,17 @@ const getInfoFromConsolidated = async(consolidatedId: string) => {
 }
 
 const updateDataFromFedexByConsolidatedId = async(consolidatedId: string) => {
-    const response = await axiosConfig.get(`${url}/update-by-consolidated/${consolidatedId}`);
+    const response = await axiosConfig.post(`${url}/update-by-consolidated/${consolidatedId}`);
     return response.data;
 }
 
 const updateDataFromFedexByUnloadingId = async(unloadingId: string) => {
-    const response = await axiosConfig.get(`${url}/update-by-unloading/${unloadingId}`);
+    const response = await axiosConfig.post(`${url}/update-by-unloading/${unloadingId}`);
     return response.data;
 }
 
 const updateDataFromFedexByPackageDispatchId = async(packageDispatchId: string) => {
-    const response = await axiosConfig.get(`${url}/update-by-package-dispatch/${packageDispatchId}`);
+    const response = await axiosConfig.post(`${url}/update-by-package-dispatch/${packageDispatchId}`);
     return response.data;
 }
 

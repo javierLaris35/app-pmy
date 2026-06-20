@@ -72,6 +72,56 @@ export const getAuditUserDetail = async (userId: string, dateFrom?: string, date
   return res.data;
 };
 
+export interface SubsidiaryOperation {
+  module: string;
+  label: string;
+  lastAt: string | null;
+  daysSince: number | null;
+  total: number;
+}
+export interface SubsidiaryActivity {
+  id: string;
+  name: string;
+  operations: SubsidiaryOperation[];
+  worstDays: number | null;
+  neverCount: number;
+  lastAnyAt: string | null;
+}
+export interface SubsidiariesActivityResponse {
+  generatedAt: string;
+  modules: { key: string; label: string }[];
+  subsidiaries: SubsidiaryActivity[];
+}
+
+/** Inactividad por sucursal: desde cuándo no se hace cada operación clave. */
+export const getSubsidiariesActivity = async () => {
+  const res = await axiosConfig.get(`${url}/subsidiaries-activity`);
+  return res.data as SubsidiariesActivityResponse;
+};
+
+export interface SubsidiaryRecentItem {
+  date: string;
+  label: string | null;
+  user: string | null;
+}
+export interface SubsidiaryRecentOperation {
+  module: string;
+  label: string;
+  hasUser: boolean;
+  items: SubsidiaryRecentItem[];
+}
+export interface SubsidiaryRecentResponse {
+  id: string;
+  name?: string;
+  operations: SubsidiaryRecentOperation[];
+}
+
+/** Detalle de una sucursal: últimos registros por operación (quién, cuándo, folio). */
+export const getSubsidiaryRecent = async (id: string, perOp = 6) => {
+  const res = await axiosConfig.get(`${url}/subsidiaries/${id}/recent`, { params: { perOp } });
+  return res.data as SubsidiaryRecentResponse;
+};
+
 /** Descarga el Excel con los filtros actuales (respeta el token vía axiosConfig). */
 export const exportAuditExcel = async (params: AuditQuery) => {
   const res = await axiosConfig.get(`${url}/export/excel`, {

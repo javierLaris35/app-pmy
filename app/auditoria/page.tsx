@@ -5,10 +5,12 @@ import type { ColumnDef, PaginationState, Row } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { saveAs } from "file-saver";
 import {
-  Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye,
+  Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap,
 } from "lucide-react";
+import { runDevTracking } from "@/lib/services/shipments";
 import { EventDetailDialog } from "@/components/auditoria/event-detail-dialog";
 import { UsersPanel } from "@/components/auditoria/users-panel";
+import { SubsidiariesPanel } from "@/components/auditoria/subsidiaries-panel";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid } from "recharts";
 
 import { AppLayout } from "@/components/app-layout";
@@ -27,7 +29,9 @@ import { DataTable } from "@/components/data-table/data-table";
 import { toast } from "sonner";
 
 import { useAuditLogs, useAuditDashboard, useSuspicious, useActiveUsers } from "@/hooks/services/audit/use-audit";
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { exportAuditExcel, AuditQuery } from "@/lib/services/audit";
+import { formatModule, formatAction, fmtDateTime, fmtRelative } from "@/lib/audit-format";
 
 const MODULES = [
   "auth","usuarios","consolidados","desembarques","devoluciones","recolecciones","salidas_ruta",
@@ -43,15 +47,8 @@ const CHART_COLORS = ["#6366f1","#8b5cf6","#ec4899","#f59e0b","#10b981","#06b6d4
 const AVATAR_COLORS = ["bg-indigo-500","bg-violet-500","bg-pink-500","bg-amber-500","bg-emerald-500","bg-cyan-500","bg-rose-500","bg-lime-500"];
 
 const num = (v: any) => Number(v) || 0;
-const fmtDate = (d?: string) => (d ? format(new Date(d), "dd/MM/yyyy HH:mm:ss") : "");
-const relativeTime = (d?: string) => {
-  if (!d) return "";
-  const diff = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
-  if (diff < 60) return `hace ${diff}s`;
-  if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`;
-  return `hace ${Math.floor(diff / 86400)}d`;
-};
+const fmtDate = (d?: string) => fmtDateTime(d, "dd/MM/yyyy HH:mm:ss");
+const relativeTime = (d?: string) => fmtRelative(d);
 const initials = (s?: string) =>
   (s || "?").split(/[\s@.]/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase()).join("") || "?";
 const colorFor = (s?: string) => AVATAR_COLORS[(s || "").length % AVATAR_COLORS.length];
@@ -114,7 +111,26 @@ function AuditoriaPage() {
   const [result, setResult] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 25 });
   const [exporting, setExporting] = useState(false);
+  const [devRunning, setDevRunning] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+
+  // 🔧 DEV: dispara el tracking de FedEx on-demand (prueba rápida de 60 guías).
+  const handleDevTracking = async () => {
+    try {
+      setDevRunning(true);
+      toast.info("Ejecutando tracking FedEx (60 guías)…");
+      const res = await runDevTracking({ limit: 60, phase: "master" });
+      const s = res.master?.summary;
+      toast.success(
+        `Tracking listo en ${res.durationSec}s · OK ${s?.ok ?? 0} · sin datos ${s?.noData ?? 0} · fallidas ${s?.failed ?? 0}`,
+        { duration: 8000 },
+      );
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo ejecutar el tracking");
+    } finally {
+      setDevRunning(false);
+    }
+  };
 
   const fromISO = `${dateFrom}T00:00:00`;
   const toISO = `${dateTo}T23:59:59`;
@@ -131,12 +147,14 @@ function AuditoriaPage() {
   const { dashboard, isLoading: dashLoading, mutate: mDash } = useAuditDashboard(fromISO, toISO);
   const { suspicious, mutate: mSusp } = useSuspicious(fromISO, toISO);
   const { active, mutate: mActive } = useActiveUsers(15);
+  const { subsidiaries } = useSubsidiaries();
+  const subMap = useMemo(() => new Map((subsidiaries || []).map((s: any) => [s.id, s.name])), [subsidiaries]);
 
   const refreshAll = () => { mLogs(); mDash(); mSusp(); mActive(); };
 
   const timelineData = (dashboard?.timeline || []).map((t: any) => ({ day: String(t.day).slice(5), count: num(t.count) }));
-  const modulesData = (dashboard?.topModules || []).slice(0, 8).map((m: any) => ({ name: m.module, count: num(m.count) }));
-  const actionsData = (dashboard?.byAction || []).map((a: any) => ({ name: a.action, count: num(a.count) }));
+  const modulesData = (dashboard?.topModules || []).slice(0, 8).map((m: any) => ({ name: formatModule(m.module), count: num(m.count) }));
+  const actionsData = (dashboard?.byAction || []).map((a: any) => ({ name: formatAction(a.action), count: num(a.count) }));
   const usersData = (dashboard?.topUsers || []).slice(0, 8).map((u: any) => ({ email: u.email || u.userId, count: num(u.count) }));
   const maxUser = Math.max(1, ...usersData.map((u: any) => u.count));
   const devicesData = (dashboard?.topDevices || []).slice(0, 8).map((d: any) => ({ name: d.device || "—", count: num(d.count) }));
@@ -153,8 +171,14 @@ function AuditoriaPage() {
         {row.original.userName && <span className="text-[11px] text-muted-foreground">{row.original.userName}</span>}</div></div>
     )},
     { accessorKey: "role", header: "Rol", cell: ({ row }) => <Badge variant="outline" className="text-[10px] uppercase">{row.original.role || "—"}</Badge> },
-    { accessorKey: "module", header: "Módulo", cell: ({ row }) => <span className="text-xs font-medium">{row.original.module}</span> },
-    { accessorKey: "action", header: "Acción", cell: ({ row }) => <Badge variant="secondary" className="text-[10px]">{row.original.action}</Badge> },
+    { accessorKey: "module", header: "Módulo", cell: ({ row }) => <span className="text-xs font-medium">{formatModule(row.original.module)}</span> },
+    { accessorKey: "subsidiaryName", header: "Sucursal", cell: ({ row }) => <span className="text-xs whitespace-nowrap">{row.original.subsidiaryName || subMap.get(row.original.subsidiaryId) || "—"}</span> },
+    { accessorKey: "action", header: "Acción", cell: ({ row }) => <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{formatAction(row.original.action)}</Badge> },
+    { accessorKey: "description", header: "Detalle", cell: ({ row }) => (
+      <span className="block text-xs font-medium leading-snug max-w-[280px] truncate" title={row.original.description || ""}>
+        {row.original.description || <span className="text-muted-foreground">—</span>}
+      </span>
+    )},
     { accessorKey: "entityId", header: "Registro", cell: ({ row }) => <span className="font-mono text-[11px] text-muted-foreground">{row.original.entityId || "—"}</span> },
     { accessorKey: "result", header: "Resultado", cell: ({ row }) => resultBadge(row.original.result) },
     { accessorKey: "device", header: "Dispositivo", cell: ({ row }) => (
@@ -170,7 +194,7 @@ function AuditoriaPage() {
     { id: "ver", header: "", cell: ({ row }) => (
       <Button variant="ghost" size="icon" className="h-7 w-7" title="Ver detalle" onClick={() => setSelectedEvent(row.original)}><Eye className="h-4 w-4" /></Button>
     )},
-  ], []);
+  ], [subMap]);
 
   const renderDetail = ({ row }: { row: Row<any> }) => {
     const r = row.original;
@@ -222,6 +246,9 @@ function AuditoriaPage() {
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
+              <Button size="sm" variant="secondary" onClick={handleDevTracking} disabled={devRunning} title="Probar tracking FedEx (dev · 60 guías)" className="bg-white/20 text-white hover:bg-white/30 border-0">
+                {devRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">Tracking</span>
+              </Button>
               <Button size="sm" variant="secondary" onClick={refreshAll} className="bg-white/20 text-white hover:bg-white/30 border-0"><RefreshCw className="h-4 w-4" /></Button>
               <Button size="sm" variant="secondary" onClick={handleExport} disabled={exporting} className="bg-white text-indigo-700 hover:bg-white/90">
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">Excel</span>
@@ -246,11 +273,14 @@ function AuditoriaPage() {
         <Tabs defaultValue="resumen" className="space-y-4">
           <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="resumen">Resumen</TabsTrigger>
+            <TabsTrigger value="sucursales">Sucursales</TabsTrigger>
             <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
             <TabsTrigger value="activos">Usuarios activos{active?.count ? <Badge className="ml-2 bg-emerald-500 text-white hover:bg-emerald-500">{active.count}</Badge> : null}</TabsTrigger>
             <TabsTrigger value="historial">Historial</TabsTrigger>
             <TabsTrigger value="sospechosos">Sospechosos{suspiciousCount ? <Badge variant="destructive" className="ml-2">{suspiciousCount}</Badge> : null}</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="sucursales"><SubsidiariesPanel /></TabsContent>
 
           <TabsContent value="usuarios"><UsersPanel /></TabsContent>
 
@@ -404,10 +434,10 @@ function AuditoriaPage() {
                   <Input placeholder="Buscar usuario, registro, ruta..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
                 </div>
                 <select className="h-9 rounded-md border bg-background px-2 text-sm" value={module} onChange={(e) => setModule(e.target.value)}>
-                  <option value="">Módulo: todos</option>{MODULES.map((m) => <option key={m} value={m}>{m}</option>)}
+                  <option value="">Módulo: todos</option>{MODULES.map((m) => <option key={m} value={m}>{formatModule(m)}</option>)}
                 </select>
                 <select className="h-9 rounded-md border bg-background px-2 text-sm" value={action} onChange={(e) => setAction(e.target.value)}>
-                  <option value="">Acción: todas</option>{ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+                  <option value="">Acción: todas</option>{ACTIONS.map((a) => <option key={a} value={a}>{formatAction(a)}</option>)}
                 </select>
                 <select className="h-9 rounded-md border bg-background px-2 text-sm" value={result} onChange={(e) => setResult(e.target.value)}>
                   <option value="">Resultado: todos</option><option value="success">Éxito</option><option value="error">Error</option>

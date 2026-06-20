@@ -6,6 +6,8 @@ import {
   getActiveUsers,
   getAuditUsers,
   getAuditUserDetail,
+  getSubsidiariesActivity,
+  getSubsidiaryRecent,
   AuditQuery,
 } from "@/lib/services/audit";
 
@@ -59,6 +61,25 @@ export function useAuditUsers() {
     { refreshInterval: 30000 },
   );
   return { users: data ?? [], isLoading, mutate };
+}
+
+/** Inactividad por sucursal (desde cuándo no se hace cada operación). */
+export function useSubsidiariesActivity() {
+  const { data, isLoading, mutate } = useSWR(
+    ["audit-subsidiaries-activity"],
+    () => getSubsidiariesActivity(),
+    { refreshInterval: 60000 },
+  );
+  return { data, isLoading, mutate };
+}
+
+/** Detalle de una sucursal: últimos registros por operación (quién hizo qué). */
+export function useSubsidiaryRecent(subsidiaryId: string | null, perOp = 6) {
+  const { data, isLoading } = useSWR(
+    subsidiaryId ? ["audit-subsidiary-recent", subsidiaryId, perOp] : null,
+    () => getSubsidiaryRecent(subsidiaryId as string, perOp),
+  );
+  return { detail: data, isLoading };
 }
 
 /** Detalle completo de un usuario (solo cuando hay userId seleccionado). */

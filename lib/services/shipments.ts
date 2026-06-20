@@ -278,6 +278,18 @@ const url = '/shipments'
     }
   }
 
+  /** DEV: dispara el tracking de FedEx on-demand (solo superadmin). */
+  const runDevTracking = async (params: { limit?: number; phase?: "master" | "charge" | "both" }) => {
+    const response = await axiosConfig.get(`${url}/dev/run-tracking`, { params });
+    return response.data as {
+      phase: string;
+      limit: number | string;
+      durationSec: number;
+      master?: { requested: number; summary: any };
+      charge?: { requested: number; summary: any };
+    };
+  };
+
 export {
     getShipments,
     getShipmentById,
@@ -288,5 +300,6 @@ export {
     getCharges,
     getShipmentByTrackingNumberShowHistory,
     getShipmentByTrackingNumber,
-    updateFromDHL
+    updateFromDHL,
+    runDevTracking
 }

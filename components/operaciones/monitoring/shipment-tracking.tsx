@@ -342,6 +342,8 @@ export default function TrackingPage() {
   
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  // Marca de la última actualización contra FedEx (para mostrar "actualizado hace…").
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null)
   const [selectedReport, setSelectedReport] = useState<"pending" | "sin67" | "ultimoInventarioSin67" | "">("");
   const [reportStartDate, setReportStartDate] = useState<Date | null>(null)
@@ -380,7 +382,7 @@ export default function TrackingPage() {
     };
   };
 
-  const statsInfo = calculateStats(packages)
+  const statsInfo = useMemo(() => calculateStats(packages), [packages])
 
   const fetchInitialData = async () => {
     setIsLoading(true)
@@ -396,27 +398,48 @@ export default function TrackingPage() {
     } catch (error) { console.error("Error fetching initial data:", error) } finally { setIsLoading(false) }
   }
 
-  // Fetch para Filtros Operativos (En Vivo)
+  /** Trae la info del grupo seleccionado (rápido, datos ya guardados). */
+  const fetchGroupInfo = async (): Promise<MonitoringInfo[]> => {
+    if (selectedRuta) return await getInfoFromPackageDispatch(selectedRuta)
+    if (selectedConsolidado) return await getInfoFromConsolidated(selectedConsolidado)
+    if (selectedDesembarque) return await getInfoFromUnloading(selectedDesembarque)
+    return []
+  }
+
+  /** Dispara la actualización contra FedEx del grupo seleccionado. */
+  const refreshGroupFromFedex = async (): Promise<void> => {
+    if (selectedRuta) await updateDataFromFedexByPackageDispatchId(selectedRuta)
+    else if (selectedConsolidado) await updateDataFromFedexByConsolidatedId(selectedConsolidado)
+    else if (selectedDesembarque) await updateDataFromFedexByUnloadingId(selectedDesembarque)
+  }
+
+  // Fetch para Filtros Operativos (En Vivo).
+  // Estrategia: mostrar de inmediato lo ya guardado (sin pantalla en blanco) y
+  // LUEGO refrescar contra FedEx en segundo plano para ver lo más nuevo.
   const fetchPackagesData = async () => {
     // Si estamos en modo historia o no hay filtros vivos, limpiar y salir.
-    if (isHistoryMode || (!selectedRuta && !selectedConsolidado && !selectedDesembarque)) { 
-      if (!isHistoryMode) setPackages([]); 
-      return 
+    if (isHistoryMode || (!selectedRuta && !selectedConsolidado && !selectedDesembarque)) {
+      if (!isHistoryMode) setPackages([]);
+      return
     }
 
+    // 1. Pintar de inmediato lo que ya hay (datos de la última hora).
     setIsLoading(true)
     try {
-      if (selectedRuta) await updateDataFromFedexByPackageDispatchId(selectedRuta)
-      else if (selectedConsolidado) await updateDataFromFedexByConsolidatedId(selectedConsolidado)
-      else if (selectedDesembarque) await updateDataFromFedexByUnloadingId(selectedDesembarque)
+      setPackages(await fetchGroupInfo())
+    } catch (error) {
+      console.error("Error obteniendo paquetes:", error); setPackages([])
+    } finally { setIsLoading(false) }
 
-      let packagesInfo: MonitoringInfo[] = []
-      if (selectedRuta) packagesInfo = await getInfoFromPackageDispatch(selectedRuta)
-      else if (selectedConsolidado) packagesInfo = await getInfoFromConsolidated(selectedConsolidado)
-      else if (selectedDesembarque) packagesInfo = await getInfoFromUnloading(selectedDesembarque)
-      
-      setPackages(packagesInfo)
-    } catch (error) { console.error("Error fetching packages:", error); setPackages([]) } finally { setIsLoading(false) }
+    // 2. Refrescar contra FedEx en segundo plano y re-pintar (no bloquea la vista).
+    setIsRefreshing(true)
+    try {
+      await refreshGroupFromFedex()
+      setPackages(await fetchGroupInfo())
+      setLastUpdatedAt(new Date())
+    } catch (error) {
+      console.error("Error actualizando desde FedEx:", error)
+    } finally { setIsRefreshing(false) }
   }
 
   // Motor Unificado Analítico (Chofer y/o Fecha)
@@ -616,9 +639,11 @@ export default function TrackingPage() {
 
   const startTutorial = () => { driverJs({ showProgress: true, steps: [{ element: "#tutorial-button", popover: { title: "Bienvenido", description: "Tutorial", side: "left", align: "start" } }] }).drive() }
 
-  useEffect(() => { if (user?.subsidiary?.id) fetchInitialData() }, [user?.subsidiary?.id])
-  useEffect(() => { if (!isHistoryMode) fetchPackagesData() }, [selectedRuta, selectedConsolidado, selectedDesembarque, isHistoryMode])
+  // Carga de dropdowns: una sola vez por sucursal efectiva (selectedSubsidiaryId
+  // o la del usuario). Antes había DOS effects que disparaban fetchInitialData en
+  // paralelo al montar (doble carga); se unificó en este.
   useEffect(() => { if (effectiveSubsidiaryId) fetchInitialData() }, [effectiveSubsidiaryId])
+  useEffect(() => { if (!isHistoryMode) fetchPackagesData() }, [selectedRuta, selectedConsolidado, selectedDesembarque, isHistoryMode])
 
   const filteredPackages = packages
 
@@ -898,6 +923,16 @@ export default function TrackingPage() {
               <p className="text-muted-foreground">Monitorea el estado y ubicación de tus envíos en tiempo real</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {/* Estado de frescura: refuerza que SÍ se está actualizando desde FedEx. */}
+              {isRefreshing ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Actualizando desde FedEx…
+                </span>
+              ) : lastUpdatedAt ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                  <Activity className="h-3 w-3" /> Actualizado {lastUpdatedAt.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              ) : null}
               <Button id="refresh-button" variant="outline" size="icon" onClick={handleRefresh} disabled={isRefreshing || isLoading}><RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} /></Button>
               <Button id="tutorial-button" variant="outline" size="icon" onClick={startTutorial}><HelpCircle className="h-4 w-4" /></Button>
               <div><SucursalSelector value={effectiveSubsidiaryId || user?.subsidiary?.id || ""} returnObject={true} onValueChange={(val) => { if (typeof val === "string") setSelectedSubsidiaryId(val); else if (Array.isArray(val)) setSelectedSubsidiaryId(val[0]?.id ?? ""); else if (val && typeof val === "object") setSelectedSubsidiaryId((val as any).id); }} /></div>
