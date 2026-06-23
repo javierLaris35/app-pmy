@@ -27,6 +27,7 @@ import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package
 import { normalizeScannedCode, isValidScannedCode } from "@/lib/tracking/normalize-scan";
 import { cn } from "@/lib/utils";
 import { compareByZip } from "@/lib/tracking/sort-by-zip";
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { StatBar } from "@/components/shared/stat-bar";
 import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
@@ -171,6 +172,14 @@ const PackageDispatchForm: React.FC<Props> = ({
   const selectedSubsidiaryName = useMemo(() => {
     return propSubsidiaryName || user?.subsidiary?.name || null;
   }, [propSubsidiaryName, user]);
+
+  // ¿Esta sucursal ordena las salidas a ruta por código postal? (config en BD).
+  // Si está en false, se conserva el orden de escaneo (en pantalla, PDF y Excel).
+  const { subsidiaries } = useSubsidiaries();
+  const sortByCp = useMemo(() => {
+    const sub = (subsidiaries as any[] | undefined)?.find((s) => s.id === selectedSubsidiaryId);
+    return Boolean(sub?.sortDispatchByPostalCode);
+  }, [subsidiaries, selectedSubsidiaryId]);
 
   // Detectar estado de conexión
   useEffect(() => {
@@ -464,6 +473,7 @@ const PackageDispatchForm: React.FC<Props> = ({
           packages={validPackages}
           subsidiaryName={selectedSubsidiaryName}
           trackingNumber="123456789"
+          sortByPostalCode={sortByCp}
         />
       ).toBlob();
 
@@ -496,6 +506,7 @@ const PackageDispatchForm: React.FC<Props> = ({
           packages={validPackages}
           subsidiaryName={packageDispatch.subsidiary?.name}
           trackingNumber={packageDispatch.trackingNumber}
+          sortByPostalCode={sortByCp}
         />
       ).toBlob();
 
@@ -514,9 +525,10 @@ const PackageDispatchForm: React.FC<Props> = ({
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
       const excelBuffer = await generateDispatchExcelClient(
-        packageDispatch, 
+        packageDispatch,
         invalidPackages,
-        false);
+        false,
+        sortByCp);
 
       const excelBlob = new Blob([excelBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -593,7 +605,7 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   // Filtrado de paquetes
   const filteredValidPackages = useMemo(() => {
-    return validPackages.filter(pkg => {
+    const result = validPackages.filter(pkg => {
       const uniqueId = pkg.dhlUniqueId || "";
 
       const matchesSearch = pkg.trackingNumber.includes(searchTerm) ||
@@ -611,8 +623,10 @@ const PackageDispatchForm: React.FC<Props> = ({
       const matchesPayment = !onlyPayment || !!pkg.payment;
 
       return matchesSearch && matchesPriority && matchesStatus && matchesCarrier && matchesToday && matchesPayment;
-    }).sort(compareByZip); // ordenado por código postal (igual que el PDF/Excel)
-  }, [validPackages, searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment]);
+    });
+    // Orden por CP solo si la sucursal lo configura; si no, orden de escaneo (igual que PDF/Excel).
+    return sortByCp ? [...result].sort(compareByZip) : result;
+  }, [validPackages, searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment, sortByCp]);
 
   const activeFilterCount =
     (filterPriority !== "all" ? 1 : 0) +

@@ -12,8 +12,8 @@ import {
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Trash2Icon, PencilIcon } from "lucide-react"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { Plus, Trash2Icon, PencilIcon, Route as RouteIcon } from "lucide-react"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { columns } from "./columns"
 import { useRoutesBySubsidiary, useSaveRoute } from "@/hooks/services/routes/use-routes"
 import { Route, Subsidiary } from "@/lib/types"
@@ -53,7 +53,6 @@ function RoutesPage() {
 
   const { routes = [], isLoading, isError, mutate } = useRoutesBySubsidiary(effectiveSubsidiaryId)
   const { save, isSaving } = useSaveRoute()
-  const isMobile = useIsMobile()
 
   // 🔄 Refresca la tabla al cambiar sucursal
   useEffect(() => {
@@ -148,29 +147,29 @@ function RoutesPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/* Header principal */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Catálogo de Rutas</h2>
-            <p className="text-muted-foreground">Administra las rutas de la empresa</p>
-          </div>
-
-          {/* Botón + Selector juntos */}
-          {isAdmin && (
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <div className="max-w-sm w-full sm:w-auto">
-                <SucursalSelector
-                  value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
-                  onValueChange={(subsidiary) => setSelectedSubsidiary(subsidiary as Subsidiary)}
-                  returnObject
-                />
-              </div>
-              <Button onClick={openNewDialog} className="whitespace-nowrap">
-                <Plus className="mr-2 h-4 w-4" /> Nueva Ruta
-              </Button>
-            </div>
-          )}
-        </div>
+        {/* Header estándar */}
+        <OperationHeader
+          icon={RouteIcon}
+          title="Catálogo de Rutas"
+          description="Administra las rutas de la empresa"
+          subsidiaryName={selectedSubsidiary?.name || user?.subsidiary?.name}
+          actions={
+            isAdmin && (
+              <>
+                <div className="w-[220px]">
+                  <SucursalSelector
+                    value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
+                    onValueChange={(subsidiary) => setSelectedSubsidiary(subsidiary as Subsidiary)}
+                    returnObject
+                  />
+                </div>
+                <Button onClick={openNewDialog} className="whitespace-nowrap">
+                  <Plus className="mr-2 h-4 w-4" /> Nueva Ruta
+                </Button>
+              </>
+            )
+          }
+        />
 
         {/* Loader / Error / Tabla */}
         {(isLoading || isSaving) && loaderText ? (

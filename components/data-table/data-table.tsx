@@ -20,6 +20,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DataTablePagination } from "@/components/data-table/data-table-pagination"
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
+import { cn } from "@/lib/utils"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -45,6 +46,8 @@ interface DataTableProps<TData, TValue> {
    * brinca a la página 1, impidiendo navegar/ver el resto de los datos.
    */
   autoResetPageIndex?: boolean
+  /** Clase opcional por fila (según los datos de la fila). Ej. resaltar filas con ingreso. */
+  rowClassName?: (row: TData) => string | undefined
 }
 
 export function DataTable<TData, TValue>({
@@ -59,6 +62,7 @@ export function DataTable<TData, TValue>({
   pagination,
   onPaginationChange,
   autoResetPageIndex = true,
+  rowClassName,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -162,7 +166,7 @@ export function DataTable<TData, TValue>({
               table.getRowModel().rows.map((row) => (
                 <React.Fragment key={row.id}>
                   {/* FILA PRINCIPAL */}
-                  <TableRow data-state={row.getIsSelected() && "selected"}>
+                  <TableRow data-state={row.getIsSelected() && "selected"} className={cn(rowClassName?.(row.original))}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

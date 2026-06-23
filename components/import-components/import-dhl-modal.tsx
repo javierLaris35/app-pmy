@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label"
 import { useAuthStore } from "@/store/auth.store"
 import { SucursalSelector } from "../sucursal-selector"
 import { AlertCircle } from "lucide-react" // Ícono para los errores
-import { toast } from "sonner" // O ajusta según la librería de toast que uses (ej. react-hot-toast)
+import { toast } from "@/lib/toast" // O ajusta según la librería de toast que uses (ej. react-hot-toast)
 
 export interface DhlImportData {
   file: File;

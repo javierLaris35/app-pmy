@@ -14,7 +14,7 @@ import { saveCollections, validateCollection } from "@/lib/services/collections"
 import { saveDevolutions, validateDevolution, uploadFiles } from "@/lib/services/devolutions"
 import { DevolutionCard } from "./devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
 import { BarcodeScannerInput } from "../barcode-scanner-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
@@ -354,7 +354,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    await uploadFiles(pdfFile, excelFile, subsidiaryName)
+    await uploadFiles(pdfFile, excelFile, subsidiaryName, selectedSubsidiaryId)
 
   }
 

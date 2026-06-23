@@ -7,7 +7,7 @@ import { MapPin, Send, Plus, Loader2, DollarSign, Car, Users, ForkliftIcon, Cale
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CatalogSelect } from "@/components/shared/catalog-select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -32,7 +32,7 @@ import { UnidadSelector } from "@/components/selectors/unidad-selector"
 import { useAuthStore } from "@/store/auth.store"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { columns } from "./columns"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 export default function TransferScreen() {
   const user = useAuthStore((s) => s.user)
@@ -370,19 +370,17 @@ export default function TransferScreen() {
 
                     <div className="space-y-2">
                       <Label htmlFor="transferType" className={errors.transferType ? "text-red-500" : ""}>Tipo de Traslado</Label>
-                      <Select onValueChange={(val) => {
-                        handleTransferTypeChange(val)
-                        if (errors.transferType) setErrors(prev => ({ ...prev, transferType: false }))
-                      }} value={transferType}>
-                        <SelectTrigger id="transferType" className={errors.transferType ? "border-red-500 ring-red-500" : ""}>
-                          <SelectValue placeholder="Selecciona el tipo de traslado" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="tyco">Tyco</SelectItem>
-                          <SelectItem value="aeropuerto">Aeropuerto</SelectItem>
-                          <SelectItem value="otro">Otro</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <CatalogSelect
+                        type="transfer_type"
+                        id="transferType"
+                        value={transferType}
+                        onValueChange={(val) => {
+                          handleTransferTypeChange(val)
+                          if (errors.transferType) setErrors(prev => ({ ...prev, transferType: false }))
+                        }}
+                        placeholder="Selecciona el tipo de traslado"
+                        className={errors.transferType ? "border-red-500 ring-red-500" : ""}
+                      />
                       {errors.transferType && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                     </div>
                   </div>

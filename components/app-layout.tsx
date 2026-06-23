@@ -9,7 +9,7 @@ import { NotificationBell } from "./notifications/notification-bell"
 import { NotificationPush } from "./notifications/notification-push"
 import { useAuthStore } from "@/store/auth.store"
 import { Loader } from "./loader"
-import { Toaster } from "./ui/sonner"
+import { Toaster } from "./ui/sileo-toaster"
 import { CommandPalette } from "./search-packages/search-package"
 import { AddShipmentDialog } from "./add-shipment/add-shipment-dialog"
 import { TooltipProvider } from "./ui/tooltip"
@@ -104,7 +104,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <AddShipmentDialog />
         </div>
       </main>
-      <Toaster richColors/>
+      <Toaster />
     </SidebarProvider>
   )
 }

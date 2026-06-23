@@ -14,12 +14,17 @@ const getVehiclesById = async (id: string) => {
 }
 
 const getVehiclesBySucursalId = async (sucursalId: string) => {
-    const response = await axiosConfig.get<Vehicles>(`${url}/subsidiary/${sucursalId}`);
+    const response = await axiosConfig.get<Vehicles[]>(`${url}/subsidiary/${sucursalId}`);
     return response.data;
 }
 
-const saveVehicle = async (subsidiary: Vehicles) => {
-    const response = await axiosConfig.post<Vehicles>(url, subsidiary);
+const saveVehicle = async (vehicle: Vehicles) => {
+    const response = await axiosConfig.post<Vehicles>(url, vehicle);
+    return response.data;
+}
+
+const updateVehicle = async (id: string, vehicle: Partial<Vehicles>) => {
+    const response = await axiosConfig.patch<Vehicles>(`${url}/${id}`, vehicle);
     return response.data;
 }
 
@@ -33,5 +38,6 @@ export {
     getVehiclesById,
     getVehiclesBySucursalId,
     saveVehicle,
+    updateVehicle,
     deleteVehicle
 }

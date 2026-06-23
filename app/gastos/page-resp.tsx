@@ -37,7 +37,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useExpenses, useSaveExpense } from "@/hooks/services/expenses/use-expenses"
 import { categoriasGasto } from "@/lib/data" 
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { withAuth } from "@/hoc/withAuth"
 import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"

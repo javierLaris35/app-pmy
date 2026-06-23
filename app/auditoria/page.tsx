@@ -26,7 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { DataTable } from "@/components/data-table/data-table";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { useAuditLogs, useAuditDashboard, useSuspicious, useActiveUsers } from "@/hooks/services/audit/use-audit";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";

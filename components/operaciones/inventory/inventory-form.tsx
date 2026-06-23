@@ -61,13 +61,7 @@ import {
   playNotFoundSound,
   playInvalidSound,
 } from "@/lib/scanner-feedback";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CatalogSelect } from "@/components/shared/catalog-select";
 
 // Hook useLocalStorage
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -788,20 +782,14 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                     </TooltipContent>
                   </Tooltip>
 
-                  <Select
+                  <CatalogSelect
+                    type="inventory_type"
                     value={inventoryType}
-                    onValueChange={(value: InventoryType) => setInventoryType(value)}
+                    onValueChange={(value) => setInventoryType(value as InventoryType)}
                     disabled={isLoading || packages.length > 0}
-                  >
-                    <SelectTrigger className="h-9 flex-1 sm:flex-none sm:w-[170px]">
-                      <SelectValue placeholder="Tipo de inventario" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={InventoryType.INITIAL}>Inventario Inicial</SelectItem>
-                      <SelectItem value={InventoryType.DEX}>Inventario DEX</SelectItem>
-                      <SelectItem value={InventoryType.FINAL}>Inventario Final</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    placeholder="Tipo de inventario"
+                    className="h-9 flex-1 sm:flex-none sm:w-[170px]"
+                  />
 
                   {packages.length > 0 && (
                     <Tooltip>

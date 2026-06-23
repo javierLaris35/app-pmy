@@ -230,6 +230,8 @@ interface FedExPackageDispatchPDFProps {
   subsidiaryName: string;
   trackingNumber: string;
   packageDispatch?: PackageDispatch;
+  /** Si la sucursal lo configura, ordena por CP; si no, conserva el orden de escaneo. */
+  sortByPostalCode?: boolean;
 }
 
 const getColumnWidths = (isHermosillo: boolean) => {  
@@ -265,6 +267,7 @@ export const FedExPackageDispatchPDF = ({
   subsidiaryName = "",
   trackingNumber = "",
   packageDispatch,
+  sortByPostalCode = true,
 }: FedExPackageDispatchPDFProps) => {
   const timeZone = "America/Hermosillo";
   const currentDate = new Date();
@@ -275,8 +278,9 @@ export const FedExPackageDispatchPDF = ({
   const isHermosillo = subsidiaryName?.toLowerCase().includes('hermosillo');
   const columnWidths = getColumnWidths(isHermosillo);
 
-  // Ordenado por código postal (recipientZip) para seguir la ruta.
-  const orderedPackages = sortByZip(packages);
+  // Orden: por código postal (recipientZip) si la sucursal lo configura; si no,
+  // se conserva el orden en que se escanearon los paquetes.
+  const orderedPackages = sortByPostalCode ? sortByZip(packages) : packages;
 
   const calculatePackageStats = () => {
     let f2Count = 0, cargaCount = 0, fedexCount = 0, dhlCount = 0;
@@ -440,10 +444,11 @@ export const FedExPackageDispatchPDF = ({
             const isBold = hasPayment || isExpiringToday;
             const textWeight = isBold ? 'bold' : 'normal';
 
-            // Separador de zona: línea gruesa cuando cambian los 2 primeros dígitos del CP.
+            // Separador de zona: línea gruesa cuando cambian los 2 primeros dígitos
+            // del CP. Solo tiene sentido cuando la lista va ordenada por CP.
             const zone = (pkg.recipientZip || '').slice(0, 2);
             const prevZone = i > 0 ? (orderedPackages[i - 1].recipientZip || '').slice(0, 2) : null;
-            const zoneChanged = i > 0 && zone !== prevZone;
+            const zoneChanged = sortByPostalCode && i > 0 && zone !== prevZone;
 
             return (
               <View

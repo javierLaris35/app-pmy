@@ -1,6 +1,6 @@
 import { axiosConfig } from "@/lib/axios-config";
 import { useOfflineStore } from "./offline-store";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 let flushing = false;
 

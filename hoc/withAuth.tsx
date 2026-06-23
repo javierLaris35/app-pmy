@@ -5,20 +5,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { useHistoryStore } from '@/store/history.store';
 import { UserRole } from '@/lib/types';
-import { allowedPageRoles } from '@/lib/access/allowed-page-roles';
+import { hasPermission } from '@/lib/access/permissions';
 
-// 🔑 Helper para resolver rutas anidadas
-function getRolesFromPath(path: string): UserRole[] {
-    const keys = path.split('.'); // ej: ["finanzas", "ingresos"]
-    let current: any = allowedPageRoles;
-
-    for (const key of keys) {
-        current = current?.[key];
-        if (!current) return [];
-    }
-
-    return Array.isArray(current) ? current : [];
-}
+const SUPER_ROLES = ['superadmin', 'superamin'];
 
 export function withAuth<P extends object>(
     Component: ComponentType<P>,
@@ -34,12 +23,22 @@ export function withAuth<P extends object>(
             return h.length > 1 ? h[h.length - 2] : null;
         });
 
-        // 🔒 Obtener roles permitidos
-        const roles: UserRole[] = Array.isArray(access)
-            ? (access as UserRole[])
-            : typeof access === 'string'
-                ? getRolesFromPath(access)
-                : [];
+        /**
+         * Gateo de acceso:
+         * - `access` string → es un CODE de permiso RBAC (ej. "finanzas.gastos");
+         *   se evalúa con `hasPermission` (permisos del token, fallback a rol legacy).
+         * - `access` array → lista de roles explícita; superadmin siempre pasa.
+         * - sin `access` → cualquier autenticado.
+         */
+        const computeAllowed = (): boolean => {
+            if (!user) return false;
+            if (Array.isArray(access)) {
+                const role = (user.role || '').toString().toLowerCase();
+                return access.length === 0 || SUPER_ROLES.includes(role) || access.includes(user.role);
+            }
+            if (typeof access === 'string') return hasPermission(user, access);
+            return true;
+        };
 
         useEffect(() => {
             if (!hasHydrated) return;
@@ -56,24 +55,20 @@ export function withAuth<P extends object>(
             // Si aún no hay rol (puede tardar en hidratar)
             if (!user?.role) return;
 
-            // Validar rol
-            const roleNotAllowed = roles.length > 0 && !roles.includes(user.role);
-
-            if (roleNotAllowed) {
+            if (!computeAllowed()) {
                 if (previous && previous !== pathname) {
-                    console.warn(`Rol no permitido (${user.role}), regresando a la página anterior`);
+                    console.warn(`Acceso no permitido (${user.role}), regresando a la página anterior`);
                     router.push(previous);
                 } else {
-                    console.warn(`Rol no permitido (${user.role}), redirigiendo a /dashboard`);
+                    console.warn(`Acceso no permitido (${user.role}), redirigiendo a /dashboard`);
                     router.push('/dashboard');
                 }
             }
-        }, [hasHydrated, isAuthenticated, user?.role, roles, router, pathname, previous]);
+        }, [hasHydrated, isAuthenticated, user, access, router, pathname, previous]);
 
         if (!hasHydrated || !isAuthenticated || !user?.role) return null;
 
-        const isAllowed = roles.length === 0 || roles.includes(user.role);
-        if (!isAllowed) return null;
+        if (!computeAllowed()) return null;
 
         return <Component {...props} />;
     };

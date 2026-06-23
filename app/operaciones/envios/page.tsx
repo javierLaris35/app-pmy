@@ -21,7 +21,7 @@ import ShipmentFilters from "@/components/operaciones/envios/ShipmentFilters"
 import { filters } from "./filters"
 import KPIShipmentCards from "@/components/operaciones/envios/KpiCards"
 import { NewShipmentDialog } from "@/components/modals/new-shipment-modal"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
 import { withAuth } from "@/hoc/withAuth";
 import { useAuthStore } from "@/store/auth.store"

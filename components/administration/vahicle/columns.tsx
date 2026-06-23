@@ -59,10 +59,12 @@ export const columns: ColumnDef<Vehicles>[] = [
     cell: ({ row }) => row.original.capacity || "-",
   },
 
-  { 
+  {
     accessorKey: "type",
     header: "Tipo",
     cell: ({ row }) => row.original.type || "-",
+    // Filtro facetado (multi-select): la selección llega como arreglo.
+    filterFn: (row, id, value) => (Array.isArray(value) ? value.includes(row.getValue(id)) : true),
   },
 
   {
@@ -115,6 +117,7 @@ export const columns: ColumnDef<Vehicles>[] = [
     accessorKey: "status",
     header: "Estado",
     cell: ({ row }) => row.original.status || "-",
+    filterFn: (row, id, value) => (Array.isArray(value) ? value.includes(row.getValue(id)) : true),
   },
 
   // Acciones

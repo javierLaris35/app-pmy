@@ -220,7 +220,16 @@ export const columns: ColumnDef<ConsolidatedDto>[] = [
     }
   },
   {
+    // id 'status' + accessor/filterFn para que el filtro del toolbar
+    // (Completo/Incompleto) funcione sobre la entidad Consolidado.
+    id: "status",
     header: "Estado",
+    accessorFn: (row) => {
+      const { pendiente, en_ruta, en_bodega, total, other } = row.shipmentCounts;
+      const complete = total > 0 && en_ruta === 0 && en_bodega === 0 && pendiente === 0 && other === 0;
+      return complete ? "completo" : "incompleto";
+    },
+    filterFn: (row, id, value: string[]) => value.includes(row.getValue(id) as string),
     cell: ({ row }) => {
       const { pendiente, en_ruta, en_bodega, total, other } = row.original.shipmentCounts;
       // AGREGADO: other === 0 para que no marque completo si hay desconocidos

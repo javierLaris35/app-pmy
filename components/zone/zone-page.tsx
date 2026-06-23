@@ -32,7 +32,7 @@ import type { Subsidiary, Zone } from "@/lib/types"
 import { useZones } from "@/hooks/services/zones/use-zones"
 import { createZone, updateZone, deleteZone } from "@/lib/services/zones"
 import { useSubsidiaries, useSaveSubsidiary } from "@/hooks/services/subsidiaries/use-subsidiaries"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
 // MySQL bit -> el front puede recibir Buffer; normalizamos a boolean antes de guardar.

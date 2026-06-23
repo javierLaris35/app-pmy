@@ -1,4 +1,4 @@
-import { getDrivers, getDriversById, getDriversBySucursalId, saveDriver } from "@/lib/services/drivers";
+import { getDrivers, getDriversById, getDriversBySucursalId, saveDriver, updateDriver } from "@/lib/services/drivers";
 import { Driver } from "@/lib/types";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
@@ -52,7 +52,8 @@ export function useSaveDriver(){
         isMutating: isSaving,
         error,
     } = useSWRMutation("save-driver", async (_key, { arg }: { arg: Driver }) => {
-        return await saveDriver(arg);
+        // Si trae id → actualización (PATCH); si no → alta (POST). Evita duplicados al editar.
+        return arg.id ? await updateDriver(arg.id, arg) : await saveDriver(arg);
     });
 
     return {

@@ -11,8 +11,8 @@ import {
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Trash2Icon, PencilIcon, CircleAlertIcon } from "lucide-react"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { Plus, Trash2Icon, PencilIcon, CircleAlertIcon, Truck } from "lucide-react"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { Vehicles } from "@/lib/types"
 import { columns } from "./columns"
 import { VehicleForm } from "@/components/modals/vehicle-form"
@@ -22,6 +22,12 @@ import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { LoaderWithOverlay } from "@/components/loader"
+
+/** Opciones de filtro facetado a partir de los valores presentes en los datos. */
+const buildFilterOptions = (values: (string | undefined | null)[]) =>
+  Array.from(new Set(values.filter(Boolean) as string[]))
+    .sort()
+    .map((v) => ({ label: v.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()), value: v }))
 
 function VehiclesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -42,7 +48,6 @@ function VehiclesPage() {
 
   const { vehicles, isLoading, isError, mutate } = useVehiclesBySubsidiary(effectiveSubsidiaryId)
   const { save, isSaving } = useSaveVehicle()
-  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (effectiveSubsidiaryId) mutate()
@@ -124,31 +129,31 @@ function VehiclesPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/* Header principal */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Catálogo de Vehículos</h2>
-            <p className="text-muted-foreground">Administra los vehículos de la empresa</p>
-          </div>
-
-          {/* Botón + Selector juntos */}
-          {isAdmin && (
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <div className="max-w-sm w-full sm:w-auto">
-                <SucursalSelector
-                  value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
-                  onValueChange={(subsidiary) =>
-                    setSelectedSubsidiary(subsidiary as { id: string; name: string })
-                  }
-                  returnObject
-                />
-              </div>
-              <Button onClick={openNewDialog} className="whitespace-nowrap">
-                <Plus className="mr-2 h-4 w-4" /> Nuevo Vehículo
-              </Button>
-            </div>
-          )}
-        </div>
+        {/* Header estándar */}
+        <OperationHeader
+          icon={Truck}
+          title="Catálogo de Vehículos"
+          description="Administra los vehículos de la empresa"
+          subsidiaryName={selectedSubsidiary?.name || user?.subsidiary?.name}
+          actions={
+            isAdmin && (
+              <>
+                <div className="w-[220px]">
+                  <SucursalSelector
+                    value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
+                    onValueChange={(subsidiary) =>
+                      setSelectedSubsidiary(subsidiary as { id: string; name: string })
+                    }
+                    returnObject
+                  />
+                </div>
+                <Button onClick={openNewDialog} className="whitespace-nowrap">
+                  <Plus className="mr-2 h-4 w-4" /> Nuevo Vehículo
+                </Button>
+              </>
+            )
+          }
+        />
 
         {/* Loader / Error / Tabla */}
         {(isLoading || isSaving) && loaderText ? (
@@ -158,7 +163,14 @@ function VehiclesPage() {
         ) : (
           <Card>
             <CardContent className="p-6">
-              <DataTable columns={updatedColumns} data={vehicles} />
+              <DataTable
+                columns={updatedColumns}
+                data={vehicles}
+                filters={[
+                  { columnId: "type", title: "Tipo", options: buildFilterOptions(vehicles.map((v: Vehicles) => v.type)) },
+                  { columnId: "status", title: "Estado", options: buildFilterOptions(vehicles.map((v: Vehicles) => v.status)) },
+                ]}
+              />
             </CardContent>
           </Card>
         )}

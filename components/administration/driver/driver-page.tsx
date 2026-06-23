@@ -12,8 +12,8 @@ import {
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Trash2Icon, PencilIcon } from "lucide-react"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { Plus, Trash2Icon, PencilIcon, Users } from "lucide-react"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { columns } from "./columns"
 import { useDriversBySubsidiary, useSaveDriver } from "@/hooks/services/drivers/use-drivers"
 import { Driver, Subsidiary } from "@/lib/types"
@@ -51,7 +51,6 @@ function VehiclesPage() {
 
   const { drivers, isLoading, isError, mutate } = useDriversBySubsidiary(effectiveSubsidiaryId)
   const { save, isSaving } = useSaveDriver()
-  const isMobile = useIsMobile()
 
   // 🔄 Refresca automáticamente cuando cambie la sucursal seleccionada
   useEffect(() => {
@@ -146,18 +145,15 @@ function VehiclesPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Catálogo de Choferes/Repartidores</h2>
-            <p className="text-muted-foreground">
-              Administra los choferes/repartidores de la empresa
-            </p>
-          </div>
-
-          <div className="flex gap-2 flex-wrap">
-            {isAdmin && (
+        <OperationHeader
+          icon={Users}
+          title="Catálogo de Choferes/Repartidores"
+          description="Administra los choferes/repartidores de la empresa"
+          subsidiaryName={selectedSubsidiary?.name || user?.subsidiary?.name}
+          actions={
+            isAdmin && (
               <>
-                <div className="max-w-sm">
+                <div className="w-[220px]">
                   <SucursalSelector
                     value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
                     onValueChange={(subsidiary) =>
@@ -170,9 +166,9 @@ function VehiclesPage() {
                   <Plus className="mr-2 h-4 w-4" /> Nuevo Chofer
                 </Button>
               </>
-            )}
-          </div>
-        </div>
+            )
+          }
+        />
 
         {(isLoading || isSaving) && loaderText ? (
           <LoaderWithOverlay

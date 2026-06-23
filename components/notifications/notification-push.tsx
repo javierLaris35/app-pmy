@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
-  Bell, LogIn, LogOut, PackageCheck, PackageMinus, Truck, Undo2, ClipboardList,
+  LogIn, LogOut, PackageCheck, PackageMinus, Truck, Undo2, ClipboardList,
   Warehouse, Boxes, ArrowRightLeft, Activity,
 } from "lucide-react";
 import { useNotifications } from "@/hooks/services/notifications/use-notifications";
@@ -26,26 +26,16 @@ const STYLE: Record<string, { icon: any; grad: string }> = {
 function showPush(n: NotificationItem) {
   const s = STYLE[n.module] || STYLE.default;
   const Icon = n.kind === "session" ? (n.message.includes("cerró") ? LogOut : LogIn) : s.icon;
-  toast.custom(
-    () => (
-      <div className="flex w-[340px] items-start gap-3 rounded-xl border bg-background p-3 shadow-lg ring-1 ring-black/5">
-        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br ${s.grad} text-white shadow-sm`}>
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <Bell className="h-3 w-3 text-indigo-500" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-indigo-600">Nueva notificación</span>
-          </div>
-          <p className="mt-0.5 text-sm leading-snug">{n.message}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {n.module}{n.location ? ` · ${n.location}` : ""}
-          </p>
-        </div>
-      </div>
-    ),
-    { duration: 6000 },
-  );
+  const moduleLabel = (n.module || "").replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  const subtitle = [moduleLabel, n.location].filter(Boolean).join(" · ");
+  // API NATIVA de sileo (vía adaptador @/lib/toast): title + description + icon.
+  // Antes se usaba toast.custom con una burbuja propia (card/shadow de 340px), que
+  // sileo envolvía en su propio chrome → se veía "sobrepuesta". Ahora la pinta sileo.
+  toast.info(n.message, {
+    description: subtitle || undefined,
+    icon: <Icon className="h-5 w-5" />,
+    duration: 6000,
+  });
 }
 
 /** Detecta notificaciones nuevas (vía polling) y muestra una burbuja push. Renderiza null. */

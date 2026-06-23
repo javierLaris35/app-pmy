@@ -1,4 +1,4 @@
-import { getVehicles, getVehiclesById, getVehiclesBySucursalId, saveVehicle } from "@/lib/services/vehicles";
+import { getVehicles, getVehiclesById, getVehiclesBySucursalId, saveVehicle, updateVehicle } from "@/lib/services/vehicles";
 import { Vehicles } from "@/lib/types";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
@@ -52,7 +52,7 @@ export function useSaveVehicle(){
         isMutating: isSaving,
         error,
     } = useSWRMutation("save-vehicle", async (_key, { arg }: { arg: Vehicles }) => {
-        return await saveVehicle(arg);
+        return arg.id ? await updateVehicle(arg.id, arg) : await saveVehicle(arg);
     });
 
     return {

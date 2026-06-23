@@ -14,12 +14,17 @@ const getRoutesById = async (id: string) => {
 }
 
 const getRoutesBySucursalId = async (sucursalId: string) => {
-    const response = await axiosConfig.get<Route>(`${url}/subsidiary/${sucursalId}`);
+    const response = await axiosConfig.get<Route[]>(`${url}/subsidiary/${sucursalId}`);
     return response.data;
 }
 
-const saveRoute = async (subsidiary: Route) => {
-    const response = await axiosConfig.post<Route>(url, subsidiary);
+const saveRoute = async (route: Route) => {
+    const response = await axiosConfig.post<Route>(url, route);
+    return response.data;
+}
+
+const updateRoute = async (id: string, route: Partial<Route>) => {
+    const response = await axiosConfig.patch<Route>(`${url}/${id}`, route);
     return response.data;
 }
 
@@ -33,5 +38,6 @@ export {
     getRoutesById,
     getRoutesBySucursalId,
     saveRoute,
+    updateRoute,
     deleteRoute
 }

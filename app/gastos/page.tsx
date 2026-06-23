@@ -34,6 +34,7 @@ import {
   Car,
   X,
   HelpCircle,
+  PieChart,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -70,7 +71,7 @@ import {
   useSaveExpense,
 } from "@/hooks/services/expenses/use-expenses";
 import { categoriasGasto } from "@/lib/data";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { withAuth } from "@/hoc/withAuth";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -78,6 +79,8 @@ import { useAuthStore } from "@/store/auth.store";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { Loader } from "@/components/loader";
 import { deleteById, upload } from "@/lib/services/expenses";
+import { OperationHeader } from "@/components/shared/operation-header";
+import { CatalogSelect } from "@/components/shared/catalog-select";
 
 // Importación de Driver.js para el tutorial
 import { driver } from "driver.js"
@@ -544,15 +547,19 @@ function GastosPage() {
     toast.promise(
       async () => {
         // En lugar de forEach, usamos map para recolectar todas las promesas de guardado
-        const promesasGuardado = sucursalesDistribucion.map((dist) => {
+        const promesasGuardado = sucursalesDistribucion.map((dist, index) => {
           const montoProrrateado = montoBase * (dist.porcentaje / 100);
-          
-          const notaDistribucion = dist.porcentaje < 100 
-            ? `[Fracción: ${dist.porcentaje}% del gasto total de ${formatCurrency(montoBase)}]` 
+
+          const notaDistribucion = dist.porcentaje < 100
+            ? `[Fracción: ${dist.porcentaje}% del gasto total de ${formatCurrency(montoBase)}]`
             : "";
 
           const payload: Expense = {
-            ...(editingGasto ? { id: editingGasto.id } : {}), 
+            // Al EDITAR, solo la PRIMERA línea reusa el id (update); las demás son
+            // altas nuevas. Si todas llevaran el id, harían upsert al MISMO registro y
+            // la división se perdería (quedaba un solo gasto con el monto/sucursal de
+            // la última línea en vez del gasto dividido).
+            ...(editingGasto && index === 0 ? { id: editingGasto.id } : {}),
             subsidiaryId: dist.sucursalId,
             date: fecha,
             category: categoriaId,
@@ -752,9 +759,23 @@ function GastosPage() {
       getGastosColumns({
         onEdit: openEditGastoDialog,
         onDelete: handleDelete,
-      }),
-    [] 
+      }).map((col: any) =>
+        col.id === "category" || col.id === "metodoPago"
+          ? { ...col, filterFn: (row: any, id: string, value: any) => (Array.isArray(value) ? value.includes(row.getValue(id)) : true) }
+          : col,
+      ),
+    []
   );
+
+  // Opciones de filtros facetados (Categoría / Método) derivadas de los gastos cargados.
+  const expenseFilters = useMemo(() => {
+    const opts = (vals: (string | undefined | null)[]) =>
+      Array.from(new Set(vals.filter(Boolean) as string[])).sort().map((v) => ({ label: v, value: v }));
+    return [
+      { columnId: "category", title: "Categoría", options: opts(expenses.map((e: any) => e.category)) },
+      { columnId: "metodoPago", title: "Método", options: opts(expenses.map((e: any) => e.paymentMethod)) },
+    ];
+  }, [expenses]);
 
   if (!expenses || isLoading) {
     return <Loader />;
@@ -763,34 +784,30 @@ function GastosPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight">
-              Gestión de Gastos
-            </h2>
-            <p className="text-muted-foreground">
-              Administra los gastos diarios por sucursal
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={startTutorial}
-              className="flex items-center gap-2"
-            >
-              <HelpCircle className="h-4 w-4" />
-              Guía de uso
-            </Button>
-            <div className="w-full sm:w-[250px]" id="sucursal-selector-container">
-              <SucursalSelector
-                value={effectiveSubsidiaryId || ""}
-                onValueChange={setSelectedSucursalId}
-              />
-            </div>
-          </div>
-          
-        </div>
+        <OperationHeader
+          icon={PieChart}
+          title="Gestión de Gastos"
+          description="Administra los gastos diarios por sucursal"
+          actions={
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={startTutorial}
+                className="flex items-center gap-2"
+              >
+                <HelpCircle className="h-4 w-4" />
+                Guía de uso
+              </Button>
+              <div className="w-full sm:w-[250px]" id="sucursal-selector-container">
+                <SucursalSelector
+                  value={effectiveSubsidiaryId || ""}
+                  onValueChange={setSelectedSucursalId}
+                />
+              </div>
+            </>
+          }
+        />
 
         {effectiveSubsidiaryId && (
           <div className="space-y-4">
@@ -951,7 +968,7 @@ function GastosPage() {
           </CardHeader>
           <CardContent>
             {effectiveSubsidiaryId ? (
-              <DataTable columns={columns} data={expenses} autoResetPageIndex={false} />
+              <DataTable columns={columns} data={expenses} filters={expenseFilters} autoResetPageIndex={false} />
             ) : (
               <div className="flex h-[200px] items-center justify-center border-2 border-dashed rounded-md">
                 <p className="text-muted-foreground">
@@ -1135,27 +1152,13 @@ function GastosPage() {
                   <Label htmlFor="categoria" className="font-medium text-xs uppercase text-muted-foreground">
                     Categoría <span className="text-destructive">*</span>
                   </Label>
-                  <Select
+                  <CatalogSelect
+                    type="expense_category"
                     value={categoriaId}
                     onValueChange={setCategoriaId}
-                    required
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecciona una categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categorias.map((categoria) => (
-                        <SelectItem key={categoria.id} value={categoria.name}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-2 h-2 rounded-full ${getCategoryColor(categoria.name)}`}
-                            ></div>
-                            <span>{categoria.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Selecciona una categoría"
+                    className="w-full"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -1380,18 +1383,13 @@ function GastosPage() {
                   <Label htmlFor="periodoPago" className="font-medium text-xs uppercase text-muted-foreground">
                     Frecuencia / Periodo <span className="text-destructive">*</span>
                   </Label>
-                  <Select value={periodoPago} onValueChange={setPeriodoPago} required>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecciona un periodo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {periodosPago.map((periodo) => (
-                        <SelectItem key={periodo} value={periodo}>
-                          {periodo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <CatalogSelect
+                    type="frequency"
+                    value={periodoPago}
+                    onValueChange={setPeriodoPago}
+                    placeholder="Selecciona un periodo"
+                    className="w-full"
+                  />
                 </div>
               </div>
             </div>

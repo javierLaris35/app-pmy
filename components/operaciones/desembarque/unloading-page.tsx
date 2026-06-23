@@ -22,7 +22,7 @@ import type { PaginationState } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { getUnloadingDetail } from "@/lib/services/unloadings"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 export default function UnLoadingPageControl() {
   // Estados

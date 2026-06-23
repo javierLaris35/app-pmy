@@ -14,13 +14,7 @@ import {
   FormLabel,
   FormMessage
 } from '@/components/ui/form'
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem
-} from '@/components/ui/select'
+import { CatalogSelect } from '@/components/shared/catalog-select'
 import * as z from 'zod'
 
 import { useAuthStore } from '@/store/auth.store'
@@ -201,20 +195,12 @@ export function DriverForm({ defaultValues, subsidiary, onSubmit }: DriverFormPr
           render={({ field }) => (
             <FormItem>
               <FormLabel>Estatus</FormLabel>
-              <Select
+              <CatalogSelect
+                type="status"
+                value={field.value ?? StatusEnum.ACTIVE}
                 onValueChange={field.onChange}
-                defaultValue={field.value ?? StatusEnum.ACTIVE}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un estatus" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value={StatusEnum.ACTIVE}>Activo</SelectItem>
-                  <SelectItem value={StatusEnum.INACTIVE}>Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
+                placeholder="Selecciona un estatus"
+              />
               <FormMessage />
             </FormItem>
           )}

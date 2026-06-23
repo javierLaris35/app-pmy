@@ -6,7 +6,7 @@ import {
   Search, Activity, Monitor, MapPin, Globe, LogIn, LogOut, Loader2, Download, Boxes, ArrowUpDown, AlertTriangle,
 } from "lucide-react";
 import { saveAs } from "file-saver";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

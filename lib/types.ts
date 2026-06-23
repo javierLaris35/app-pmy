@@ -20,6 +20,13 @@ export type Subsidiary = {
   createdBy?: string;
   zoneId?: string | null
   zone?: Zone | null
+  // Config operativa por sucursal (antes hardcodeada en el backend)
+  monitorFedexCode67?: boolean
+  monitorFedexCode44?: boolean
+  trackFedexExternalDelivery?: boolean
+  forceFedexStatusOverride?: boolean
+  /** Ordenar las salidas a ruta por código postal (escaneo/PDF/Excel). */
+  sortDispatchByPostalCode?: boolean
 }
 
 export type Zone = {
@@ -183,6 +190,8 @@ export type User = {
   subsidiaryName?: string
   avatar?: string
   active: boolean
+  /** Permisos efectivos (codes RBAC) sembrados en el JWT al iniciar sesión. */
+  permissions?: string[]
 }
 
 export type AuthState = {

@@ -3,7 +3,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { isTokenExpired } from "@/lib/jwt";
 import { getClientMeta, ensureClientMeta } from "@/lib/client-meta";
 import { useOfflineStore } from "@/lib/offline/offline-store";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 export const axiosConfig = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,

@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getInventoryDetail } from "@/lib/services/inventories"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 export default function InventoryPageControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)

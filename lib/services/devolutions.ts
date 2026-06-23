@@ -23,12 +23,15 @@ export async function uploadFiles(
     pdfFile: File,
     excelFile: File,
     subsidiaryName: string,
+    subsidiaryId?: string,
     onProgress?: (progress: number) => void
-): Promise<any> { 
+): Promise<any> {
     const formData = new FormData();
     formData.append('files', pdfFile);
     formData.append('files', excelFile);
     formData.append('subsidiaryName', subsidiaryName);
+    // Identificador estable: el backend busca por id (más fiable que por nombre).
+    if (subsidiaryId) formData.append('subsidiaryId', subsidiaryId);
 
     try {
         const response = await axiosConfig.post('devolutions/upload', formData, {

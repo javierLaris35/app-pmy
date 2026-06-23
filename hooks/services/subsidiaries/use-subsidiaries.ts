@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import useSWRMutation from 'swr/mutation';
-import { getSubsidiaries, saveSubsidiary as saveSubsidiaryService, deleteSubsidiary as deleteSubsidiaryService } from '@/lib/services/subsidiaries';
+import { getSubsidiaries, saveSubsidiary as saveSubsidiaryService, updateSubsidiary as updateSubsidiaryService, deleteSubsidiary as deleteSubsidiaryService } from '@/lib/services/subsidiaries';
 import type { Subsidiary } from '@/lib/types';
 
 export function useSubsidiaries() {
@@ -25,7 +25,9 @@ export function useSaveSubsidiary() {
     isMutating: isSaving,
     error,
   } = useSWRMutation("save-subsidiary", async (_key, { arg }: { arg: Subsidiary }) => {
-    return await saveSubsidiaryService(arg);
+    // id presente → PATCH (update); ausente → POST (create). Antes el backend hacía
+    // upsert por POST; ahora hay endpoints separados.
+    return arg.id ? await updateSubsidiaryService(arg.id, arg) : await saveSubsidiaryService(arg);
   });
 
   return {

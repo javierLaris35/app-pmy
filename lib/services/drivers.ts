@@ -14,12 +14,17 @@ const getDriversById = async (id: string) => {
 }
 
 const getDriversBySucursalId = async (sucursalId: string) => {
-    const response = await axiosConfig.get<Driver>(`${url}/subsidiary/${sucursalId}`);
+    const response = await axiosConfig.get<Driver[]>(`${url}/subsidiary/${sucursalId}`);
     return response.data;
 }
 
-const saveDriver = async (subsidiary: Driver) => {
-    const response = await axiosConfig.post<Driver>(url, subsidiary);
+const saveDriver = async (driver: Driver) => {
+    const response = await axiosConfig.post<Driver>(url, driver);
+    return response.data;
+}
+
+const updateDriver = async (id: string, driver: Partial<Driver>) => {
+    const response = await axiosConfig.patch<Driver>(`${url}/${id}`, driver);
     return response.data;
 }
 
@@ -33,5 +38,6 @@ export {
     getDriversById,
     getDriversBySucursalId,
     saveDriver,
+    updateDriver,
     deleteDriver
 }

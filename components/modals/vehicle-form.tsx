@@ -14,13 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select'
+import { CatalogSelect } from '@/components/shared/catalog-select'
 import { Calendar } from '@/components/ui/calendar'
 import {
   Popover,
@@ -47,20 +41,6 @@ const FIELD_LABELS: Record<string, string> = {
   kms: 'Kilometraje',
 }
 
-/* =======================
-   Enums traducidos
-======================= */
-const VEHICLE_TYPE_LABELS: Record<VehicleTypeEnum, string> = {
-  [VehicleTypeEnum.CAMIONETA]: 'Camioneta',
-  [VehicleTypeEnum.CAMION]: 'Camión',
-  [VehicleTypeEnum.MOTO]: 'Motocicleta',
-}
-
-const VEHICLE_STATUS_LABELS: Record<VehicleStatus, string> = {
-  [VehicleStatus.ACTIVO]: 'Activo',
-  [VehicleStatus.INACTIVO]: 'Inactivo',
-  [VehicleStatus.MANTENIMIENTO]: 'En mantenimiento',
-}
 
 /* =======================
    Schema
@@ -213,59 +193,27 @@ export function VehicleForm({
           />
         ))}
 
-        {/* Tipo */}
+        {/* Tipo (desde catálogo) */}
         <FormField
           control={form.control}
           name="type"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Tipo de vehículo</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                value={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un tipo" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {Object.values(VehicleTypeEnum).map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {VEHICLE_TYPE_LABELS[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CatalogSelect type="vehicle_type" value={field.value} onValueChange={field.onChange} placeholder="Selecciona un tipo" />
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* Estatus */}
+        {/* Estatus (desde catálogo) */}
         <FormField
           control={form.control}
           name="status"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Estatus del vehículo</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                value={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un estatus" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {Object.values(VehicleStatus).map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {VEHICLE_STATUS_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CatalogSelect type="vehicle_status" value={field.value} onValueChange={field.onChange} placeholder="Selecciona un estatus" />
               <FormMessage />
             </FormItem>
           )}

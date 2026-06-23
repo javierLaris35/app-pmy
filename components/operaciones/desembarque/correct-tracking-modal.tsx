@@ -11,7 +11,7 @@ import { AlertCircle, Loader2, Package, Search, X, Plus, User, FileText } from "
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { searchPackageInfo } from "@/lib/services/shipments";
 import { SearchShipmentDto, ShipmentStatusType, Priority, ShipmentType, AddShipmentDto } from "@/lib/types";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { getCurrentHermosilloDateTime } from "@/utils/date.utils";
 import { useCreateShipmentInDesembarcos } from "@/hooks/services/shipments/use-shipments";
 

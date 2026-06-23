@@ -22,6 +22,47 @@ export const fetchPendientesExcel = async (subsidiaryId: string) => {
   return res.data as Blob;
 };
 
+// Estatus ACTUAL en FedEx (mapeado a local) por guía — para comparar contra el
+// estatus guardado. Read-only (no persiste). Botón "Consultar FedEx" en lote.
+export const fetchPendientesFedexStatus = async (
+  items: { trackingNumber: string; fedexUniqueId?: string }[],
+) => {
+  const res = await axiosConfig.post(`shipments/pendings/fedex-status`, { items });
+  return res.data as Record<
+    string,
+    { fedexStatus: string; fedexRaw?: string; derivedCode?: string; exceptionCode?: string }
+  >;
+};
+
+// Actualiza UNA guía (envío o carga) con el mismo negocio de ingresos del backend.
+export const updatePendingOne = async (
+  subsidiaryId: string,
+  trackingNumber: string,
+  isCharge: boolean,
+) => {
+  const res = await axiosConfig.post(`shipments/pendings/update-one`, {
+    subsidiaryId,
+    trackingNumber,
+    isCharge,
+  });
+  return res.data as { trackingNumber: string; isCharge: boolean; status: string | null };
+};
+
+// ----- Recibidas de FedEx (con 67) -----
+export const fetchReceived67Json = async (subsidiaryId: string, start?: string, end?: string) => {
+  const res = await axiosConfig.get(`shipments/received-67/${subsidiaryId}/json`, { params: { start, end } });
+  // { summary, details: [{ trackingNumber, status, recipientName, ..., fecha67, diasDesde67, isCharge }] }
+  return res.data as { summary?: Record<string, any>; details: any[] };
+};
+
+export const fetchReceived67Excel = async (subsidiaryId: string, start?: string, end?: string) => {
+  const res = await axiosConfig.get(`shipments/received-67/${subsidiaryId}/excel`, {
+    params: { start, end },
+    responseType: "blob",
+  });
+  return res.data as Blob;
+};
+
 // ----- Sin código 67 (por sucursal) -----
 export const fetchSin67Json = async (subsidiaryId: string) => {
   const res = await axiosConfig.get(`shipments/report-no67/${subsidiaryId}/json`);

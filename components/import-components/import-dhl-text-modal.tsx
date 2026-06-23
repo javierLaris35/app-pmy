@@ -13,8 +13,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ColumnDef } from "@tanstack/react-table"
 import { Download, Check, X, ChevronRight, ChevronLeft, FileSpreadsheet, Info } from "lucide-react"
-import { SucursalSelector } from "@/components/sucursal-selector" 
+import { SucursalSelector } from "@/components/sucursal-selector"
 import * as XLSX from "xlsx"
+import { toast } from "@/lib/toast"
 
 export interface ParsedDhlShipment {
   awb: string;
@@ -45,6 +46,44 @@ export interface FinalDhlSubmission {
   consNumber?: string;
 }
 
+// Stepper visual (a nivel módulo: no se recrea en cada render del modal).
+function WizardStepper({ step }: { step: number }) {
+  const stepsList = [
+    { id: 1, label: "Extraer Datos" },
+    { id: 2, label: "Exportar" },
+    { id: 3, label: "Finalizar" },
+  ]
+  return (
+    <div className="flex items-center gap-1 sm:gap-2">
+      {stepsList.map((s, idx) => (
+        <div key={s.id} className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-2">
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 ${
+                step > s.id
+                  ? "bg-[#e5282d] text-white shadow-md shadow-red-200"
+                  : step === s.id
+                  ? "border-2 border-[#e5282d] text-[#e5282d] bg-red-50 ring-4 ring-red-50"
+                  : "border-2 border-gray-200 text-gray-400 bg-white"
+              }`}
+            >
+              {step > s.id ? <Check className="h-4 w-4" /> : s.id}
+            </div>
+            <span className={`text-sm font-medium whitespace-nowrap transition-colors duration-300 ${step >= s.id ? "text-gray-900" : "text-gray-400"}`}>
+              {s.label}
+            </span>
+          </div>
+          {idx < stepsList.length - 1 && (
+            <div className="relative h-[2px] w-6 sm:w-10 bg-gray-200 mx-1 rounded-full overflow-hidden">
+              <div className={`absolute top-0 left-0 h-full bg-[#e5282d] transition-all duration-500 ${step > s.id ? "w-full" : "w-0"}`} />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface ImportDhlTextModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,6 +108,14 @@ export function ImportDhlTextModal({
   const [subsidiaryId, setSubsidiaryId] = useState<string>(defaultSubsidiaryId)
   const [consDate, setConsDate] = useState<string>("")
   const [consNumber, setConsNumber] = useState<string>("")
+  // Fechas de vencimiento editadas inline (clave = awb|pid). Evita el ida-y-vuelta del Excel.
+  const [dueDates, setDueDates] = useState<Record<string, string>>({})
+  const dueKey = (item: ParsedDhlShipment) => `${item.awb}|${item.pid || ""}`
+  // DHL suele poner "N/A" en receiver.name (es la razón social genérica) y el
+  // destinatario real va en "Ctc Nm" (contactName). Mismo criterio que el backend
+  // al persistir (recipientName = contactName || name).
+  const recipientName = (r: ParsedDhlShipment["receiver"]) =>
+    (r.contactName?.trim() || r.name || "").trim()
 
   useEffect(() => {
     if (isOpen && defaultSubsidiaryId) {
@@ -86,100 +133,83 @@ export function ImportDhlTextModal({
       setSubsidiaryId(defaultSubsidiaryId)
       setConsDate("")
       setConsNumber("")
-    }, 300) 
+      setDueDates({})
+    }, 300)
   }
 
   const handleProcessText = async () => {
     if (!text.trim()) return;
-    
+
     try {
       setIsLoading(true)
       const data = await onProcessText(text)
-      setParsedData(data || [])
-      setStep(2) 
-    } catch (error) {
+      if (!data || data.length === 0) {
+        toast.warning("No se detectaron guías en el texto. Verifica que pegaste el reporte completo de DHL.")
+        return
+      }
+      setParsedData(data)
+      setDueDates({})
+      setStep(2)
+      toast.success(`${data.length} paquete(s) detectado(s).`)
+    } catch (error: any) {
       console.error("Error al procesar el texto", error)
+      toast.error(error?.response?.data?.message || "No se pudo procesar el texto de DHL.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleExportExcel = () => {
-    const headers = [
-      "#", 
-      "AWB Maestro", 
-      "PID (Pieza)", 
-      "Nombre", 
-      "Dirección",
-      "Ciudad", 
-      "CP",
-      "Teléfono",
-      "Piezas", 
-      "Vencimiento" 
-    ];
-
-    // 1. Ordenamos los datos por PID alfabéticamente
-    // Hacemos una copia [...parsedData] para no mutar el estado original
-    const sortedData = [...parsedData].sort((a, b) => {
-      const pidA = a.pid || "";
-      const pidB = b.pid || "";
-      return pidA.localeCompare(pidB);
-    });
-
-    // 2. Mapeamos usando los datos ya ordenados (sortedData en lugar de parsedData)
-    const dataRows = sortedData.map((item, index) => {
-      const direccionCompleta = [item.receiver.address1, item.receiver.address2]
-        .filter(Boolean)
-        .join(", ");
-
+  // Construye el workbook del layout (mismo formato que el descargable), tomando
+  // las fechas de vencimiento editadas inline. Reutilizado por descarga y por el
+  // archivo que se manda al guardar (así el backend sigue recibiendo el Excel).
+  const buildWorkbook = () => {
+    const headers = ["#", "AWB Maestro", "PID (Pieza)", "Nombre", "Dirección", "Ciudad", "CP", "Teléfono", "Piezas", "Vencimiento"];
+    // Mantener el mismo orden de ingreso del texto (igual que la tabla del paso 2).
+    const dataRows = parsedData.map((item, index) => {
+      const direccionCompleta = [item.receiver.address1, item.receiver.address2].filter(Boolean).join(", ");
       return [
-        index + 1, 
-        item.awb,
-        item.pid || "",
-        item.receiver.name,
-        direccionCompleta,
-        item.receiver.city,
-        item.receiver.zip || "",
-        { v: item.receiver.phone || "", t: 's' }, 
-        item.pieces,
-        "" 
+        index + 1, item.awb, item.pid || "", recipientName(item.receiver), direccionCompleta,
+        item.receiver.city, item.receiver.zip || "", { v: item.receiver.phone || "", t: "s" },
+        item.pieces, dueDates[dueKey(item)] || "",
       ];
     });
-
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
-
-    worksheet['!cols'] = [
-      { wch: 5 },  
-      { wch: 15 }, 
-      { wch: 22 }, 
-      { wch: 30 }, 
-      { wch: 45 }, 
-      { wch: 15 }, 
-      { wch: 10 }, 
-      { wch: 15 }, 
-      { wch: 8 },  
-      { wch: 15 }, 
-    ];
-
+    worksheet["!cols"] = [{ wch: 5 }, { wch: 15 }, { wch: 22 }, { wch: 30 }, { wch: 45 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 8 }, { wch: 15 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Envios_DHL");
-    XLSX.writeFile(workbook, `dhl_envios_${new Date().getTime()}.xlsx`);
+    return workbook;
+  }
+
+  const handleExportExcel = () => {
+    XLSX.writeFile(buildWorkbook(), `dhl_envios_${new Date().getTime()}.xlsx`);
+  }
+
+  /** Genera el archivo .xlsx en memoria (con las fechas inline) para mandarlo al backend. */
+  const buildLayoutFile = (): File => {
+    const out = XLSX.write(buildWorkbook(), { type: "array", bookType: "xlsx" });
+    return new File([out], `dhl_envios_${new Date().getTime()}.xlsx`, {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+  }
+
+  // Paso 2 → 3: arma el layout desde las fechas inline (sin descargar/re-subir).
+  const goToFinalStep = () => {
+    setUploadFile(buildLayoutFile())
+    setStep(3)
   }
 
   const handleFinalSubmit = async () => {
-    if (!uploadFile || !subsidiaryId) return;
-    
+    if (!subsidiaryId) { toast.error("Selecciona la sucursal de destino."); return; }
+    const file = uploadFile ?? buildLayoutFile();
+
     try {
       setIsLoading(true)
-      await onFinalSave({
-        file: uploadFile,
-        subsidiaryId, 
-        consDate,
-        consNumber
-      })
+      await onFinalSave({ file, subsidiaryId, consDate, consNumber })
+      toast.success("Envíos DHL importados correctamente.")
       handleClose()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al guardar los envíos finales", error)
+      toast.error(error?.response?.data?.message || "No se pudieron importar los envíos.")
     } finally {
       setIsLoading(false)
     }
@@ -204,7 +234,10 @@ export function ImportDhlTextModal({
     {
       accessorKey: "receiver.name",
       header: "Destinatario",
-      cell: ({ row }) => <span className="truncate max-w-[150px] block font-medium" title={row.original.receiver.name}>{row.original.receiver.name}</span>,
+      cell: ({ row }) => {
+        const name = recipientName(row.original.receiver)
+        return <span className="truncate max-w-[150px] block font-medium" title={name}>{name}</span>
+      },
     },
     {
       accessorKey: "receiver.city",
@@ -213,59 +246,27 @@ export function ImportDhlTextModal({
     {
       accessorKey: "shipmentTime",
       header: "Fecha Envío",
-    }
+    },
+    {
+      id: "vencimiento",
+      header: "Vencimiento",
+      cell: ({ row }) => {
+        const key = dueKey(row.original)
+        return (
+          <Input
+            type="date"
+            value={dueDates[key] || ""}
+            onChange={(e) => setDueDates((prev) => ({ ...prev, [key]: e.target.value }))}
+            className="h-8 w-[150px] focus-visible:ring-[#e5282d]"
+          />
+        )
+      },
+    },
   ]
 
-  const isStep3Valid = uploadFile !== null && subsidiaryId !== "";
-
-  // Stepper Visual Mejorado con estilos de marca
-  const WizardStepper = () => {
-    const stepsList = [
-      { id: 1, label: "Extraer Datos" },
-      { id: 2, label: "Exportar" },
-      { id: 3, label: "Finalizar" },
-    ]
-
-    return (
-      <div className="flex items-center gap-1 sm:gap-2">
-        {stepsList.map((s, idx) => (
-          <div key={s.id} className="flex items-center gap-1 sm:gap-2">
-            <div className="flex items-center gap-2">
-              <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 ${
-                  step > s.id 
-                    ? "bg-[#e5282d] text-white shadow-md shadow-red-200" 
-                    : step === s.id
-                    ? "border-2 border-[#e5282d] text-[#e5282d] bg-red-50 ring-4 ring-red-50"
-                    : "border-2 border-gray-200 text-gray-400 bg-white"
-                }`}
-              >
-                {step > s.id ? <Check className="h-4 w-4" /> : s.id}
-              </div>
-              <span 
-                className={`text-sm font-medium whitespace-nowrap transition-colors duration-300 ${
-                  step >= s.id ? "text-gray-900" : "text-gray-400"
-                }`}
-              >
-                {s.label}
-              </span>
-            </div>
-            
-            {/* Línea conectora animada */}
-            {idx < stepsList.length - 1 && (
-              <div className="relative h-[2px] w-6 sm:w-10 bg-gray-200 mx-1 rounded-full overflow-hidden">
-                <div 
-                  className={`absolute top-0 left-0 h-full bg-[#e5282d] transition-all duration-500 ${
-                    step > s.id ? "w-full" : "w-0"
-                  }`} 
-                />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    )
-  }
+  // Layout listo si hay sucursal (el archivo se arma desde las fechas inline; el
+  // upload manual es opcional/override).
+  const isStep3Valid = subsidiaryId !== "";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -295,7 +296,7 @@ export function ImportDhlTextModal({
             </div>
           </div>
           
-          <WizardStepper />
+          <WizardStepper step={step} />
         </DialogHeader>
         
         {/* BODY */}
@@ -328,7 +329,7 @@ export function ImportDhlTextModal({
                 <div className="pl-2">
                   <h4 className="font-bold text-gray-900 text-base">Validación de Datos</h4>
                   <p className="text-sm text-gray-500 mt-1.5">
-                    Descarga el layout, agrega las <strong className="text-gray-700">fechas de vencimiento</strong> en la última columna de Excel y guárdalo para el siguiente paso.
+                    Captura las <strong className="text-gray-700">fechas de vencimiento</strong> directamente en la columna <strong className="text-gray-700">Vencimiento</strong> de la tabla. (Opcional: descarga el layout en Excel si lo prefieres.)
                   </p>
                 </div>
                 <Button 
@@ -358,26 +359,29 @@ export function ImportDhlTextModal({
                 </div>
                 <h4 className="font-bold text-gray-900 text-lg">Casi listo</h4>
                 <p className="text-sm text-gray-500 mt-1">
-                  Sube el archivo Excel corregido y configura los datos del consolidado para finalizar.
+                  Tu layout ya está listo con las fechas que capturaste ({parsedData.length} envío(s)). Configura el consolidado y finaliza.
                 </p>
               </div>
 
               <div className="grid gap-2.5">
-                <Label htmlFor="file-upload" className="font-semibold text-gray-700">Archivo Excel Corregido (*)</Label>
-                <Input 
-                  id="file-upload" 
-                  type="file" 
+                <Label htmlFor="file-upload" className="font-semibold text-gray-700">Reemplazar con tu Excel <span className="font-normal text-gray-400">(opcional)</span></Label>
+                <Input
+                  id="file-upload"
+                  type="file"
                   accept=".xlsx, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  onChange={(e) => setUploadFile(e.target.files?.[0] || buildLayoutFile())}
                   className="cursor-pointer file:text-[#e5282d] file:font-semibold file:bg-red-50 file:border-0 file:rounded-md file:px-4 file:py-1 hover:file:bg-red-100 transition-colors focus-visible:ring-[#e5282d] h-auto py-2"
                 />
+                <p className="text-[12px] text-gray-400 font-medium">
+                  Solo si capturaste las fechas en Excel en vez de en la tabla. Si no, deja esto vacío.
+                </p>
               </div>
 
               <div className="grid gap-2.5">
                 <Label className="font-semibold text-gray-700">Sucursal de Destino (*)</Label>
-                <SucursalSelector 
+                <SucursalSelector
                   value={subsidiaryId}
-                  onValueChange={setSubsidiaryId}
+                  onValueChange={(val) => setSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
                   insideAModal={true}
                 />
               </div>
@@ -447,8 +451,8 @@ export function ImportDhlTextModal({
             )}
 
             {step === 2 && (
-              <Button 
-                onClick={() => setStep(3)}
+              <Button
+                onClick={goToFinalStep}
                 className="bg-[#e5282d] hover:bg-red-700 text-white w-full sm:w-auto rounded-lg shadow-md shadow-red-200/50"
               >
                 Siguiente Paso

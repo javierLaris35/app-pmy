@@ -7,16 +7,17 @@ import { sortByZip } from '@/lib/tracking/sort-by-zip';
 
 export async function generateDispatchExcelClient(
   data: PackageDispatch,
-  invalidPackages?: string[], 
-  forDownload = true
+  invalidPackages?: string[],
+  forDownload = true,
+  sortByPostalCode = true,
 ) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Despacho');
   const timeZone = 'America/Hermosillo';
-  // Ordenado por código postal (recipientZip) para seguir la ruta.
-  const packages: PackageInfo[] = sortByZip(
-    mapToPackageInfo(data.shipments, data.chargeShipments)
-  );
+  // Orden: por código postal (recipientZip) si la sucursal lo configura; si no,
+  // se conserva el orden en que se escanearon los paquetes.
+  const mapped = mapToPackageInfo(data.shipments, data.chargeShipments);
+  const packages: PackageInfo[] = sortByPostalCode ? sortByZip(mapped) : mapped;
 
   // === ENCABEZADO GENERAL (A:I) ===
   const titleRow = sheet.addRow([`🚚 Salida a Ruta`]);

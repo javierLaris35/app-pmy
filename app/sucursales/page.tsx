@@ -47,9 +47,10 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { useSaveSubsidiary, useSubsidiaries, useDeleteSubsidiary } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { withAuth } from "@/hoc/withAuth"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { getColumns } from "./columns"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useZones } from "@/hooks/services/zones/use-zones"
@@ -206,16 +207,17 @@ function SucursalesPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Catálogo de Sucursales</h2>
-            <p className="text-muted-foreground">Administra las sucursales de la empresa</p>
-          </div>
-          <Button onClick={openNewSucursalDialog}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nueva Sucursal
-          </Button>
-        </div>
+        <OperationHeader
+          icon={Building2}
+          title="Catálogo de Sucursales"
+          description="Administra las sucursales de la empresa"
+          actions={
+            <Button onClick={openNewSucursalDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nueva Sucursal
+            </Button>
+          }
+        />
 
         {isLoading ? (
           <p className="text-muted-foreground">Cargando sucursales...</p>
@@ -298,27 +300,27 @@ function SucursalesPage() {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-2 pt-2 border-t mt-2">
                       <div>
                         <span className="font-medium text-foreground">FedEx:</span>
-                        <p>${sucursal.fedexCostPackage?.toFixed(2) || "0.00"}</p>
+                        <p>${Number(sucursal.fedexCostPackage ?? 0).toFixed(2)}</p>
                       </div>
                       <div>
                         <span className="font-medium text-foreground">DHL:</span>
-                        <p>${sucursal.dhlCostPackage?.toFixed(2) || "0.00"}</p>
+                        <p>${Number(sucursal.dhlCostPackage ?? 0).toFixed(2)}</p>
                       </div>
                       <div>
                         <span className="font-medium text-foreground">Carga:</span>
-                        <p>${sucursal.chargeCost?.toFixed(2) || "0.00"}</p>
+                        <p>${Number(sucursal.chargeCost ?? 0).toFixed(2)}</p>
                       </div>
                       <div>
                         <span className="font-medium text-foreground">Tyco:</span>
-                        <p>${sucursal.tycoAmount?.toFixed(2) || "0.00"}</p>
+                        <p>${Number(sucursal.tycoAmount ?? 0).toFixed(2)}</p>
                       </div>
                       <div>
                         <span className="font-medium text-foreground">Aeropuerto:</span>
-                        <p>${sucursal.airportAmount?.toFixed(2) || "0.00"}</p>
+                        <p>${Number(sucursal.airportAmount ?? 0).toFixed(2)}</p>
                       </div>
                       <div>
                         <span className="font-medium text-foreground">2do Abordo:</span>
-                        <p>${sucursal.secondAbordAmount?.toFixed(2) || "0.00"}</p>
+                        <p>${Number(sucursal.secondAbordAmount ?? 0).toFixed(2)}</p>
                       </div>
                     </div>
                   </div>

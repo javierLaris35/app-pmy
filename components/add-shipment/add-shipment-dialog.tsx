@@ -8,31 +8,19 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CatalogSelect } from "@/components/shared/catalog-select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 
 type ShipmentFormType = "shipment" | "chargeshipment"
 
-// Enums basados en las entidades
-const ShipmentType = {
-  FEDEX: "FEDEX",
-  DHL: "DHL",
-}
-
-const Priority = {
-  BAJA: "BAJA",
-  MEDIA: "MEDIA",
-  ALTA: "ALTA",
-  URGENTE: "URGENTE",
-}
-
-const ShipmentStatusType = {
-  PENDIENTE: "PENDIENTE",
-  EN_TRANSITO: "EN_TRANSITO",
-  ENTREGADO: "ENTREGADO",
-  CANCELADO: "CANCELADO",
-}
+/**
+ * Valores por defecto = keys reales del catálogo/backend (minúsculas).
+ * Los dropdowns leen sus opciones del catálogo vía <CatalogSelect>.
+ */
+const DEFAULT_SHIPMENT_TYPE = "fedex" // catálogo shipment_type
+const DEFAULT_PRIORITY = "media" // catálogo priority (alta/media/baja)
+const DEFAULT_STATUS = "en_transito" // catálogo shipment_status
 
 interface ShipmentFormData {
   trackingNumber: string
@@ -57,15 +45,15 @@ export function AddShipmentDialog() {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<ShipmentFormData>({
     trackingNumber: "",
-    shipmentType: ShipmentType.FEDEX,
+    shipmentType: DEFAULT_SHIPMENT_TYPE,
     recipientName: "",
     recipientAddress: "",
     recipientCity: "",
     recipientZip: "",
     recipientPhone: "",
     commitDateTime: "",
-    priority: Priority.MEDIA,
-    status: ShipmentStatusType.EN_TRANSITO,
+    priority: DEFAULT_PRIORITY,
+    status: DEFAULT_STATUS,
     consNumber: "",
     consolidatedId: "",
     isHighValue: false,
@@ -90,15 +78,15 @@ export function AddShipmentDialog() {
     if (!open) {
       setFormData({
         trackingNumber: "",
-        shipmentType: ShipmentType.FEDEX,
+        shipmentType: DEFAULT_SHIPMENT_TYPE,
         recipientName: "",
         recipientAddress: "",
         recipientCity: "",
         recipientZip: "",
         recipientPhone: "",
         commitDateTime: "",
-        priority: Priority.MEDIA,
-        status: ShipmentStatusType.EN_TRANSITO,
+        priority: DEFAULT_PRIORITY,
+        status: DEFAULT_STATUS,
         consNumber: "",
         consolidatedId: "",
         isHighValue: false,
@@ -115,16 +103,15 @@ export function AddShipmentDialog() {
       const diffTime = commitDate.getTime() - today.getTime()
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-      let calculatedPriority = Priority.MEDIA
+      // Catálogo priority: alta/media/baja (no existe "urgente").
+      let calculatedPriority = "media"
 
-      if (diffDays <= 1) {
-        calculatedPriority = Priority.URGENTE
-      } else if (diffDays <= 3) {
-        calculatedPriority = Priority.ALTA
+      if (diffDays <= 3) {
+        calculatedPriority = "alta"
       } else if (diffDays <= 7) {
-        calculatedPriority = Priority.MEDIA
+        calculatedPriority = "media"
       } else {
-        calculatedPriority = Priority.BAJA
+        calculatedPriority = "baja"
       }
 
       setFormData((prev) => ({ ...prev, priority: calculatedPriority }))
@@ -217,53 +204,32 @@ export function AddShipmentDialog() {
 
                   <div className="space-y-2">
                     <Label htmlFor="shipmentType">Tipo de Envío *</Label>
-                    <Select
+                    <CatalogSelect
+                      type="shipment_type"
+                      id="shipmentType"
                       value={formData.shipmentType}
                       onValueChange={(value) => updateFormData("shipmentType", value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(ShipmentType).map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="priority">Prioridad *</Label>
-                    <Select value={formData.priority} onValueChange={(value) => updateFormData("priority", value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(Priority).map((priority) => (
-                          <SelectItem key={priority} value={priority}>
-                            {priority}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <CatalogSelect
+                      type="priority"
+                      id="priority"
+                      value={formData.priority}
+                      onValueChange={(value) => updateFormData("priority", value)}
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="status">Estado *</Label>
-                    <Select value={formData.status} onValueChange={(value) => updateFormData("status", value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(ShipmentStatusType).map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.replace(/_/g, " ")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <CatalogSelect
+                      type="shipment_status"
+                      id="status"
+                      value={formData.status}
+                      onValueChange={(value) => updateFormData("status", value)}
+                    />
                   </div>
                 </div>
 

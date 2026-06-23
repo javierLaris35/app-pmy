@@ -1,4 +1,4 @@
-import { getRoutes, getRoutesById, getRoutesBySucursalId, saveRoute } from "@/lib/services/routes";
+import { getRoutes, getRoutesById, getRoutesBySucursalId, saveRoute, updateRoute } from "@/lib/services/routes";
 import { Route } from "@/lib/types";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
@@ -52,7 +52,7 @@ export function useSaveRoute(){
         isMutating: isSaving,
         error,
     } = useSWRMutation("save-route", async (_key, { arg }: { arg: Route }) => {
-        return await saveRoute(arg);
+        return arg.id ? await updateRoute(arg.id, arg) : await saveRoute(arg);
     });
 
     return {

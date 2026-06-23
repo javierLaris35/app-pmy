@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SucursalSelector } from "@/components/sucursal-selector"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { useIncomesByMonthAndSucursal } from "@/hooks/services/incomes/use-income"
 import { formatCurrency, parseCurrency } from "@/lib/utils"
 import { 
@@ -96,21 +97,22 @@ function IngresosPage() {
           </div>
         )}
 
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Panel de Ingresos</h2>
-            <p className="text-slate-500 text-sm">Monitoreo financiero y comparativa operativa</p>
-          </div>
-          <Button 
-            variant="outline" 
-            className="bg-white shadow-sm border-slate-200"
-            onClick={() => exportIncomesToExcel(incomes)}
-            disabled={incomes.length === 0 || isLoading}
-          >
-            <Download className="mr-2 h-4 w-4" /> Exportar reporte
-          </Button>
-        </div>
+        {/* HEADER estándar */}
+        <OperationHeader
+          icon={DollarSign}
+          title="Panel de Ingresos"
+          description="Monitoreo financiero y comparativa operativa"
+          actions={
+            <Button
+              variant="outline"
+              className="bg-white shadow-sm border-slate-200"
+              onClick={() => exportIncomesToExcel(incomes)}
+              disabled={incomes.length === 0 || isLoading}
+            >
+              <Download className="mr-2 h-4 w-4" /> Exportar reporte
+            </Button>
+          }
+        />
 
         {/* INDICADORES Y FILTROS */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
