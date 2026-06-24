@@ -63,11 +63,32 @@ export const fetchReceived67Excel = async (subsidiaryId: string, start?: string,
   return res.data as Blob;
 };
 
-// ----- Sin código 67 (por sucursal) -----
-export const fetchSin67Json = async (subsidiaryId: string) => {
-  const res = await axiosConfig.get(`shipments/report-no67/${subsidiaryId}/json`);
-  // { summary, details }
+// ----- Visibilidad 67 (activos sin 67 de hoy, por sucursal) -----
+export const fetchSin67Json = async (subsidiaryId: string, threshold?: number) => {
+  const res = await axiosConfig.get(`shipments/report-no67/${subsidiaryId}/json`, {
+    params: threshold ? { threshold } : undefined,
+  });
+  // { summary, details: [{ trackingNumber, status, last67Date, daysSinceLast67, category, ... }] }
   return res.data as { summary?: Record<string, any>; details: any[] };
+};
+
+// Confirmación con FedEx de la visibilidad 67: días con/sin 67 y días faltantes
+// por guía. includeSundays controla si los domingos exigen 67. Read-only.
+export const fetchVisibility67FedexCheck = async (
+  items: { trackingNumber: string; fedexUniqueId?: string }[],
+  includeSundays: boolean,
+) => {
+  const res = await axiosConfig.post(`shipments/visibility-67/fedex-check`, { items, includeSundays });
+  return res.data as Record<
+    string,
+    {
+      windowStart: string | null; windowEnd: string | null; delivered: boolean;
+      daysWith67: number; daysWithout67: number; missingDates: string[]; last67: string | null;
+      events: { date: string; description: string; exceptionCode?: string }[];
+      lastMovement: { date: string; description: string } | null;
+      fedexStatus: string; fedexRaw?: string; derivedCode?: string; exceptionCode?: string;
+    }
+  >;
 };
 
 export const fetchSin67Excel = async (subsidiaryId: string) => {

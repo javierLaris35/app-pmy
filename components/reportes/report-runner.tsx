@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable } from "@/components/data-table/data-table";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { StatBar, type StatItem } from "@/components/shared/stat-bar";
 import { useAuthStore } from "@/store/auth.store";
@@ -39,6 +41,9 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
   // Comparación con FedEx (botón en lote) + actualización por fila.
   const [fedexLoading, setFedexLoading] = useState(false);
   const [updating, setUpdating] = useState<Set<string>>(new Set());
+  // Confirmación de visibilidad 67 con FedEx (+ toggle de domingos).
+  const [fedex67Loading, setFedex67Loading] = useState(false);
+  const [includeSundays, setIncludeSundays] = useState(true);
 
   const Icon = def.icon;
 
@@ -66,6 +71,40 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
       toast.error(e?.response?.data?.message || "No se pudo consultar FedEx.");
     } finally {
       setFedexLoading(false);
+    }
+  };
+
+  const handleFedex67Check = async () => {
+    if (!def.fedex67Check) return;
+    setFedex67Loading(true);
+    try {
+      const res = await def.fedex67Check.fetch(rows, includeSundays);
+      setRows((prev) =>
+        prev.map((r) => {
+          const f = res[r.trackingNumber];
+          return f
+            ? {
+                ...r,
+                __dias67: f.daysWith67,
+                __diasSin67: f.daysWithout67,
+                __missing67: f.missingDates,
+                __win67: `${f.windowStart ?? "?"} → ${f.windowEnd ?? "?"}`,
+                __events: f.events,
+                __lastMovement: f.lastMovement,
+                // Habilita la columna "Estatus FedEx" + el botón "Actualizar" (como Pendientes).
+                __fedexStatus: f.fedexStatus,
+                __fedexRaw: f.fedexRaw,
+                __fedexCode: f.derivedCode,
+                __fedexExc: f.exceptionCode,
+              }
+            : r;
+        }),
+      );
+      toast.success("Visibilidad 67 confirmada con FedEx.");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo confirmar con FedEx.");
+    } finally {
+      setFedex67Loading(false);
     }
   };
 
@@ -104,7 +143,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
       label: k,
       value: typeof v === "number" ? v.toLocaleString("es-MX") : String(v),
     }));
-    if (def.compareFedex) {
+    if (def.compareFedex || def.fedex67Check) {
       const consulted = rows.filter((r) => r.__fedexStatus);
       if (consulted.length > 0) {
         const sinDatos = consulted.filter((r) => r.__fedexStatus === "SIN_DATOS").length;
@@ -147,8 +186,8 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
       },
     }));
 
-    // Columna "Estatus FedEx" (se llena con el botón "Consultar FedEx").
-    if (def.compareFedex) {
+    // Columna "Estatus FedEx" (se llena al consultar/confirmar con FedEx).
+    if (def.compareFedex || def.fedex67Check) {
       base.push({
         id: "__fedexStatus",
         header: "Estatus FedEx",
@@ -217,6 +256,57 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
       });
     }
 
+    // Columnas de confirmación 67 con FedEx (se llenan con "Confirmar 67 con FedEx").
+    if (def.fedex67Check) {
+      base.push({
+        id: "__diasSin67",
+        header: "Días sin 67 (FedEx)",
+        enableSorting: true,
+        accessorFn: (r: any) => (r.__diasSin67 == null ? -1 : Number(r.__diasSin67)),
+        cell: ({ row }: any) => {
+          const r = row.original;
+          if (r.__diasSin67 == null) return <span className="text-muted-foreground">—</span>;
+          const n = Number(r.__diasSin67);
+          return (
+            <span className={`text-xs font-semibold ${n === 0 ? "text-emerald-600" : n >= 3 ? "text-rose-600" : "text-amber-600"}`} title={r.__win67 || ""}>
+              {n}
+            </span>
+          );
+        },
+      });
+      base.push({
+        id: "__missing67",
+        header: "Días faltantes",
+        enableSorting: false,
+        cell: ({ row }: any) => {
+          const r = row.original;
+          const m: string[] = r.__missing67 || [];
+          if (r.__diasSin67 == null) return <span className="text-muted-foreground">—</span>;
+          if (m.length === 0) return <span className="text-emerald-600 text-xs">Al día</span>;
+          const shown = m.slice(0, 4).join(", ");
+          return <span className="text-[11px] text-muted-foreground" title={m.join(", ")}>{shown}{m.length > 4 ? ` +${m.length - 4}` : ""}</span>;
+        },
+      });
+      base.push({
+        id: "__lastMovement",
+        header: "Último movimiento",
+        enableSorting: false,
+        cell: ({ row }: any) => {
+          const r = row.original;
+          const lm = r.__lastMovement;
+          if (!lm) return <span className="text-muted-foreground">—</span>;
+          const movs: { date: string; description: string }[] = r.__events || [];
+          const tip = movs.map((m) => `${m.date?.slice(0, 10)}: ${m.description}`).join("\n");
+          return (
+            <div className="flex flex-col leading-tight" title={tip}>
+              <span className="text-xs font-medium">{lm.description}</span>
+              <span className="text-[10px] text-muted-foreground">{String(lm.date).slice(0, 10)}{movs.length ? ` · ${movs.length} mov.` : ""}</span>
+            </div>
+          );
+        },
+      });
+    }
+
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [def, updating, subsidiaryId]);
@@ -251,7 +341,10 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
     if (!subsidiaryId) { toast.error("Selecciona una sucursal."); return; }
     setIsExporting(true);
     try {
-      saveAs(await def.exportExcel(subsidiaryId, range), def.fileName(subsidiaryId));
+      // Si el reporte define exportClient, exportamos lo que está EN PANTALLA (incluye
+      // datos inyectados bajo demanda, p.ej. la confirmación de FedEx); si no, backend.
+      const blob = def.exportClient ? await def.exportClient(rows) : await def.exportExcel(subsidiaryId, range);
+      saveAs(blob, def.fileName(subsidiaryId));
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo exportar el Excel.");
     } finally { setIsExporting(false); }
@@ -304,6 +397,17 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
               <Button variant="outline" onClick={handleCompareFedex} disabled={fedexLoading}>
                 {fedexLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Consultar FedEx
               </Button>
+            )}
+            {def.fedex67Check && hasRun && rows.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 px-2 border-l h-9">
+                  <Switch id="inc-sundays" checked={includeSundays} onCheckedChange={setIncludeSundays} />
+                  <Label htmlFor="inc-sundays" className="text-xs cursor-pointer">Incluir domingos</Label>
+                </div>
+                <Button variant="outline" onClick={handleFedex67Check} disabled={fedex67Loading}>
+                  {fedex67Loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar 67 con FedEx
+                </Button>
+              </>
             )}
           </div>
 

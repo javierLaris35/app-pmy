@@ -17,6 +17,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 
+import { ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DataTablePagination } from "@/components/data-table/data-table-pagination"
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
@@ -151,13 +152,39 @@ export function DataTable<TData, TValue>({
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
+                {headerGroup.headers.map((header) => {
+                  const sorted = header.column.getIsSorted() as false | "asc" | "desc"
+                  // Solo encabezados de texto plano usan el botón de orden nativo.
+                  // Los headers personalizados (p.ej. DataTableColumnHeader) ya
+                  // traen su propio control de orden, así que se renderizan tal
+                  // cual para no anidar <button> dentro de <button>.
+                  const headerDef = header.column.columnDef.header
+                  const useNativeSort =
+                    header.column.getCanSort() && typeof headerDef !== "function"
+                  return (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder ? null : useNativeSort ? (
+                        // Encabezado ordenable: clic alterna asc/desc/sin orden.
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="inline-flex items-center gap-1 select-none hover:text-foreground transition-colors"
+                        >
+                          {flexRender(headerDef, header.getContext())}
+                          {sorted === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          ) : sorted === "desc" ? (
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+                          )}
+                        </button>
+                      ) : (
+                        flexRender(headerDef, header.getContext())
+                      )}
+                    </TableHead>
+                  )
+                })}
               </TableRow>
             ))}
           </TableHeader>

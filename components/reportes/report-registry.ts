@@ -1,11 +1,14 @@
-import { PackageX, PackageCheck, Boxes, type LucideIcon } from "lucide-react";
+import { PackageX, PackageCheck, Boxes, EyeOff, type LucideIcon } from "lucide-react";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
 import {
   fetchPendientesJson, fetchPendientesExcel,
   fetchPendientesFedexStatus, updatePendingOne,
   fetchReceived67Json, fetchReceived67Excel,
   fetchInventario67Json, fetchInventario67Excel,
+  fetchSin67Json, fetchSin67Excel,
+  fetchVisibility67FedexCheck,
 } from "@/lib/services/reportes/reportes";
+import { buildVisibility67Excel } from "@/lib/services/reportes/visibilidad67-excel";
 
 export interface ReportRange { start?: string; end?: string }
 
@@ -54,6 +57,28 @@ export interface ReportDef {
    * de FedEx difiere del guardado). Devuelve el nuevo estatus.
    */
   updateRow?: (subsidiaryId: string, row: any) => Promise<{ status: string | null }>;
+  /**
+   * Capacidad opcional: confirmar con FedEx la VISIBILIDAD 67 (días con/sin 67 y
+   * días faltantes por guía). Habilita el botón "Confirmar 67 con FedEx" + el
+   * switch "Incluir domingos" en el runner; el resultado se inyecta por fila.
+   */
+  fedex67Check?: {
+    fetch: (
+      rows: any[],
+      includeSundays: boolean,
+    ) => Promise<Record<string, {
+      daysWith67: number; daysWithout67: number; missingDates: string[]; windowStart: string | null; windowEnd: string | null; delivered: boolean;
+      events: { date: string; description: string; exceptionCode?: string }[];
+      lastMovement: { date: string; description: string } | null;
+      fedexStatus: string; fedexRaw?: string; derivedCode?: string; exceptionCode?: string;
+    }>>;
+  };
+  /**
+   * Exportación a Excel en el CLIENTE a partir de las filas actuales (incluye las
+   * columnas inyectadas bajo demanda, p.ej. la confirmación de FedEx). Si se define,
+   * el runner la usa en vez del Excel del backend.
+   */
+  exportClient?: (rows: any[]) => Promise<Blob>;
   /** Trae las filas + un resumen opcional (chips). */
   run: (subsidiaryId: string, range?: ReportRange) => Promise<{ rows: any[]; summary?: Record<string, any> }>;
   exportExcel: (subsidiaryId: string, range?: ReportRange) => Promise<Blob>;
@@ -137,6 +162,65 @@ export const REPORTS: ReportDef[] = [
     exportExcel: (subsidiaryId, range) => fetchReceived67Excel(subsidiaryId, range?.start, range?.end),
     fileName: (s) => `recibidas_67_${s}_${ts()}.xlsx`,
     emptyHint: "No hay guías con 67 en el rango para esta sucursal.",
+  },
+  {
+    id: "visibilidad67",
+    title: "Visibilidad 67 (sin 67 de hoy)",
+    description: "Paquetes activos (en bodega / pendientes) y sus días sin código 67. Regla FedEx: cada paquete debe tener un 67 cada día. Ordena por 'Días sin 67' para priorizar.",
+    icon: EyeOff,
+    accent: "bg-orange-100 text-orange-600",
+    columns: [
+      { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
+      { id: "tipo", label: "Tipo", accessor: (r) => tipoLabel(r.shipmentType) },
+      { id: "status", label: "Estatus", accessor: (r) => r.status, cell: (v) => prettyStatus(v) },
+      { id: "createdAt", label: "Alta en sistema", accessor: (r) => r.createdAt, cell: (v) => fmtDate(v) },
+      {
+        id: "diasSin67",
+        label: "Días sin 67",
+        accessor: (r) => (r.daysSinceLast67 == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLast67)),
+        cell: (_v, r) => (r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Hoy (0)" : String(r.daysSinceLast67)),
+      },
+      { id: "last67Date", label: "Último 67", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
+      {
+        id: "categoria",
+        label: "Visibilidad",
+        accessor: (r) => (r.category === "hoy" ? "Con 67 hoy" : r.category === "nunca" ? "Nunca" : "Sin 67 hoy"),
+      },
+      { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
+      { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
+    ],
+    filters: [
+      { columnId: "categoria", title: "Visibilidad" },
+      { columnId: "tipo", title: "Tipo" },
+      { columnId: "status", title: "Estatus" },
+    ],
+    fedex67Check: {
+      // Solo guías FedEx (el 67 vive en el historial de escaneos de FedEx).
+      fetch: (rows, includeSundays) =>
+        fetchVisibility67FedexCheck(
+          rows.filter(isFedexRow).map((r) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId })),
+          includeSundays,
+        ),
+    },
+    // Mismo "Actualizar" que en Pendientes: aplica el estatus de FedEx (con ingresos).
+    updateRow: (subsidiaryId, row) => updatePendingOne(subsidiaryId, row.trackingNumber, !!row.isCharge),
+    run: async (subsidiaryId) => {
+      const { summary, details } = await fetchSin67Json(subsidiaryId);
+      return {
+        rows: details || [],
+        summary: {
+          Activos: summary?.totalActivos ?? (details?.length || 0),
+          "Con 67 hoy": summary?.con67Hoy ?? 0,
+          "Sin 67 hoy": summary?.sin67 ?? 0,
+          Nunca: summary?.nunca ?? 0,
+        },
+      };
+    },
+    exportExcel: (subsidiaryId) => fetchSin67Excel(subsidiaryId),
+    // Excel desde las filas en pantalla → incluye la confirmación FedEx, alta y movimientos.
+    exportClient: (rows) => buildVisibility67Excel(rows),
+    fileName: (s) => `visibilidad_67_${s}_${ts()}.xlsx`,
+    emptyHint: "No hay paquetes activos para esta sucursal.",
   },
   {
     id: "inventario67",
