@@ -98,6 +98,13 @@ export const fetchSin67Excel = async (subsidiaryId: string) => {
   return res.data as Blob;
 };
 
+// ----- Reporte Inventarios (estilo Visibilidad 67, por sucursal + rango) -----
+export const fetchInventoryReportJson = async (subsidiaryId: string, from?: string, to?: string) => {
+  const res = await axiosConfig.get(`inventories/visibility-report/${subsidiaryId}`, { params: { from, to } });
+  // { summary, details: [{ trackingNumber, status, last67Date, daysSinceLast67, category, inventories[], inventoryTypes, ... }] }
+  return res.data as { summary?: Record<string, any>; details: any[] };
+};
+
 // ----- Último inventario sin 67 -----
 export const fetchInventario67Json = async (subsidiaryId: string) => {
   const res = await axiosConfig.get(`monitoring/inventory/67/${subsidiaryId}`);

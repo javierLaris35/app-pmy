@@ -30,8 +30,19 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
   const user = useAuthStore((s) => s.user);
   const [subsidiaryId, setSubsidiaryId] = useState<string>(user?.subsidiary?.id || "");
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
-  const [start, setStart] = useState<string>(ymd(new Date(Date.now() - 10 * 864e5)));
-  const [end, setEnd] = useState<string>(ymd(new Date()));
+  // Fecha LOCAL (no UTC) para los presets, así "ayer" es correcto cerca de medianoche.
+  const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const presetRange = (preset: "today" | "yesterday" | "week" | "month") => {
+    const today = new Date();
+    const minus = (n: number) => { const x = new Date(); x.setDate(x.getDate() - n); return x; };
+    if (preset === "today") return { start: ymdLocal(today), end: ymdLocal(today) };
+    if (preset === "yesterday") { const y = minus(1); return { start: ymdLocal(y), end: ymdLocal(y) }; }
+    if (preset === "week") return { start: ymdLocal(minus(6)), end: ymdLocal(today) };
+    return { start: ymdLocal(minus(29)), end: ymdLocal(today) }; // month
+  };
+  const initialRange = def.defaultPreset ? presetRange(def.defaultPreset) : { start: ymd(new Date(Date.now() - 10 * 864e5)), end: ymd(new Date()) };
+  const [start, setStart] = useState<string>(initialRange.start);
+  const [end, setEnd] = useState<string>(initialRange.end);
   const range = def.dateRange ? { start, end } : undefined;
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<Record<string, any> | undefined>(undefined);
@@ -384,6 +395,26 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
                 <div>
                   <label className="text-[11px] font-medium text-muted-foreground block">Hasta</label>
                   <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="h-9 w-[150px]" />
+                </div>
+                {/* Presets rápidos de rango. */}
+                <div className="flex items-end gap-1">
+                  {([
+                    ["today", "Hoy"],
+                    ["yesterday", "Ayer"],
+                    ["week", "Semana"],
+                    ["month", "Mes"],
+                  ] as const).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => { const r = presetRange(key); setStart(r.start); setEnd(r.end); }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
                 </div>
               </>
             )}

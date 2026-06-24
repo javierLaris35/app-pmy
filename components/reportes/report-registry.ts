@@ -1,4 +1,4 @@
-import { PackageX, PackageCheck, Boxes, EyeOff, type LucideIcon } from "lucide-react";
+import { PackageX, PackageCheck, Boxes, EyeOff, ClipboardList, type LucideIcon } from "lucide-react";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
 import {
   fetchPendientesJson, fetchPendientesExcel,
@@ -7,8 +7,19 @@ import {
   fetchInventario67Json, fetchInventario67Excel,
   fetchSin67Json, fetchSin67Excel,
   fetchVisibility67FedexCheck,
+  fetchInventoryReportJson,
 } from "@/lib/services/reportes/reportes";
 import { buildVisibility67Excel } from "@/lib/services/reportes/visibilidad67-excel";
+import { buildInventoryReportExcel } from "@/lib/services/reportes/inventory-report-excel";
+
+/** Etiqueta legible del tipo de inventario. */
+const invTypeLabel = (t?: string) => {
+  const v = String(t || "").toLowerCase();
+  if (v === "initial") return "Inicial";
+  if (v === "dex") return "DEX";
+  if (v === "final") return "Final";
+  return t || "";
+};
 
 export interface ReportRange { start?: string; end?: string }
 
@@ -40,8 +51,10 @@ export interface ReportDef {
   columns: ReportColumn[];
   /** Filtros facetados (las opciones se calculan de los datos cargados). */
   filters?: ReportFilter[];
-  /** Si true, el runner muestra controles de rango de fechas (start/end). */
+  /** Si true, el runner muestra controles de rango de fechas (start/end) + botones de preset. */
   dateRange?: boolean;
+  /** Rango inicial por defecto cuando hay dateRange (si no, últimos 10 días). */
+  defaultPreset?: "today" | "yesterday" | "week" | "month";
   /**
    * Capacidad opcional: comparar el estatus guardado contra el estatus actual de
    * FedEx. Habilita el botón "Consultar FedEx" (lote) en el runner; el resultado
@@ -221,6 +234,76 @@ export const REPORTS: ReportDef[] = [
     exportClient: (rows) => buildVisibility67Excel(rows),
     fileName: (s) => `visibilidad_67_${s}_${ts()}.xlsx`,
     emptyHint: "No hay paquetes activos para esta sucursal.",
+  },
+  {
+    id: "inventarios",
+    title: "Inventarios (visibilidad 67)",
+    description: "Paquetes de los inventarios de la sucursal en el rango (default: ayer) que SIGUEN en bodega (estatus actual = en bodega), con días sin 67 y en qué inventarios estuvieron. Mismo motor que Visibilidad 67.",
+    icon: ClipboardList,
+    accent: "bg-indigo-100 text-indigo-600",
+    dateRange: true,
+    defaultPreset: "yesterday",
+    columns: [
+      { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
+      { id: "tipo", label: "Tipo", accessor: (r) => tipoLabel(r.shipmentType) },
+      { id: "status", label: "Estatus actual", accessor: (r) => r.status, cell: (v) => prettyStatus(v) },
+      {
+        id: "inventarios",
+        label: "Inventarios",
+        accessor: (r) => (r.inventories || []).map((i: any) => invTypeLabel(i.type)).join(", ") || r.inventoryTypes || "",
+        cell: (v, r) => {
+          const txt = (r.inventories || []).map((i: any) => invTypeLabel(i.type)).join(", ") || r.inventoryTypes || "—";
+          const n = r.inventoryCount ?? (r.inventories?.length || 0);
+          return n > 1 ? `${txt} (${n})` : txt;
+        },
+      },
+      { id: "createdAt", label: "Alta en sistema", accessor: (r) => r.createdAt, cell: (v) => fmtDate(v) },
+      {
+        id: "diasSin67",
+        label: "Días sin 67",
+        accessor: (r) => (r.daysSinceLast67 == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLast67)),
+        cell: (_v, r) => (r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Hoy (0)" : String(r.daysSinceLast67)),
+      },
+      { id: "last67Date", label: "Último 67", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
+      {
+        id: "categoria",
+        label: "Visibilidad",
+        accessor: (r) => (r.category === "hoy" ? "Con 67 hoy" : r.category === "nunca" ? "Nunca" : "Sin 67 hoy"),
+      },
+      { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
+      { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
+    ],
+    filters: [
+      { columnId: "categoria", title: "Visibilidad" },
+      { columnId: "tipo", title: "Tipo" },
+      { columnId: "inventarios", title: "Inventario" },
+      { columnId: "status", title: "Estatus" },
+    ],
+    fedex67Check: {
+      fetch: (rows, includeSundays) =>
+        fetchVisibility67FedexCheck(
+          rows.filter(isFedexRow).map((r) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId })),
+          includeSundays,
+        ),
+    },
+    updateRow: (subsidiaryId, row) => updatePendingOne(subsidiaryId, row.trackingNumber, !!row.isCharge),
+    run: async (subsidiaryId, range) => {
+      const { summary, details } = await fetchInventoryReportJson(subsidiaryId, range?.start, range?.end);
+      return {
+        rows: details || [],
+        summary: {
+          Inventarios: summary?.inventarios ?? 0,
+          Paquetes: summary?.paquetes ?? (details?.length || 0),
+          "Con 67 hoy": summary?.con67Hoy ?? 0,
+          "Sin 67 hoy": summary?.sin67 ?? 0,
+          Nunca: summary?.nunca ?? 0,
+        },
+      };
+    },
+    exportExcel: async () => new Blob(), // no se usa: este reporte exporta en cliente.
+    exportClient: (rows) => buildInventoryReportExcel(rows),
+    fileName: (s) => `inventarios_${s}_${ts()}.xlsx`,
+    emptyHint: "No hay inventarios para esa sucursal en el rango seleccionado.",
   },
   {
     id: "inventario67",
