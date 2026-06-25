@@ -14,4 +14,4 @@ function PackageReceptionPage() {
 }
 
 
-export default withAuth(PackageReceptionPage, "operaciones.recepcionBodega")
+export default withAuth(PackageReceptionPage, "bodega.recepcionBodega")

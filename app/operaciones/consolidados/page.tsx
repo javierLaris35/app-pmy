@@ -214,4 +214,4 @@ function ConsolidatedWithKpis() {
   );
 }
 
-export default withAuth(ConsolidatedWithKpis, 'operaciones.consolidados');
+export default withAuth(ConsolidatedWithKpis, 'bodega.consolidados');

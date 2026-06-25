@@ -7,4 +7,4 @@ function Inventory(){
     return <InventoryPageControl />
 }
 
-export default withAuth(Inventory, "operaciones.inventarios")
+export default withAuth(Inventory, "bodega.inventarios")
