@@ -24,6 +24,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import { IconTruckLoading } from "@tabler/icons-react"
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { axiosConfig } from "@/lib/axios-config";
 
 interface ShipmentItem {
   trackingNumber: string | null
@@ -104,7 +105,22 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
     if (!row) return;
 
     try {
-      
+      // 0. Cargar el HISTORIAL bajo demanda (getIncome no lo trae por performance),
+      //    para que el Excel incluya fechas de entrega, días de retraso e historial.
+      let enriched = items;
+      try {
+        const tns = items.map((i: any) => i.trackingNumber).filter(Boolean);
+        if (tns.length > 0) {
+          const { data } = await axiosConfig.post('/shipments/status-history', { trackingNumbers: tns });
+          enriched = items.map((i: any) => ({
+            ...i,
+            statusHistory: (data?.[i.trackingNumber]?.length ? data[i.trackingNumber] : i.statusHistory) || [],
+          }));
+        }
+      } catch (e) {
+        console.warn('No se pudo cargar el historial para el Excel:', e);
+      }
+
       // 1. Crear el libro de Excel con exceljs para más control
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Pacquetería & Mensajería Del Yaqui!';
@@ -167,7 +183,7 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
       }
 
       // Preparar datos para la hoja "Resumen"
-      const resumenData = items.map((item: any) => {
+      const resumenData = enriched.map((item: any) => {
         const entregaEntry = item.statusHistory?.find(
           (entry: any) => entry.status === "entregado"
         );
@@ -215,11 +231,11 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
       }
 
       // 4. Hoja "Historial"
-      if (items.some((item: any) => item.statusHistory?.length > 0)) {
+      if (enriched.some((item: any) => item.statusHistory?.length > 0)) {
         const historySheet = workbook.addWorksheet('Historial');
-        
+
         const historyData: any[] = [];
-        items.forEach((item: any) => {
+        enriched.forEach((item: any) => {
           item.statusHistory?.forEach((entry: any) => {
             historyData.push({
               "No. Rastreo": item.trackingNumber || "-",

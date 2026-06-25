@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Plus, Save, Shield, Trash2, Lock } from "lucide-react";
+import { Loader2, Plus, Save, Shield, Trash2, Lock, Search, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import {
@@ -241,16 +241,20 @@ function RolesMatrix({ groups, roles, reload }: { groups: Record<string, RbacPer
   );
 }
 
-/* ============ Permisos especiales por usuario ============ */
+/* ============ Permisos especiales por usuario (dos paneles) ============ */
 function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> }) {
   const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [userId, setUserId] = useState<string>("");
-  const [info, setInfo] = useState<{ rolePermissionCodes: string[]; overrides: { code: string; effect: PermissionEffect }[] } | null>(null);
+  const [info, setInfo] = useState<{ roleKey?: string; rolePermissionCodes: string[]; overrides: { code: string; effect: PermissionEffect }[] } | null>(null);
   const [draft, setDraft] = useState<Record<string, PermissionEffect>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { getUsers().then(setUsers).catch(() => {}); }, []);
+  useEffect(() => {
+    getUsers().then(setUsers).catch(() => toast.error("No se pudieron cargar los usuarios.")).finally(() => setUsersLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!userId) { setInfo(null); return; }
@@ -288,67 +292,115 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
   };
 
   const roleCodes = new Set(info?.rolePermissionCodes || []);
+  const overrideCount = Object.keys(draft).length;
+  const filtered = users.filter((u) =>
+    `${u.name ?? ""} ${u.lastName ?? ""} ${u.email ?? ""}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  const selectedUser = users.find((u) => u.id === userId);
 
   return (
-    <Card>
-      <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <CardTitle className="text-base">Permisos especiales por usuario</CardTitle>
-          <CardDescription>Concede o revoca permisos puntuales por encima del rol. Clic en el estado para alternar Heredado → Permitir → Denegar.</CardDescription>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={userId} onValueChange={setUserId}>
-            <SelectTrigger className="w-[240px]"><SelectValue placeholder="Selecciona un usuario" /></SelectTrigger>
-            <SelectContent>
-              {users.map((u) => (
-                <SelectItem key={u.id} value={u.id}>{u.name} {u.lastName} · {u.email}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={save} disabled={!userId || saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {!userId ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">Selecciona un usuario para ver y ajustar sus permisos.</p>
-        ) : loading ? (
-          <div className="flex h-32 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
-        ) : (
-          <div className="space-y-4">
-            {Object.entries(groups).map(([group, perms]) => (
-              <div key={group}>
-                <h4 className="text-sm font-semibold mb-2">{group}</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {perms.map((p) => {
-                    const val = draft[p.code] ?? "inherit";
-                    return (
-                      <div key={p.code} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
-                        <span className="flex-1 truncate" title={p.code}>{p.name}</span>
-                        <Select value={val} onValueChange={(v) => setEffect(p.code, v)}>
-                          <SelectTrigger className={cn(
-                            "w-[140px] h-8",
-                            val === "allow" && "text-emerald-700 border-emerald-300",
-                            val === "deny" && "text-rose-700 border-rose-300",
-                          )}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="inherit">{roleCodes.has(p.code) ? "Heredado ✓" : "Heredado —"}</SelectItem>
-                            <SelectItem value="allow">Permitir</SelectItem>
-                            <SelectItem value="deny">Denegar</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+      {/* Lista de usuarios */}
+      <Card className="h-fit">
+        <CardHeader className="pb-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Usuarios</CardTitle>
+            <Badge variant="secondary" className="tabular-nums">{users.length}</Badge>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar usuario…" className="h-8 pl-8 text-sm" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-2 max-h-[60vh] overflow-y-auto space-y-0.5">
+          {usersLoading ? (
+            <div className="flex h-24 items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /></div>
+          ) : filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-3 py-4 text-center">Sin coincidencias.</p>
+          ) : (
+            filtered.map((u) => {
+              const active = u.id === userId;
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => setUserId(u.id)}
+                  className={cn(
+                    "w-full flex items-center gap-2 rounded-md px-3 py-2 text-left transition-colors",
+                    active ? "bg-primary/10 text-primary" : "hover:bg-muted",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-sm truncate", active && "font-medium")}>{u.name} {u.lastName}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
+                  </div>
+                  {u.role && <Badge variant="outline" className="text-[10px] shrink-0">{u.role}</Badge>}
+                </button>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Permisos del usuario seleccionado */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserCog className="h-4 w-4 text-primary" />
+              {selectedUser ? `${selectedUser.name} ${selectedUser.lastName}` : "Permisos por usuario"}
+            </CardTitle>
+            <CardDescription>
+              {selectedUser
+                ? `Rol: ${info?.roleKey ?? selectedUser.role ?? "—"} · ${overrideCount} excepción(es). Heredado → Permitir → Denegar.`
+                : "Elige un usuario para conceder o revocar permisos por encima de su rol."}
+            </CardDescription>
+          </div>
+          {userId && (
+            <Button size="sm" onClick={save} disabled={saving}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          {!userId ? (
+            <p className="text-sm text-muted-foreground py-12 text-center">Selecciona un usuario de la lista.</p>
+          ) : loading ? (
+            <div className="flex h-32 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(groups).map(([group, perms]) => (
+                <div key={group}>
+                  <h4 className="text-sm font-semibold mb-2">{group}</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {perms.map((p) => {
+                      const val = draft[p.code] ?? "inherit";
+                      return (
+                        <div key={p.code} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
+                          <span className="flex-1 truncate" title={p.code}>{p.name}</span>
+                          <Select value={val} onValueChange={(v) => setEffect(p.code, v)}>
+                            <SelectTrigger className={cn(
+                              "w-[140px] h-8",
+                              val === "allow" && "text-emerald-700 border-emerald-300",
+                              val === "deny" && "text-rose-700 border-rose-300",
+                            )}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="inherit">{roleCodes.has(p.code) ? "Heredado ✓" : "Heredado —"}</SelectItem>
+                              <SelectItem value="allow">Permitir</SelectItem>
+                              <SelectItem value="deny">Denegar</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

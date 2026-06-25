@@ -105,6 +105,12 @@ export const fetchInventoryReportJson = async (subsidiaryId: string, from?: stri
   return res.data as { summary?: Record<string, any>; details: any[] };
 };
 
+// ----- Reporte Desembarques (estilo Visibilidad 67, todos los estatus) -----
+export const fetchUnloadingReportJson = async (subsidiaryId: string, from?: string, to?: string) => {
+  const res = await axiosConfig.get(`unloadings/visibility-report/${subsidiaryId}`, { params: { from, to } });
+  return res.data as { summary?: Record<string, any>; details: any[] };
+};
+
 // ----- Último inventario sin 67 -----
 export const fetchInventario67Json = async (subsidiaryId: string) => {
   const res = await axiosConfig.get(`monitoring/inventory/67/${subsidiaryId}`);

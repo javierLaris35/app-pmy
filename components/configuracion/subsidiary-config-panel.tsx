@@ -17,7 +17,13 @@ type FlagKey =
   | "monitorFedexCode44"
   | "trackFedexExternalDelivery"
   | "forceFedexStatusOverride"
-  | "sortDispatchByPostalCode";
+  | "sortDispatchByPostalCode"
+  | "chargeDex03"
+  | "chargeDex07"
+  | "chargeDex08"
+  | "chargeDelivered"
+  | "generateDhlIncomeOnDelivery"
+  | "countTransfersAsIncome";
 
 const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "monitorFedexCode67", label: "Monitorear 67", hint: "Alerta si falta el código 67 (recepción FedEx)" },
@@ -25,6 +31,16 @@ const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "trackFedexExternalDelivery", label: "Rastrear entrega FedEx", hint: "Sigue la entrega que hace FedEx por su cuenta (OD)" },
   { key: "forceFedexStatusOverride", label: "Forzar estatus FedEx", hint: "Prioriza el estatus reportado por FedEx" },
   { key: "sortDispatchByPostalCode", label: "Salidas a ruta por CP", hint: "Ordena los paquetes por código postal (escaneo, PDF y Excel). Si está apagado, se conserva el orden de escaneo." },
+];
+
+// Reglas de INGRESO por sucursal (default = comportamiento histórico).
+const INCOME_FLAGS: { key: FlagKey; label: string; hint: string }[] = [
+  { key: "chargeDelivered", label: "Cobrar entregado", hint: "El paquete entregado genera ingreso." },
+  { key: "chargeDex07", label: "Cobrar DEX07", hint: "Rechazado (07) genera ingreso." },
+  { key: "chargeDex08", label: "Cobrar DEX08", hint: "Cliente no disponible (08) genera ingreso." },
+  { key: "chargeDex03", label: "Cobrar DEX03", hint: "Dirección incorrecta (03). Apagado = no cuenta, pero el registro se conserva para cobrarlo después." },
+  { key: "generateDhlIncomeOnDelivery", label: "Ingreso DHL al entregar", hint: "Genera el ingreso DHL al detectar la entrega (17track), no solo en cierre de ruta." },
+  { key: "countTransfersAsIncome", label: "Traslados cuentan", hint: "Tyco / aeropuerto / traslado especial cuentan como ingreso en finanzas." },
 ];
 
 const toBool = (v: any): boolean =>
@@ -82,6 +98,23 @@ export function SubsidiaryConfigPanel() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {FLAGS.map((f) => (
                     <div key={f.key} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
+                      <div className="min-w-0">
+                        <Label className="text-sm">{f.label}</Label>
+                        <p className="text-[11px] text-muted-foreground leading-tight">{f.hint}</p>
+                      </div>
+                      <Switch
+                        checked={Boolean(sub[f.key])}
+                        disabled={savingId === sub.id}
+                        onCheckedChange={(v) => toggle(sub, f.key, v)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-4 mb-2">Reglas de ingreso</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {INCOME_FLAGS.map((f) => (
+                    <div key={f.key} className="flex items-center justify-between gap-3 rounded-md bg-emerald-50/60 px-3 py-2">
                       <div className="min-w-0">
                         <Label className="text-sm">{f.label}</Label>
                         <p className="text-[11px] text-muted-foreground leading-tight">{f.hint}</p>

@@ -8,10 +8,21 @@ import { OperationHeader } from "@/components/shared/operation-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { REPORTS } from "@/components/reportes/report-registry";
 import { ReportRunner } from "@/components/reportes/report-runner";
+import { useAuthStore } from "@/store/auth.store";
+import { hasPermission } from "@/lib/access/permissions";
 
 function ReportesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = REPORTS.find((r) => r.id === selectedId) || null;
+  const user = useAuthStore((s) => s.user);
+  // Permiso POR reporte: code = `reportes.<id>` (catálogo RBAC).
+  // Transición: si el token AÚN no trae permisos granulares de reportes (sesión
+  // previa a la migración), respetamos el gate de página y mostramos todo; una
+  // vez re-logueado, el token trae los `reportes.*` y aplica el filtro fino.
+  const hasGranular = (user?.permissions || []).some((p) => p.startsWith("reportes."));
+  const visibleReports = hasGranular
+    ? REPORTS.filter((r) => hasPermission(user, `reportes.${r.id}`))
+    : REPORTS;
+  const selected = visibleReports.find((r) => r.id === selectedId) || null;
 
   return (
     <AppLayout>
@@ -24,7 +35,7 @@ function ReportesPage() {
 
         {!selected ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {REPORTS.map((r) => {
+            {visibleReports.map((r) => {
               const Icon = r.icon;
               return (
                 <button key={r.id} type="button" onClick={() => setSelectedId(r.id)} className="text-left">

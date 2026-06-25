@@ -1,3 +1,25 @@
+/**
+ * Formatea un Date a "YYYY-MM-DD" usando la fecha LOCAL (no UTC). Úsalo SIEMPRE
+ * para valores de <input type="date">. Antes se usaba `toISOString().slice(0,10)`,
+ * que devuelve la fecha en UTC: en Hermosillo (UTC-7), por la tarde/noche el UTC
+ * ya es el día siguiente → el input "sumaba un día".
+ */
+export function toDateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/** Hoy en formato de input de fecha (local). */
+export function todayInputValue(): string {
+  return toDateInputValue(new Date());
+}
+
+/** Hoy ± n días en formato de input de fecha (local). */
+export function addDaysInputValue(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return toDateInputValue(d);
+}
+
 export function parseDateFromDDMMYYYY(dateStr: string): Date {
   const [day, month, year] = dateStr.split('/');
   return new Date(Number(year), Number(month) - 1, Number(day));
@@ -113,8 +135,8 @@ export function getLastWeekRange(): { fromDate: string; toDate: string } {
   lastSunday.setHours(23, 59, 59, 999)
 
   return {
-    fromDate: lastMonday.toISOString().slice(0, 10),
-    toDate: lastSunday.toISOString().slice(0, 10)
+    fromDate: toDateInputValue(lastMonday),
+    toDate: toDateInputValue(lastSunday)
   }
 }
 

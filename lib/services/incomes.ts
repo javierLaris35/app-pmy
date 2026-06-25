@@ -1,48 +1,28 @@
 import { axiosConfig } from "../axios-config";
-import { FinancialSummary, IncomesResponse, NewIncome, RouteIncome } from "../types";
+import { FinancialSummary, IncomesResponse } from "../types";
 
 const baseUrl = "/incomes";
 
-// GET: ingresos por subsidiaria y rango de fechas
-const getIncomes = async (subsidiaryId: string, from: string, to: string) => {
-  const response = await axiosConfig.get<RouteIncome[]>(`${baseUrl}/${subsidiaryId}/${from}/${to}`);
-  return response.data;
-};
-
-// GET: ingresos por mes (sin subsidiaria)
-const getIncomeByMonth = async (from: string, to: string) => {
-  const response = await axiosConfig.get<RouteIncome[]>(`${baseUrl}/month/${from}/${to}`);
-  return response.data;
-};
-
-// GET: ingresos por mes con subsidiaria
-/*const getIncomeByMonthAndSucursal = async (subsidiaryId: string, from: string, to: string) => {
-  const response = await axiosConfig.get<NewIncome[]>(`${baseUrl}/bySucursal/${subsidiaryId}?fromDate=${from}&toDate=${to}`);
-  return response.data;
-};*/
-
+// GET: ingresos por sucursal y rango (llena la tabla de ingresos en finanzas)
 const getIncomeByMonthAndSucursal = async (subsidiaryId: string, from: string, to: string) => {
   try {
-    // Si 'from' y 'to' ya vienen como string YYYY-MM-DD del state, no necesitas el toISO
     const response = await axiosConfig.get<IncomesResponse>(
       `${baseUrl}/bySucursal/${subsidiaryId}?fromDate=${from}&toDate=${to}`
     );
     return response.data;
   } catch (error) {
     console.error(`Error fetching income:`, error);
-    throw error; 
+    throw error;
   }
 };
 
-// GET: resumen financiero
+// GET: resumen financiero (dashboard)
 const getFinantialResume = async (subsidiaryId: string, from: string, to: string) => {
   const response = await axiosConfig.get<FinancialSummary>(`${baseUrl}/finantial/${subsidiaryId}/${from}/${to}`);
   return response.data;
 };
 
 export {
-  getIncomes,
-  getIncomeByMonth,
   getIncomeByMonthAndSucursal,
-  getFinantialResume
+  getFinantialResume,
 };

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { StatBar, type StatItem } from "@/components/shared/stat-bar";
 import { useAuthStore } from "@/store/auth.store";
+import { todayInputValue, addDaysInputValue } from "@/utils/date.utils";
 import type { ReportDef } from "./report-registry";
 
 const pretty = (s?: any) =>
@@ -29,18 +30,14 @@ const generatesIncome = (s: any) => INCOME_STATUSES.has(String(s ?? "").toLowerC
 export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => void }) {
   const user = useAuthStore((s) => s.user);
   const [subsidiaryId, setSubsidiaryId] = useState<string>(user?.subsidiary?.id || "");
-  const ymd = (d: Date) => d.toISOString().slice(0, 10);
-  // Fecha LOCAL (no UTC) para los presets, así "ayer" es correcto cerca de medianoche.
-  const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Fecha LOCAL (no UTC) para inputs/presets — evita el desfase de +1 día.
   const presetRange = (preset: "today" | "yesterday" | "week" | "month") => {
-    const today = new Date();
-    const minus = (n: number) => { const x = new Date(); x.setDate(x.getDate() - n); return x; };
-    if (preset === "today") return { start: ymdLocal(today), end: ymdLocal(today) };
-    if (preset === "yesterday") { const y = minus(1); return { start: ymdLocal(y), end: ymdLocal(y) }; }
-    if (preset === "week") return { start: ymdLocal(minus(6)), end: ymdLocal(today) };
-    return { start: ymdLocal(minus(29)), end: ymdLocal(today) }; // month
+    if (preset === "today") return { start: todayInputValue(), end: todayInputValue() };
+    if (preset === "yesterday") return { start: addDaysInputValue(-1), end: addDaysInputValue(-1) };
+    if (preset === "week") return { start: addDaysInputValue(-6), end: todayInputValue() };
+    return { start: addDaysInputValue(-29), end: todayInputValue() }; // month
   };
-  const initialRange = def.defaultPreset ? presetRange(def.defaultPreset) : { start: ymd(new Date(Date.now() - 10 * 864e5)), end: ymd(new Date()) };
+  const initialRange = def.defaultPreset ? presetRange(def.defaultPreset) : { start: addDaysInputValue(-10), end: todayInputValue() };
   const [start, setStart] = useState<string>(initialRange.start);
   const [end, setEnd] = useState<string>(initialRange.end);
   const range = def.dateRange ? { start, end } : undefined;

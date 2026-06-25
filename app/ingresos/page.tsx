@@ -33,14 +33,23 @@ import {
   Tooltip 
 } from 'recharts';
 import { Subsidiary } from "@/lib/types"
+import { todayInputValue, addDaysInputValue } from "@/utils/date.utils"
 
 function IngresosPage() {
   // 1. ESTADOS DE FILTRO
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
   const [range, setRange] = useState({
-    fromDate: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
-    toDate: new Date().toISOString().split('T')[0]
+    fromDate: addDaysInputValue(-7),
+    toDate: todayInputValue()
   })
+
+  // Presets de fecha (fecha LOCAL — evita el desfase de +1 día de UTC).
+  const applyPreset = (preset: "today" | "yesterday" | "week" | "month") => {
+    if (preset === "today") setRange({ fromDate: todayInputValue(), toDate: todayInputValue() })
+    else if (preset === "yesterday") setRange({ fromDate: addDaysInputValue(-1), toDate: addDaysInputValue(-1) })
+    else if (preset === "week") setRange({ fromDate: addDaysInputValue(-6), toDate: todayInputValue() })
+    else setRange({ fromDate: addDaysInputValue(-29), toDate: todayInputValue() })
+  }
 
   // 2. CONSUMO DE DATOS
   // Pasamos los strings directamente para evitar desfases de Date()
@@ -155,8 +164,8 @@ function IngresosPage() {
                   value={selectedSucursalId} 
                   onValueChange={ (val) => {
                     const id = typeof val === "string" ? val : (val as Subsidiary).id;
-                    setSelectedSucursalId(id)
-                  }} 
+                    setSelectedSucursalId(id ?? "")
+                  }}
                 />
               </div>
               <div className="w-full space-y-1.5 text-left">
@@ -164,18 +173,23 @@ function IngresosPage() {
                   <CalendarIcon className="h-3 w-3" /> Periodo
                 </label>
                 <div className="flex gap-2">
-                  <Input 
-                    type="date" 
-                    value={range.fromDate} 
-                    onChange={(e) => setRange(prev => ({...prev, fromDate: e.target.value}))} 
-                    className="h-9 text-xs border-slate-200" 
+                  <Input
+                    type="date"
+                    value={range.fromDate}
+                    onChange={(e) => setRange(prev => ({...prev, fromDate: e.target.value}))}
+                    className="h-9 text-xs border-slate-200"
                   />
-                  <Input 
-                    type="date" 
-                    value={range.toDate} 
-                    onChange={(e) => setRange(prev => ({...prev, toDate: e.target.value}))} 
-                    className="h-9 text-xs border-slate-200" 
+                  <Input
+                    type="date"
+                    value={range.toDate}
+                    onChange={(e) => setRange(prev => ({...prev, toDate: e.target.value}))}
+                    className="h-9 text-xs border-slate-200"
                   />
+                </div>
+                <div className="flex gap-1 mt-1.5">
+                  {([["today","Hoy"],["yesterday","Ayer"],["week","Semana"],["month","Mes"]] as const).map(([k,l]) => (
+                    <Button key={k} type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(k)}>{l}</Button>
+                  ))}
                 </div>
               </div>
             </CardContent>

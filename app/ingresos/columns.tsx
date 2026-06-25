@@ -44,6 +44,7 @@ export const columns: ColumnDef<NewIncome>[] = [
   {
     id: "fedex_income",
     header: "Ingreso FedEx",
+    accessorFn: (r) => parseCurrency(r.fedex?.totalIncome ?? 0), // numérico para ordenar
     cell: ({ row }) => (
       <div className="text-sm font-medium">
         {formatCurrency(parseCurrency(row.original.fedex?.totalIncome ?? 0))}
@@ -70,6 +71,7 @@ export const columns: ColumnDef<NewIncome>[] = [
   {
     id: "dhl_income",
     header: "Ingreso DHL",
+    accessorFn: (r) => parseCurrency(r.dhl?.totalIncome ?? 0), // numérico para ordenar
     cell: ({ row }) => (
       <div className="text-sm font-medium">
         {formatCurrency(parseCurrency(row.original.dhl?.totalIncome ?? 0))}
@@ -100,8 +102,9 @@ export const columns: ColumnDef<NewIncome>[] = [
     cell: ({ row }) => <div className="text-center font-bold">{row.original.total}</div>
   },
   {
-    accessorKey: "totalIncome",
+    id: "totalIncome",
     header: "Ingreso Total",
+    accessorFn: (r) => parseCurrency(r.totalIncome ?? 0), // numérico (antes ordenaba como texto)
     cell: ({ row }) => (
       <div className="flex items-center gap-1 font-extrabold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md">
         <DollarSign className="h-3 w-3" />

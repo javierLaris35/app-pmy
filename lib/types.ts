@@ -27,6 +27,13 @@ export type Subsidiary = {
   forceFedexStatusOverride?: boolean
   /** Ordenar las salidas a ruta por código postal (escaneo/PDF/Excel). */
   sortDispatchByPostalCode?: boolean
+  // Reglas de ingreso por sucursal.
+  chargeDex03?: boolean
+  chargeDex07?: boolean
+  chargeDex08?: boolean
+  chargeDelivered?: boolean
+  generateDhlIncomeOnDelivery?: boolean
+  countTransfersAsIncome?: boolean
 }
 
 export type Zone = {

@@ -58,12 +58,19 @@ export function SucursalSelector({
 
   const defaultAppliedRef = useRef(false)
 
-  // 🚀 Filtrar las sucursales usando la versión normalizada
+  // 🚀 Filtrar las sucursales usando la versión normalizada.
+  // SCOPING: los roles no-elevados solo ven SU sucursal (espejo del backend);
+  // los elevados (admin/subadmin/superadmin/owner) ven todas.
   const filteredSubsidiaries = useMemo(() => {
-    return onlyWarehouses
-      ? subsidiaries.filter((s) => s.isWarehouse)
-      : subsidiaries
-  }, [subsidiaries, onlyWarehouses])
+    let list = onlyWarehouses ? subsidiaries.filter((s) => s.isWarehouse) : subsidiaries
+    const role = String(user?.role || "").toLowerCase()
+    const isGlobal = ["admin", "subadmin", "superadmin", "superamin", "owner"].includes(role)
+    const ownId = user?.subsidiary?.id
+    if (!isGlobal && ownId) {
+      list = list.filter((s) => s.id === ownId)
+    }
+    return list
+  }, [subsidiaries, onlyWarehouses, user])
 
   // 🧠 Memorizar selección basada en value
   useEffect(() => {
@@ -101,10 +108,10 @@ export function SucursalSelector({
           updated = [...selectedSucursales, sucursal]
         }
         setSelectedSucursales(updated)
-        onValueChange(returnObject ? updated : updated.map((s) => s.id))
+        onValueChange(returnObject ? updated : updated.map((s) => s.id ?? ""))
       } else {
         setSelectedSucursales([sucursal])
-        onValueChange(returnObject ? sucursal : sucursal.id)
+        onValueChange(returnObject ? sucursal : (sucursal.id ?? ""))
         setOpen(false)
       }
     },

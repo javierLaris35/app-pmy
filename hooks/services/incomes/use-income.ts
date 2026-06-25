@@ -1,58 +1,18 @@
-import { RouteIncome, FinancialSummary, NewIncome, IncomesResponse } from '@/lib/types';
-import { getIncomes, getIncomeByMonth, getIncomeByMonthAndSucursal, getFinantialResume } from '@/lib/services/incomes';
+import { FinancialSummary, IncomesResponse } from '@/lib/types';
+import { getIncomeByMonthAndSucursal, getFinantialResume } from '@/lib/services/incomes';
 import useSWR from 'swr';
-
-type DateRange = {
-  from: Date;
-  to: Date;
-};
-
-export function useIncomes(subsidiaryId: string, dateRange?: DateRange) {
-  const isValidRange = subsidiaryId && dateRange?.from && dateRange?.to;
-
-  const { data, error, isLoading, mutate } = useSWR<RouteIncome[]>(
-    isValidRange
-      ? [`/incomes/`, subsidiaryId, dateRange.from.toISOString(), dateRange.to.toISOString()]
-      : null,
-    ([, id, from, to]: [string, string, string, string]) => getIncomes(id, from, to)
-  );
-
-  return {
-    incomes: data ?? [],
-    isLoading,
-    isError: !!error,
-    mutate,
-  };
-}
-
-export function useIncomesByMonth(firstDay: string, lastDay: string) {
-  const isValid = firstDay && lastDay;
-
-  const { data, error, isLoading, mutate } = useSWR<RouteIncome[]>(
-    isValid
-      ? [`/incomes/month/`, firstDay, lastDay]
-      : null,
-    ([, from, to]: [string, string, string]) => getIncomeByMonth(from, to)
-  );
-
-  return {
-    incomes: data ?? [],
-    isLoading,
-    isError: !!error,
-    mutate,
-  };
-}
 
 export function useIncomesByMonthAndSucursal(subsidiaryId: string, fromDate: string, toDate: string) {
   const isValid = Boolean(subsidiaryId && fromDate && toDate);
 
   const { data, error, isLoading, mutate } = useSWR<IncomesResponse>(
     isValid ? [`/incomes/bySucursal`, subsidiaryId, fromDate, toDate] : null,
-    ([, subsidiaryId, fromDate, toDate]) => getIncomeByMonthAndSucursal(subsidiaryId, fromDate, toDate)
+    ([, subsidiaryId, fromDate, toDate]: [string, string, string, string]) =>
+      getIncomeByMonthAndSucursal(subsidiaryId, fromDate, toDate)
   );
 
   return {
-    data, // Devolvemos 'data' directamente para que el componente lo use
+    data,
     isLoading,
     isError: !!error,
     mutate,
@@ -64,9 +24,9 @@ export function useFinancialSummary(subsidiaryId: string, firstDay: string, last
 
   const { data, error, isLoading, mutate } = useSWR<FinancialSummary>(
     isValid
-      ? [`/incomes/finantial`, subsidiaryId, firstDay, lastDay ]
+      ? [`/incomes/finantial`, subsidiaryId, firstDay, lastDay]
       : null,
-    ([, subsidiaryId, from, to] : [string, string, string, string]) => getFinantialResume(subsidiaryId, from, to)
+    ([, subsidiaryId, from, to]: [string, string, string, string]) => getFinantialResume(subsidiaryId, from, to)
   );
 
   return {
