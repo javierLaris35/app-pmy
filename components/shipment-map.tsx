@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
+import { axiosConfig } from "@/lib/axios-config"
 
 interface Shipment {
   trackingNumber: string
@@ -43,17 +44,21 @@ export default function ShipmentMap({ shipments }: ShipmentMapProps) {
     const fetchLocations = async () => {
       const results = await Promise.all(
         shipments.map(async (shipment) => {
-          const query = `${shipment.recipientAddress}, ${shipment.recipientCity}, ${shipment.recipientZip}`
-          const url = `/api/geocode?q=${encodeURIComponent(query)}`
-
           try {
-            const res = await fetch(url)
-            const data = await res.json()
-            if (data.length > 0) {
-              return { lat: data[0].lat, lon: data[0].lon, shipment }
-            } else {
-              return { unfound: true, shipment }
+            // Geocode vía backend NestJS (caché aprendido en BD). La API route de
+            // Next se eliminó por incompatibilidad con `output: export`.
+            const res = await axiosConfig.get("geocode", {
+              params: {
+                address: shipment.recipientAddress,
+                city: shipment.recipientCity,
+                zip: shipment.recipientZip,
+              },
+            })
+            const data = res.data
+            if (Array.isArray(data) && data.length > 0) {
+              return { lat: Number(data[0].lat), lon: Number(data[0].lon), shipment }
             }
+            return { unfound: true, shipment }
           } catch (error) {
             console.error("Error fetching location:", error)
             return { unfound: true, shipment }
