@@ -1,14 +1,16 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarRail,
-  SidebarTriggerChevron,
-  useSidebar,
 } from "@/components/ui/sidebar"
 
 import { NavUser } from "./nav-user"
@@ -17,61 +19,54 @@ import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
 import { User } from "@/lib/types"
 import { useFilteredMenu } from "@/hooks/use-filtered-menu"
-import { cn } from "@/lib/utils"
+import { Route as RouteIcon } from "lucide-react"
+
+/** Versión de la app (sube con cambios menores/medianos/mayores). */
+const APP_VERSION = "v2.0.0"
+
+/** Accesos visibles SOLO en desarrollo (herramientas experimentales). */
+const IS_DEV = process.env.NODE_ENV === "development"
+const DEV_ITEMS = [{ title: "Optimizador Rutas", url: "/dev/route-optimizer", icon: RouteIcon }]
 
 export function AppSidebar({ user, ...props }: { user: User }) {
   const sidebarMenu: any = useFilteredMenu()
-  const { state } = useSidebar()
-  const isExpanded = state === "expanded"
+  const secondaryItems = IS_DEV
+    ? [...(sidebarMenu.secondary ?? []), ...DEV_ITEMS]
+    : sidebarMenu.secondary
 
   return (
-    <Sidebar 
-      collapsible="icon" 
-      className="border-r border-sidebar-border bg-sidebar-background transition-all duration-300" 
+    <Sidebar
+      variant="inset"
+      collapsible="icon"
+      className="transition-all duration-300"
       {...props}
     >
-      <SidebarHeader className={cn(
-        "flex flex-col items-center justify-center transition-all duration-300",
-        isExpanded ? "h-32 px-2" : "h-20 px-0" // Reducimos px-4 a px-2 para ganar ancho
-      )}>
-        {isExpanded ? (
-          <div className="w-full h-full flex items-center justify-center overflow-visible p-1">
-            <Image 
-              src="/logo-no-fondo.png" 
-              alt="Logo Del Yaqui" 
-              width={260} // Aumentamos el ancho base
-              height={120} 
-              className="w-full h-auto max-h-[110px] object-scale-down filter drop-shadow-sm" 
-              // Cambiamos object-contain por object-scale-down y subimos la altura máxima
-              priority 
-            />
-          </div>
-        ) : (
-          <div className="flex size-12 items-center justify-center rounded-xl overflow-hidden p-1">
-            {/* En pequeño, le damos un poco más de tamaño (size-12) */}
-            <Image 
-              src="/pmy_logo.png" 
-              alt="Logo" 
-              width={40} 
-              height={40} 
-              className="object-contain scale-125" // Escalamos un poco para que se vea más
-            />
-          </div>
-        )}
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            {/* Marca tipo "team switcher" de shadcn, sin flechas. Clic → dashboard. */}
+            <SidebarMenuButton asChild size="lg" className="h-16 gap-2.5 group-data-[collapsible=icon]:!h-8">
+              <Link href="/dashboard">
+                <div className="flex aspect-square size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary/10 group-data-[collapsible=icon]:size-8">
+                  <Image src="/logo-app.png" alt="PMY App" width={56} height={56} className="size-full object-contain" />
+                </div>
+                <div className="grid min-w-0 flex-1 text-left leading-tight">
+                  <span className="truncate text-sm font-semibold">PMY App</span>
+                  <span className="truncate text-xs text-muted-foreground">{APP_VERSION}</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="px-1.5 scrollbar-none">
+      <SidebarContent className="px-1 scrollbar-none">
         <NavMenu items={sidebarMenu.items} />
-        <NavSecondary items={sidebarMenu.secondary} className="mt-auto pb-4" />
+        <NavSecondary items={secondaryItems} className="mt-auto px-1 pb-4 group-data-[collapsible=icon]:px-0" />
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border/50 p-2">
-        <div className="flex items-center justify-between gap-1">
-          <NavUser user={user} />
-          {isExpanded && (
-            <SidebarTriggerChevron className="h-8 w-8 text-sidebar-foreground/40 hover:text-sidebar-primary transition-colors" />
-          )}
-        </div>
+      <SidebarFooter className="p-2">
+        <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

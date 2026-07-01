@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AppLayout } from "@/components/app-layout"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
@@ -185,19 +186,17 @@ export default function UnLoadingPageControl() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/** HEADER */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Control de Desembarque de Paquetes</h2>
-            <p className="text-muted-foreground">Gestiona los desembarques de paquetes.</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="w-[250px]">
+        {/** HEADER único */}
+        <OperationHeader
+          icon={PackageCheckIcon}
+          title="Desembarques"
+          description="Gestiona los desembarques de paquetes."
+          actions={
+            <div className="w-full sm:w-[250px]">
               <SucursalSelector
                 value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
                 returnObject={true}
                 onValueChange={(val) => {
-                  console.log("[UnloadingPage] SucursalSelector onValueChange ->", val)
                   if (typeof val === "string") {
                     handleSucursalChange(val)
                   } else if (Array.isArray(val)) {
@@ -209,8 +208,8 @@ export default function UnLoadingPageControl() {
                 }}
               />
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {/* Main Action Button */}
         <div className="flex justify-end">
@@ -257,8 +256,9 @@ export default function UnLoadingPageControl() {
                 <p className="text-muted-foreground">Cargando desembarques...</p>
               </div>
             ) : isError ? (
-              <div className="flex h-[200px] items-center justify-center">
-                <p className="text-muted-foreground text-red-600">Error al cargar los desembarques</p>
+              <div className="flex h-[200px] flex-col items-center justify-center gap-3">
+                <p className="text-sm text-red-600">No se pudieron cargar los desembarques.</p>
+                <Button variant="outline" size="sm" onClick={() => mutate()}>Reintentar</Button>
               </div>
             ) : (
               <DataTable

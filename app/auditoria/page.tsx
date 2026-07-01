@@ -5,15 +5,17 @@ import type { ColumnDef, PaginationState, Row } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { saveAs } from "file-saver";
 import {
-  Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap,
+  Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap, Truck,
 } from "lucide-react";
 import { runDevTracking } from "@/lib/services/shipments";
+import { runDhlSyncCron } from "@/lib/services/dhl-tracking";
 import { EventDetailDialog } from "@/components/auditoria/event-detail-dialog";
 import { UsersPanel } from "@/components/auditoria/users-panel";
 import { SubsidiariesPanel } from "@/components/auditoria/subsidiaries-panel";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid } from "recharts";
 
 import { AppLayout } from "@/components/app-layout";
+import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -112,6 +114,7 @@ function AuditoriaPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 25 });
   const [exporting, setExporting] = useState(false);
   const [devRunning, setDevRunning] = useState(false);
+  const [dhlRunning, setDhlRunning] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
 
   // 🔧 DEV: dispara el tracking de FedEx on-demand (prueba rápida de 60 guías).
@@ -129,6 +132,21 @@ function AuditoriaPage() {
       toast.error(e?.response?.data?.message || "No se pudo ejecutar el tracking");
     } finally {
       setDevRunning(false);
+    }
+  };
+
+  const handleDhlTracking = async () => {
+    try {
+      setDhlRunning(true);
+      await runDhlSyncCron();
+      toast.success(
+        "Tracking DHL iniciado en segundo plano. El avance sale en los logs; el uso se actualiza en unos minutos.",
+        { duration: 8000 },
+      );
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo ejecutar el tracking de DHL");
+    } finally {
+      setDhlRunning(false);
     }
   };
 
@@ -228,39 +246,35 @@ function AuditoriaPage() {
   return (
     <AppLayout>
       <div className="space-y-5">
-        {/* Header */}
-        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 p-5 sm:p-6 text-white shadow-lg">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/20 backdrop-blur"><ShieldAlert className="h-6 w-6" /></div>
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Auditoría</h2>
-                <p className="text-sm text-white/80">Historial de actividad del sistema · solo superadmin</p>
-              </div>
-            </div>
+        {/* Header único */}
+        <OperationHeader
+          icon={ShieldAlert}
+          title="Auditoría"
+          description="Historial de actividad del sistema · solo superadmin"
+          actions={
             <div className="flex flex-wrap items-center gap-2">
-              <ToggleGroup type="single" value={range} onValueChange={onRangeChange} className="rounded-lg bg-white/15 p-0.5">
+              <ToggleGroup type="single" value={range} onValueChange={onRangeChange} className="rounded-lg border p-0.5">
                 {Object.keys(RANGES).map((k) => (
-                  <ToggleGroupItem key={k} value={k} className="h-8 px-3 text-xs text-white data-[state=on]:bg-white data-[state=on]:text-indigo-700">
+                  <ToggleGroupItem key={k} value={k} className="h-8 px-3 text-xs">
                     {k === "hoy" ? "Hoy" : k}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <Button size="sm" variant="secondary" onClick={handleDevTracking} disabled={devRunning} title="Probar tracking FedEx (dev · 60 guías)" className="bg-white/20 text-white hover:bg-white/30 border-0">
-                {devRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">Tracking</span>
+              <Input type="date" value={dateFrom} onChange={(e) => { setRange(""); setDateFrom(e.target.value); }} className="h-9 w-[140px]" />
+              <Input type="date" value={dateTo} onChange={(e) => { setRange(""); setDateTo(e.target.value); }} className="h-9 w-[140px]" />
+              <Button size="sm" variant="outline" onClick={handleDevTracking} disabled={devRunning} title="Probar tracking FedEx (dev · 60 guías)">
+                {devRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">FedEx</span>
               </Button>
-              <Button size="sm" variant="secondary" onClick={refreshAll} className="bg-white/20 text-white hover:bg-white/30 border-0"><RefreshCw className="h-4 w-4" /></Button>
-              <Button size="sm" variant="secondary" onClick={handleExport} disabled={exporting} className="bg-white text-indigo-700 hover:bg-white/90">
+              <Button size="sm" variant="outline" onClick={handleDhlTracking} disabled={dhlRunning} title="Probar tracking DHL (WhereParcel)">
+                {dhlRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">DHL</span>
+              </Button>
+              <Button size="icon" variant="outline" className="h-9 w-9" onClick={refreshAll} aria-label="Actualizar"><RefreshCw className="h-4 w-4" /></Button>
+              <Button size="sm" onClick={handleExport} disabled={exporting}>
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">Excel</span>
               </Button>
             </div>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-xs text-white/80">
-            <Input type="date" value={dateFrom} onChange={(e) => { setRange(""); setDateFrom(e.target.value); }} className="h-8 w-[46%] sm:w-[150px] bg-white/90 text-foreground border-0" />
-            <span>→</span>
-            <Input type="date" value={dateTo} onChange={(e) => { setRange(""); setDateTo(e.target.value); }} className="h-8 w-[46%] sm:w-[150px] bg-white/90 text-foreground border-0" />
-          </div>
-        </div>
+          }
+        />
 
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

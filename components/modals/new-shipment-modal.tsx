@@ -9,6 +9,7 @@ import {
   DialogClose
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -45,12 +46,16 @@ export function NewShipmentDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="rounded-md">
-          <Package className="mr-2 h-4 w-4" />
-          Nuevo Envío
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="Nuevo envío">
+              <Package className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Nuevo envío</TooltipContent>
+      </Tooltip>
       <DialogContent className="sm:max-w-[540px] bg-white rounded-lg">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">📦 Crear Nuevo Envío</DialogTitle>

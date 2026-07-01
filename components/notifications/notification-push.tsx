@@ -19,6 +19,7 @@ const STYLE: Record<string, { icon: any; grad: string }> = {
   cierre_ruta: { icon: Truck, grad: "from-indigo-500 to-blue-500" },
   traslados: { icon: ArrowRightLeft, grad: "from-blue-500 to-indigo-500" },
   bodega: { icon: Warehouse, grad: "from-teal-500 to-emerald-500" },
+  dhl: { icon: Truck, grad: "from-yellow-500 to-amber-600" },
   auth: { icon: LogIn, grad: "from-violet-500 to-indigo-500" },
   default: { icon: Activity, grad: "from-slate-500 to-slate-600" },
 };

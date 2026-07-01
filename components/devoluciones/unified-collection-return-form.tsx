@@ -325,16 +325,22 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   }
 
   const handleSendEmail = async () => {
-    //CREAMOS el PDF
-    const blob= await pdf(<EnhancedFedExPDF 
+    // CREAMOS el PDF
+    const blob = await pdf(<EnhancedFedExPDF
       key={Date.now()}
       collections={collections}
       devolutions={devolutions}
       subsidiaryName={subsidiaryName}
       />).toBlob()
 
-    const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-    window.open(blobUrl, '_blank');
+    // Abrir el PDF en una pestaña aparte (sin bloquear si el navegador lo impide).
+    // Revocamos el object URL para no fugar memoria en envíos repetidos.
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    if (!win) {
+      toast("Permite las ventanas emergentes para ver el PDF; de todos modos se enviará por correo.");
+    }
 
     const currentDate = new Date().toLocaleDateString("es-ES", {
         day: "2-digit",
@@ -342,14 +348,19 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         year: "numeric",
     });
 
-    const fileName = `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`;
+    const driverName = (selectedDrivers[0]?.name ?? "CHOFER").toUpperCase();
+    const fileName = `${driverName}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.pdf`;
     const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
-    const excelBuffer = await generateFedExExcel(collections, devolutions, subsidiaryName, false)
+    // OJO: la firma es (collections, devolutions, subsidiaryName, charges, forDownload).
+    // El 4º arg es `charges`; el flag de descarga es el 5º. Antes se pasaba `false`
+    // en la posición de `charges`, por lo que forDownload quedaba en true y forzaba
+    // una descarga extra del Excel al mandar el correo.
+    const excelBuffer = await generateFedExExcel(collections, devolutions, subsidiaryName, [], false)
     const excelBlob = new Blob([excelBuffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    const excelFileName = `${selectedDrivers[0]?.name.toUpperCase()}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.xlsx`;
+    const excelFileName = `${driverName}--${subsidiaryName}--Devoluciones--${currentDate.replace(/\//g, "-")}.xlsx`;
     const excelFile = new File([excelBlob], excelFileName, {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
@@ -385,9 +396,16 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
       toast(`Se guardaron ${collections.length} recolecciones y ${devolutions.length} devoluciones.`)
 
-      // Generate PDF after successful save
-      await handleSendEmail()
-      
+      // La generación de archivos y el envío de correo se hacen DESPUÉS del guardado
+      // y en su propio try/catch: si fallan, los datos ya quedaron a salvo, el spinner
+      // se libera y mostramos un mensaje específico (no un falso "error al guardar").
+      try {
+        await handleSendEmail()
+      } catch (genError) {
+        console.error("Error generando/enviando archivos:", genError)
+        toast("Los datos se guardaron, pero falló la generación o el envío de los archivos. Puedes reintentar el envío.")
+      }
+
       // Reset form
       setCollections([])
       setDevolutions([])

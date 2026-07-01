@@ -5,6 +5,22 @@ import { ParsedDhlShipment } from '@/components/import-components/import-dhl-tex
 
 const url = '/shipments'
 
+/**
+ * Extrae el mensaje REAL del backend de un error de axios (BusinessException,
+ * filtro global, validaciones de Nest). Así cualquier error de la carga llega
+ * legible al frontend para atenderlo rápido.
+ */
+export function extractUploadError(error: any, fallback = "Error al procesar el archivo."): string {
+  const d = error?.response?.data;
+  const raw =
+    d?.response?.message ?? // Nest a veces anida en data.response.message
+    d?.apiMessage ??
+    d?.message ??
+    error?.message;
+  if (Array.isArray(raw)) return raw.join("\n");
+  return (typeof raw === "string" && raw.trim()) ? raw : fallback;
+}
+
 //GET
   const getShipments = async (url: string) => { 
       const response = await axiosConfig.get<Shipment[]>(url);
@@ -114,6 +130,41 @@ const url = '/shipments'
     }
   }
   
+  export interface UploadPreview {
+    fileName: string
+    parseError: string | null
+    totalRows: number
+    withTracking: number
+    emptyTracking: number
+    duplicatesInFile: number
+    alreadyImportedCount: number
+    alreadyImported: { trackingNumber: string; consNumber: string | null; date: string | null }[]
+    newCount: number
+    consNumberExists: { id: string; consNumber: string; type: string; date: string | null; numberOfPackages: number; subsidiary: string | null } | null
+  }
+
+  /** Pre-valida un archivo SIN guardar: duplicados de guías + consNumber existente. */
+  export async function previewShipmentFile(
+    file: File,
+    subsidiaryId: string,
+    consNumber: string = "",
+    carrier: string = "fedex",
+  ): Promise<UploadPreview> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('subsidiaryId', subsidiaryId)
+    formData.append('consNumber', consNumber)
+    formData.append('carrier', carrier)
+    try {
+      const response = await axiosConfig.post<UploadPreview>('/shipments/upload/preview', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(extractUploadError(error, "Error al validar el archivo."))
+    }
+  }
+
   export async function uploadHighValueShipments(file: File,
     subsidiaryId: string,
     consNumber: string = "",
@@ -130,20 +181,17 @@ const url = '/shipments'
       formData.append("consDate", consDate)
     }
 
-    const response = await axiosConfig.post("/shipments/upload-hv", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          console.log("Progreso:", percent)
-          onProgress(percent)
-        }
-      },
-    })
-
-    return response.data
+    try {
+      const response = await axiosConfig.post("/shipments/upload-hv", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
+        },
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(extractUploadError(error, "Error al subir High Value."))
+    }
   }
 
   export async function uploadF2ChargeShipments(
@@ -165,43 +213,39 @@ const url = '/shipments'
       formData.append("consDate", consDate)
     }
 
-    const response = await axiosConfig.post("/shipments/upload-charge", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          console.log("Progreso:", percent)
-          onProgress(percent)
-        }
-      },
-    })
-
-    return response.data
+    try {
+      const response = await axiosConfig.post("/shipments/upload-charge", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
+        },
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(extractUploadError(error, "Error al subir F2 / cargos."))
+    }
   }
 
   export async function uploadShipmentPayments(
-    file: File,
+    file?: File,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData()
-    formData.append("file", file)
+    if (file) formData.append("file", file)
 
-    const response = await axiosConfig.post("/shipments/upload-payment", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          console.log("Progreso:", percent)
-          onProgress(percent)
-        }
-      },
-    })
-
-    return response.data
+    try {
+      const response = await axiosConfig.post("/shipments/upload-payment", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
+        },
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(extractUploadError(error, "Error al aplicar cobros."))
+    }
   }
 
   export const uploadShipmentFileDhl = async (

@@ -6,6 +6,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { LoaderWithOverlay } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
+import { OperationHeader } from "@/components/shared/operation-header";
 import { Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
@@ -77,64 +78,52 @@ function ConsolidatedWithKpis() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          {/* Izquierda: Título y subtítulo */}
-          <div className="flex flex-col">
-            <h2 className="text-2xl font-bold tracking-tight">Consolidados</h2>
-            <p className="text-muted-foreground">Resumen de consolidaciones por sucursal</p>
-          </div>
-
-          {/* Derecha: Filtros y botón */}
-          <div className="flex items-center gap-4 ml-auto flex-wrap">
-            <div className="pt-6">
-              <Label className="invisible">Actualizar</Label>
+        <OperationHeader
+          icon={Layers3}
+          title="Consolidados"
+          description="Resumen de consolidaciones por sucursal"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="secondary"
-                    size="sm"
-                    className="bg-green-500 h-9"
+                    size="icon"
+                    className="h-9 w-9 rounded-full bg-emerald-500 text-white hover:bg-emerald-600"
                     onClick={handleUpdateFedexStatus}
+                    aria-label="Actualizar estatus de FedEx"
                   >
                     <RefreshCcwIcon className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  Actualizar estatus de FedEx
-                </TooltipContent>
+                <TooltipContent>Actualizar estatus de FedEx</TooltipContent>
               </Tooltip>
-            </div>
 
-            <div>
-              <Label htmlFor="sucursal">Sucursal</Label>
-              <SucursalSelector
-                value={selectedSucursalId}
-                onValueChange={setSelectedSucursalId}
-              />
-            </div>
+              <div className="w-[190px]">
+                <SucursalSelector
+                  value={selectedSucursalId}
+                  onValueChange={setSelectedSucursalId}
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="fromDate">Desde</Label>
               <Input
                 id="fromDate"
                 type="date"
+                className="h-9 w-[150px]"
                 value={dateRange.from}
                 onChange={(e) => handleDateChange('from', e.target.value)}
               />
-            </div>
-
-            <div>
-              <Label htmlFor="toDate">Hasta</Label>
               <Input
                 id="toDate"
                 type="date"
+                className="h-9 w-[150px]"
                 value={dateRange.to}
                 onChange={(e) => handleDateChange('to', e.target.value)}
                 min={dateRange.from}
               />
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {/* KPIs estilo moderno */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

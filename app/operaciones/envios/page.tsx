@@ -9,7 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Eye, FileText, Upload } from "lucide-react"
+import { Eye, FileText, Upload, Send } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { columns } from "./columns"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
 import { Shipment, UserRoleEnum } from "@/lib/types"
@@ -114,66 +116,58 @@ function ShipmentsPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header + acciones */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {/* Título y subtítulo */}
-          <div>
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-64" />
-                <Skeleton className="h-5 w-80" />
-              </div>
-            ) : (
-              <>
-                <h2 className="text-2xl font-bold tracking-tight">Envios</h2>
-                <p className="text-muted-foreground">
-                  Administra las paquetes a enviar de las diferentes empresas (Fedex & DHL)
-                </p>
-              </>
-            )}
-          </div>
+        {/* Header único + acciones */}
+        <OperationHeader
+          icon={Send}
+          title="Envíos"
+          description="Administra los paquetes a enviar de las diferentes empresas (FedEx & DHL)"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {(user?.role === UserRoleEnum.ADMIN || user?.role === UserRoleEnum.SUPERADMIN) && (
+                <div className="w-full sm:w-[220px]">
+                  <SucursalSelector
+                    value={effectiveSubsidiaryId}
+                    onValueChange={setSelectedSubsidiaryId}
+                  />
+                </div>
+              )}
 
-          {/* Botones y selector de sucursal */}
-          <div className="flex flex-col sm:flex-row gap-2 items-center">
-            {(user?.role === UserRoleEnum.ADMIN || user?.role === UserRoleEnum.SUPERADMIN) && (
-              <div>
-                <SucursalSelector
-                  value={effectiveSubsidiaryId}
-                  onValueChange={setSelectedSubsidiaryId}
-                />
-              </div>
-            )}
+              <NewShipmentDialog />
 
-            <NewShipmentDialog />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="outline" onClick={() => setIsUploadModalOpen(true)} aria-label="Importar FedEx">
+                    <Upload className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Importar FedEx</TooltipContent>
+              </Tooltip>
 
-            <Button onClick={() => setIsUploadModalOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              Importar Envíos Fedex
-            </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="outline" onClick={() => setIsDhlTextModalOpen(true)} aria-label="Importar DHL">
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Importar DHL</TooltipContent>
+              </Tooltip>
+            </div>
+          }
+        />
 
-            {/* Nuevo botón para pegar texto e iniciar el Wizard */}
-            <Button onClick={() => setIsDhlTextModalOpen(true)}>
-              <FileText className="h-4 w-4 mr-2" />
-              Importar Envíos DHL
-            </Button>
-
-            <ShipmentWizardModal
-              open={isUploadModalOpen}
-              onOpenChange={setIsUploadModalOpen}
-              onUploadSuccess={handleUploadSuccess}
-            />
-
-            {/* Renderizado del nuevo modal Wizard */}
-            <ImportDhlTextModal
-              isOpen={isDhlTextModalOpen}
-              onOpenChange={setIsDhlTextModalOpen}
-              onProcessText={handleProcessDhlText} 
-              onFinalSave={handleFinalSaveDhl}     
-              defaultSubsidiaryId={effectiveSubsidiaryId || ""}
-            />
-
-          </div>
-        </div>
+        {/* Modales (se renderizan en portal; van fuera del header) */}
+        <ShipmentWizardModal
+          open={isUploadModalOpen}
+          onOpenChange={setIsUploadModalOpen}
+          onUploadSuccess={handleUploadSuccess}
+        />
+        <ImportDhlTextModal
+          isOpen={isDhlTextModalOpen}
+          onOpenChange={setIsDhlTextModalOpen}
+          onProcessText={handleProcessDhlText}
+          onFinalSave={handleFinalSaveDhl}
+          defaultSubsidiaryId={effectiveSubsidiaryId || ""}
+        />
 
         {/* KPI's */}
         {isLoading ? (

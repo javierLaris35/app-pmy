@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Send, Package, Truck, Eye, Sheet, Lock } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
 import PackageDispatchForm from "./package-dispatch-form"
@@ -198,22 +199,16 @@ const updatedColumns = columns.map((col) =>
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Control de Salidas de Paquetes</h2>
-            <p className="text-muted-foreground">Gestiona las salidas de paquetes con repartidores, rutas y unidades</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="w-[250px]">
-              {/*<SucursalSelector
-                value={selectedSucursalId ?? ""}
-                onValueChange={(id, name) => handleSucursalChange(id, name)}
-              />*/}
+        <OperationHeader
+          icon={Truck}
+          title="Salidas a Ruta"
+          description="Gestiona las salidas de paquetes con repartidores, rutas y unidades"
+          actions={
+            <div className="w-full sm:w-[250px]">
               <SucursalSelector
                 value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
                 returnObject={true}
                 onValueChange={(val) => {
-                  console.log("[PackageDispatch] SucursalSelector onValueChange ->", val)
                   if (typeof val === "string") {
                     handleSucursalChange(val)
                   } else if (Array.isArray(val)) {
@@ -225,8 +220,8 @@ const updatedColumns = columns.map((col) =>
                 }}
               />
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

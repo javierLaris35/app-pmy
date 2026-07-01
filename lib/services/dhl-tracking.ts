@@ -1,6 +1,7 @@
 import { axiosConfig } from "../axios-config";
 
-export interface SeventeenTrackQuota {
+/** Uso del plan WhereParcel (total/usado/restante del mes + llamadas de hoy). */
+export interface WhereParcelUsage {
   total: number;
   used: number;
   remaining: number;
@@ -16,16 +17,39 @@ export interface DhlSyncSummary {
   quotaCap: number;
   quotaUsedAfter: number;
   durationMin: number;
+  /** true si se omitió porque ya había un ciclo DHL en curso. */
+  skipped?: boolean;
 }
 
-/** Quota actual de la cuenta 17TRACK (total/usada/restante). */
-export async function getSeventeenTrackQuota(): Promise<SeventeenTrackQuota> {
+/** Uso actual del plan WhereParcel (total/usado/restante). */
+export async function getWhereParcelUsage(): Promise<WhereParcelUsage> {
   const { data } = await axiosConfig.get("/shipments/dhl/quota");
   return data;
 }
 
-/** Dispara el ciclo de tracking DHL (reciclaje de quota) on-demand. Solo superadmin. */
-export async function runDhlSyncCron(): Promise<DhlSyncSummary> {
+/** Respuesta del disparo manual: corre en segundo plano y responde de inmediato. */
+export interface DhlSyncStarted {
+  success: boolean;
+  started?: boolean;
+  background?: boolean;
+}
+
+/** Dispara el ciclo de tracking DHL (WhereParcel) on-demand (en 2º plano). Solo superadmin. */
+export async function runDhlSyncCron(): Promise<DhlSyncStarted> {
   const { data } = await axiosConfig.post("/shipments/dhl/sync-cron", {});
+  return data;
+}
+
+export interface DhlWebhookSetup {
+  success: boolean;
+  started?: boolean;
+  endpointId?: string | null;
+  callbackUrl?: string | null;
+  note?: string;
+}
+
+/** Registra a webhooks las guías DHL pendientes (en 2º plano). Devuelve la URL de callback. Solo superadmin. */
+export async function setupDhlWebhooks(): Promise<DhlWebhookSetup> {
+  const { data } = await axiosConfig.post("/shipments/dhl/webhooks/setup", {});
   return data;
 }

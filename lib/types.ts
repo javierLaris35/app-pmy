@@ -20,6 +20,10 @@ export type Subsidiary = {
   createdBy?: string;
   zoneId?: string | null
   zone?: Zone | null
+  // Geolocalización para el mapa del dashboard.
+  state?: string
+  latitude?: number | null
+  longitude?: number | null
   // Config operativa por sucursal (antes hardcodeada en el backend)
   monitorFedexCode67?: boolean
   monitorFedexCode44?: boolean
@@ -342,6 +346,10 @@ export interface Consolidated {
 export interface SubsidiaryMetrics {
   subsidiaryId: string;
   subsidiaryName: string;
+  /** Geolocalización (desde la BD) para el mapa del dashboard. */
+  state?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   totalPackages: number;
   deliveredPackages: number;
   undeliveredPackages: number;

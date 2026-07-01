@@ -1,462 +1,105 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState } from "react"
+import "leaflet/dist/leaflet.css"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Building2, TrendingUp, Package } from "lucide-react"
+import { MapPin } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { SubsidiaryMetrics } from "@/lib/types"
 
 interface InteractiveMapProps {
   branches: SubsidiaryMetrics[]
+  /** Si es false, oculta ingresos/utilidad en el panel (deja operativo + gastos). */
+  canSeeRevenue?: boolean
 }
 
-// Datos extendidos (locales)
-const branchData = [
-    {
-      id: "huatabampo",
-      name: "Huatabampo",
-      revenue: 450000,
-      orders: 2100,
-      efficiency: 94.2,
-      lat: 26.7897,
-      lng: -109.6456,
-      expenses: 320000,
-      profit: 130000,
-      activeShipments: 145,
-      completedToday: 89,
-      state: "Sonora",
-      address: "Av. Álvaro Obregón 123, Centro",
-      phone: "+52 644 426 1234",
-      manager: "Carlos Mendoza",
-      operatingHours: "8:00 AM - 6:00 PM",
-      vehicles: 12,
-      drivers: 15,
-      avgDeliveryTime: 2.1,
-      customerSatisfaction: 4.7,
-    },
-    {
-      id: "hermosillo",
-      name: "Hermosillo",
-      revenue: 850000,
-      orders: 4200,
-      efficiency: 96.8,
-      lat: 29.0729,
-      lng: -110.9559,
-      expenses: 580000,
-      profit: 270000,
-      activeShipments: 287,
-      completedToday: 156,
-      state: "Sonora",
-      address: "Blvd. Luis Encinas 456, Col. San Benito",
-      phone: "+52 662 213 5678",
-      manager: "Ana García",
-      operatingHours: "7:00 AM - 7:00 PM",
-      vehicles: 25,
-      drivers: 32,
-      avgDeliveryTime: 1.8,
-      customerSatisfaction: 4.9,
-    },
-    {
-      id: "constitucion",
-      name: "Constitucion",
-      revenue: 320000,
-      orders: 1800,
-      efficiency: 92.1,
-      lat: 25.0321,
-      lng: -111.6626,
-      expenses: 240000,
-      profit: 80000,
-      activeShipments: 98,
-      completedToday: 67,
-      state: "Baja California Sur",
-      address: "Calle Hidalgo 789, Centro",
-      phone: "+52 613 132 9012",
-      manager: "Roberto Silva",
-      operatingHours: "8:00 AM - 5:00 PM",
-      vehicles: 8,
-      drivers: 10,
-      avgDeliveryTime: 2.5,
-      customerSatisfaction: 4.5,
-    },
-    {
-      id: "loreto",
-      name: "Loreto",
-      revenue: 280000,
-      orders: 1400,
-      efficiency: 89.5,
-      lat: 26.0109,
-      lng: -111.3486,
-      expenses: 210000,
-      profit: 70000,
-      activeShipments: 76,
-      completedToday: 45,
-      state: "Baja California Sur",
-      address: "Av. Salvatierra 321, Centro Histórico",
-      phone: "+52 613 135 3456",
-      manager: "María López",
-      operatingHours: "8:30 AM - 5:30 PM",
-      vehicles: 6,
-      drivers: 8,
-      avgDeliveryTime: 2.8,
-      customerSatisfaction: 4.3,
-    },
-    {
-      id: "cd-obregon",
-      name: "Cuidad Obregon",
-      revenue: 720000,
-      orders: 3600,
-      efficiency: 95.3,
-      lat: 27.4863,
-      lng: -109.9305,
-      expenses: 490000,
-      profit: 230000,
-      activeShipments: 234,
-      completedToday: 128,
-      state: "Sonora",
-      address: "Av. Norman Borlaug 654, Col. Benito Juárez",
-      phone: "+52 644 414 7890",
-      manager: "Luis Rodríguez",
-      operatingHours: "7:30 AM - 6:30 PM",
-      vehicles: 20,
-      drivers: 26,
-      avgDeliveryTime: 2.0,
-      customerSatisfaction: 4.8,
-    },
-    {
-      id: "cabo-san-lucas",
-      name: "Cabo San Lucas",
-      revenue: 680000,
-      orders: 2800,
-      efficiency: 97.2,
-      lat: 22.8905,
-      lng: -109.9167,
-      expenses: 450000,
-      profit: 230000,
-      activeShipments: 189,
-      completedToday: 112,
-      state: "Baja California Sur",
-      address: "Blvd. Marina 987, Marina",
-      phone: "+52 624 143 2345",
-      manager: "Patricia Morales",
-      operatingHours: "8:00 AM - 6:00 PM",
-      vehicles: 15,
-      drivers: 20,
-      avgDeliveryTime: 1.9,
-      customerSatisfaction: 4.9,
-    },
-    {
-      id: "guaymas",
-      name: "Guaymas",
-      revenue: 520000,
-      orders: 2600,
-      efficiency: 93.7,
-      lat: 27.9202,
-      lng: -110.9031,
-      expenses: 370000,
-      profit: 150000,
-      activeShipments: 167,
-      completedToday: 98,
-      state: "Sonora",
-      address: "Malecón Malpica 147, Centro",
-      phone: "+52 622 222 6789",
-      manager: "Fernando Castro",
-      operatingHours: "8:00 AM - 6:00 PM",
-      vehicles: 14,
-      drivers: 18,
-      avgDeliveryTime: 2.2,
-      customerSatisfaction: 4.6,
-    },
-    {
-      id: "navojoa",
-      name: "Navojoa",
-      revenue: 380000,
-      orders: 1900,
-      efficiency: 91.4,
-      lat: 27.0739,
-      lng: -109.4444,
-      expenses: 280000,
-      profit: 100000,
-      activeShipments: 123,
-      completedToday: 76,
-      state: "Sonora",
-      address: "Av. Pesqueira 258, Col. Centro",
-      phone: "+52 642 422 1357",
-      manager: "Sandra Jiménez",
-      operatingHours: "8:00 AM - 5:30 PM",
-      vehicles: 10,
-      drivers: 13,
-      avgDeliveryTime: 2.4,
-      customerSatisfaction: 4.4,
-    },
-    {
-      id: "puerto-penasco",
-      name: "Puerto Peñasco",
-      revenue: 420000,
-      orders: 2200,
-      efficiency: 88.9,
-      lat: 31.314,
-      lng: -113.5339,
-      expenses: 310000,
-      profit: 110000,
-      activeShipments: 134,
-      completedToday: 89,
-      state: "Sonora",
-      address: "Blvd. Benito Juárez 369, Las Conchas",
-      phone: "+52 638 383 4680",
-      manager: "Miguel Torres",
-      operatingHours: "8:30 AM - 5:30 PM",
-      vehicles: 11,
-      drivers: 14,
-      avgDeliveryTime: 2.6,
-      customerSatisfaction: 4.2,
-    },
-    {
-      id: "vicam",
-      name: "Vicam",
-      revenue: 210000,
-      orders: 1100,
-      efficiency: 90.2,
-      lat: 27.64354,
-      lng: -110.29351,
-      expenses: 150000,
-      profit: 60000,
-      activeShipments: 65,
-      completedToday: 38,
-      state: "Sonora",
-      address: "Carretera Internacional, Vicam",
-      phone: "+52 644 000 0001",
-      manager: "Encargado Local",
-      operatingHours: "8:00 AM - 5:00 PM",
-      vehicles: 5,
-      drivers: 6,
-      avgDeliveryTime: 2.7,
-      customerSatisfaction: 4.3,
-    },
-    {
-      id: "villa-juarez",
-      name: "Villa Juarez",
-      revenue: 240000,
-      orders: 1300,
-      efficiency: 91.5,
-      lat: 27.12851,
-      lng: -109.83921,
-      expenses: 170000,
-      profit: 70000,
-      activeShipments: 72,
-      completedToday: 44,
-      state: "Sonora",
-      address: "Centro, Villa Juárez",
-      phone: "+52 644 000 0002",
-      manager: "Encargado Local",
-      operatingHours: "8:00 AM - 5:30 PM",
-      vehicles: 6,
-      drivers: 7,
-      avgDeliveryTime: 2.5,
-      customerSatisfaction: 4.4,
-    },
-    {
-      id: "pueblo-yaqui",
-      name: "Pueblo Yaqui",
-      revenue: 260000,
-      orders: 1400,
-      efficiency: 92.3,
-      lat: 27.35521,
-      lng: -110.03444,
-      expenses: 180000,
-      profit: 80000,
-      activeShipments: 80,
-      completedToday: 50,
-      state: "Sonora",
-      address: "Centro, Pueblo Yaqui",
-      phone: "+52 644 000 0003",
-      manager: "Encargado Local",
-      operatingHours: "8:00 AM - 6:00 PM",
-      vehicles: 7,
-      drivers: 9,
-      avgDeliveryTime: 2.3,
-      customerSatisfaction: 4.5,
-    },
-    {
-      id: "alamos",
-      name: "Alamos",
-      revenue: 230000,
-      orders: 1200,
-      efficiency: 89.8,
-      lat: 27.02326,
-      lng: -108.9344,
-      expenses: 165000,
-      profit: 65000,
-      activeShipments: 70,
-      completedToday: 41,
-      state: "Sonora",
-      address: "Centro Histórico, Álamos",
-      phone: "+52 647 000 0004",
-      manager: "Encargado Local",
-      operatingHours: "8:30 AM - 5:30 PM",
-      vehicles: 5,
-      drivers: 6,
-      avgDeliveryTime: 2.9,
-      customerSatisfaction: 4.2,
-    },
-    {
-      id: "nogales",
-      name: "Nogales",
-      revenue: 600000,
-      orders: 3000,
-      efficiency: 94.1,
-      lat: 31.3086,
-      lng: -110.9422,
-      expenses: 420000,
-      profit: 180000,
-      activeShipments: 190,
-      completedToday: 120,
-      state: "Sonora",
-      address: "Av. Obregón, Nogales",
-      phone: "+52 631 000 0005",
-      manager: "Encargado Regional",
-      operatingHours: "7:30 AM - 7:00 PM",
-      vehicles: 18,
-      drivers: 22,
-      avgDeliveryTime: 2.0,
-      customerSatisfaction: 4.7,
-    },
-    {
-      id: "la-paz",
-      name: "La Paz",
-      revenue: 550000,
-      orders: 2700,
-      efficiency: 93.5,
-      lat: 24.1444,
-      lng: -110.3005,
-      expenses: 390000,
-      profit: 160000,
-      activeShipments: 175,
-      completedToday: 102,
-      state: "Baja California Sur",
-      address: "Malecón, La Paz",
-      phone: "+52 612 000 0006",
-      manager: "Encargado Regional",
-      operatingHours: "8:00 AM - 6:00 PM",
-      vehicles: 14,
-      drivers: 18,
-      avgDeliveryTime: 2.2,
-      customerSatisfaction: 4.6,
-    },
-    {
-      id: "caborca",
-      name: "Caborca",
-      revenue: 300000,
-      orders: 1600,
-      efficiency: 90.7,
-      lat: 30.7167,
-      lng: -112.1583,
-      expenses: 210000,
-      profit: 90000,
-      activeShipments: 95,
-      completedToday: 60,
-      state: "Sonora",
-      address: "Centro, Caborca",
-      phone: "+52 637 000 0007",
-      manager: "Encargado Local",
-      operatingHours: "8:00 AM - 5:30 PM",
-      vehicles: 8,
-      drivers: 10,
-      avgDeliveryTime: 2.6,
-      customerSatisfaction: 4.3,
-    }
-]
+/** Marcador circular coloreado por eficiencia (todos usan divIcon, no el icono por defecto de Leaflet). */
+function createCustomIcon(L: any, efficiency: number) {
+  const color = efficiency >= 95 ? "#22c55e" : efficiency >= 90 ? "#eab308" : "#ef4444"
+  return L.divIcon({
+    html: `
+      <div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+        <div style="width: 8px; height: 8px; background-color: white; border-radius: 50%;"></div>
+      </div>
+    `,
+    className: "custom-marker",
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  })
+}
 
-export function InteractiveMap({ branches }: InteractiveMapProps) {
+function InteractiveMapImpl({ branches, canSeeRevenue = true }: InteractiveMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
+  const leafletRef = useRef<any>(null)
+  const markersLayerRef = useRef<any>(null)
   const [selectedBranch, setSelectedBranch] = useState<any | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
   }, [])
 
+  // 1) Inicializar el mapa UNA sola vez (no se reconstruye al cambiar `branches`).
   useEffect(() => {
-    if (!isClient || !mapRef.current) return
+    if (!isClient) return
+    let cancelled = false
 
     const initializeMap = async () => {
+      const el = mapRef.current
+      if (!el || mapInstanceRef.current) return
       const L = (await import("leaflet")).default
+      if (cancelled || !mapRef.current || mapInstanceRef.current) return
 
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
-
-      delete (L.Icon.Default.prototype as any)._getIconUrl
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl:
-          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-      })
-
-      const mapInstance = L.map(mapRef.current).setView([26.5, -111.0], 6)
-
+      leafletRef.current = L
+      const mapInstance = L.map(el).setView([26.5, -111.0], 6)
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "© OpenStreetMap contributors",
       }).addTo(mapInstance)
 
-      const createCustomIcon = (efficiency: number) => {
-        const color =
-          efficiency >= 95
-            ? "#22c55e"
-            : efficiency >= 90
-            ? "#eab308"
-            : "#ef4444"
-
-        return L.divIcon({
-          html: `
-            <div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
-              <div style="width: 8px; height: 8px; background-color: white; border-radius: 50%;"></div>
-            </div>
-          `,
-          className: "custom-marker",
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-        })
-      }
-
-      branches.forEach((branch) => {
-        const extended = branchData.find(
-          (b) => b.name.toLowerCase() === branch.subsidiaryName.toLowerCase()
-        )
-
-        if (!extended || extended.lat == null || extended.lng == null) {
-          console.warn(`❌ No se encontró info de la sucursal "${branch.subsidiaryName}"`)
-          return
-        }
-
-        const mergedBranch = {
-          ...branch,
-          ...extended,
-        }
-
-        const marker = L.marker([mergedBranch.lat, mergedBranch.lng], {
-          icon: createCustomIcon(mergedBranch.averageEfficiency),
-        }).addTo(mapInstance)
-
-        marker.on("click", () => {
-          setSelectedBranch(mergedBranch)
-        })
-      })
-
+      // Capa dedicada para los marcadores: así se sincronizan sin recrear el mapa.
+      markersLayerRef.current = L.layerGroup().addTo(mapInstance)
       mapInstanceRef.current = mapInstance
+      setMapReady(true)
     }
 
     initializeMap()
 
     return () => {
+      cancelled = true
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove()
         mapInstanceRef.current = null
       }
+      markersLayerRef.current = null
+      leafletRef.current = null
+      setMapReady(false)
     }
-  }, [isClient, branches])
+  }, [isClient])
+
+  // 2) Sincronizar SOLO los marcadores cuando cambian las sucursales.
+  useEffect(() => {
+    const L = leafletRef.current
+    const layer = markersLayerRef.current
+    if (!mapReady || !L || !layer) return
+
+    layer.clearLayers()
+    branches.forEach((branch) => {
+      // Coordenadas desde la BD (subsidiary.latitude/longitude). Sin coords no
+      // se puede ubicar el marcador → se omite (la sucursal aún sale en cards/tabla).
+      if (branch.latitude == null || branch.longitude == null) {
+        console.warn(`⚠️ Sucursal "${branch.subsidiaryName}" sin coordenadas en la BD; no se dibuja en el mapa.`)
+        return
+      }
+
+      const marker = L.marker([branch.latitude, branch.longitude], {
+        icon: createCustomIcon(L, branch.averageEfficiency),
+      })
+      marker.on("click", () => setSelectedBranch(branch))
+      layer.addLayer(marker)
+    })
+  }, [mapReady, branches])
 
   const getPerformanceBadge = (eff: number) =>
     eff >= 95 ? "Excelente" : eff >= 90 ? "Bueno" : "Necesita Mejora"
@@ -489,7 +132,7 @@ export function InteractiveMap({ branches }: InteractiveMapProps) {
         <CardContent>
           <div
             ref={mapRef}
-            className="h-[500px] w-full rounded-lg overflow-hidden border-2 border-orange-200"
+            className="relative z-0 h-[500px] w-full overflow-hidden rounded-lg border-2 border-orange-200 [isolation:isolate]"
           />
         </CardContent>
       </Card>
@@ -506,22 +149,28 @@ export function InteractiveMap({ branches }: InteractiveMapProps) {
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
-              <div className="bg-orange-50 p-3 rounded-lg">
-                <div className="text-xs text-orange-600 font-semibold">Ingresos</div>
-                <div className="font-bold">${(selectedBranch.totalRevenue / 1000).toFixed(0)}K</div>
-              </div>
+              {canSeeRevenue && (
+                <div className="bg-orange-50 p-3 rounded-lg">
+                  <div className="text-xs text-orange-600 font-semibold">Ingresos</div>
+                  <div className="font-bold">${(selectedBranch.totalRevenue / 1000).toFixed(0)}K</div>
+                </div>
+              )}
               <div className="bg-blue-50 p-3 rounded-lg">
                 <div className="text-xs text-blue-600 font-semibold">Gastos</div>
                 <div className="font-bold">${(selectedBranch.totalExpenses / 1000).toFixed(0)}K</div>
               </div>
-              <div className="bg-green-50 p-3 rounded-lg">
-                <div className="text-xs text-green-600 font-semibold">Utilidad</div>
-                <div className="font-bold">${(selectedBranch.totalProfit / 1000).toFixed(0)}K</div>
-              </div>
-              <div className="bg-yellow-50 p-3 rounded-lg">
-                <div className="text-xs text-yellow-600 font-semibold">Prom. Ingreso x Paquete</div>
-                <div className="font-bold">${selectedBranch.averageRevenuePerPackage.toFixed(2)}</div>
-              </div>
+              {canSeeRevenue && (
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <div className="text-xs text-green-600 font-semibold">Utilidad</div>
+                  <div className="font-bold">${(selectedBranch.totalProfit / 1000).toFixed(0)}K</div>
+                </div>
+              )}
+              {canSeeRevenue && (
+                <div className="bg-yellow-50 p-3 rounded-lg">
+                  <div className="text-xs text-yellow-600 font-semibold">Prom. Ingreso x Paquete</div>
+                  <div className="font-bold">${selectedBranch.averageRevenuePerPackage.toFixed(2)}</div>
+                </div>
+              )}
               <div className="bg-amber-50 p-3 rounded-lg">
                 <div className="text-xs text-amber-600 font-semibold">Paquetes Totales</div>
                 <div className="font-bold">{selectedBranch.totalPackages.toLocaleString()}</div>
@@ -567,7 +216,6 @@ export function InteractiveMap({ branches }: InteractiveMapProps) {
       )}
 
       <style jsx global>{`
-        @import url("https://unpkg.com/leaflet@1.7.1/dist/leaflet.css");
         .custom-popup .leaflet-popup-content-wrapper {
           border-radius: 8px;
           box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
@@ -583,3 +231,7 @@ export function InteractiveMap({ branches }: InteractiveMapProps) {
     </div>
   )
 }
+
+/** Memoizado: el mapa (Leaflet) se reconstruye al cambiar `branches`; con memo y
+ *  la ref estable de SWR no se reconstruye en re-renders no relacionados. */
+export const InteractiveMap = memo(InteractiveMapImpl)

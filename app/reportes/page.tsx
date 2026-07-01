@@ -8,6 +8,8 @@ import { OperationHeader } from "@/components/shared/operation-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { REPORTS } from "@/components/reportes/report-registry";
 import { ReportRunner } from "@/components/reportes/report-runner";
+import { RoutesReport } from "@/components/reportes/routes-report";
+import { InventoryLDReport } from "@/components/reportes/inventory-ld-report";
 import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
 
@@ -54,6 +56,10 @@ function ReportesPage() {
               );
             })}
           </div>
+        ) : selected.id === "rutas" ? (
+          <RoutesReport onBack={() => setSelectedId(null)} />
+        ) : selected.id === "bodega" ? (
+          <InventoryLDReport onBack={() => setSelectedId(null)} />
         ) : (
           <ReportRunner def={selected} onBack={() => setSelectedId(null)} />
         )}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, PackageSearch } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { getSeventeenTrackQuota, runDhlSyncCron, type SeventeenTrackQuota } from "@/lib/services/dhl-tracking";
+import { getWhereParcelUsage, runDhlSyncCron, setupDhlWebhooks, type WhereParcelUsage } from "@/lib/services/dhl-tracking";
 import { useAuthStore } from "@/store/auth.store";
 
 const SUPER_ROLES = ["superadmin", "superamin"];
@@ -15,16 +15,17 @@ export function SeventeenTrackQuotaCard() {
   const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase();
   const isSuper = SUPER_ROLES.includes(role);
 
-  const [quota, setQuota] = useState<SeventeenTrackQuota | null>(null);
+  const [quota, setQuota] = useState<WhereParcelUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [registering, setRegistering] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setQuota(await getSeventeenTrackQuota());
+      setQuota(await getWhereParcelUsage());
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "No se pudo consultar la quota de 17TRACK.");
+      toast.error(e?.response?.data?.message || "No se pudo consultar el uso de WhereParcel.");
     } finally {
       setLoading(false);
     }
@@ -35,13 +36,30 @@ export function SeventeenTrackQuotaCard() {
   const sync = async () => {
     setSyncing(true);
     try {
-      const r = await runDhlSyncCron();
-      toast.success(`Ciclo DHL listo: ${r.updated} actualizadas, ${r.registered} nuevas, ${r.released} liberadas.`);
-      await load();
+      await runDhlSyncCron();
+      toast.success("Sincronización DHL iniciada en segundo plano. El uso se actualizará en unos minutos.");
+      // El ciclo corre en background; refrescamos el uso un poco después.
+      setTimeout(() => { load(); }, 20000);
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo ejecutar el ciclo de DHL.");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const registerWebhooks = async () => {
+    setRegistering(true);
+    try {
+      const r = await setupDhlWebhooks();
+      if (r.success) {
+        toast.success(`Webhooks listos${r.endpointId ? ` (endpoint ${r.endpointId})` : ""}. Registro de guías en segundo plano.`, { duration: 9000 });
+      } else {
+        toast.error(r.note || "No se pudo preparar el webhook endpoint.", { duration: 10000 });
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo iniciar el registro de webhooks.");
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -53,8 +71,8 @@ export function SeventeenTrackQuotaCard() {
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2"><PackageSearch className="h-5 w-5" /> Quota 17TRACK (DHL)</CardTitle>
-            <CardDescription>Rastreo de guías DHL. La quota se consume al registrar; se recicla al entregar.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><PackageSearch className="h-5 w-5" /> Uso WhereParcel (DHL)</CardTitle>
+            <CardDescription>Rastreo de guías DHL. Cada consulta cuenta una llamada del plan mensual.</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -87,24 +105,36 @@ export function SeventeenTrackQuotaCard() {
               </div>
               <div className="flex justify-between text-[11px] text-muted-foreground">
                 <span>{pct}% usado</span>
-                <span>Registradas hoy: {quota.todayUsed}</span>
+                <span>Llamadas hoy: {quota.todayUsed}</span>
               </div>
             </div>
 
             {pct >= 90 && (
-              <Badge variant="destructive" className="text-[11px]">Quota casi llena — considera subir el plan o esperar reciclaje.</Badge>
+              <Badge variant="destructive" className="text-[11px]">Uso casi al tope del mes — considera subir el plan.</Badge>
             )}
 
             {isSuper && (
-              <div className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">Sincronizar ahora</p>
-                  <p className="text-[11px] text-muted-foreground leading-tight">Ejecuta el ciclo (consulta, libera entregadas y registra nuevas) sin esperar al cron horario.</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Registrar guías a webhooks</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight">Suscribe las guías DHL pendientes para que WhereParcel empuje los cambios de estatus (push). Mecanismo principal.</p>
+                  </div>
+                  <Button size="sm" onClick={registerWebhooks} disabled={registering}>
+                    {registering ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    Registrar
+                  </Button>
                 </div>
-                <Button size="sm" onClick={sync} disabled={syncing}>
-                  {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-                  Sincronizar
-                </Button>
+                <div className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Sincronizar (respaldo)</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight">Polling manual de respaldo (lento; por si se perdió un webhook). En segundo plano.</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={sync} disabled={syncing}>
+                    {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    Sincronizar
+                  </Button>
+                </div>
               </div>
             )}
           </>

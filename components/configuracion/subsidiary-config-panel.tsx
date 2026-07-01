@@ -39,7 +39,7 @@ const INCOME_FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "chargeDex07", label: "Cobrar DEX07", hint: "Rechazado (07) genera ingreso." },
   { key: "chargeDex08", label: "Cobrar DEX08", hint: "Cliente no disponible (08) genera ingreso." },
   { key: "chargeDex03", label: "Cobrar DEX03", hint: "Dirección incorrecta (03). Apagado = no cuenta, pero el registro se conserva para cobrarlo después." },
-  { key: "generateDhlIncomeOnDelivery", label: "Ingreso DHL al entregar", hint: "Genera el ingreso DHL al detectar la entrega (17track), no solo en cierre de ruta." },
+  { key: "generateDhlIncomeOnDelivery", label: "Ingreso DHL al entregar", hint: "Genera el ingreso DHL al detectar la entrega (WhereParcel), no solo en cierre de ruta." },
   { key: "countTransfersAsIncome", label: "Traslados cuentan", hint: "Tyco / aeropuerto / traslado especial cuentan como ingreso en finanzas." },
 ];
 

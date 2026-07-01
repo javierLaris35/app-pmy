@@ -43,6 +43,7 @@ const MODULE_STYLE: Record<string, Style> = {
   cierre_ruta: { icon: Truck, iconBg: "bg-gradient-to-br from-indigo-500 to-blue-500", chip: "bg-indigo-100 text-indigo-700", accent: "border-l-indigo-500", tint: "bg-indigo-50/70" },
   traslados: { icon: ArrowRightLeft, iconBg: "bg-gradient-to-br from-blue-500 to-indigo-500", chip: "bg-blue-100 text-blue-700", accent: "border-l-blue-500", tint: "bg-blue-50/70" },
   bodega: { icon: Warehouse, iconBg: "bg-gradient-to-br from-teal-500 to-emerald-500", chip: "bg-teal-100 text-teal-700", accent: "border-l-teal-500", tint: "bg-teal-50/70" },
+  dhl: { icon: Truck, iconBg: "bg-gradient-to-br from-yellow-500 to-amber-600", chip: "bg-amber-100 text-amber-700", accent: "border-l-amber-500", tint: "bg-amber-50/70" },
   auth: { icon: LogIn, iconBg: "bg-gradient-to-br from-violet-500 to-indigo-500", chip: "bg-violet-100 text-violet-700", accent: "border-l-violet-500", tint: "bg-violet-50/70" },
   default: { icon: Activity, iconBg: "bg-gradient-to-br from-slate-500 to-slate-600", chip: "bg-slate-100 text-slate-700", accent: "border-l-slate-400", tint: "bg-slate-50/70" },
 };
@@ -124,7 +125,7 @@ export function NotificationBell() {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label="Notificaciones">
+        <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full hover:bg-muted" aria-label="Notificaciones">
           <Bell className={cn("h-5 w-5", unreadCount > 0 && "text-indigo-600")} />
           {unreadCount > 0 && (
             <>

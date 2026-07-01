@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { getFedexTrackingInfo, searchPackageInfo } from "@/lib/services/shipments"
+import { useUiStore } from "@/store/ui.store"
 
 const formatMexicoPhone = (phone: string | number) => {
   const s = String(phone).replace(/\D/g, "")
@@ -29,7 +30,9 @@ const formatMexicoPhone = (phone: string | number) => {
 }
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false)
+  // Abierto/cerrado controlado desde el header (antes era un botón flotante).
+  const open = useUiStore((s) => s.searchOpen)
+  const setOpen = useUiStore((s) => s.setSearchOpen)
   const [search, setSearch] = useState("")
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -104,14 +107,6 @@ export function CommandPalette() {
 
   return (
     <>
-      {/* BOTÓN FLOTANTE */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-all hover:-translate-y-1 hover:shadow-primary/30"
-      >
-        <Search className="h-6 w-6" />
-      </button>
-
       {/* MODAL PRINCIPAL */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-4xl w-[95vw] p-0 overflow-hidden border border-slate-200 shadow-2xl bg-white sm:rounded-2xl">

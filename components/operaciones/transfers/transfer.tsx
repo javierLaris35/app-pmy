@@ -2,6 +2,7 @@
 
 import React, { useState } from "react"
 import { MapPin, Send, Plus, Loader2, DollarSign, Car, Users, ForkliftIcon, Calendar as CalendarIcon } from "lucide-react"
+import { OperationHeader } from "@/components/shared/operation-header"
 
 // Componentes Shadcn UI
 import { Label } from "@/components/ui/label"
@@ -211,18 +212,13 @@ export default function TransferScreen() {
   return (
     <div className="space-y-6">
       
-      {/* HEADER Y BOTÓN */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-            <ForkliftIcon className="w-8 h-8 text-red-600" />
-            Gestión de Traslados
-          </h1>
-          <p className="text-slate-500 mt-1">
-            Consulta el historial y registra nuevos movimientos entre sucursales.
-          </p>
-        </div>
-
+      {/* HEADER único + botón */}
+      <OperationHeader
+        icon={ForkliftIcon}
+        title="Traslados"
+        description="Consulta el historial y registra nuevos movimientos entre sucursales."
+      />
+      <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
           <div className="w-full sm:w-[250px]" id="sucursal-selector-container">
             <SucursalSelector

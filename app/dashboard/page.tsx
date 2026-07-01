@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { AppLayout } from "@/components/app-layout"
+import { OperationHeader } from "@/components/shared/operation-header"
+import { LayoutDashboard } from "lucide-react"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { SubsidiaryMetricsGrid } from "@/components/subsidiary/subsidiary-metrics"
 import { InteractiveMap } from "@/components/dashboard/interactive-map"
@@ -31,26 +33,22 @@ function DashboardContent() {
   const selectedSucursalId = useSubsidiaryStore((s) => s.selectedSubsidiaryId)
   const setSelectedSucursalId = useSubsidiaryStore((s) => s.setSelectedSubsidiaryId)
 
-  const { data, isLoading: isDashboardLoading, mutate: mutateDashboard } = useDashboard(
-    fromDate, 
-    toDate, 
+  const { data, isLoading: isDashboardLoading } = useDashboard(
+    fromDate,
+    toDate,
     selectedSubsidiaries
   )
 
-  const isAdmin = user?.role.includes("admin") || user?.role.includes("superadmin")
+  // Mismo criterio que el backend (dashboard.controller): role contiene "admin".
+  const isAdmin = (user?.role ?? "").toLowerCase().includes("admin")
 
   useEffect(() => {
     if (!selectedSucursalId && user?.subsidiaryId) {
       setSelectedSucursalId(user.subsidiaryId)
     }
   }, [user, selectedSucursalId, setSelectedSucursalId])
-
-  useEffect(() => {
-    if (selectedSucursalId) {
-      //mutate() // Finanzas
-    }
-    mutateDashboard() 
-  }, [fromDate, toDate, selectedSucursalId, selectedSubsidiaries, mutateDashboard])
+  // SWR refetch automáticamente cuando cambian fromDate/toDate/selectedSubsidiaries
+  // (van en la key del hook). No hace falta un mutate manual (evita doble fetch).
 
   // Función que recibe los parámetros del hijo y ejecuta la descarga
   const handleExportFinancialSummary = async (filters: { startDate: string; endDate: string; subsidiaryIds: string[] }) => {
@@ -95,27 +93,46 @@ function DashboardContent() {
 
   return (
     <AppLayout>
-      <div className="min-h-screen">
-        <div className="space-y-8 p-6">
-          {/* Header con filtros */}
-          <DashboardHeader
-            dateRange={dateRange}
-            onDateRangeChange={(range) => {
-              setDateRange(range)
-              setFromDate(range.from)
-              setToDate(range.to)
-            }}
-            // Corregido: Pasamos la referencia, no la ejecución
-            onExport={handleExportFinancialSummary} 
-            onSelectedSucursalChange={setSelectedSubsidiaries}
+      <div>
+        <div className="space-y-5 md:space-y-8">
+          <OperationHeader
+            icon={LayoutDashboard}
+            title="Dashboard Ejecutivo"
+            description="Visión global y métricas de desempeño"
+            actions={
+              <DashboardHeader
+                dateRange={dateRange}
+                onDateRangeChange={(range) => {
+                  setDateRange(range)
+                  setFromDate(range.from)
+                  setToDate(range.to)
+                }}
+                // Corregido: Pasamos la referencia, no la ejecución
+                onExport={handleExportFinancialSummary}
+                onSelectedSucursalChange={setSelectedSubsidiaries}
+                showSubsidiaryFilter={isAdmin}
+              />
+            }
           />
 
-          {/* Métricas y dashboards */}
-          {isAdmin && (
+          {/* Métricas. Los INGRESOS solo se muestran a roles elevados (canSeeRevenue);
+              los demás ven operativo + gastos (también blindado en el backend). */}
+          {isDashboardLoading && !data ? (
+            <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed bg-muted/20">
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                Cargando métricas…
+              </div>
+            </div>
+          ) : (data && data.length > 0) ? (
             <>
-              <SubsidiaryMetricsGrid data={data || []} />
-              <InteractiveMap branches={data || []} />
+              <SubsidiaryMetricsGrid data={data} canSeeRevenue={isAdmin} />
+              <InteractiveMap branches={data} canSeeRevenue={isAdmin} />
             </>
+          ) : (
+            <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed bg-muted/20 text-muted-foreground">
+              No hay datos para el rango seleccionado.
+            </div>
           )}
         </div>
       </div>

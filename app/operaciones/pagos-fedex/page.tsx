@@ -17,6 +17,7 @@ import { Consolidado, ConsolidadoSelect } from "@/components/operaciones/consoli
 import { Desembarque, UnloadingSelect } from "@/components/operaciones/unloading/unloading-select"
 import { PackageDispatchSelect, Ruta } from "@/components/package-dispatch/package-dispatch-select"
 import { AppLayout } from "@/components/app-layout"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
 import { getConsolidateds, getInfoFromConsolidated, getInfoFromPackageDispatch, getInfoFromUnloading, getPackageDispatchs, getUnloadings, updateDataFromFedexByConsolidatedId, updateDataFromFedexByPackageDispatchId, updateDataFromFedexByUnloadingId } from "@/lib/services/monitoring/monitoring"
@@ -232,30 +233,22 @@ export function FedExPaymentsPage() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-background via-muted/20 to-background border border-border/50 p-8">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5" />
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
-                  <DollarSign className="h-7 w-7 text-primary" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold tracking-tight">Pagos FedEx</h1>
-                  <p className="text-muted-foreground mt-1">Gestiona los cobros pendientes de forma eficiente</p>
-                </div>
-              </div>
-            </div>
+        <OperationHeader
+          icon={DollarSign}
+          title="Pagos a FedEx"
+          description="Gestiona los cobros pendientes de forma eficiente"
+          actions={
             <Button
               variant="outline"
               size="icon"
               onClick={() => window.location.reload()}
-              className="h-11 w-11 rounded-xl"
+              className="h-9 w-9 rounded-full"
+              aria-label="Actualizar"
             >
-              <RefreshCw className="h-5 w-5" />
+              <RefreshCw className="h-4 w-4" />
             </Button>
-          </div>
-        </div>
+          }
+        />
 
         <Card className="border-border/50">
           <CardHeader className="bg-gradient-to-br from-muted/50 to-muted/20 border-b border-border/50">

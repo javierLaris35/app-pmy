@@ -49,6 +49,8 @@ interface DataTableProps<TData, TValue> {
   autoResetPageIndex?: boolean
   /** Clase opcional por fila (según los datos de la fila). Ej. resaltar filas con ingreso. */
   rowClassName?: (row: TData) => string | undefined
+  /** Estado inicial de filtros de columna (p.ej. para ocultar categorías por defecto). */
+  initialColumnFilters?: ColumnFiltersState
 }
 
 export function DataTable<TData, TValue>({
@@ -64,10 +66,11 @@ export function DataTable<TData, TValue>({
   onPaginationChange,
   autoResetPageIndex = true,
   rowClassName,
+  initialColumnFilters,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(initialColumnFilters ?? [])
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = React.useState<string>("")
   

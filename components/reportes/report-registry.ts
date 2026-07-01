@@ -1,4 +1,4 @@
-import { PackageX, PackageCheck, Boxes, EyeOff, ClipboardList, Truck, type LucideIcon } from "lucide-react";
+import { PackageX, PackageCheck, Boxes, EyeOff, ClipboardList, Truck, Route, Warehouse, type LucideIcon } from "lucide-react";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
 import {
   fetchPendientesJson, fetchPendientesExcel,
@@ -9,10 +9,12 @@ import {
   fetchVisibility67FedexCheck,
   fetchInventoryReportJson,
   fetchUnloadingReportJson,
+  fetchRoutesReportJson,
 } from "@/lib/services/reportes/reportes";
 import { buildVisibility67Excel } from "@/lib/services/reportes/visibilidad67-excel";
 import { buildInventoryReportExcel } from "@/lib/services/reportes/inventory-report-excel";
 import { buildUnloadingReportExcel } from "@/lib/services/reportes/unloading-report-excel";
+import { buildRoutesReportExcel } from "@/lib/services/reportes/routes-report-excel";
 
 /** Etiqueta legible del tipo de inventario. */
 const invTypeLabel = (t?: string) => {
@@ -53,6 +55,12 @@ export interface ReportDef {
   columns: ReportColumn[];
   /** Filtros facetados (las opciones se calculan de los datos cargados). */
   filters?: ReportFilter[];
+  /**
+   * Estado inicial de filtros de columna. Útil para dejar ciertas categorías
+   * "en background" por defecto (el usuario las reactiva desde el filtro).
+   * Ej.: [{ id: "categoria", value: ["No entregado"] }].
+   */
+  defaultColumnFilters?: { id: string; value: any }[];
   /** Si true, el runner muestra controles de rango de fechas (start/end) + botones de preset. */
   dateRange?: boolean;
   /** Rango inicial por defecto cuando hay dateRange (si no, últimos 10 días). */
@@ -375,6 +383,88 @@ export const REPORTS: ReportDef[] = [
     exportClient: (rows) => buildUnloadingReportExcel(rows),
     fileName: (s) => `desembarques_${s}_${ts()}.xlsx`,
     emptyHint: "No hay desembarques para esa sucursal en el rango seleccionado.",
+  },
+  {
+    id: "rutas",
+    title: "Rutas del día pasado",
+    description:
+      "Salidas a ruta AGRUPADAS por chofer: rutas, total enrutados, del día (vencen), DEV y LOCAL DELAY (LD) con la pérdida en $ por sucursal. 'Ver detalles' abre las guías. Botón 'Revisar con FedEx' recalcula el LD con los movimientos reales (03/07/08/17 o POD el día de vencimiento).",
+    icon: Route,
+    accent: "bg-sky-100 text-sky-600",
+    dateRange: true,
+    defaultPreset: "yesterday",
+    // DEX y entregados en background: por defecto solo se ven los no entregados.
+    defaultColumnFilters: [{ id: "categoria", value: ["No entregado"] }],
+    columns: [
+      { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
+      { id: "tipo", label: "Tipo", accessor: (r) => tipoLabel(r.shipmentType) },
+      {
+        id: "categoria",
+        label: "Categoría",
+        accessor: (r) => (r.category === "entregado" ? "Entregado" : r.category === "dex" ? "DEX" : "No entregado"),
+      },
+      { id: "status", label: "Estatus actual", accessor: (r) => r.status, cell: (v) => prettyStatus(v) },
+      { id: "driver", label: "Chofer", accessor: (r) => r.driver || "—" },
+      { id: "commitDateTime", label: "Vencimiento", accessor: (r) => r.commitDateTime, cell: (v) => (v ? fmtDateTime(v) : "—") },
+      { id: "movidoAyer", label: "¿Movido ayer?", accessor: (r) => (r.movedYesterday ? "Sí" : "No") },
+      { id: "s67Ayer", label: "67 ayer", accessor: (r) => (r.has67Yesterday ? "Sí" : "No") },
+      { id: "s67Hoy", label: "67 hoy", accessor: (r) => (r.has67Today ? "Sí" : "No") },
+      { id: "enInvAyer", label: "En inv. de ayer", accessor: (r) => (r.inLastInventoryYesterday ? "Sí" : "No") },
+      { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
+      { id: "recipientAddress", label: "Dirección", accessor: (r) => r.recipientAddress },
+      { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
+    ],
+    filters: [
+      { columnId: "categoria", title: "Categoría" },
+      { columnId: "tipo", title: "Tipo" },
+      { columnId: "movidoAyer", title: "¿Movido ayer?" },
+      { columnId: "enInvAyer", title: "En inv. de ayer" },
+      { columnId: "s67Ayer", title: "67 ayer" },
+      { columnId: "s67Hoy", title: "67 hoy" },
+      { columnId: "status", title: "Estatus" },
+    ],
+    fedex67Check: {
+      fetch: (rows, includeSundays) =>
+        fetchVisibility67FedexCheck(
+          rows.filter(isFedexRow).map((r) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId })),
+          includeSundays,
+        ),
+    },
+    updateRow: (subsidiaryId, row) => updatePendingOne(subsidiaryId, row.trackingNumber, !!row.isCharge),
+    run: async (subsidiaryId, range) => {
+      const { summary, details } = await fetchRoutesReportJson(subsidiaryId, range?.start, range?.end);
+      return {
+        rows: details || [],
+        summary: {
+          Salidas: summary?.salidas ?? 0,
+          Paquetes: summary?.paquetes ?? (details?.length || 0),
+          "No entregados": summary?.noEntregados ?? 0,
+          "Sin inv. ayer": summary?.sinInventarioAyer ?? 0,
+          "Movidos ayer": summary?.movidosAyer ?? 0,
+          "67 ayer": summary?.con67Ayer ?? 0,
+          "67 hoy": summary?.con67Hoy ?? 0,
+          DEX: summary?.dex ?? 0,
+          Entregados: summary?.entregados ?? 0,
+        },
+      };
+    },
+    exportExcel: async () => new Blob(), // no se usa: este reporte exporta en cliente.
+    exportClient: (rows) => buildRoutesReportExcel(rows),
+    fileName: (s) => `rutas_dia_pasado_${s}_${ts()}.xlsx`,
+    emptyHint: "No hay salidas a ruta para esa sucursal en el rango seleccionado.",
+  },
+  {
+    id: "bodega",
+    title: "Inventario sin movimiento (LD)",
+    description:
+      "Guías del ÚLTIMO inventario del día (default: ayer) que NO se movieron y causan Local Delay, con la pérdida en $ por sucursal. Vista Lista o agrupado por consolidado. 'Revisar con FedEx' recalcula el movimiento/LD real.",
+    icon: Warehouse,
+    accent: "bg-indigo-100 text-indigo-600",
+    columns: [],
+    // La UI real la renderiza <InventoryLDReport/> (caso especial en la página).
+    run: async () => ({ rows: [] }),
+    exportExcel: async () => new Blob(),
+    fileName: (s) => `inventario_sin_mov_${s}_${ts()}.xlsx`,
   },
   {
     id: "inventario67",

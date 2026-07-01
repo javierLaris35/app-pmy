@@ -72,6 +72,9 @@ const initialFormState = {
   officeEmail: "",
   officeEmailToCopy: "",
   zoneId: "",
+  state: "",
+  latitude: "" as string | number,
+  longitude: "" as string | number,
 }
 
 function SucursalesPage() {
@@ -122,6 +125,9 @@ function SucursalesPage() {
       officeEmail: sucursal.officeEmail || "",
       officeEmailToCopy: sucursal.officeEmailToCopy || "",
       zoneId: sucursal.zoneId || "",
+      state: sucursal.state || "",
+      latitude: sucursal.latitude ?? "",
+      longitude: sucursal.longitude ?? "",
     })
     setIsDialogOpen(true)
   }
@@ -144,6 +150,10 @@ function SucursalesPage() {
       officeEmail: formData.officeEmail || undefined,
       officeEmailToCopy: formData.officeEmailToCopy || undefined,
       zoneId: formData.zoneId || null,
+      // Coordenadas: vacío → null; si hay valor, número.
+      state: formData.state || "",
+      latitude: formData.latitude === "" || formData.latitude == null ? null : Number(formData.latitude),
+      longitude: formData.longitude === "" || formData.longitude == null ? null : Number(formData.longitude),
     }
 
     try {
@@ -442,6 +452,46 @@ function SucursalesPage() {
                     placeholder="copia@empresa.com"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="text-sm font-semibold text-foreground">Ubicación (mapa del dashboard)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="state">Estado</Label>
+                    <Input
+                      id="state"
+                      value={formData.state}
+                      onChange={(e) => handleFormChange("state", e.target.value)}
+                      placeholder="Ej. Sonora"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="latitude">Latitud</Label>
+                    <Input
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      value={formData.latitude}
+                      onChange={(e) => handleFormChange("latitude", e.target.value)}
+                      placeholder="Ej. 29.0729"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="longitude">Longitud</Label>
+                    <Input
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      value={formData.longitude}
+                      onChange={(e) => handleFormChange("longitude", e.target.value)}
+                      placeholder="Ej. -110.9559"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Sin latitud/longitud la sucursal no aparece en el mapa (sí en cards y tabla).
+                </p>
               </div>
 
               <div className="space-y-4 pt-4 border-t">

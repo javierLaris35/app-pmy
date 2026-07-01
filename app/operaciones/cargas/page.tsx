@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Loader } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
+import { OperationHeader } from "@/components/shared/operation-header";
 import { Package, CheckCircle2, ClipboardList } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { SucursalSelector } from "@/components/sucursal-selector";
@@ -105,19 +106,19 @@ function ChargesWithKpis() {
     return (
         <AppLayout>
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Cargas</h2>
-                        <p className="text-muted-foreground">Administra las cargas de los envíos</p>
-                    </div>
-                    <div>
-                        <Label htmlFor="sucursal">Sucursal</Label>
-                        <SucursalSelector
-                        value={selectedSucursalId}
-                        onValueChange={setSelectedSucursalId}
-                        />
-                    </div>
-                </div>
+                <OperationHeader
+                    icon={Package}
+                    title="Cargas"
+                    description="Administra las cargas de los envíos"
+                    actions={
+                        <div className="w-full sm:w-[260px]">
+                            <SucursalSelector
+                                value={selectedSucursalId}
+                                onValueChange={setSelectedSucursalId}
+                            />
+                        </div>
+                    }
+                />
                 {/* KPIs más visuales */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <Card className="flex items-center gap-4 rounded-2xl shadow-md p-4 bg-white">

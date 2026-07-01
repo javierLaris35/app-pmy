@@ -3,7 +3,8 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Plus, Package, FileText, User, DollarSign, AlertCircle } from "lucide-react"
+import { Package, FileText, User, DollarSign, AlertCircle } from "lucide-react"
+import { useUiStore } from "@/store/ui.store"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,7 +41,9 @@ interface ShipmentFormData {
 }
 
 export function AddShipmentDialog() {
-  const [open, setOpen] = useState(false)
+  // Abierto/cerrado controlado desde el header (antes era un botón flotante).
+  const open = useUiStore((s) => s.addShipmentOpen)
+  const setOpen = useUiStore((s) => s.setAddShipmentOpen)
   const [formType, setFormType] = useState<ShipmentFormType>("shipment")
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<ShipmentFormData>({
@@ -65,7 +68,7 @@ export function AddShipmentDialog() {
     const down = (e: KeyboardEvent) => {
       if (e.key === "n" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
         e.preventDefault()
-        setOpen((open) => !open)
+        setOpen(!useUiStore.getState().addShipmentOpen)
       }
     }
 
@@ -155,14 +158,6 @@ export function AddShipmentDialog() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all hover:scale-110 hover:shadow-xl"
-        aria-label="Agregar envío"
-      >
-        <Plus className="h-6 w-6" />
-      </button>
-
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

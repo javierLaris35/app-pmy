@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { CompanyPanel } from "@/components/configuracion/company-panel"
@@ -17,6 +17,8 @@ import { UsersPanel } from "@/components/configuracion/users-panel"
 import { SubsidiaryConfigPanel } from "@/components/configuracion/subsidiary-config-panel"
 import { SeventeenTrackQuotaCard } from "@/components/configuracion/seventeen-track-quota-card"
 import { CatalogPanel } from "@/components/configuracion/catalog-panel"
+import { GeocodePanel } from "@/components/configuracion/geocode-panel"
+import { ServerStatsPanel } from "@/components/configuracion/server-stats-panel"
 
 const SECTIONS = [
   { id: "empresa", label: "Empresa", icon: Building2, description: "Datos de la empresa" },
@@ -24,6 +26,8 @@ const SECTIONS = [
   { id: "permisos", label: "Roles y Permisos", icon: Shield, description: "Control de acceso (RBAC)" },
   { id: "sucursales", label: "Sucursales", icon: Building2, description: "Config. operativa (FedEx)" },
   { id: "catalogos", label: "Catálogos", icon: Tags, description: "Valores de los enums" },
+  { id: "geocode", label: "Geolocalización", icon: MapPin, description: "Direcciones aprendidas" },
+  { id: "servidor", label: "Servidor", icon: Server, description: "Uso de CPU/RAM/disco/red" },
   { id: "general", label: "General", icon: Settings, description: "Preferencias" },
 ] as const
 
@@ -89,6 +93,10 @@ function ConfiguracionPage() {
             {section === "sucursales" && <SubsidiaryConfigPanel />}
 
             {section === "catalogos" && <CatalogPanel />}
+
+            {section === "geocode" && <GeocodePanel />}
+
+            {section === "servidor" && <ServerStatsPanel />}
 
             {section === "general" && (
               <div className="space-y-4">

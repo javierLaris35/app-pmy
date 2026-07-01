@@ -15,6 +15,7 @@ import type { Collection, Devolution, Subsidiary } from "@/lib/types"
 import { useCollections } from "@/hooks/services/collections/use-collections"
 import { useDevolutions } from "@/hooks/services/devolutions/use-devolutions"
 import { useAuthStore } from "@/store/auth.store"
+import { OperationHeader } from "@/components/shared/operation-header"
 import UnifiedCollectionReturnForm from "./unified-collection-return-form"
 
 export default function UpdatedFedExControl() {
@@ -81,11 +82,7 @@ export default function UpdatedFedExControl() {
       "status",
       "Estado",
       (row) => row.status,
-      (value) => (
-        <Badge variant={value === "Completada" ? "default" : "secondary"}>
-          {value}
-        </Badge>
-      ),
+      (value) => <Badge variant="secondary">{value || "—"}</Badge>,
     ),
     createSortableColumn<Collection>(
       "isPickUp",
@@ -125,41 +122,29 @@ export default function UpdatedFedExControl() {
       "reason",
       "Motivo",
       (row) => row.reason,
-      (value) => <span className="text-sm">{value}</span>,
-    ),
-    createSortableColumn<Devolution>(
-      "status",
-      "Estado",
-      (row) => row.status,
-      (value) => (
-        <Badge variant={value === "Procesada" ? "default" : "secondary"}>
-          {value}
-        </Badge>
-      ),
+      (value) => <span className="text-sm">{value || "—"}</span>,
     ),
   ]
 
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Control Unificado FedEx
-            </h2>
-            <p className="text-muted-foreground">
-              Gestión centralizada de recolecciones y devoluciones
-            </p>
-          </div>
-          <div className="w-full md:w-[300px]">
-            <SucursalSelector
-              value={selectedSucursalId ?? ""}
-              returnObject={true}
-              onValueChange={(s) => handleSucursalChange(s as Subsidiary)}
-            />
-          </div>
-        </div>
+        {/* Header estándar (OperationHeader) */}
+        <OperationHeader
+          icon={ArrowRightLeft}
+          title="Devoluciones y Recolecciones"
+          description="Gestión centralizada de recolecciones y devoluciones"
+          subsidiaryName={selectedSucursalName}
+          actions={
+            <div className="w-full sm:w-[300px]">
+              <SucursalSelector
+                value={selectedSucursalId ?? ""}
+                returnObject={true}
+                onValueChange={(s) => handleSucursalChange(s as Subsidiary)}
+              />
+            </div>
+          }
+        />
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-4">
@@ -175,10 +160,9 @@ export default function UpdatedFedExControl() {
           <Card>
             <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Pendientes</p>
+                <p className="text-xs font-medium text-muted-foreground">Recolecciones sin Pick Up</p>
                 <div className="text-lg font-bold">
-                  {collections.filter(c => c.status === 'pending').length +
-                    devolutions.filter(d => d.status === 'pending').length}
+                  {collections.filter(c => !c.isPickUp).length}
                 </div>
               </div>
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
@@ -196,10 +180,9 @@ export default function UpdatedFedExControl() {
           <Card>
             <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Completadas</p>
+                <p className="text-xs font-medium text-muted-foreground">Total General</p>
                 <div className="text-lg font-bold">
-                  {collections.filter(c => c.status === 'completed').length +
-                    devolutions.filter(d => d.status === 'completed').length}
+                  {collections.length + devolutions.length}
                 </div>
               </div>
               <CheckIcon className="h-4 w-4 text-muted-foreground" />

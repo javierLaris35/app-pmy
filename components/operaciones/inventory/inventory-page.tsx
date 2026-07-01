@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AppLayout } from "@/components/app-layout"
+import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
@@ -167,19 +168,17 @@ export default function InventoryPageControl() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/** HEADER */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Control de Inventario de Paquetes</h2>
-            <p className="text-muted-foreground">Gestiona los inventarios de paquetes.</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="w-[250px]">
+        {/** HEADER único */}
+        <OperationHeader
+          icon={PackageCheckIcon}
+          title="Inventarios"
+          description="Gestiona los inventarios de paquetes."
+          actions={
+            <div className="w-full sm:w-[250px]">
               <SucursalSelector
                 value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
                 returnObject={true}
                 onValueChange={(val) => {
-                  console.log("[PackageDispatch] SucursalSelector onValueChange ->", val)
                   if (typeof val === "string") {
                     handleSucursalChange(val)
                   } else if (Array.isArray(val)) {
@@ -191,8 +190,8 @@ export default function InventoryPageControl() {
                 }}
               />
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {/* Main Action Button */}
         <div className="flex justify-end">

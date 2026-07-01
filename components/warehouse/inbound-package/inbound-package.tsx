@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
+import { OperationHeader } from "@/components/shared/operation-header"
 import {
   Table,
   TableBody,
@@ -590,25 +591,20 @@ export default function InboundPackage() {
 
   return (
     <div className="text-slate-900 min-h-screen"> 
-      <div className="flex flex-col gap-6 mb-4">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-  
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-              <PackagePlusIcon className="w-8 h-8 text-red-600" />
-              Gestión de Entradas a Bodega
-            </h1>
-            <p className="text-slate-500 mt-1">Registro y seguimiento de paquetes entrantes a la bodega.</p>
-          </div>
-
-          <div className="flex items-center gap-3 w-full md:w-auto">
+      <OperationHeader
+        icon={PackagePlusIcon}
+        title="Entrada a Bodega"
+        description="Registro y seguimiento de paquetes entrantes a la bodega."
+        subsidiaryName={effectiveWarehouseName}
+        actions={
+          <div className="flex items-center gap-2">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="rounded shrink-0 hover:bg-slate-200 text-slate-600"
+                    className="h-9 w-9 rounded-full hover:bg-muted"
                     onClick={() => setShowHistory(true)}
                   >
                     <History className="w-5 h-5" />
@@ -621,7 +617,7 @@ export default function InboundPackage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="rounded shrink-0 hover:bg-slate-200 text-slate-600"
+                    className="h-9 w-9 rounded-full hover:bg-muted"
                     onClick={() => toggleModal("shortcuts", true)}
                   >
                     <Keyboard className="w-5 h-5" />
@@ -631,7 +627,7 @@ export default function InboundPackage() {
               </Tooltip>
             </TooltipProvider>
 
-            <div className="w-full md:w-[250px]">
+            <div className="w-full sm:w-[230px]">
               <SucursalSelector
                 value={effectiveWarehouseId}
                 returnObject={true}
@@ -645,8 +641,8 @@ export default function InboundPackage() {
               />
             </div>
           </div>
-        </div>
-      </div>
+        }
+      />
       
       <Separator className="bg-slate-200" />
 

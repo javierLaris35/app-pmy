@@ -543,20 +543,27 @@ export default function UnloadingForm({
 
   useEffect(() => {
     if (!parentSubsidiaryId) return;
-    if (parentSubsidiaryAppliedRef.current === parentSubsidiaryId) return;
+    const prevApplied = parentSubsidiaryAppliedRef.current;
+    if (prevApplied === parentSubsidiaryId) return;
 
     parentSubsidiaryAppliedRef.current = parentSubsidiaryId;
     setSelectedSubsidiaryId(prev => (prev === parentSubsidiaryId ? prev : parentSubsidiaryId));
     setSelectedSubsidiaryName(prev => (prev === parentSubsidiaryName ? prev : (parentSubsidiaryName ?? null)));
 
-    setScannedPackages(prev => (prev.length ? [] : prev));
-    setShipments(prev => (prev.length ? [] : prev));
-    setMissingPackages(prev => (prev.length ? [] : prev));
-    setSurplusTrackings(prev => (prev.length ? [] : prev));
-    setSelectedReasons(prev => (Object.keys(prev).length ? {} : prev));
-    setConsolidatedValidation(prev => (prev ? null : prev));
-    setSelectedConsolidatedIds(prev => (prev.length ? [] : prev));
-    setLastValidated(prev => (prev ? "" : prev));
+    // Limpiar SOLO cuando se CAMBIA de sucursal (ya había una distinta aplicada),
+    // NUNCA en el primer montaje → así se preserva lo escaneado que se restauró
+    // del store persistido (sobrevive recargas / caídas de internet). El borrado
+    // real ocurre en "Limpiar" o al finalizar el desembarque (clearAllStorage).
+    if (prevApplied && prevApplied !== parentSubsidiaryId) {
+      setScannedPackages(prev => (prev.length ? [] : prev));
+      setShipments(prev => (prev.length ? [] : prev));
+      setMissingPackages(prev => (prev.length ? [] : prev));
+      setSurplusTrackings(prev => (prev.length ? [] : prev));
+      setSelectedReasons(prev => (Object.keys(prev).length ? {} : prev));
+      setConsolidatedValidation(prev => (prev ? null : prev));
+      setSelectedConsolidatedIds(prev => (prev.length ? [] : prev));
+      setLastValidated(prev => (prev ? "" : prev));
+    }
   }, [parentSubsidiaryId, parentSubsidiaryName, setScannedPackages, setShipments, setMissingPackages, setSurplusTrackings, setSelectedReasons, setConsolidatedValidation, setSelectedConsolidatedIds, setLastValidated]);
   
   useEffect(() => {

@@ -43,7 +43,13 @@ export function NavUser({user}: NavUserProps) {
   const { toast } = useToast()
   const logout = useAuthStore((state) => state.logout);
 
-  const handleLogout = async () => { 
+  // Nombre completo (name + lastName) e iniciales reales para el avatar.
+  const fullName = [user.name, user.lastName].filter(Boolean).join(" ").trim() || user.email
+  const initials =
+    ((user.name?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
+    (user.email?.[0] ?? "U").toUpperCase()
+
+  const handleLogout = async () => {
     try {
       await logout()
       router.push("/login")
@@ -66,12 +72,12 @@ export function NavUser({user}: NavUserProps) {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg grayscale">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+              <Avatar className="h-8 w-8 rounded-lg">
+                <AvatarImage src={user.avatar} alt={fullName} />
+                <AvatarFallback className="rounded-lg bg-sidebar-primary/10 font-semibold text-sidebar-primary">{initials}</AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
+              <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">{fullName}</span>
                 <span className="truncate text-xs text-muted-foreground">
                   {user.email}
                 </span>
@@ -88,11 +94,11 @@ export function NavUser({user}: NavUserProps) {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                  <AvatarImage src={user.avatar} alt={fullName} />
+                  <AvatarFallback className="rounded-lg bg-sidebar-primary/10 font-semibold text-sidebar-primary">{initials}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate font-medium">{fullName}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {user.email}
                   </span>

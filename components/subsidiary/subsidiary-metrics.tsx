@@ -34,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -80,9 +81,11 @@ export interface SubsidiaryMetrics {
 
 interface Props {
   data: SubsidiaryMetrics[]
+  /** Si es false, oculta ingresos/utilidad/margen (deja operativo + gastos). */
+  canSeeRevenue?: boolean
 }
 
-export function SubsidiaryMetricsGrid({ data }: Props) {
+function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
   const summary = data.length > 0 ? data[0].generalSummary : null
 
   // Formateador de moneda
@@ -103,18 +106,15 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
     value: React.ReactNode 
   ) => (
     <div
-      className={`flex flex-col justify-between p-4 bg-gradient-to-r ${bgFrom} ${bgTo} rounded-xl
-      shadow-sm border border-white/20 backdrop-blur-md bg-opacity-50 transition-transform duration-300
-      hover:scale-105 hover:shadow-lg`}
+      className={`flex min-w-0 flex-col justify-between gap-2 p-3 bg-gradient-to-r ${bgFrom} ${bgTo} rounded-xl
+      shadow-sm border border-white/20 backdrop-blur-md bg-opacity-50 transition-shadow duration-300 hover:shadow-md`}
     >
-      <div className="flex items-center justify-start gap-2 mb-2">
-        {icon}
-        <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate text-xs font-semibold text-slate-600">{label}</span>
       </div>
-      <div className="flex items-center justify-end">
-        <span className="text-xl font-extrabold text-slate-800 drop-shadow-sm flex items-baseline gap-1">
-          {value}
-        </span>
+      <div className="flex flex-wrap items-baseline justify-end gap-x-1 text-right text-base font-bold leading-tight text-slate-800 tabular-nums">
+        {value}
       </div>
     </div>
   )
@@ -123,81 +123,82 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
     <div className="space-y-8 w-full">
       {/* 1. SECCIÓN DE RESUMEN GENERAL (GLOBAL KPIs) */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Ingresos Generales */}
-          <Card className="relative overflow-hidden bg-gradient-to-br from-green-500 to-emerald-700 border-none shadow-lg text-white">
-            <div className="absolute top-0 right-0 p-4 opacity-20">
-              <TrendingUp className="w-24 h-24" />
-            </div>
-            <CardContent className="p-6 relative z-10">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <Banknote className="w-6 h-6 text-white" />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 xl:gap-6">
+          {/* Ingresos Totales (solo con permiso) */}
+          {canSeeRevenue && (
+            <Card className="relative overflow-hidden rounded-2xl border-none bg-gradient-to-br from-green-500 to-emerald-700 text-white shadow-lg">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-semibold uppercase tracking-wider text-emerald-50/90">Ingresos Totales</span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20 backdrop-blur-sm"><Banknote className="h-[18px] w-[18px] text-white" /></span>
                 </div>
-                <h3 className="text-lg font-medium text-emerald-50">Ingresos Totales</h3>
-              </div>
-              <p className="text-4xl font-extrabold tracking-tight mt-4">
-                {formatCurrency(summary.totalIncome)}
-              </p>
-            </CardContent>
-          </Card>
+                <p className="mt-3 whitespace-nowrap text-3xl font-extrabold tracking-tight tabular-nums xl:text-2xl 2xl:text-4xl">
+                  {formatCurrency(summary.totalIncome)}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Gastos Generales */}
-          <Card className="relative overflow-hidden bg-gradient-to-br from-orange-400 to-red-600 border-none shadow-lg text-white">
-            <div className="absolute top-0 right-0 p-4 opacity-20">
-              <TrendingDown className="w-24 h-24" />
-            </div>
-            <CardContent className="p-6 relative z-10">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <Wallet className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-lg font-medium text-red-50">Gastos Totales</h3>
+          {/* Gastos Totales */}
+          <Card className="relative overflow-hidden rounded-2xl border-none bg-gradient-to-br from-orange-400 to-red-600 text-white shadow-lg">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-xs font-semibold uppercase tracking-wider text-red-50/90">Gastos Totales</span>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20 backdrop-blur-sm"><Wallet className="h-[18px] w-[18px] text-white" /></span>
               </div>
-              <p className="text-4xl font-extrabold tracking-tight mt-4">
+              <p className="mt-3 whitespace-nowrap text-3xl font-extrabold tracking-tight tabular-nums xl:text-2xl 2xl:text-4xl">
                 {formatCurrency(summary.totalExpenses)}
               </p>
+              {canSeeRevenue && summary.totalIncome > 0 && (
+                <p className="mt-2 text-xs text-red-50/80">
+                  {((summary.totalExpenses / summary.totalIncome) * 100).toFixed(1)}% de los ingresos
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Utilidad General */}
-          <Card className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-800 border-none shadow-lg text-white">
-            {/* Aquí reemplazamos el ícono de fondo por el porcentaje GIGANTE */}
-            <div className="absolute top-1/2 -translate-y-1/2 right-4 opacity-40 select-none">
-              <span className="text-7xl lg:text-8xl font-black tracking-tighter">
-                {globalMargin > 0 ? '+' : ''}{globalMargin.toFixed(1)}%
-              </span>
-            </div>
-            
-            <CardContent className="p-6 relative z-10">
-              <div className="flex items-center gap-3 mb-2">
-                {/* Restauramos el ícono del billete a la izquierda */}
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <Banknote className="w-6 h-6 text-white" />
+          {/* Utilidad Neta (solo con permiso) */}
+          {canSeeRevenue && (
+            <Card className="relative overflow-hidden rounded-2xl border-none bg-gradient-to-br from-blue-600 to-indigo-800 text-white shadow-lg">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-semibold uppercase tracking-wider text-indigo-50/90">Utilidad Neta</span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20 backdrop-blur-sm"><Banknote className="h-[18px] w-[18px] text-white" /></span>
                 </div>
-                <h3 className="text-lg font-medium text-indigo-50">Utilidad Neta</h3>
-              </div>
-              <p className="text-4xl font-extrabold tracking-tight mt-4">
-                {formatCurrency(summary.totalProfit)}
-              </p>
-            </CardContent>
-          </Card>
+                <p className="mt-3 whitespace-nowrap text-3xl font-extrabold tracking-tight tabular-nums xl:text-2xl 2xl:text-4xl">
+                  {formatCurrency(summary.totalProfit)}
+                </p>
+                {/* Barra de margen: track translúcido + relleno blanco sobre el degradado */}
+                <div className="mt-4">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-xs uppercase tracking-wider text-indigo-50/80">Margen</span>
+                    <span className="text-lg font-extrabold tabular-nums leading-none">
+                      {globalMargin > 0 ? '+' : ''}{globalMargin.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-white/20">
+                    <div className="h-full rounded-full bg-white transition-all" style={{ width: `${Math.max(0, Math.min(100, globalMargin))}%` }} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
       {/* 2. CONTROLES DE VISTA Y CONTENIDO ESPECÍFICO POR SUCURSAL */}
       <Tabs defaultValue="cards" className="w-full">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-slate-800">Métricas por Sucursal</h2>
-          <TabsList className="grid w-[400px] grid-cols-3 bg-slate-100/50 backdrop-blur-sm border border-slate-200">
-            <TabsTrigger value="cards" className="flex items-center gap-2">
-              <LayoutGrid className="w-4 h-4" /> Tarjetas
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-bold text-slate-800 sm:text-2xl">Métricas por Sucursal</h2>
+          <TabsList className="grid w-full grid-cols-3 border border-slate-200 bg-slate-100/50 backdrop-blur-sm sm:w-[360px]">
+            <TabsTrigger value="cards" className="flex items-center gap-1.5">
+              <LayoutGrid className="w-4 h-4" /> <span className="hidden sm:inline">Tarjetas</span>
             </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-2">
-              <TableIcon className="w-4 h-4" /> Tabla
+            <TabsTrigger value="table" className="flex items-center gap-1.5">
+              <TableIcon className="w-4 h-4" /> <span className="hidden sm:inline">Tabla</span>
             </TabsTrigger>
-            <TabsTrigger value="charts" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" /> Gráficas
+            <TabsTrigger value="charts" className="flex items-center gap-1.5">
+              <BarChart3 className="w-4 h-4" /> <span className="hidden sm:inline">Gráficas</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -249,23 +250,22 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
-                      {kpiBox("from-green-50", "to-emerald-100/50", <Banknote className="w-4 h-4 text-emerald-700" />, "Ingresos", formatCurrency(subsidiary.totalRevenue))}
+                      {canSeeRevenue && kpiBox("from-green-50", "to-emerald-100/50", <Banknote className="w-4 h-4 text-emerald-700" />, "Ingresos", formatCurrency(subsidiary.totalRevenue))}
                       {kpiBox("from-orange-50", "to-orange-100/50", <Banknote className="w-4 h-4 text-orange-600" />, "Gastos", formatCurrency(subsidiary.totalExpenses))}
-                      
-                      {/* Restauramos el billete y añadimos el margen al lado del dinero */}
-                      {kpiBox(
-                        "from-blue-50", 
-                        "to-indigo-100/50", 
-                        <Banknote className="w-4 h-4 text-indigo-700" />, 
-                        "Utilidad", 
+
+                      {canSeeRevenue && kpiBox(
+                        "from-blue-50",
+                        "to-indigo-100/50",
+                        <Banknote className="w-4 h-4 text-indigo-700" />,
+                        "Utilidad",
                         <>
                           {formatCurrency(subsidiary.totalProfit)}
-                          <span className={`text-sm ml-1 font-bold ${margin >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          <span className={`text-xs font-bold ${margin >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                             ({margin.toFixed(1)}%)
                           </span>
                         </>
                       )}
-                      
+
                       {kpiBox("from-purple-50", "to-purple-100/50", <PercentCircle className="w-4 h-4 text-purple-600" />, "Efectividad", `${subsidiary.averageEfficiency.toFixed(0)}%`)}
                     </div>
 
@@ -333,10 +333,10 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
                     <TableHead className="text-right font-bold text-slate-700">Paquetes</TableHead>
                     <TableHead className="text-right font-bold text-slate-700">Entregados</TableHead>
                     <TableHead className="text-right font-bold text-slate-700">DEX</TableHead>
-                    <TableHead className="text-right font-bold text-slate-700">Ingresos</TableHead>
+                    {canSeeRevenue && <TableHead className="text-right font-bold text-slate-700">Ingresos</TableHead>}
                     <TableHead className="text-right font-bold text-slate-700">Gastos</TableHead>
-                    <TableHead className="text-right font-bold text-slate-700">Utilidad</TableHead>
-                    <TableHead className="text-right font-bold text-slate-700">Margen (%)</TableHead>
+                    {canSeeRevenue && <TableHead className="text-right font-bold text-slate-700">Utilidad</TableHead>}
+                    {canSeeRevenue && <TableHead className="text-right font-bold text-slate-700">Margen (%)</TableHead>}
                     <TableHead className="text-center font-bold text-slate-700">Eficiencia</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -351,14 +351,18 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
                         <TableCell className="text-right">{sub.totalPackages}</TableCell>
                         <TableCell className="text-right text-emerald-600 font-medium">{sub.deliveredPackages}</TableCell>
                         <TableCell className="text-right text-red-500 font-medium">{sub.undeliveredPackages}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(sub.totalRevenue)}</TableCell>
+                        {canSeeRevenue && <TableCell className="text-right">{formatCurrency(sub.totalRevenue)}</TableCell>}
                         <TableCell className="text-right">{formatCurrency(sub.totalExpenses)}</TableCell>
-                        <TableCell className={`text-right font-bold ${isProfit ? 'text-blue-600' : 'text-red-600'}`}>
-                          {formatCurrency(sub.totalProfit)}
-                        </TableCell>
-                        <TableCell className={`text-right font-medium ${margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {margin.toFixed(1)}%
-                        </TableCell>
+                        {canSeeRevenue && (
+                          <TableCell className={`text-right font-bold ${isProfit ? 'text-blue-600' : 'text-red-600'}`}>
+                            {formatCurrency(sub.totalProfit)}
+                          </TableCell>
+                        )}
+                        {canSeeRevenue && (
+                          <TableCell className={`text-right font-medium ${margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {margin.toFixed(1)}%
+                          </TableCell>
+                        )}
                         <TableCell className="text-center">
                           <Badge 
                             variant={sub.averageEfficiency >= 80 ? "default" : sub.averageEfficiency >= 60 ? "secondary" : "destructive"}
@@ -378,33 +382,34 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
 
         {/* --- VISTA DE GRÁFICAS --- */}
         <TabsContent value="charts" className="mt-0 space-y-6">
-          {/* Gráfica Financiera */}
+          {/* Gráfica Financiera (solo con permiso de ingresos) */}
+          {canSeeRevenue && (
           <Card className="border-none shadow-lg bg-white/60 backdrop-blur-xl p-6">
             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
               <Banknote className="w-5 h-5 text-indigo-600" />
               Desempeño Financiero por Sucursal
             </h3>
             <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 400 }}>
                 <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="subsidiaryName" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#64748b', fontSize: 12 }} 
+                  <XAxis
+                    dataKey="subsidiaryName"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
                     dy={10}
                   />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fill: '#64748b', fontSize: 12 }}
                     tickFormatter={(value) => `$${value.toLocaleString()}`}
                   />
                   <RechartsTooltip 
                     cursor={{ fill: '#f1f5f9' }}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value) => formatCurrency(Number(value))}
                   />
                   <Legend wrapperStyle={{ paddingTop: '20px' }} />
                   <Bar dataKey="totalRevenue" name="Ingresos" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -414,6 +419,7 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
               </ResponsiveContainer>
             </div>
           </Card>
+          )}
 
           {/* Gráfica Operativa */}
           <Card className="border-none shadow-lg bg-white/60 backdrop-blur-xl p-6">
@@ -422,7 +428,7 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
               Volumen Operativo vs Entregas
             </h3>
             <div className="h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 350 }}>
                 <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis 
@@ -454,3 +460,6 @@ export function SubsidiaryMetricsGrid({ data }: Props) {
     </div>
   )
 }
+
+/** Memoizado: solo re-renderiza si cambia `data` (ref estable vía SWR keepPreviousData). */
+export const SubsidiaryMetricsGrid = React.memo(SubsidiaryMetricsGridImpl)

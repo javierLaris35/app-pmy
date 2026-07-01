@@ -86,9 +86,18 @@ export const fetchVisibility67FedexCheck = async (
       daysWith67: number; daysWithout67: number; missingDates: string[]; last67: string | null;
       events: { date: string; description: string; exceptionCode?: string }[];
       lastMovement: { date: string; description: string } | null;
+      commitDateTime: string | null;
       fedexStatus: string; fedexRaw?: string; derivedCode?: string; exceptionCode?: string;
     }
   >;
+};
+
+// Reprograma el commitDateTime de guías (DEX17) con la nueva fecha de FedEx.
+export const updateCommitDatesBatch = async (
+  items: { trackingNumber: string; isCharge?: boolean; commitDateTime: string }[],
+) => {
+  const res = await axiosConfig.post(`shipments/commit-date/update-batch`, { items });
+  return res.data as { updated: number; details: { trackingNumber: string; commitDateTime: string }[] };
 };
 
 export const fetchSin67Excel = async (subsidiaryId: string) => {
@@ -109,6 +118,21 @@ export const fetchInventoryReportJson = async (subsidiaryId: string, from?: stri
 export const fetchUnloadingReportJson = async (subsidiaryId: string, from?: string, to?: string) => {
   const res = await axiosConfig.get(`unloadings/visibility-report/${subsidiaryId}`, { params: { from, to } });
   return res.data as { summary?: Record<string, any>; details: any[] };
+};
+
+// ----- Reporte Rutas del día pasado (salidas a ruta, por sucursal + rango) -----
+export const fetchRoutesReportJson = async (subsidiaryId: string, from?: string, to?: string) => {
+  const res = await axiosConfig.get(`package-dispatchs/routes-report/${subsidiaryId}`, { params: { from, to } });
+  // { summary, details: [{ trackingNumber, status, category, driver, commitDateTime,
+  //   movedYesterday, has67Yesterday, has67Today, inLastInventoryYesterday, ... }], meta }
+  return res.data as { summary?: Record<string, any>; details: any[]; meta?: Record<string, any> };
+};
+
+// ----- Reporte Inventario sin movimiento (LD de bodega) -----
+export const fetchInventoryLDReportJson = async (subsidiaryId: string, from?: string, to?: string) => {
+  const res = await axiosConfig.get(`inventories/ld-report/${subsidiaryId}`, { params: { from, to } });
+  // { summary:{enBodega,conMovimiento,sinMovimiento,causanLD,montoPerdido}, details:[{...,movedThatDay,isLD,consNumber,recipientPhone}], meta }
+  return res.data as { summary?: Record<string, any>; details: any[]; meta?: Record<string, any> };
 };
 
 // ----- Último inventario sin 67 -----

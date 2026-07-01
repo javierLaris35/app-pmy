@@ -3,13 +3,17 @@
 
 import { useState, useEffect } from "react";
 import DashboardWelcome from "./DashboardWelcome";
+import { useUiStore } from "@/store/ui.store";
 
 interface DashboardWelcomeWrapperProps {
   userId: string;
 }
 
 export default function DashboardWelcomeWrapper({ userId }: DashboardWelcomeWrapperProps) {
-  const [showWelcome, setShowWelcome] = useState(false);
+  // El estado de apertura vive en el store de UI para poder dispararlo también
+  // desde el botón del header (solo dev). El FAB flotante se eliminó.
+  const showWelcome = useUiStore((s) => s.welcomeOpen);
+  const setShowWelcome = useUiStore((s) => s.setWelcomeOpen);
   const [isDevelopment, setIsDevelopment] = useState(false);
 
   useEffect(() => {
@@ -59,29 +63,6 @@ export default function DashboardWelcomeWrapper({ userId }: DashboardWelcomeWrap
       }
     }
   };
-
-  // Opcional: Agregar un botón/flotante en desarrollo para forzar reapertura
-  if (isDevelopment && !showWelcome) {
-    return (
-      <>
-        <DashboardWelcome
-          open={showWelcome}
-          onOpenChange={handleClose}
-          userId={userId}
-        />
-        {/* Botón flotante para forzar apertura en desarrollo */}
-        <button
-          onClick={() => setShowWelcome(true)}
-          className="fixed bottom-4 right-4 z-50 p-3 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 transition-colors"
-          title="Forzar apertura Dashboard (solo desarrollo)"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </button>
-      </>
-    );
-  }
 
   return (
     <DashboardWelcome

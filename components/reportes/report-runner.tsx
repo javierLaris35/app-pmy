@@ -461,6 +461,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
           columns={columns}
           data={rows}
           filters={filters}
+          initialColumnFilters={def.defaultColumnFilters as any}
           autoResetPageIndex={false}
           rowClassName={(r: any) =>
             generatesIncome(r.__fedexStatus)

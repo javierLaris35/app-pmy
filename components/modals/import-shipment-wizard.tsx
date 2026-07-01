@@ -19,8 +19,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"
+import { toast } from "@/lib/toast"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -30,7 +32,9 @@ import {
   uploadF2ChargeShipments,
   uploadShipmentFile,
   uploadShipmentPayments,
-  uploadHighValueShipments
+  uploadHighValueShipments,
+  previewShipmentFile,
+  type UploadPreview,
 } from "@/lib/services/shipments"
 import { useAuthStore } from "@/store/auth.store"
 import { IconTruckLoading } from "@tabler/icons-react"
@@ -58,12 +62,12 @@ const steps = [
     icon: Gem,
   },
   {
-    label: "Carga / F2 / 31.5",
+    label: "F2",
     description: "Sube el archivo para gestionar cargas F2 según la sucursal.",
     icon: IconTruckLoading,
   },
   {
-    label: "Cobros y ajustes",
+    label: "Cobros",
     description: "Aplica cobros finales. No se necesita subir otro archivo para aplicar cobros si ya cargaste los anteriores.",
     icon: DollarSign,
   },
@@ -102,6 +106,14 @@ export function ShipmentWizardModal({
   const [error, setError] = useState("")
   const [inputErrors, setInputErrors] = useState<{ sucursalId?: boolean; consNumber?: boolean }>({})
 
+  // Pre-validación (solo pasos que crean consolidado: 0 Cons Master, 1 Aéreos).
+  const [preview, setPreview] = useState<UploadPreview | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const PREVIEW_STEPS = [0, 1]
+
+  // Pasos ya subidos OK → no se re-envían al re-visitarlos (evita duplicados).
+  const [uploadedSteps, setUploadedSteps] = useState<Set<number>>(new Set())
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const user = useAuthStore((s) => s.user);
 
@@ -122,7 +134,7 @@ export function ShipmentWizardModal({
           }
         },
         {
-          element: ".grid.md\\:grid-cols-3", // Selector de los inputs de arriba
+          element: "#wizard-fields", // Selector de los inputs de arriba
           popover: {
             title: "2. Datos Obligatorios",
             description: "Antes de subir cualquier archivo, es necesario que selecciones la **Sucursal**, la **Fecha** y el **Cons Number**. Sin estos datos no podrás avanzar.",
@@ -138,7 +150,7 @@ export function ShipmentWizardModal({
           }
         },
         {
-          element: "button.bg-orange-600", // Botón Siguiente
+          element: "#wizard-next-btn", // Botón Siguiente
           popover: {
             title: "4. Subir y Continuar",
             description: "Al darle a 'Siguiente Paso', el archivo se subirá al sistema y avanzarás a la siguiente categoría de envíos.",
@@ -160,7 +172,7 @@ export function ShipmentWizardModal({
   }, [open, startTutorial]);
 
   // ... Resto del código (lógica de handlers y renderizado se mantiene igual)
-  useEffect(() => { if (user?.subsidiary) setSucursalId(user.subsidiary.id); }, [user]);
+  useEffect(() => { if (user?.subsidiary) setSucursalId(user.subsidiary.id ?? ""); }, [user]);
   useEffect(() => { localStorage.setItem("shipmentWizardFiles", JSON.stringify(files)) }, [files])
 
   useEffect(() => {
@@ -178,7 +190,7 @@ export function ShipmentWizardModal({
 
   const reset = () => {
     setStep(0); setSucursalId(user?.subsidiary?.id || ""); setDate(""); setConsNumber("");
-    setNotRemoveCharge(false); setFiles(Array(steps.length - 1).fill(null)); setError(""); setInputErrors({});
+    setNotRemoveCharge(false); setFiles(Array(steps.length - 1).fill(null)); setError(""); setInputErrors({}); setPreview(null); setUploadedSteps(new Set());
     localStorage.removeItem("shipmentWizardFiles"); localStorage.removeItem("shipmentWizardSucursal");
     localStorage.removeItem("shipmentWizardDate"); localStorage.removeItem("shipmentWizardCons");
   }
@@ -187,11 +199,35 @@ export function ShipmentWizardModal({
 
   const handleFile = (index: number, file: File | null) => {
     setError("");
+    setPreview(null);
+    // Un archivo nuevo en este paso reactiva su subida (deja de estar "ya subido").
+    setUploadedSteps((prev) => { const n = new Set(prev); n.delete(index); return n })
     const updated = [...files];
     updated[index] = file;
     setFiles(updated);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
+
+  const runPreview = async (file: File) => {
+    try {
+      setPreviewing(true);
+      const p = await previewShipmentFile(file, sucursalId, consNumber, "fedex");
+      setPreview(p);
+    } catch {
+      setPreview(null); // el preview es informativo; si falla, no bloquea la subida
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  // Auto pre-validación al elegir archivo / cambiar paso o consNumber (con debounce).
+  useEffect(() => {
+    const f = files[step];
+    if (!PREVIEW_STEPS.includes(step) || !(f instanceof File) || !sucursalId || !consNumber) { setPreview(null); return }
+    const t = setTimeout(() => runPreview(f as File), 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, consNumber, sucursalId, files])
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault(); e.stopPropagation();
@@ -210,13 +246,37 @@ export function ShipmentWizardModal({
       return setError("Por favor, completa los campos obligatorios resaltados.");
     }
 
+    // Validación profunda ANTES de subir (pasos que crean consolidado).
+    if (PREVIEW_STEPS.includes(step) && files[step] && preview) {
+      if (preview.parseError) return setError(`Archivo inválido: ${preview.parseError}`);
+      if (preview.withTracking === 0) return setError("El archivo no contiene guías válidas.");
+      if (preview.consNumberExists) {
+        return setError(`El consolidado "${preview.consNumberExists.consNumber}" YA existe en esta sucursal (${preview.consNumberExists.numberOfPackages} guías, ${preview.consNumberExists.date ? new Date(preview.consNumberExists.date).toLocaleDateString("es-MX") : "s/f"}). Usa otro Cons Number.`);
+      }
+      if (preview.newCount === 0) {
+        return setError("Todas las guías de este archivo ya fueron importadas en esta sucursal. No hay nada nuevo que subir.");
+      }
+    }
+
+    // Anti-duplicados: si este paso ya se subió OK (y no cambiaste el archivo),
+    // NO se vuelve a enviar — solo avanza.
+    if (uploadedSteps.has(step)) {
+      if (step < steps.length - 1) { setStep(step + 1); return }
+      onUploadSuccess(); close(); return
+    }
+
     try {
       setLoading(true);
-      if (step === 0 && files[0]) await uploadShipmentFile(files[0], sucursalId, consNumber, date || "")
-      if (step === 1 && files[1]) await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true)
-      if (step === 2 && files[2]) await uploadHighValueShipments(files[2], sucursalId, consNumber, date || "")
-      if (step === 3 && files[3]) await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge)
-      if (step === 4) await uploadShipmentPayments(files[4] || undefined)
+      let res: any = null
+      let uploaded = false
+      if (step === 0 && files[0]) { res = await uploadShipmentFile(files[0], sucursalId, consNumber, date || ""); uploaded = true }
+      else if (step === 1 && files[1]) { res = await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true); uploaded = true }
+      else if (step === 2 && files[2]) { res = await uploadHighValueShipments(files[2], sucursalId, consNumber, date || ""); uploaded = true }
+      else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge); uploaded = true }
+      else if (step === 4 && files[4]) { res = await uploadShipmentPayments(files[4]); uploaded = true }
+
+      if (res) toast.success(summarizeResult(step, res))
+      if (uploaded) setUploadedSteps((prev) => new Set(prev).add(step))
 
       if (step < steps.length - 1) {
         setStep(step + 1)
@@ -232,142 +292,253 @@ export function ShipmentWizardModal({
 
   const handlePrev = () => setStep(step - 1)
 
+  // Resumen legible del resultado del backend por paso (los shapes difieren).
+  const summarizeResult = (st: number, res: any): string => {
+    if (st === 0 || st === 1) {
+      const s = res?.saved ?? 0, d = res?.duplicated ?? 0, f = res?.failed ?? 0
+      return `${steps[st].label}: ${s} guardadas${d ? `, ${d} duplicadas` : ""}${f ? `, ${f} con error` : ""}.`
+    }
+    if (st === 3) {
+      if (res?.summary) return `F2: ${res.summary.migrated ?? 0} migradas, ${res.summary.insertedNew ?? 0} nuevas${res.summary.failed ? `, ${res.summary.failed} con error` : ""}.`
+      const n = res?.savedChargeShipments?.length ?? 0
+      return `Cargos: ${n} guardados.`
+    }
+    return `${steps[st].label}: procesado correctamente.`
+  }
+
+  const completedCount = files.slice(0, steps.length - 1).filter(Boolean).length
+
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-4xl rounded-2xl shadow-xl max-h-[95vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between border-b pb-4">
-          <div className="space-y-1">
-            <DialogTitle className="flex items-center gap-2 text-orange-600 text-lg font-bold">
-              <Upload className="h-5 w-5" /> Importar Envíos
-            </DialogTitle>
-            <DialogDescription>
-              Sigue los pasos para cargar la documentación del consolidado.
-            </DialogDescription>
+      <DialogContent
+        showCloseButton={false}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="flex max-h-[92vh] w-[96vw] max-w-3xl flex-col gap-0 overflow-hidden rounded-2xl p-0"
+      >
+        {/* Header */}
+        <DialogHeader className="space-y-0 border-b px-5 py-4 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <Upload className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <DialogTitle className="text-base font-semibold">Importar envíos FedEx</DialogTitle>
+                <DialogDescription className="text-xs">Carga la documentación del consolidado, paso a paso.</DialogDescription>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" onClick={startTutorial} className="hidden shrink-0 gap-1.5 text-muted-foreground sm:flex">
+              <HelpCircle className="h-4 w-4" /> Tutorial
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={startTutorial} className="flex gap-2 text-orange-600 border-orange-200 hover:bg-orange-50">
-            <HelpCircle className="h-4 w-4" /> Ver Tutorial
-          </Button>
         </DialogHeader>
 
-        <div id="wizard-stepper-container" className="w-full overflow-x-auto mb-4 p-1">
-          <div className="flex items-center justify-between gap-4 min-w-[650px]">
-            {steps.map(({ label, icon: Icon }, i) => {
-              const isActive = i === step
-              const isComplete = i < step
-              return (
-                <div key={i} className="flex-1 cursor-pointer" onClick={() => !loading && setStep(i)}>
-                  <div className="flex flex-col items-center">
-                    <div className={cn(
-                      "w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all duration-300",
-                      isActive ? "border-orange-600 bg-orange-100 text-orange-600 shadow-md scale-110" :
-                      isComplete ? "border-green-500 bg-green-100 text-green-600" :
-                      "border-gray-300 bg-white text-gray-400"
-                    )}>
-                      {isComplete ? <CheckCheckIcon className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
-                    </div>
-                    <p className={cn("text-[10px] mt-2 text-center uppercase tracking-tighter font-bold", isActive ? "text-orange-700" : "text-gray-500")}>
-                      {label}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
+        {/* Stepper */}
+        <div id="wizard-stepper-container" className="border-b bg-muted/30 px-5 py-4 sm:px-6">
+          <div className="overflow-x-auto">
+            <ol className="flex min-w-[560px] items-center">
+              {steps.map(({ label, icon: Icon }, i) => {
+                const isActive = i === step
+                const isComplete = i < step
+                return (
+                  <li key={i} className={cn("flex items-center", i < steps.length - 1 ? "flex-1" : "")}>
+                    <button
+                      type="button"
+                      onClick={() => !loading && !previewing && setStep(i)}
+                      disabled={loading || previewing}
+                      className="flex flex-col items-center gap-1.5 disabled:cursor-not-allowed"
+                    >
+                      <span className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-all",
+                        isActive ? "border-primary bg-primary text-primary-foreground shadow-sm" :
+                        isComplete ? "border-emerald-500 bg-emerald-500 text-white" :
+                        "border-muted-foreground/25 bg-background text-muted-foreground",
+                      )}>
+                        {isComplete ? <CheckCheckIcon className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                      </span>
+                      <span className={cn(
+                        "max-w-[76px] text-center text-[10px] font-medium leading-tight",
+                        isActive ? "text-foreground" : "text-muted-foreground",
+                      )}>
+                        {label}
+                      </span>
+                    </button>
+                    {i < steps.length - 1 && (
+                      <span className={cn("mx-1 mb-5 h-0.5 flex-1 rounded-full transition-colors", i < step ? "bg-emerald-500" : "bg-border")} />
+                    )}
+                  </li>
+                )
+              })}
+            </ol>
           </div>
-          <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4">
-            <div className="h-full bg-orange-500 rounded-full transition-all duration-500" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
-          </div>
-          <p className="text-gray-500 text-[11px] mt-3 bg-gray-50 p-2 rounded border-l-4 border-orange-400">
-            <b className="text-orange-700">Instrucciones: </b> {steps[step].description}
+          <p className="mt-3 rounded-lg border-l-[3px] border-primary bg-background px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{steps[step].label}:</span> {steps[step].description}
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 mb-4">
-          <div className="space-y-1.5">
-            <Label className={cn(inputErrors.sucursalId && "text-red-600 font-bold")}>Sucursal *</Label>
-            <div className={cn(inputErrors.sucursalId && "rounded-md ring-2 ring-red-500 ring-offset-1")}>
-              <SucursalSelector 
-                value={sucursalId}
-                insideAModal={true} 
-                onValueChange={(val) => {
-                  const id = typeof val === "string" ? val : (val as Subsidiary).id;
-                  setSucursalId(id)
-                  setInputErrors(prev => ({ ...prev, sucursalId: false }))
-                }} 
+        {/* Body */}
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+          {/* Datos obligatorios */}
+          <div id="wizard-fields" className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className={cn("text-xs", inputErrors.sucursalId && "text-destructive")}>Sucursal *</Label>
+              <div className={cn("rounded-md", inputErrors.sucursalId && "ring-2 ring-destructive ring-offset-1")}>
+                <SucursalSelector
+                  value={sucursalId}
+                  insideAModal={true}
+                  onValueChange={(val) => {
+                    const id = typeof val === "string" ? val : (val as Subsidiary).id;
+                    setSucursalId(id ?? "")
+                    setInputErrors(prev => ({ ...prev, sucursalId: false }))
+                  }}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Fecha consolidado</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div id="cons-input-wrapper" className="space-y-1.5">
+              <Label className={cn("text-xs", inputErrors.consNumber && "text-destructive")}>Cons Number *</Label>
+              <Input
+                value={consNumber}
+                placeholder="Ej: 3057… o GDL-2005-150"
+                onChange={(e) => {
+                  setConsNumber(e.target.value)
+                  setInputErrors(prev => ({ ...prev, consNumber: false }))
+                }}
+                className={cn(inputErrors.consNumber && "border-destructive focus-visible:ring-destructive")}
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Fecha Consolidado</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div id="cons-input-wrapper" className="space-y-1.5">
-            <Label className={cn(inputErrors.consNumber && "text-red-600 font-bold")}>Cons Number *</Label>
-            <Input 
-              value={consNumber} 
-              placeholder="Ej: 3057... o GDL-2005-150"
-              onChange={(e) => {
-                setConsNumber(e.target.value)
-                setInputErrors(prev => ({ ...prev, consNumber: false }))
-              }}
-              className={cn(inputErrors.consNumber && "border-red-500 focus-visible:ring-red-500")}
-            />
-          </div>
-        </div>
 
-        {step === 3 && (
-          <div className="flex items-center space-x-3 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
-            <Switch checked={notRemoveCharge} onCheckedChange={setNotRemoveCharge} />
-            <Label className="text-sm font-medium text-blue-900">¿Solo subir cargos (no remover existentes)?</Label>
-          </div>
-        )}
-
-        <div className="space-y-4">
-          {step < steps.length - 1 ? (
-            <div
-              id="wizard-upload-zone"
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              className="bg-orange-50 border-2 border-dashed border-orange-200 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-100/50 transition-all flex flex-col items-center justify-center gap-3 min-h-[200px]"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Input
-                type="file"
-                accept={ALLOWED_EXTENSIONS.map((e) => "." + e).join(",")}
-                onChange={(e) => handleFile(step, e.target.files?.[0] || null)}
-                ref={fileInputRef}
-                className="hidden"
-              />
-              <div className="bg-white p-4 rounded-full shadow-sm text-orange-600">
-                <Upload className="h-8 w-8" />
+          {/* Switch F2 (paso 3) */}
+          {step === 3 && (
+            <div className="flex items-start gap-3 rounded-xl border bg-muted/40 p-3">
+              <Switch checked={notRemoveCharge} onCheckedChange={setNotRemoveCharge} className="mt-0.5" />
+              <div className="space-y-0.5">
+                <Label className="text-sm font-semibold">Guardar F2 directo en cargos (no migrar)</Label>
+                <p className="text-xs text-muted-foreground">
+                  {notRemoveCharge
+                    ? "ACTIVO: las guías se guardan DIRECTO en cargos. No se elimina nada de shipments."
+                    : "INACTIVO (normal): las guías que ya estén en shipments se MIGRAN a cargos (se eliminan de shipments)."}
+                </p>
               </div>
-              {files[step] ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-bold text-orange-900 bg-white px-4 py-1 rounded-full border border-orange-200 shadow-sm">
-                    📄 {files[step]?.name}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-orange-800 tracking-tight">Selecciona o arrastra tu archivo Excel</p>
-                  <p className="text-[11px] text-orange-600/70">Formatos permitidos: .xlsx, .xls, .csv</p>
-                  {step === 4 && <p className="text-orange-700 font-bold text-[10px] uppercase mt-2">Opcional: puedes pulsar siguiente para procesar sin archivo</p>}
+            </div>
+          )}
+
+          {step < steps.length - 1 ? (
+            <>
+              {/* Dropzone */}
+              <div
+                id="wizard-upload-zone"
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-6 text-center transition-colors",
+                  files[step] ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50",
+                )}
+              >
+                <Input
+                  type="file"
+                  accept={ALLOWED_EXTENSIONS.map((e) => "." + e).join(",")}
+                  onChange={(e) => handleFile(step, e.target.files?.[0] || null)}
+                  ref={fileInputRef}
+                  className="hidden"
+                />
+                <span className={cn("grid h-12 w-12 place-items-center rounded-full", files[step] ? "bg-primary/15 text-primary" : "bg-background text-muted-foreground shadow-sm")}>
+                  {files[step] ? <CheckCircle className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
+                </span>
+                {files[step] ? (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="max-w-[280px] truncate rounded-full border bg-background px-3 py-1 text-sm font-medium">📄 {files[step]?.name}</span>
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); handleFile(step, null) }}
+                        aria-label="Quitar archivo"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {uploadedSteps.has(step) && (
+                      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+                        <CheckCircle className="h-3.5 w-3.5" /> Ya subido — no se volverá a enviar
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">Selecciona o arrastra tu archivo</p>
+                    <p className="text-xs text-muted-foreground">Formatos: .xlsx, .xls, .csv</p>
+                    {step === 4 && <p className="mt-1 text-[11px] font-medium text-primary">Opcional: puedes continuar sin archivo.</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Pre-validación (pasos que crean consolidado) */}
+              {PREVIEW_STEPS.includes(step) && files[step] && (
+                <div>
+                  {previewing ? (
+                    <div className="flex items-center gap-2 rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Validando archivo…
+                    </div>
+                  ) : preview ? (
+                    <div className="space-y-2 rounded-xl border p-3 text-xs">
+                      {preview.parseError ? (
+                        <div className="flex items-center gap-2 font-medium text-destructive"><X className="h-4 w-4 shrink-0" /> {preview.parseError}</div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            <div className="rounded-lg border bg-background p-2 text-center"><div className="text-base font-bold tabular-nums">{preview.withTracking}</div><div className="text-[10px] uppercase text-muted-foreground">Guías</div></div>
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-center"><div className="text-base font-bold tabular-nums text-emerald-700">{preview.newCount}</div><div className="text-[10px] uppercase text-emerald-700/70">Nuevas</div></div>
+                            <div className={cn("rounded-lg border p-2 text-center", preview.alreadyImportedCount ? "border-amber-200 bg-amber-50" : "bg-background")}><div className={cn("text-base font-bold tabular-nums", preview.alreadyImportedCount && "text-amber-700")}>{preview.alreadyImportedCount}</div><div className="text-[10px] uppercase text-muted-foreground">Ya import.</div></div>
+                            <div className={cn("rounded-lg border p-2 text-center", preview.duplicatesInFile ? "border-amber-200 bg-amber-50" : "bg-background")}><div className={cn("text-base font-bold tabular-nums", preview.duplicatesInFile && "text-amber-700")}>{preview.duplicatesInFile}</div><div className="text-[10px] uppercase text-muted-foreground">Dup. archivo</div></div>
+                          </div>
+
+                          {preview.consNumberExists ? (
+                            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 font-medium text-destructive">
+                              <X className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span>El Cons Number <b>{preview.consNumberExists.consNumber}</b> ya existe en esta sucursal ({preview.consNumberExists.numberOfPackages} guías, {preview.consNumberExists.date ? new Date(preview.consNumberExists.date).toLocaleDateString("es-MX") : "s/f"}). Usa otro número.</span>
+                            </div>
+                          ) : preview.newCount === 0 ? (
+                            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 font-medium text-destructive">
+                              <X className="mt-0.5 h-4 w-4 shrink-0" /> Todas las guías ya fueron importadas en esta sucursal. No hay nada nuevo que subir.
+                            </div>
+                          ) : preview.alreadyImportedCount > 0 ? (
+                            <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-amber-800">
+                              <HelpCircle className="mt-0.5 h-4 w-4 shrink-0" /> Se importarán <b>{preview.newCount}</b> guías nuevas; <b>{preview.alreadyImportedCount}</b> ya existen y se omitirán automáticamente.
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-2.5 font-medium text-emerald-700">
+                              <CheckCircle className="h-4 w-4 shrink-0" /> {preview.newCount} guías listas para importar.
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ) : (!consNumber || !sucursalId) ? (
+                    <p className="text-[11px] text-muted-foreground">Ingresa <b>Sucursal</b> y <b>Cons Number</b> para validar el archivo antes de subir.</p>
+                  ) : null}
                 </div>
               )}
-            </div>
+            </>
           ) : (
-            <div className="border border-green-200 p-5 rounded-xl bg-green-50 shadow-inner">
-              <h4 className="text-sm font-bold text-green-800 mb-3 flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" /> Resumen de Carga
+            /* Paso Confirmar: resumen */
+            <div className="rounded-xl border bg-muted/30 p-4">
+              <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <CheckSquare className="h-4 w-4 text-primary" /> Resumen de carga ({completedCount}/{steps.length - 1} con archivo)
               </h4>
-              <ul className="grid grid-cols-2 gap-3 text-[11px]">
+              <ul className="grid gap-2 sm:grid-cols-2">
                 {steps.slice(0, steps.length - 1).map((s, i) => (
-                  <li key={i} className={cn(
-                    "flex items-center gap-2 p-2 rounded-md border",
-                    files[i] ? "bg-white border-green-200 text-green-700" : "bg-red-50 border-red-100 text-red-600 opacity-60"
-                  )}>
-                    {files[i] ? <CheckCheckIcon className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                    <span className="font-bold truncate">{s.label}:</span>
-                    <span className="truncate">{files[i]?.name || "Omitido / No requerido"}</span>
+                  <li key={i} className="flex items-center gap-2 rounded-lg border bg-background p-2 text-xs">
+                    {files[i]
+                      ? <CheckCheckIcon className="h-4 w-4 shrink-0 text-emerald-600" />
+                      : <X className="h-4 w-4 shrink-0 text-muted-foreground/50" />}
+                    <span className="shrink-0 font-medium">{s.label}:</span>
+                    <span className={cn("truncate", files[i] ? "text-foreground" : "text-muted-foreground")}>{files[i]?.name || "Omitido"}</span>
                   </li>
                 ))}
               </ul>
@@ -375,43 +546,42 @@ export function ShipmentWizardModal({
           )}
 
           {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-md animate-in slide-in-from-top-2 duration-300">
-              <div className="flex items-start gap-3">
-                <X className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-red-800 uppercase">Error en: {steps[step].label}</h3>
-                  <p className="text-xs text-red-700 mt-1 font-medium leading-relaxed">{error}</p>
-                </div>
+            <div className="flex items-start gap-3 rounded-xl border-l-4 border-destructive bg-destructive/10 p-3">
+              <X className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-destructive">Error en: {steps[step].label}</h3>
+                <p className="mt-0.5 whitespace-pre-line text-xs text-destructive/90">{error}</p>
               </div>
             </div>
           )}
-
-          <div className="flex justify-between items-center pt-6 border-t mt-4">
-            <Button variant="ghost" onClick={close} disabled={loading} className="rounded-full px-6 font-bold text-gray-500 hover:text-red-600">
-              Cancelar proceso
-            </Button>
-            <div className="flex gap-3">
-              {step > 0 && (
-                <Button variant="outline" onClick={handlePrev} disabled={loading} className="rounded-full px-6 border-orange-200 text-orange-700 font-bold">
-                  Anterior
-                </Button>
-              )}
-              <Button 
-                onClick={handleNext} 
-                disabled={loading || (step < 4 && !files[step] && step !== 1 && step !== 0)} 
-                className="rounded-full px-10 bg-orange-600 text-white hover:bg-orange-700 shadow-lg font-bold transition-all active:scale-95"
-              >
-                {loading ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Procesando...</>
-                ) : step === steps.length - 1 ? (
-                  "Finalizar Importación"
-                ) : (
-                  "Siguiente Paso"
-                )}
-              </Button>
-            </div>
-          </div>
         </div>
+
+        {/* Footer */}
+        <DialogFooter className="flex-row items-center justify-between gap-2 border-t bg-background px-5 py-3 sm:px-6">
+          <Button variant="ghost" onClick={close} disabled={loading} className="text-muted-foreground hover:text-destructive">
+            Cancelar
+          </Button>
+          <div className="flex gap-2">
+            {step > 0 && (
+              <Button variant="outline" onClick={handlePrev} disabled={loading || previewing}>Anterior</Button>
+            )}
+            <Button
+              id="wizard-next-btn"
+              onClick={handleNext}
+              disabled={loading || previewing || (step < 4 && !files[step] && step !== 1 && step !== 0) || (PREVIEW_STEPS.includes(step) && !!preview?.consNumberExists)}
+            >
+              {loading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando…</>
+              ) : previewing ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Validando…</>
+              ) : step === steps.length - 1 ? (
+                "Finalizar importación"
+              ) : (
+                "Siguiente paso"
+              )}
+            </Button>
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
