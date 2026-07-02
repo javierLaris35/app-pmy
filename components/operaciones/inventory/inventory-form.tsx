@@ -760,6 +760,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
 
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
             <OperationHeader
+              inline
               icon={PackageCheckIcon}
               title="Inventario de Paquetes"
               description="Escanea y valida paquetes"

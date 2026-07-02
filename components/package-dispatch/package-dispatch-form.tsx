@@ -660,6 +660,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
           {/* Header estandarizado */}
           <OperationHeader
+            inline
             icon={ClipboardPasteIcon}
         title="Salida de Paquetes"
         description="Procesa la salida de paquetes para reparto en ruta"
