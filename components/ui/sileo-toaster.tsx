@@ -15,7 +15,7 @@ export function Toaster(props: SileoToasterProps) {
 
   return (
     <Sileo
-      position="top-right"
+      position="bottom-right"
       theme={theme as SileoToasterProps["theme"]}
       {...props}
     />
