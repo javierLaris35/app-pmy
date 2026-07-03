@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
@@ -19,6 +20,7 @@ import { SeventeenTrackQuotaCard } from "@/components/configuracion/seventeen-tr
 import { CatalogPanel } from "@/components/configuracion/catalog-panel"
 import { GeocodePanel } from "@/components/configuracion/geocode-panel"
 import { ServerStatsPanel } from "@/components/configuracion/server-stats-panel"
+import { ServerLogsPanel } from "@/components/configuracion/server-logs-panel"
 
 const SECTIONS = [
   { id: "empresa", label: "Empresa", icon: Building2, description: "Datos de la empresa" },
@@ -96,7 +98,16 @@ function ConfiguracionPage() {
 
             {section === "geocode" && <GeocodePanel />}
 
-            {section === "servidor" && <ServerStatsPanel />}
+            {section === "servidor" && (
+              <Tabs defaultValue="metricas" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="metricas">Métricas</TabsTrigger>
+                  <TabsTrigger value="logs">Logs en vivo</TabsTrigger>
+                </TabsList>
+                <TabsContent value="metricas"><ServerStatsPanel /></TabsContent>
+                <TabsContent value="logs"><ServerLogsPanel /></TabsContent>
+              </Tabs>
+            )}
 
             {section === "general" && (
               <div className="space-y-4">

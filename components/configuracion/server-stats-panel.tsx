@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Panel, PanelContent, PanelHeader, PanelTitle, PanelDescription } from "@/components/ui/panel"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Cpu, MemoryStick, HardDrive, Network, Server, ArrowDown, ArrowUp, Clock, Activity, Loader2, AlertTriangle } from "lucide-react"
@@ -101,9 +101,9 @@ export function ServerStatsPanel() {
   }, [tick])
 
   return (
-    <Card className="rounded-xl border-border/60 shadow-sm">
-      <CardHeader className="gap-1 border-b bg-muted/30 px-4 py-3 sm:px-6">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>
           <Server className="h-4 w-4 text-primary" /> Servidor
           {stats && (
             <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
@@ -114,13 +114,13 @@ export function ServerStatsPanel() {
               en vivo · cada {REFRESH_MS / 1000}s
             </span>
           )}
-        </CardTitle>
-        <CardDescription>
+        </PanelTitle>
+        <PanelDescription>
           {stats ? <>{stats.hostname} · {stats.platform} · {stats.cpu.cores} núcleos</> : "Uso de recursos casi en tiempo real."}
-        </CardDescription>
-      </CardHeader>
+        </PanelDescription>
+      </PanelHeader>
 
-      <CardContent className="space-y-4 p-4 sm:p-6">
+      <PanelContent className="space-y-4">
         {error ? (
           <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
@@ -204,7 +204,7 @@ export function ServerStatsPanel() {
             )}
           </>
         )}
-      </CardContent>
-    </Card>
+      </PanelContent>
+    </Panel>
   )
 }

@@ -199,6 +199,8 @@ export type User = {
   subsidiary?: Subsidiary
   subsidiaryId?: string
   subsidiaryName?: string
+  /** Sucursales adicionales (más allá de la main) asignadas por un superadmin. */
+  additionalSubsidiaries?: Subsidiary[]
   avatar?: string
   active: boolean
   /** Permisos efectivos (codes RBAC) sembrados en el JWT al iniciar sesión. */

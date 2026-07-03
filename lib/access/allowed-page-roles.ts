@@ -39,4 +39,6 @@ export const allowedPageRoles = {
     configuracion: [UserRoleEnum.SUPERADMIN],
     // Auditoría: EXCLUSIVO superadmin (incluye variante histórica 'superamin').
     auditoria: [UserRoleEnum.SUPERADMIN, 'superamin' as UserRoleEnum],
+    // Acceso Remoto al servidor: EXCLUSIVO superadmin (sin permiso RBAC grantable).
+    accesoRemoto: [UserRoleEnum.SUPERADMIN, 'superamin' as UserRoleEnum],
 };

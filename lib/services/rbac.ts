@@ -50,3 +50,19 @@ export const setUserPermissions = async (userId: string, overrides: { code: stri
   const res = await axiosConfig.put<UserPermissionInfo>(`rbac/users/${userId}/permissions`, { overrides });
   return res.data;
 };
+
+export interface UserSubsidiariesInfo {
+  userId: string;
+  mainSubsidiary: { id: string; name: string } | null;
+  additionalSubsidiaryIds: string[];
+}
+
+export const getUserSubsidiaries = async (userId: string) => {
+  const res = await axiosConfig.get<UserSubsidiariesInfo>(`rbac/users/${userId}/subsidiaries`);
+  return res.data;
+};
+
+export const setUserSubsidiaries = async (userId: string, subsidiaryIds: string[]) => {
+  const res = await axiosConfig.put<UserSubsidiariesInfo>(`rbac/users/${userId}/subsidiaries`, { subsidiaryIds });
+  return res.data;
+};

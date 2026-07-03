@@ -293,6 +293,22 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     return response.data;
   };
 
+  export interface LdCheckResult {
+    trackingNumber: string;
+    found: boolean;
+    isCharge?: boolean;
+    status?: string;
+    commitDateTime?: string | null;
+    recipientName?: string;
+    shipmentType?: string;
+    ldState: 'active' | 'ld' | 'delivered' | 'closed' | null;
+  }
+
+  export const checkLdStatus = async (trackingNumbers: string[]): Promise<LdCheckResult[]> => {
+    const response = await axiosConfig.post<LdCheckResult[]>(`${url}/ld-check`, { trackingNumbers });
+    return response.data;
+  };
+
   const updateFromDHL = async (
     formData: FormData,
     onProgress?: (progress: number) => void

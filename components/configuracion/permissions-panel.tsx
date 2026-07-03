@@ -11,15 +11,17 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Plus, Save, Shield, Trash2, Lock, Search, UserCog } from "lucide-react";
+import { Loader2, Plus, Save, Shield, Trash2, Lock, Search, UserCog, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import {
   getPermissions, getRoles, createRole, deleteRole, setRolePermissions,
   getUserPermissions, setUserPermissions,
-  type RbacPermission, type RbacRole, type PermissionEffect,
+  getUserSubsidiaries, setUserSubsidiaries,
+  type RbacPermission, type RbacRole, type PermissionEffect, type UserSubsidiariesInfo,
 } from "@/lib/services/rbac";
 import { getUsers } from "@/lib/services/users";
+import { SucursalSelector } from "@/components/sucursal-selector";
 
 export function PermissionsPanel() {
   const [groups, setGroups] = useState<Record<string, RbacPermission[]>>({});
@@ -252,6 +254,11 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [subsInfo, setSubsInfo] = useState<UserSubsidiariesInfo | null>(null);
+  const [subsIds, setSubsIds] = useState<string[]>([]);
+  const [subsLoading, setSubsLoading] = useState(false);
+  const [subsSaving, setSubsSaving] = useState(false);
+
   useEffect(() => {
     getUsers().then(setUsers).catch(() => toast.error("No se pudieron cargar los usuarios.")).finally(() => setUsersLoading(false));
   }, []);
@@ -269,6 +276,29 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
       .catch(() => toast.error("No se pudieron cargar los permisos del usuario."))
       .finally(() => setLoading(false));
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId) { setSubsInfo(null); setSubsIds([]); return; }
+    setSubsLoading(true);
+    getUserSubsidiaries(userId)
+      .then((d) => { setSubsInfo(d); setSubsIds(d.additionalSubsidiaryIds); })
+      .catch(() => toast.error("No se pudieron cargar las sucursales del usuario."))
+      .finally(() => setSubsLoading(false));
+  }, [userId]);
+
+  const saveSubsidiaries = async () => {
+    setSubsSaving(true);
+    try {
+      const d = await setUserSubsidiaries(userId, subsIds);
+      setSubsInfo(d);
+      setSubsIds(d.additionalSubsidiaryIds);
+      toast.success("Sucursales adicionales guardadas.");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudieron guardar las sucursales.");
+    } finally {
+      setSubsSaving(false);
+    }
+  };
 
   const setEffect = (code: string, value: string) =>
     setDraft((prev) => {
@@ -341,66 +371,102 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
         </CardContent>
       </Card>
 
-      {/* Permisos del usuario seleccionado */}
-      <Card>
-        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="min-w-0">
-            <CardTitle className="text-base flex items-center gap-2">
-              <UserCog className="h-4 w-4 text-primary" />
-              {selectedUser ? `${selectedUser.name} ${selectedUser.lastName}` : "Permisos por usuario"}
-            </CardTitle>
-            <CardDescription>
-              {selectedUser
-                ? `Rol: ${info?.roleKey ?? selectedUser.role ?? "—"} · ${overrideCount} excepción(es). Heredado → Permitir → Denegar.`
-                : "Elige un usuario para conceder o revocar permisos por encima de su rol."}
-            </CardDescription>
-          </div>
-          {userId && (
-            <Button size="sm" onClick={save} disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {!userId ? (
-            <p className="text-sm text-muted-foreground py-12 text-center">Selecciona un usuario de la lista.</p>
-          ) : loading ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
-          ) : (
-            <div className="space-y-4">
-              {Object.entries(groups).map(([group, perms]) => (
-                <div key={group}>
-                  <h4 className="text-sm font-semibold mb-2">{group}</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {perms.map((p) => {
-                      const val = draft[p.code] ?? "inherit";
-                      return (
-                        <div key={p.code} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
-                          <span className="flex-1 truncate" title={p.code}>{p.name}</span>
-                          <Select value={val} onValueChange={(v) => setEffect(p.code, v)}>
-                            <SelectTrigger className={cn(
-                              "w-[140px] h-8",
-                              val === "allow" && "text-emerald-700 border-emerald-300",
-                              val === "deny" && "text-rose-700 border-rose-300",
-                            )}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="inherit">{roleCodes.has(p.code) ? "Heredado ✓" : "Heredado —"}</SelectItem>
-                              <SelectItem value="allow">Permitir</SelectItem>
-                              <SelectItem value="deny">Denegar</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+      {/* Sucursales + permisos del usuario seleccionado */}
+      <div className="space-y-4">
+        {userId && (
+          <Card>
+            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-primary" /> Sucursales
+                </CardTitle>
+                <CardDescription>
+                  Main: {subsInfo?.mainSubsidiary ? (
+                    <>
+                      <strong>{subsInfo.mainSubsidiary.name}</strong>{" "}
+                      <Badge variant="secondary" className="text-[10px] align-middle">Principal</Badge>
+                    </>
+                  ) : "—"} · Elige las adicionales que este usuario podrá ver/operar.
+                </CardDescription>
+              </div>
+              <Button size="sm" onClick={saveSubsidiaries} disabled={subsSaving || subsLoading}>
+                {subsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {subsLoading ? (
+                <div className="flex h-16 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
+              ) : (
+                <SucursalSelector
+                  multi
+                  value={subsIds}
+                  onValueChange={(v) => setSubsIds(Array.isArray(v) ? (v as string[]).filter((id) => id !== subsInfo?.mainSubsidiary?.id) : [])}
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <UserCog className="h-4 w-4 text-primary" />
+                {selectedUser ? `${selectedUser.name} ${selectedUser.lastName}` : "Permisos por usuario"}
+              </CardTitle>
+              <CardDescription>
+                {selectedUser
+                  ? `Rol: ${info?.roleKey ?? selectedUser.role ?? "—"} · ${overrideCount} excepción(es). Heredado → Permitir → Denegar.`
+                  : "Elige un usuario para conceder o revocar permisos por encima de su rol."}
+              </CardDescription>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {userId && (
+              <Button size="sm" onClick={save} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {!userId ? (
+              <p className="text-sm text-muted-foreground py-12 text-center">Selecciona un usuario de la lista.</p>
+            ) : loading ? (
+              <div className="flex h-32 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(groups).map(([group, perms]) => (
+                  <div key={group}>
+                    <h4 className="text-sm font-semibold mb-2">{group}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {perms.map((p) => {
+                        const val = draft[p.code] ?? "inherit";
+                        return (
+                          <div key={p.code} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
+                            <span className="flex-1 truncate" title={p.code}>{p.name}</span>
+                            <Select value={val} onValueChange={(v) => setEffect(p.code, v)}>
+                              <SelectTrigger className={cn(
+                                "w-[140px] h-8",
+                                val === "allow" && "text-emerald-700 border-emerald-300",
+                                val === "deny" && "text-rose-700 border-rose-300",
+                              )}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="inherit">{roleCodes.has(p.code) ? "Heredado ✓" : "Heredado —"}</SelectItem>
+                                <SelectItem value="allow">Permitir</SelectItem>
+                                <SelectItem value="deny">Denegar</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

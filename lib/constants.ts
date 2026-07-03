@@ -250,6 +250,13 @@ export const sidebarMenu = {
       icon: SettingsIcon,
       isActive: false,
       roles: allowedPageRoles.configuracion,
+    },
+    {
+      title: "Acceso Remoto",
+      url: "/administracion/acceso-remoto",
+      icon: MonitorCheckIcon,
+      isActive: false,
+      roles: allowedPageRoles.accesoRemoto,
     }
   ]
 }

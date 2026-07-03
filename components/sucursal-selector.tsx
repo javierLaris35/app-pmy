@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Check, ChevronsUpDown, Store } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Command,
   CommandEmpty,
@@ -59,15 +60,19 @@ export function SucursalSelector({
   const defaultAppliedRef = useRef(false)
 
   // 🚀 Filtrar las sucursales usando la versión normalizada.
-  // SCOPING: los roles no-elevados solo ven SU sucursal (espejo del backend);
-  // los elevados (admin/subadmin/superadmin/owner) ven todas.
+  // SCOPING: los roles no-elevados (incluye admin/subadmin, que son "administradores
+  // locales") solo ven su sucursal main + las adicionales que un superadmin les
+  // asignó (espejo del backend en SubsidiaryScopeGuard/IncomeAccessGuard). Solo
+  // superadmin/owner (dueños globales del sistema) ven todas.
   const filteredSubsidiaries = useMemo(() => {
     let list = onlyWarehouses ? subsidiaries.filter((s) => s.isWarehouse) : subsidiaries
     const role = String(user?.role || "").toLowerCase()
-    const isGlobal = ["admin", "subadmin", "superadmin", "superamin", "owner"].includes(role)
-    const ownId = user?.subsidiary?.id
-    if (!isGlobal && ownId) {
-      list = list.filter((s) => s.id === ownId)
+    const isGlobal = ["superadmin", "superamin", "owner"].includes(role)
+    if (!isGlobal) {
+      const allowedIds = new Set(
+        [user?.subsidiary?.id, ...((user?.additionalSubsidiaries || []).map((s) => s.id))].filter(Boolean)
+      )
+      list = list.filter((s) => allowedIds.has(s.id))
     }
     return list
   }, [subsidiaries, onlyWarehouses, user])
@@ -162,6 +167,7 @@ export function SucursalSelector({
             <CommandGroup>
               {filteredSubsidiaries.map((sucursal) => {
                 const isSelected = selectedSucursales.some((s) => s.id === sucursal.id)
+                const isMain = sucursal.id === user?.subsidiary?.id
                 return (
                   <CommandItem
                     key={sucursal.id}
@@ -171,7 +177,10 @@ export function SucursalSelector({
                     <Check
                       className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")}
                     />
-                    <span className="truncate">{sucursal.name}</span>
+                    <span className="truncate flex-1">{sucursal.name}</span>
+                    {isMain && (
+                      <Badge variant="secondary" className="ml-2 text-[10px] shrink-0">Principal</Badge>
+                    )}
                   </CommandItem>
                 )
               })}
