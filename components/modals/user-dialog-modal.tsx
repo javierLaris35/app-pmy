@@ -159,7 +159,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="role">Rol</Label>
               <Select value={form.role} onValueChange={(v) => set("role", v)}>
                 <SelectTrigger id="role"><SelectValue placeholder="Selecciona un rol" /></SelectTrigger>
@@ -168,7 +168,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label>Sucursal</Label>
               <SucursalSelector
                 value={form.subsidiary?.id || ""}
@@ -183,7 +183,10 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
           </div>
 
           {isSuperAdmin && (
-            <div className="space-y-2">
+            // min-w-0: DialogContent es `grid` — sin esto, un texto largo (varias
+            // sucursales seleccionadas) empuja el grid item más ancho que el diálogo
+            // en vez de truncarse.
+            <div className="space-y-2 min-w-0">
               <Label>Sucursales adicionales</Label>
               <SucursalSelector
                 multi

@@ -59,8 +59,16 @@ axiosConfig.interceptors.response.use(
     const isMutation = ["post", "put", "patch", "delete"].includes(method);
     const isNetworkError = !error?.response; // sin respuesta = red caída
     const isAuth = /auth\/(token|logout)/.test(url);
+    // Los uploads de archivos (multipart) NO deben encolarse: FormData con un
+    // File no sobrevive a JSON.stringify (se guarda como "{}"), y son endpoints
+    // largos/no-idempotentes (p.ej. el wizard de FedEx, que tarda por guía
+    // consultando la API de FedEx) — un timeout de red aquí no significa que el
+    // backend no lo haya recibido/procesado. Reintentarlo o fingir éxito termina
+    // creando duplicados (consolidados repetidos) en vez de avisar el error real.
+    const ct = String(cfg.headers?.["Content-Type"] || cfg.headers?.["content-type"] || "");
+    const isFileUpload = ct.includes("multipart/form-data");
 
-    if (isNetworkError && isMutation && !cfg.__isRetry && !isAuth && typeof window !== "undefined") {
+    if (isNetworkError && isMutation && !cfg.__isRetry && !isAuth && !isFileUpload && typeof window !== "undefined") {
       try {
         const ct = cfg.headers?.["Content-Type"] || cfg.headers?.["content-type"];
         useOfflineStore.getState().enqueue({

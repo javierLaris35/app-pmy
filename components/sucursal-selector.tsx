@@ -146,10 +146,12 @@ export function SucursalSelector({
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {/* 2. Contenedor flex para alinear el icono y el texto */}
-          <div className="flex items-center gap-2 truncate">
+          {/* 2. Contenedor flex para alinear el icono y el texto. min-w-0 es necesario
+             para que el truncate funcione dentro de un padre flex (si no, el texto
+             largo -varias sucursales seleccionadas- se desborda en vez de cortarse). */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <Store className="h-4 w-4 shrink-0" />
-            <span className="truncate">{selectedLabel}</span>
+            <span className="truncate min-w-0">{selectedLabel}</span>
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>

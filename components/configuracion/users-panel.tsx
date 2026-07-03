@@ -265,7 +265,10 @@ function SubsidiaryDialog({ user, isSuperAdmin, onClose, onSaved }: { user: User
           <DialogTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Cambiar sucursal</DialogTitle>
           <DialogDescription>Reasigna la sucursal de <strong>{user?.name} {user?.lastName}</strong>.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2 py-2">
+        {/* min-w-0: DialogContent es `grid` — sin esto, con varias sucursales
+            seleccionadas el texto largo empuja el grid item (y el diálogo) más
+            ancho en vez de truncarse con "...". */}
+        <div className="space-y-2 py-2 min-w-0">
           <Label>Sucursal principal</Label>
           <SucursalSelector
             insideAModal
@@ -278,7 +281,7 @@ function SubsidiaryDialog({ user, isSuperAdmin, onClose, onSaved }: { user: User
           />
         </div>
         {isSuperAdmin && (
-          <div className="space-y-2 py-2">
+          <div className="space-y-2 py-2 min-w-0">
             <Label>Sucursales adicionales</Label>
             <SucursalSelector
               multi

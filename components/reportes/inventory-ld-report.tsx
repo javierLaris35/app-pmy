@@ -122,7 +122,9 @@ export function InventoryLDReport({ onBack }: { onBack: () => void }) {
     if (rows.length === 0) return;
     setIsExporting(true);
     try {
-      const blob = await buildInventoryLDExcel(rows, byCons, meta);
+      // La hoja "Por consolidado" solo debe incluirse si esa es la vista activa;
+      // en "Lista" el Excel debe traer solo el detalle de inventario.
+      const blob = await buildInventoryLDExcel(rows, view === "consolidado" ? byCons : undefined, meta);
       saveAs(blob, `inventario_sin_mov_${meta?.subsidiaryName || subsidiaryId}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch {
       toast.error("No se pudo exportar el Excel.");
