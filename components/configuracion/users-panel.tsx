@@ -25,6 +25,8 @@ import { SucursalSelector } from "@/components/sucursal-selector";
 import { UserDialog, type UserFormData } from "@/components/modals/user-dialog-modal";
 import { useUsers } from "@/hooks/services/users/use-users";
 import { deleteUser, register, updateUser } from "@/lib/services/users";
+import { setUserSubsidiaries } from "@/lib/services/rbac";
+import { useAuthStore } from "@/store/auth.store";
 import { generateSecurePassword } from "@/lib/password";
 import type { User } from "@/lib/types";
 import { toast } from "@/lib/toast";
@@ -37,7 +39,9 @@ const roleVariant: Record<string, string> = {
 const initials = (u: User) => `${(u.name || "?")[0] ?? ""}${(u.lastName || "")[0] ?? ""}`.toUpperCase();
 const toForm = (u: User): UserFormData => ({
   id: u.id, name: u.name || "", lastName: u.lastName || "", email: u.email || "",
-  role: (u.role as string) || "user", subsidiary: u.subsidiary ? { id: (u.subsidiary as any).id } : null, active: u.active,
+  role: (u.role as string) || "user", subsidiary: u.subsidiary ? { id: (u.subsidiary as any).id } : null,
+  additionalSubsidiaries: (u.additionalSubsidiaries || []).map((s: any) => s.id),
+  active: u.active,
 });
 
 export function UsersPanel() {
@@ -47,11 +51,23 @@ export function UsersPanel() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [pwdUser, setPwdUser] = useState<User | null>(null);
   const [subUser, setSubUser] = useState<User | null>(null);
+  const currentUser = useAuthStore((s) => s.user);
+  const isSuperAdmin = ["superadmin", "superamin"].includes(String(currentUser?.role || "").toLowerCase());
 
   const handleSubmit = async (data: UserFormData) => {
+    // Las sucursales adicionales se guardan en /rbac/users/:id/subsidiaries (solo superadmin);
+    // el PATCH/POST de /users no acepta ese campo.
+    const { additionalSubsidiaries, ...rest } = data;
     try {
-      if (data.id) { await updateUser(data); toast.success("Usuario actualizado correctamente"); }
-      else { await register(data); toast.success("Usuario creado correctamente"); }
+      let userId = data.id;
+      if (userId) { await updateUser(rest); }
+      else { const created = await register(rest); userId = created?.id; }
+
+      if (isSuperAdmin && userId) {
+        await setUserSubsidiaries(userId, additionalSubsidiaries || []);
+      }
+
+      toast.success(data.id ? "Usuario actualizado correctamente" : "Usuario creado correctamente");
       mutate();
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo guardar el usuario");
@@ -139,7 +155,7 @@ export function UsersPanel() {
 
       <UserDialog open={dialogOpen} user={editingUser} onSubmit={handleSubmit} onClose={() => setDialogOpen(false)} />
       <PasswordDialog user={pwdUser} onClose={() => setPwdUser(null)} onSaved={mutate} />
-      <SubsidiaryDialog user={subUser} onClose={() => setSubUser(null)} onSaved={mutate} />
+      <SubsidiaryDialog user={subUser} isSuperAdmin={isSuperAdmin} onClose={() => setSubUser(null)} onSaved={mutate} />
 
       <AlertDialog open={!!userToDelete} onOpenChange={(o) => !o && setUserToDelete(null)}>
         <AlertDialogContent>
@@ -212,19 +228,28 @@ function PasswordDialog({ user, onClose, onSaved }: { user: User | null; onClose
 }
 
 /* ===== Cambio rápido de sucursal ===== */
-function SubsidiaryDialog({ user, onClose, onSaved }: { user: User | null; onClose: () => void; onSaved: () => void }) {
+function SubsidiaryDialog({ user, isSuperAdmin, onClose, onSaved }: { user: User | null; isSuperAdmin: boolean; onClose: () => void; onSaved: () => void }) {
   const [subId, setSubId] = useState<string>("");
+  const [additionalIds, setAdditionalIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (user) setSubId((user.subsidiary as any)?.id || ""); }, [user]);
+  useEffect(() => {
+    if (user) {
+      setSubId((user.subsidiary as any)?.id || "");
+      setAdditionalIds((user.additionalSubsidiaries || []).map((s: any) => s.id));
+    }
+  }, [user]);
 
-  const close = () => { setSubId(""); onClose(); };
+  const close = () => { setSubId(""); setAdditionalIds([]); onClose(); };
 
   const save = async () => {
     if (!user || !subId) { toast.error("Selecciona una sucursal."); return; }
     setSaving(true);
     try {
       await updateUser({ ...toForm(user), subsidiary: { id: subId } });
+      if (isSuperAdmin) {
+        await setUserSubsidiaries(user.id!, additionalIds.filter((id) => id !== subId));
+      }
       toast.success(`Sucursal de ${user.name} actualizada.`);
       onSaved();
       close();
@@ -241,9 +266,31 @@ function SubsidiaryDialog({ user, onClose, onSaved }: { user: User | null; onClo
           <DialogDescription>Reasigna la sucursal de <strong>{user?.name} {user?.lastName}</strong>.</DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-2">
-          <Label>Sucursal</Label>
-          <SucursalSelector value={subId} onValueChange={(v) => setSubId(typeof v === "string" ? v : (v as any)?.id || "")} />
+          <Label>Sucursal principal</Label>
+          <SucursalSelector
+            insideAModal
+            value={subId}
+            onValueChange={(v) => {
+              const id = typeof v === "string" ? v : (v as any)?.id || "";
+              setSubId(id);
+              setAdditionalIds((prev) => prev.filter((sid) => sid !== id));
+            }}
+          />
         </div>
+        {isSuperAdmin && (
+          <div className="space-y-2 py-2">
+            <Label>Sucursales adicionales</Label>
+            <SucursalSelector
+              multi
+              insideAModal
+              value={additionalIds}
+              onValueChange={(v) => {
+                const ids = Array.isArray(v) ? (v as any[]).map((x) => (typeof x === "string" ? x : x?.id)) : [];
+                setAdditionalIds(ids.filter((id) => id && id !== subId));
+              }}
+            />
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={close}>Cancelar</Button>
           <Button onClick={save} disabled={saving || !subId}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar</Button>

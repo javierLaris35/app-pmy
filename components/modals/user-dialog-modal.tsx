@@ -18,6 +18,7 @@ import { SucursalSelector } from "@/components/sucursal-selector"
 import type { User } from "@/lib/types"
 import { generateSecurePassword } from "@/lib/password"
 import { getRoles, type RbacRole } from "@/lib/services/rbac"
+import { useAuthStore } from "@/store/auth.store"
 
 export interface UserFormData {
   id?: string
@@ -27,6 +28,7 @@ export interface UserFormData {
   password?: string
   role: string
   subsidiary: { id: string } | null
+  additionalSubsidiaries?: string[]
   active?: boolean
 }
 
@@ -46,13 +48,16 @@ interface UserDialogProps {
   onSubmit: (form: UserFormData) => Promise<void>
 }
 
-const EMPTY: UserFormData = { name: "", lastName: "", email: "", password: "", role: "user", subsidiary: null }
+const EMPTY: UserFormData = { name: "", lastName: "", email: "", password: "", role: "user", subsidiary: null, additionalSubsidiaries: [] }
 
 export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
   const [form, setForm] = useState<UserFormData>(EMPTY)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
   const [roles, setRoles] = useState<{ key: string; name: string }[]>(FALLBACK_ROLES)
+  const currentUser = useAuthStore((s) => s.user)
+  // Las sucursales adicionales solo las puede asignar un superadmin (mismo criterio que el backend: SuperAdminGuard en /rbac).
+  const isSuperAdmin = ["superadmin", "superamin"].includes(String(currentUser?.role || "").toLowerCase())
 
   useEffect(() => {
     getRoles()
@@ -69,6 +74,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
         email: user.email,
         role: (user.role as string) || "user",
         subsidiary: user.subsidiary ? { id: (user.subsidiary as any).id } : null,
+        additionalSubsidiaries: (user.additionalSubsidiaries || []).map((s: any) => s.id),
         password: "",
       })
     } else {
@@ -166,10 +172,31 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
               <Label>Sucursal</Label>
               <SucursalSelector
                 value={form.subsidiary?.id || ""}
-                onValueChange={(v) => set("subsidiary", { id: typeof v === "string" ? v : (v as any)?.id })}
+                onValueChange={(v) => {
+                  const id = typeof v === "string" ? v : (v as any)?.id
+                  set("subsidiary", { id })
+                  // La main no debe duplicarse en las adicionales.
+                  set("additionalSubsidiaries", (form.additionalSubsidiaries || []).filter((sid) => sid !== id))
+                }}
               />
             </div>
           </div>
+
+          {isSuperAdmin && (
+            <div className="space-y-2">
+              <Label>Sucursales adicionales</Label>
+              <SucursalSelector
+                multi
+                insideAModal
+                value={form.additionalSubsidiaries || []}
+                onValueChange={(v) => {
+                  const ids = Array.isArray(v) ? (v as any[]).map((x) => (typeof x === "string" ? x : x?.id)) : []
+                  set("additionalSubsidiaries", ids.filter((id) => id && id !== form.subsidiary?.id))
+                }}
+              />
+              <p className="text-xs text-muted-foreground">Además de la sucursal principal, este usuario podrá ver/operar estas.</p>
+            </div>
+          )}
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
