@@ -1,4 +1,4 @@
-import { PackageX, PackageCheck, Boxes, EyeOff, ClipboardList, Truck, Route, Warehouse, type LucideIcon } from "lucide-react";
+import { PackageX, PackageCheck, Boxes, EyeOff, ClipboardList, Truck, Route, Warehouse, MapPinned, type LucideIcon } from "lucide-react";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
 import {
   fetchPendientesJson, fetchPendientesExcel,
@@ -486,5 +486,18 @@ export const REPORTS: ReportDef[] = [
     exportExcel: (subsidiaryId) => fetchInventario67Excel(subsidiaryId),
     fileName: (s) => `ultimo_inventario_sin_67_${s}_${ts()}.xlsx`,
     emptyHint: "No hay inventario reciente o todo tiene 67.",
+  },
+  {
+    id: "sin44",
+    title: "Sin código 44 (por sucursal/zona)",
+    description:
+      "Igual que Inventarios (visibilidad 67), pero revisando el código 44 — el que usan algunas sucursales en vez del 67. Selecciona varias sucursales o una zona completa. Revisa primero localmente y luego confirma con FedEx.",
+    icon: MapPinned,
+    accent: "bg-teal-100 text-teal-600",
+    columns: [],
+    // La UI real la renderiza <Sin44Report/> (caso especial en la página, igual que "bodega").
+    run: async () => ({ rows: [] }),
+    exportExcel: async () => new Blob(),
+    fileName: (s) => `sin_44_${s}_${ts()}.xlsx`,
   },
 ];

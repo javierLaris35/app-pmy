@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { CompanyPanel } from "@/components/configuracion/company-panel"
@@ -21,6 +21,7 @@ import { CatalogPanel } from "@/components/configuracion/catalog-panel"
 import { GeocodePanel } from "@/components/configuracion/geocode-panel"
 import { ServerStatsPanel } from "@/components/configuracion/server-stats-panel"
 import { ServerLogsPanel } from "@/components/configuracion/server-logs-panel"
+import { WhatsappConfigPanel } from "@/components/configuracion/whatsapp-config-panel"
 
 const SECTIONS = [
   { id: "empresa", label: "Empresa", icon: Building2, description: "Datos de la empresa" },
@@ -29,6 +30,7 @@ const SECTIONS = [
   { id: "sucursales", label: "Sucursales", icon: Building2, description: "Config. operativa (FedEx)" },
   { id: "catalogos", label: "Catálogos", icon: Tags, description: "Valores de los enums" },
   { id: "geocode", label: "Geolocalización", icon: MapPin, description: "Direcciones aprendidas" },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, description: "Avisos al chofer" },
   { id: "servidor", label: "Servidor", icon: Server, description: "Uso de CPU/RAM/disco/red" },
   { id: "general", label: "General", icon: Settings, description: "Preferencias" },
 ] as const
@@ -97,6 +99,8 @@ function ConfiguracionPage() {
             {section === "catalogos" && <CatalogPanel />}
 
             {section === "geocode" && <GeocodePanel />}
+
+            {section === "whatsapp" && <WhatsappConfigPanel />}
 
             {section === "servidor" && (
               <Tabs defaultValue="metricas" className="space-y-4">

@@ -10,6 +10,7 @@ import { REPORTS } from "@/components/reportes/report-registry";
 import { ReportRunner } from "@/components/reportes/report-runner";
 import { RoutesReport } from "@/components/reportes/routes-report";
 import { InventoryLDReport } from "@/components/reportes/inventory-ld-report";
+import { Sin44Report } from "@/components/reportes/sin44-report";
 import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
 
@@ -60,6 +61,8 @@ function ReportesPage() {
           <RoutesReport onBack={() => setSelectedId(null)} />
         ) : selected.id === "bodega" ? (
           <InventoryLDReport onBack={() => setSelectedId(null)} />
+        ) : selected.id === "sin44" ? (
+          <Sin44Report onBack={() => setSelectedId(null)} />
         ) : (
           <ReportRunner def={selected} onBack={() => setSelectedId(null)} />
         )}

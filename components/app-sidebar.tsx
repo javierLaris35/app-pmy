@@ -19,7 +19,8 @@ import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
 import { User } from "@/lib/types"
 import { useFilteredMenu } from "@/hooks/use-filtered-menu"
-import { Route as RouteIcon } from "lucide-react"
+import { Route as RouteIcon, Radio } from "lucide-react"
+import { hasPermission } from "@/lib/access/permissions"
 
 /** Versión de la app (sube con cambios menores/medianos/mayores). */
 const APP_VERSION = "v2.0.0"
@@ -30,9 +31,16 @@ const DEV_ITEMS = [{ title: "Optimizador Rutas", url: "/dev/route-optimizer", ic
 
 export function AppSidebar({ user, ...props }: { user: User }) {
   const sidebarMenu: any = useFilteredMenu()
-  const secondaryItems = IS_DEV
-    ? [...(sidebarMenu.secondary ?? []), ...DEV_ITEMS]
-    : sidebarMenu.secondary
+  // Monitoreo de Rutas: experimental, exclusivo superadmin (permiso `monitoreoRutas`).
+  // Va justo debajo del Optimizador de Rutas (dev) en el nav secundario.
+  const monitoreoRutasItem = hasPermission(user, "monitoreoRutas")
+    ? [{ title: "Monitoreo de Rutas", url: "/monitoreo-rutas", icon: Radio }]
+    : []
+  const secondaryItems = [
+    ...(sidebarMenu.secondary ?? []),
+    ...(IS_DEV ? DEV_ITEMS : []),
+    ...monitoreoRutasItem,
+  ]
 
   return (
     <Sidebar

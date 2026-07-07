@@ -149,3 +149,34 @@ export const fetchInventario67Excel = async (subsidiaryId: string, nombre?: stri
   });
   return res.data as Blob;
 };
+
+// ----- Reporte "Sin código 44" (como Inventarios/Visibilidad 67, pero MULTI-sucursal/zona) -----
+export const fetchInventoryCodeReportMultiJson = async (
+  subsidiaryIds: string[],
+  from?: string,
+  to?: string,
+  code: "67" | "44" = "44",
+) => {
+  const res = await axiosConfig.post(`inventories/visibility-report-multi`, { subsidiaryIds, from, to, code });
+  // { summary, details: [{ trackingNumber, status, subsidiaryId, subsidiaryName, lastCodeDate, daysSinceLastCode, category, inventories[], ... }] }
+  return res.data as { summary?: Record<string, any>; details: any[] };
+};
+
+// Confirmación con FedEx del código 44 (mismo criterio que visibilidad 67).
+export const fetchVisibility44FedexCheck = async (
+  items: { trackingNumber: string; fedexUniqueId?: string }[],
+  includeSundays: boolean,
+) => {
+  const res = await axiosConfig.post(`shipments/visibility-44/fedex-check`, { items, includeSundays });
+  return res.data as Record<
+    string,
+    {
+      windowStart: string | null; windowEnd: string | null; delivered: boolean;
+      daysWith44: number; daysWithout44: number; missingDates: string[]; last44: string | null;
+      events: { date: string; description: string; exceptionCode?: string }[];
+      lastMovement: { date: string; description: string } | null;
+      commitDateTime: string | null;
+      fedexStatus: string; fedexRaw?: string; derivedCode?: string; exceptionCode?: string;
+    }
+  >;
+};
