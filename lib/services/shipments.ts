@@ -6,19 +6,50 @@ import { ParsedDhlShipment } from '@/components/import-components/import-dhl-tex
 const url = '/shipments'
 
 /**
- * Extrae el mensaje REAL del backend de un error de axios (BusinessException,
- * filtro global, validaciones de Nest). Así cualquier error de la carga llega
- * legible al frontend para atenderlo rápido.
+ * Timeout generoso para las subidas: el backend consulta FedEx POR GUÍA, así que
+ * un consolidado grande tarda minutos. Sin un timeout explícito, axios espera
+ * "para siempre" y quien corta es un intermediario (proxy) devolviendo un
+ * "Network Error" sin contexto. Con esto el corte es determinista y lo podemos
+ * etiquetar claramente como timeout.
+ */
+export const UPLOAD_TIMEOUT_MS = 8 * 60_000; // 8 min
+
+/**
+ * Traduce CUALQUIER error de una subida a un mensaje CLARO y compartible.
+ * Distingue tres casos para que el usuario sepa qué pasó y me lo pueda reportar:
+ *  1) El servidor respondió con error → se muestra el mensaje real del backend.
+ *  2) Timeout (no llegó respuesta a tiempo) → probablemente SÍ se procesó; avisa
+ *     verificar antes de reintentar (para no duplicar) + código técnico.
+ *  3) Se perdió la conexión (sin respuesta) → mismo aviso de verificar + código.
+ * Siempre incluye un "Detalle para soporte" con método/URL/código para copiar.
  */
 export function extractUploadError(error: any, fallback = "Error al procesar el archivo."): string {
-  const d = error?.response?.data;
-  const raw =
-    d?.response?.message ?? // Nest a veces anida en data.response.message
-    d?.apiMessage ??
-    d?.message ??
-    error?.message;
-  if (Array.isArray(raw)) return raw.join("\n");
-  return (typeof raw === "string" && raw.trim()) ? raw : fallback;
+  const method = String(error?.config?.method || "").toUpperCase();
+  const reqUrl = error?.config?.url || "";
+  const code = error?.code || "";
+
+  // 1) El servidor SÍ respondió → mensaje real del backend.
+  if (error?.response) {
+    const d = error.response.data;
+    const raw = d?.response?.message ?? d?.apiMessage ?? d?.message ?? null;
+    const msg = Array.isArray(raw) ? raw.join("\n") : raw;
+    if (typeof msg === "string" && msg.trim()) return msg;
+    return `El servidor respondió con un error (HTTP ${error.response.status}). ${fallback}\n\nDetalle para soporte: [HTTP_${error.response.status}] ${method} ${reqUrl}`;
+  }
+
+  const tech = `Detalle para soporte: [${code || "SIN_RESPUESTA"}] ${method} ${reqUrl}`;
+
+  // 2) Timeout: el request superó el tiempo de espera.
+  if (code === "ECONNABORTED" || /timeout/i.test(String(error?.message || ""))) {
+    return `La subida superó el tiempo de espera (${Math.round(UPLOAD_TIMEOUT_MS / 60000)} min) y no llegó respuesta del servidor.\n\nEs MUY probable que el archivo SÍ se haya procesado en el servidor. Revisa la lista de consolidados ANTES de reintentar para no duplicar.\n\n${tech}`;
+  }
+
+  // 3) Sin respuesta (red caída / conexión cortada por un intermediario).
+  if (code === "ERR_NETWORK" || !error?.response) {
+    return `Se perdió la conexión con el servidor durante la subida y no llegó respuesta.\n\nEl proceso pudo haberse completado de todas formas — verifica la lista de consolidados ANTES de reintentar para no duplicar.\n\n${tech}`;
+  }
+
+  return `${error?.message || fallback}\n\n${tech}`;
 }
 
 //GET
@@ -106,6 +137,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     try {
       const response = await axiosConfig.post('/shipments/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) {
             const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -115,18 +147,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
       });
       return response.data;
     } catch (error: any) {
-      const data = error.response?.data;
-      
-      // Lógica para extraer el mensaje real oculto tras el "apiMessage: E"
-      // Buscamos en: data.response.message (que es donde NestJS puso el error real)
-      const serverMessage = data?.response?.message || data?.message || error.message;
-      
-      // Si el mensaje es un array (común en validaciones de NestJS), lo unimos con saltos de línea
-      const finalMessage = Array.isArray(serverMessage) 
-        ? serverMessage.join('\n') 
-        : serverMessage;
-
-      throw new Error(finalMessage);
+      throw new Error(extractUploadError(error, "Error al subir el Cons Master / Aéreos."));
     }
   }
   
@@ -184,6 +205,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     try {
       const response = await axiosConfig.post("/shipments/upload-hv", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
         },
@@ -216,6 +238,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     try {
       const response = await axiosConfig.post("/shipments/upload-charge", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
         },
@@ -238,6 +261,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
         headers: {
           "Content-Type": "multipart/form-data",
         },
+        timeout: UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
         },
@@ -258,21 +282,25 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     
     // El backend tiene @UseInterceptors(FileInterceptor('file')), 
     // por lo que la llave aquí debe ser estrictamente 'file'
-    formData.append('file', fileParsed); 
-    
-    const response = await axiosConfig.post<ParsedDhlShipment[]>('/shipments/process-dhl-txt-file', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (event) => {
-        if (event.total) {
-          const percent = Math.round((event.loaded * 100) / event.total)
-          onProgress?.(percent)
-        }
-      },
-    })
+    formData.append('file', fileParsed);
 
-    return response.data
+    try {
+      const response = await axiosConfig.post<ParsedDhlShipment[]>('/shipments/process-dhl-txt-file', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: UPLOAD_TIMEOUT_MS,
+        onUploadProgress: (event) => {
+          if (event.total) {
+            const percent = Math.round((event.loaded * 100) / event.total)
+            onProgress?.(percent)
+          }
+        },
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(extractUploadError(error, "Error al procesar el archivo DHL."))
+    }
   }
 
   export const searchPackageInfo = async (trackingNumber: string): Promise<SearchShipmentDto> => {
@@ -316,6 +344,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     try {
       const response = await axiosConfig.post('/shipments/upload-dhl', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) {
             const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -325,16 +354,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
       });
       return response.data;
     } catch (error: any) {
-      const data = error.response?.data;
-      
-      // Lógica para extraer el mensaje real oculto tras el "apiMessage: E" de NestJS
-      const serverMessage = data?.response?.message || data?.message || error.message;
-      
-      const finalMessage = Array.isArray(serverMessage) 
-        ? serverMessage.join('\n') 
-        : serverMessage;
-
-      throw new Error(finalMessage);
+      throw new Error(extractUploadError(error, "Error al subir el archivo DHL."));
     }
   }
 
