@@ -43,8 +43,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getCategorias } from "@/lib/data";
-import type { Expense, ExpenseCategory, Vehicles } from "@/lib/types";
+import type { Expense, Vehicles } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
 import {
@@ -70,7 +69,6 @@ import {
   useExpenses,
   useSaveExpense,
 } from "@/hooks/services/expenses/use-expenses";
-import { categoriasGasto } from "@/lib/data";
 import { toast } from "@/lib/toast";
 import { withAuth } from "@/hoc/withAuth";
 import ExcelJS from "exceljs";
@@ -302,7 +300,6 @@ function GastosPage() {
   }, []);
 
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("");
-  const [categorias, setCategorias] = useState<ExpenseCategory[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [editingGasto, setEditingGasto] = useState<Expense | null>(null);
@@ -324,6 +321,11 @@ function GastosPage() {
   const { save, isSaving, isError: isSaveError } = useSaveExpense();
 
   const { byId, byName } = useExpenseCategories();
+
+  const categoryOptions = useMemo(
+    () => Object.values(byId).map((c) => c.name).sort(),
+    [byId],
+  );
 
   // --- LÓGICA DE DISTRIBUCIÓN INTELIGENTE ---
   const redistribuirPorcentajes = (items: SucursalSplit[]) => {
@@ -375,20 +377,12 @@ function GastosPage() {
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
   const [exportCategory, setExportCategory] = useState<string>("todas");
 
-  useEffect(() => {
-    const loadCategorias = async () => {
-      const res = await getCategorias();
-      setCategorias(res || []);
-    };
-    loadCategorias();
-  }, []);
-
   const gastosComunes = useMemo(() => {
     if (!expenses || !expenses.length) return [];
     const frecuencias: Record<string, Expense & { count: number }> = {};
 
     expenses.forEach((g) => {
-      const key = `${g.category}-${g.description?.toLowerCase().trim()}`;
+      const key = `${g.category?.name}-${g.description?.toLowerCase().trim()}`;
       if (!frecuencias[key]) {
         frecuencias[key] = { ...g, count: 0 };
       }
@@ -639,7 +633,7 @@ function GastosPage() {
     const dataFiltrada = expenses.filter((gasto) => {
       const fechaGasto = new Date(gasto.date);
       const pasaFiltroCategoria =
-        exportCategory === "todas" || gasto.category === exportCategory;
+        exportCategory === "todas" || gasto.category?.name === exportCategory;
       const pasaFiltroFecha =
         (!exportStartDate || fechaGasto >= startOfDay(exportStartDate)) &&
         (!exportEndDate || fechaGasto <= endOfDay(exportEndDate));
@@ -687,7 +681,7 @@ function GastosPage() {
     dataFiltrada.forEach((gasto, index) => {
       const row = worksheet.addRow({
         fecha: format(new Date(gasto.date), "dd/MM/yyyy"),
-        categoria: gasto.category,
+        categoria: gasto.category?.name,
         descripcion: gasto.description,
         monto: gasto.amount,
         metodoPago: gasto.paymentMethod || "No especificado",
@@ -805,7 +799,7 @@ function GastosPage() {
     const opts = (vals: (string | undefined | null)[]) =>
       Array.from(new Set(vals.filter(Boolean) as string[])).sort().map((v) => ({ label: v, value: v }));
     return [
-      { columnId: "category", title: "Categoría", options: opts(expenses.map((e: any) => e.category)) },
+      { columnId: "category", title: "Categoría", options: opts(expenses.map((e: any) => e.category?.name)) },
       { columnId: "metodoPago", title: "Método", options: opts(expenses.map((e: any) => e.paymentMethod)) },
     ];
   }, [expenses]);
@@ -918,10 +912,10 @@ function GastosPage() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <div
-                                className={`w-2.5 h-2.5 rounded-full ring-2 ring-offset-1 ring-offset-background ${getCategoryColor(gasto.category)}`}
+                                className={`w-2.5 h-2.5 rounded-full ring-2 ring-offset-1 ring-offset-background ${getCategoryColor(gasto.category?.name || "")}`}
                               />
                               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                {gasto.category}
+                                {gasto.category?.name}
                               </span>
                             </div>
                             <Badge
@@ -1030,10 +1024,8 @@ function GastosPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas las categorías</SelectItem>
-                  {categorias.map((c) => (
-                    <SelectItem key={c.id} value={c.name}>
-                      {c.name}
-                    </SelectItem>
+                  {categoryOptions.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

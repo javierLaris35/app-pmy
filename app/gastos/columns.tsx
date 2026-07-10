@@ -3,7 +3,6 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { Expense } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
-import { categoriasGasto } from "@/lib/data";
 import {
   createDeleteColumn,
   createSelectColumn,
@@ -45,19 +44,13 @@ export const getGastosColumns = ({ onEdit, onDelete }: GastosColumnsProps) => [
   createSortableColumn<Expense>(
     "category",
     "Categoría",
-    (row) => row.category ?? "",
-    (value) => {
-      const cat = categoriasGasto?.find((c) => c.name === value);
-      return (
-        <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${getCategoryColor(value)}`} />
-          <div className="flex flex-col">
-            <span>{value || "Sin categoría"}</span>
-            {cat && <span className="text-xs text-gray-500">{cat.description}</span>}
-          </div>
-        </div>
-      );
-    }
+    (row) => row.category?.name ?? "",
+    (value) => (
+      <div className="flex items-center gap-2">
+        <div className={`w-3 h-3 rounded-full ${getCategoryColor(value)}`} />
+        <span>{value || "Sin categoría"}</span>
+      </div>
+    )
   ),
   createSortableColumn<Expense>(
     "descripcion",
