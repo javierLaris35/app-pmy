@@ -19,7 +19,7 @@ import { useUiStore } from "@/store/ui.store"
 import { ensureClientMeta } from "@/lib/client-meta"
 import { initOfflineSync } from "@/lib/offline/sync"
 import { useOfflineStore } from "@/lib/offline/offline-store"
-import { WifiOff, CloudUpload, MapPin, Search, Plus, Sparkles } from "lucide-react"
+import { WifiOff, CloudUpload, MapPin, Search, Plus, Sparkles, LifeBuoy } from "lucide-react"
 
 /** Solo en desarrollo se muestra el acceso a la bienvenida. */
 const IS_DEV = process.env.NODE_ENV === "development"
@@ -229,6 +229,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Agregar envío</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full hover:bg-muted"
+                    onClick={() => router.push("/support/tickets")}
+                    aria-label="Soporte"
+                  >
+                    <LifeBuoy className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Soporte</TooltipContent>
               </Tooltip>
 
               {IS_DEV && (
