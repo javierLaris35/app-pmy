@@ -80,6 +80,7 @@ export type Expense = {
   id?: string
   subsidiaryId: string
   category: ExpenseCategory
+  categoryId?: string
   date: string | Date
   amount: number
   description?: string
@@ -89,6 +90,8 @@ export type Expense = {
   vehicleId?: string | null
   receiptUrl?: string
   frequency?: "Único" | "Diario" | "Semanal" | "Mensual" | "Anual"
+  periodStart?: string
+  periodEnd?: string
 }
 
 export type GroupExpese = {
