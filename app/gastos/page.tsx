@@ -473,7 +473,7 @@ function GastosPage() {
 
   const openEditGastoDialog = (gasto: Expense) => {
     setEditingGasto(gasto);
-    setFecha(new Date(gasto.date));
+    setFecha(gasto.date ? new Date(String(gasto.date).slice(0, 10) + "T00:00:00") : new Date());
     setCategoriaId(gasto.category?.id ?? "");
     setMonto(gasto.amount);
     setMetodoPago(gasto.paymentMethod || "Efectivo");
@@ -631,7 +631,7 @@ function GastosPage() {
 
   const handleExportExcel = async () => {
     const dataFiltrada = expenses.filter((gasto) => {
-      const fechaGasto = new Date(gasto.date);
+      const fechaGasto = new Date(String(gasto.date).slice(0, 10) + "T00:00:00");
       const pasaFiltroCategoria =
         exportCategory === "todas" || gasto.category?.name === exportCategory;
       const pasaFiltroFecha =
@@ -680,7 +680,7 @@ function GastosPage() {
 
     dataFiltrada.forEach((gasto, index) => {
       const row = worksheet.addRow({
-        fecha: format(new Date(gasto.date), "dd/MM/yyyy"),
+        fecha: format(new Date(String(gasto.date).slice(0, 10) + "T00:00:00"), "dd/MM/yyyy"),
         categoria: gasto.category?.name,
         descripcion: gasto.description,
         monto: gasto.amount,

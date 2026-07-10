@@ -39,7 +39,7 @@ export const getGastosColumns = ({ onEdit, onDelete }: GastosColumnsProps) => [
     "fecha",
     "Fecha",
     (row) => row.date,
-    (value) => format(new Date(value), "dd/MM/yyyy", { locale: es })
+    (value) => format(new Date(String(value).slice(0, 10) + "T00:00:00"), "dd/MM/yyyy", { locale: es })
   ),
   createSortableColumn<Expense>(
     "category",

@@ -79,7 +79,7 @@ export type ExpenseCategory = {
 export type Expense = {
   id?: string
   subsidiaryId: string
-  category: ExpenseCategory
+  category?: ExpenseCategory
   categoryId?: string
   date: string | Date
   amount: number
