@@ -357,6 +357,8 @@ function GastosPage() {
   const [descripcion, setDescripcion] = useState("");
   const [metodoPago, setMetodoPago] = useState("Efectivo");
   const [periodoPago, setPeriodoPago] = useState("Único");
+  const [periodStart, setPeriodStart] = useState<Date | undefined>(undefined);
+  const [periodEnd, setPeriodEnd] = useState<Date | undefined>(undefined);
   const [responsable, setResponsable] = useState("");
   const [notas, setNotas] = useState("");
   const [comprobante, setComprobante] = useState<File | null>(null);
@@ -367,6 +369,7 @@ function GastosPage() {
 
   const selectedCategoryName = byId[categoriaId]?.name ?? "";
   const requiresVehicle = VEHICLE_CATEGORIES.includes(selectedCategoryName);
+  const isRecurring = ["Semanal", "Mensual", "Anual"].includes(periodoPago);
 
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
@@ -403,6 +406,8 @@ function GastosPage() {
     setMonto(plantilla.amount);
     setMetodoPago(plantilla.paymentMethod || "Efectivo");
     setPeriodoPago(plantilla.frequency || "Único");
+    setPeriodStart(undefined);
+    setPeriodEnd(undefined);
     setResponsable(plantilla.responsible || "");
     setFecha(new Date());
     setNotas("");
@@ -426,16 +431,18 @@ function GastosPage() {
     setMonto(template.montoSugerido);
     setMetodoPago("Efectivo");
     setPeriodoPago("Único");
+    setPeriodStart(undefined);
+    setPeriodEnd(undefined);
     setResponsable("");
     setFecha(new Date());
     setNotas("");
     setComprobante(null);
     setVehiculoId("");
-    
-    setSucursalesDistribucion([{ 
-      id: Date.now().toString(), 
-      sucursalId: effectiveSubsidiaryId || "", 
-      porcentaje: 100 
+
+    setSucursalesDistribucion([{
+      id: Date.now().toString(),
+      sucursalId: effectiveSubsidiaryId || "",
+      porcentaje: 100
     }]);
 
     setEditingGasto(null);
@@ -450,6 +457,8 @@ function GastosPage() {
     setDescripcion("");
     setMetodoPago("Efectivo");
     setPeriodoPago("Único");
+    setPeriodStart(undefined);
+    setPeriodEnd(undefined);
     setResponsable("");
     setNotas("");
     setComprobante(null);
@@ -475,6 +484,8 @@ function GastosPage() {
     setMonto(gasto.amount);
     setMetodoPago(gasto.paymentMethod || "Efectivo");
     setPeriodoPago(gasto.frequency || "Único");
+    setPeriodStart(gasto.periodStart ? new Date(gasto.periodStart + "T00:00:00") : undefined);
+    setPeriodEnd(gasto.periodEnd ? new Date(gasto.periodEnd + "T00:00:00") : undefined);
     setResponsable(gasto.responsible || "");
     setComprobante(null);
 
@@ -526,6 +537,17 @@ function GastosPage() {
       return;
     }
 
+    if (isRecurring) {
+      if (!periodStart || !periodEnd) {
+        toast.error("Selecciona el periodo (desde/hasta) para una frecuencia recurrente");
+        return;
+      }
+      if (periodStart > periodEnd) {
+        toast.error("La fecha 'desde' no puede ser posterior a 'hasta'");
+        return;
+      }
+    }
+
     if (requiresVehicle && !selectedVehiculo) {
       toast.error("Esta categoría requiere seleccionar un vehículo");
       return;
@@ -545,6 +567,11 @@ function GastosPage() {
     }
 
     const montoBase = Number(monto);
+
+    const fechaStr = format(fecha, "yyyy-MM-dd");
+    const periodPayload = isRecurring && periodStart && periodEnd
+      ? { periodStart: format(periodStart, "yyyy-MM-dd"), periodEnd: format(periodEnd, "yyyy-MM-dd") }
+      : {};
 
     setIsDialogOpen(false);
 
@@ -566,7 +593,8 @@ function GastosPage() {
             // la última línea en vez del gasto dividido).
             ...(editingGasto && index === 0 ? { id: editingGasto.id } : {}),
             subsidiaryId: dist.sucursalId,
-            date: fecha,
+            date: fechaStr,
+            ...periodPayload,
             categoryId: categoriaId,
             amount: montoProrrateado,
             description:
@@ -1397,6 +1425,35 @@ function GastosPage() {
                 </div>
               </div>
             </div>
+
+            {isRecurring && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-primary border-b pb-2">
+                  Periodo que cubre <span className="text-destructive">*</span>
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="font-medium text-xs uppercase text-muted-foreground">Desde</Label>
+                    <Input
+                      type="date"
+                      value={periodStart ? format(periodStart, "yyyy-MM-dd") : ""}
+                      onChange={(e) => setPeriodStart(e.target.value ? new Date(e.target.value + "T00:00:00") : undefined)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-medium text-xs uppercase text-muted-foreground">Hasta</Label>
+                    <Input
+                      type="date"
+                      value={periodEnd ? format(periodEnd, "yyyy-MM-dd") : ""}
+                      onChange={(e) => setPeriodEnd(e.target.value ? new Date(e.target.value + "T00:00:00") : undefined)}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  El gasto se prorratea entre estos días. Para gastos de un solo día usa frecuencia Único o Diario.
+                </p>
+              </div>
+            )}
 
             {/* --- SECCIÓN 3: INFORMACIÓN ADICIONAL --- */}
             <div id="seccion-informacion-adicional" className="space-y-4">
