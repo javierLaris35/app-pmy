@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
