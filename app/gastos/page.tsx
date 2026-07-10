@@ -81,6 +81,8 @@ import { Loader } from "@/components/loader";
 import { deleteById, upload } from "@/lib/services/expenses";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { CatalogSelect } from "@/components/shared/catalog-select";
+import { ExpenseCategorySelect } from "@/components/gastos/expense-category-select";
+import { useExpenseCategories } from "@/hooks/services/expense-categories/use-expense-categories";
 
 // Importación de Driver.js para el tutorial
 import { driver } from "driver.js"
@@ -321,6 +323,8 @@ function GastosPage() {
 
   const { save, isSaving, isError: isSaveError } = useSaveExpense();
 
+  const { byId, byName } = useExpenseCategories();
+
   // --- LÓGICA DE DISTRIBUCIÓN INTELIGENTE ---
   const redistribuirPorcentajes = (items: SucursalSplit[]) => {
     if (items.length === 0) return [];
@@ -361,7 +365,8 @@ function GastosPage() {
   const [sucursalesDistribucion, setSucursalesDistribucion] = useState<SucursalSplit[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const requiresVehicle = VEHICLE_CATEGORIES.includes(categoriaId);
+  const selectedCategoryName = byId[categoriaId]?.name ?? "";
+  const requiresVehicle = VEHICLE_CATEGORIES.includes(selectedCategoryName);
 
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
@@ -393,7 +398,7 @@ function GastosPage() {
   }, [expenses]);
   
   const prefillGasto = (plantilla: Expense) => {
-    setCategoriaId(plantilla.category);
+    setCategoriaId(plantilla.category?.id ?? "");
     setDescripcion(plantilla.description || "");
     setMonto(plantilla.amount);
     setMetodoPago(plantilla.paymentMethod || "Efectivo");
@@ -416,7 +421,7 @@ function GastosPage() {
   };
 
   const prefillFromTemplate = (template: (typeof plantillasRapidas)[0]) => {
-    setCategoriaId(template.categoria);
+    setCategoriaId(byName[template.categoria] ?? "");
     setDescripcion(template.descripcion);
     setMonto(template.montoSugerido);
     setMetodoPago("Efectivo");
@@ -466,7 +471,7 @@ function GastosPage() {
   const openEditGastoDialog = (gasto: Expense) => {
     setEditingGasto(gasto);
     setFecha(new Date(gasto.date));
-    setCategoriaId(gasto.category); 
+    setCategoriaId(gasto.category?.id ?? "");
     setMonto(gasto.amount);
     setMetodoPago(gasto.paymentMethod || "Efectivo");
     setPeriodoPago(gasto.frequency || "Único");
@@ -562,7 +567,7 @@ function GastosPage() {
             ...(editingGasto && index === 0 ? { id: editingGasto.id } : {}),
             subsidiaryId: dist.sucursalId,
             date: fecha,
-            category: categoriaId,
+            categoryId: categoriaId,
             amount: montoProrrateado,
             description:
               requiresVehicle && selectedVehiculo
@@ -1152,8 +1157,7 @@ function GastosPage() {
                   <Label htmlFor="categoria" className="font-medium text-xs uppercase text-muted-foreground">
                     Categoría <span className="text-destructive">*</span>
                   </Label>
-                  <CatalogSelect
-                    type="expense_category"
+                  <ExpenseCategorySelect
                     value={categoriaId}
                     onValueChange={setCategoriaId}
                     placeholder="Selecciona una categoría"
