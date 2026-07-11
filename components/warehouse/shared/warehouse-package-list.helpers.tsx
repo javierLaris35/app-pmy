@@ -118,7 +118,7 @@ export function RemittancePiecesPanel({ pkg }: { pkg: WarehousePackageInfo }) {
   return (
     <div className="px-4 py-4 bg-slate-50/80 w-full">
       <div className="flex items-center gap-2 mb-3">
-        <Layers className="w-4 h-4 text-blue-600" />
+        <Layers className="w-4 h-4 text-primary" />
         <h4 className="text-sm font-bold text-slate-700">Contenido de la remesa</h4>
         <Badge variant="secondary" className="text-[10px] ml-2 h-5 bg-white border-slate-200 text-slate-600 shadow-sm font-semibold">
           {totalPieces} {totalPieces === 1 ? "pieza en total (incluyendo principal)" : "piezas en total (incluyendo principal)"}
