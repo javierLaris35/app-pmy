@@ -5,14 +5,15 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { UnidadSelector } from "@/components/selectors/unidad-selector"
 import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
-import { resolveId } from "@/components/warehouse/shared/resolve-id"
 import type { Driver, Vehicles } from "@/lib/types"
 
 export interface TransportAssignmentCardProps {
-  vehicleId: string
-  onVehicleChange: (id: string) => void
+  /** Bare id (compat) o el objeto completo emitido por el selector (preferido: retiene el nombre). */
+  vehicleId: any
+  onVehicleChange: (vehicle: any) => void
+  /** Array de bare ids (compat) o de objetos completos del selector. */
   driverIds: any[]
-  onDriversChange: (ids: any[]) => void
+  onDriversChange: (drivers: any[]) => void
   subsidiaryId: string
 }
 
@@ -24,6 +25,20 @@ export function TransportAssignmentCard({
   onDriversChange,
   subsidiaryId,
 }: TransportAssignmentCardProps) {
+  // El hook conserva el objeto completo emitido por el selector (no solo el id) para
+  // no perder el nombre/placa que se muestran en firma y PDF. Si por compat llega un
+  // bare id (string), lo envolvemos para que el selector pueda resolverlo por id.
+  const selectedUnidad: Vehicles | undefined =
+    vehicleId && typeof vehicleId === "object"
+      ? (vehicleId as Vehicles)
+      : vehicleId
+        ? ({ id: vehicleId } as Vehicles)
+        : undefined
+
+  const selectedRepartidores: Driver[] = driverIds.map((d) =>
+    d && typeof d === "object" ? (d as Driver) : ({ id: d } as Driver),
+  )
+
   return (
     <Card className="border-primary/20">
       <CardContent className="space-y-4">
@@ -32,8 +47,10 @@ export function TransportAssignmentCard({
           <div className="space-y-1.5">
             <Label className="text-[12px] font-semibold text-slate-600">Unidad de Traslado</Label>
             <UnidadSelector
-              selectedUnidad={vehicleId ? ({ id: vehicleId } as Vehicles) : undefined}
-              onSelectionChange={(unidad) => onVehicleChange(resolveId(unidad))}
+              selectedUnidad={selectedUnidad}
+              // Pasamos el objeto completo del selector (no resolveId): preserva name/plateNumber.
+              // resolveId() se aplica solo al armar el payload de guardado.
+              onSelectionChange={(unidad) => onVehicleChange(unidad)}
               subsidiaryId={subsidiaryId}
             />
           </div>
@@ -41,8 +58,9 @@ export function TransportAssignmentCard({
           <div className="space-y-1.5">
             <Label className="text-[12px] font-semibold text-slate-600">Chofer Asignado</Label>
             <RepartidorSelector
-              selectedRepartidores={driverIds.map((id) => ({ id }) as Driver)}
-              onSelectionChange={(drivers) => onDriversChange(drivers.map((d) => resolveId(d)))}
+              selectedRepartidores={selectedRepartidores}
+              // Idem: objetos completos (con name), no bare ids.
+              onSelectionChange={(drivers) => onDriversChange(drivers)}
               subsidiaryId={subsidiaryId}
             />
           </div>

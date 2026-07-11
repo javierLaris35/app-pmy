@@ -317,7 +317,7 @@ export default function InboundPackage() {
         onConfirm={handleConfirm}
         isSubmitting={s.isSubmitting}
         canConfirm={canConfirm}
-        pdfDocument={<PackageEntryPDF session={pdfSession} vehiculo={{ id: s.vehicleId }} />}
+        pdfDocument={<PackageEntryPDF session={pdfSession} vehiculo={s.vehicleId} />}
         excelButton={
           <Button
             variant="outline"

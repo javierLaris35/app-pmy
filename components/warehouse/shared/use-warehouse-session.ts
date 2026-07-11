@@ -77,8 +77,11 @@ export interface UseWarehouseSession {
   effectiveWarehouseName: string
   setEffectiveWarehouse: (id: string, name: string) => void
   operationalSubsidiaryId: string
-  vehicleId: string
-  setVehicleId: (id: string) => void
+  // Guarda el objeto completo emitido por el selector (Vehicles), no solo el id:
+  // así se conserva el nombre/placa para firma y PDF. `resolveId()` reduce a bare id
+  // solo al armar el payload de guardado (ver buildInboundPayload en inbound-package.tsx).
+  vehicleId: any
+  setVehicleId: (v: any) => void
   driverIds: any[]
   setDriverIds: (ids: any[]) => void
   derivedDriverName: string
@@ -182,7 +185,9 @@ export function useWarehouseSession({
   }, [allSubsidiaries, effectiveWarehouseId])
 
   // --- Transporte / firmas (hook owns) ---
-  const [vehicleId, setVehicleId] = useState<string>("")
+  // vehicleId guarda el objeto Vehicles completo (o "" al inicio); driverIds guarda
+  // los objetos Driver completos. Ver comentario en UseWarehouseSession.vehicleId.
+  const [vehicleId, setVehicleId] = useState<any>("")
   const [driverIds, setDriverIds] = useState<any[]>([])
   const [receivedByName, setReceivedByName] = useState<string>("")
 
