@@ -28,7 +28,7 @@ import "driver.js/dist/driver.css";
 import { useAuthStore } from "@/store/auth.store";
 import { validateTrackingNumbers, saveUnloading, uploadPDFile } from "@/lib/services/unloadings";
 import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types";
-import { BarcodeScannerInput, BarcodeScannerInputHandle } from "@/components/barcode-input/barcode-scanner-input-list";
+import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -519,7 +519,7 @@ export default function UnloadingForm({
   const [correctTrackingModalOpen, setCorrectTrackingModalOpen] = useState(false);
   const [selectedTrackingToCorrect, setSelectedTrackingToCorrect] = useState<string>("");
 
-  const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
+  const barScannerInputRef = useRef<ScanInputHandle>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
@@ -1306,9 +1306,9 @@ export default function UnloadingForm({
               />
             </div>
             <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
-              <BarcodeScannerInput
+              <ScanInput
                 ref={barScannerInputRef}
-                multiCarrier
+                storageKey="scan:desembarque"
                 onPackagesChange={setScannedPackages}
                 disabled={isLoading || !selectedSubsidiaryId}
                 placeholder={!selectedSubsidiaryId ? "Selecciona sucursal" : "Escanear..."}
