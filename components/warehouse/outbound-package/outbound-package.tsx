@@ -475,7 +475,8 @@ export default function OutboundPackage() {
         onConfirm={handleConfirm}
         isSubmitting={s.isSubmitting}
         canConfirm={canConfirm}
-        pdfDocument={<PackageEntryPDF session={pdfSession} vehiculo={s.vehicleId} />}
+        pdfDocument={<PackageEntryPDF session={pdfSession} vehiculo={s.vehicleId} title="Reporte de Salida de Bodega" />}
+        pdfFileName={`salida-${outputType}-${new Date().toISOString().split('T')[0]}.pdf`}
         excelButton={
           <Button
             variant="outline"

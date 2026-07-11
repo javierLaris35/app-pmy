@@ -70,6 +70,8 @@ export interface SignatureDialogProps {
   canConfirm: boolean
   /** Elemento `@react-pdf/renderer` (ej. `<PackageEntryPDF .../>`) para `PDFDownloadLink`. */
   pdfDocument: ReactElement<DocumentProps>
+  /** Nombre del archivo PDF descargado. Default: "recepcion.pdf" (Entrada a Bodega). */
+  pdfFileName?: string
   /** Slot opcional para el botón de Excel (solo Entrada a Bodega lo usa). */
   excelButton?: ReactNode
 }
@@ -92,6 +94,7 @@ export function SignatureDialog({
   isSubmitting,
   canConfirm,
   pdfDocument,
+  pdfFileName = "recepcion.pdf",
   excelButton,
 }: SignatureDialogProps) {
   // Evita el mismatch de hidratación de PDFDownloadLink (solo se monta en cliente).
@@ -148,7 +151,7 @@ export function SignatureDialog({
           {excelButton}
 
           {isClient && canConfirm ? (
-            <PDFDownloadLink document={pdfDocument} fileName="recepcion.pdf" className="w-full sm:w-auto">
+            <PDFDownloadLink document={pdfDocument} fileName={pdfFileName} className="w-full sm:w-auto">
               {({ loading }) => (
                 <Button
                   variant="outline"

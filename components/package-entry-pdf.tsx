@@ -7,6 +7,8 @@ import type { Vehicles } from "@/lib/types"
 interface PDFProps {
   session: SessionState
   vehiculo?: Vehicles | { id: string } | null
+  /** Encabezado principal del reporte (ej. "Reporte de Recepción de Envíos" / "Reporte de Salida de Bodega"). */
+  title?: string
 }
 
 const styles = StyleSheet.create({
@@ -36,7 +38,7 @@ const styles = StyleSheet.create({
   signatureName: { fontSize: 9, fontWeight: "bold", marginTop: 4 }
 })
 
-export const PackageEntryPDF = ({ session, vehiculo }: PDFProps) => {
+export const PackageEntryPDF = ({ session, vehiculo, title = "Reporte de Recepción de Envíos" }: PDFProps) => {
   const safeDate = new Date().toLocaleDateString("es-MX");
   const totalCount = session.packages.reduce((acc, p) => acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0), 0)
   const fedexCount = session.packages.reduce((acc, p) => String(p.shipmentType || "").toLowerCase() === "fedex" ? acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0) : acc, 0)
@@ -76,7 +78,7 @@ export const PackageEntryPDF = ({ session, vehiculo }: PDFProps) => {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Bodega Obregón</Text>
-            <Text style={styles.subtitle}>Reporte de Recepción de Envíos</Text>
+            <Text style={styles.subtitle}>{title}</Text>
           </View>
           <View style={{ textAlign: "right" }}>
             <Text style={{ fontSize: 9, fontWeight: "bold" }}>FECHA: {safeDate}</Text>

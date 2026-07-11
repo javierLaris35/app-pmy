@@ -21,7 +21,7 @@ export function RemittanceGroupToggle({
       className={cn(
         "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
         grouped
-          ? "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200"
+          ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
           : "bg-background text-muted-foreground border-input hover:bg-muted",
         className
       )}
