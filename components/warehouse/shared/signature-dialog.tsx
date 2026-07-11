@@ -49,7 +49,7 @@ const VARIANT_CONFIG: Record<
     title: "Cerrar Traspaso a Sucursal",
     description:
       "Confirme quién entrega y quién recibe la mercancía para habilitar la descarga del PDF y guardar el registro de la sesión.",
-    icon: <ArrowRightLeft className="w-5 h-5 text-blue-600" />,
+    icon: <ArrowRightLeft className="w-5 h-5 text-primary" />,
     confirmLabel: "Confirmar y Guardar",
   },
 }
