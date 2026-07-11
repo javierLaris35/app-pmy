@@ -11,7 +11,7 @@ import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, Ge
 import { useAuthStore } from "@/store/auth.store";
 import { validateTrackingNumbers, saveUnloading, uploadPDFile, getConsolidatedsToStartUnloading } from "@/lib/services/unloadings";
 import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types";
-import { BarcodeScannerInput, BarcodeScannerInputHandle } from "@/components/barcode-input/barcode-scanner-input-list";
+import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -546,7 +546,7 @@ const Step2ScanAndValidate = ({
   onClearAll: () => void;
   isOnline: boolean;
 }) => {
-  const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
+  const barScannerInputRef = useRef<ScanInputHandle>(null);
   const validShipments = shipments.filter((p) => p.isValid);
 
   // Resumen por consolidado
@@ -655,9 +655,9 @@ const Step2ScanAndValidate = ({
         {/* Sección de escaneo */}
         <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
           <div className="space-y-2">
-            <BarcodeScannerInput
+            <ScanInput
+              storageKey="scan:desembarque-wizard"
               ref={barScannerInputRef}
-              multiCarrier
               onPackagesChange={onPackagesChange}
               disabled={isLoading}
               placeholder="Escribe o escanea números de tracking"
@@ -1154,7 +1154,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [isOnline, setIsOnline] = useState(true);
   const [loadingConsolidates, setLoadingConsolidates] = useState(false);
 
-  const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
+  const barScannerInputRef = useRef<ScanInputHandle>(null);
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
