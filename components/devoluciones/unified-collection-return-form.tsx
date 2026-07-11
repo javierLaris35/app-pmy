@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,7 +16,7 @@ import { DevolutionCard } from "./devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { toast } from "@/lib/toast"
 import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
-import { ScanInput } from "@/components/scanner/scan-input"
+import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
 import { Input } from "../ui/input"
@@ -92,6 +92,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   
   // ESTADO: Controla el aviso de paquetes sin Pick Up
   const [showWarningModal, setShowWarningModal] = useState(false);
+
+  // Refs a los escáneres para limpiar su buffer persistido tras un guardado exitoso.
+  const collectionsScanRef = useRef<ScanInputHandle>(null);
+  const devolutionsScanRef = useRef<ScanInputHandle>(null);
 
   // Agrega este useEffect después de tus declaraciones de useState
   useEffect(() => {
@@ -414,6 +418,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       setHasValidatedCollections(false)
       setHasValidatedDevolutions(false)
       setShowWarningModal(false)
+      collectionsScanRef.current?.clear()
+      devolutionsScanRef.current?.clear()
 
       onSuccess()
     } catch (error) {
@@ -528,6 +534,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
           <TabsContent value="collections" className="space-y-4 mt-4">
             <div className="space-y-2">
               <ScanInput
+                ref={collectionsScanRef}
                 storageKey="scan:devoluciones-collections"
                 defaultView="simple"
                 onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)}
@@ -635,6 +642,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
           <TabsContent value="devolutions" className="space-y-4 mt-4">
             <div className="space-y-2">
               <ScanInput
+                ref={devolutionsScanRef}
                 storageKey="scan:devoluciones-devolutions"
                 defaultView="simple"
                 onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)}

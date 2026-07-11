@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   X,
   Send,
@@ -34,7 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import { ScanInput } from "@/components/scanner/scan-input";
+import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +94,10 @@ export default function ClosePackageDispatchWizard({
   
   // ESTADO PARA VALIDACIÓN BACKEND
   const [isValidatingNoVan, setIsValidatingNoVan] = useState(false);
+
+  // Refs a los escáneres para limpiar su buffer persistido tras éxito.
+  const collectionsScanRef = useRef<ScanInputHandle>(null);
+  const noVanScanRef = useRef<ScanInputHandle>(null);
 
   useEffect(() => {
     const fetchDispatchData = async () => {
@@ -420,6 +424,7 @@ export default function ClosePackageDispatchWizard({
       if (validResults.length > 0) {
         setNoVanPackages((prev) => [...prev, ...validResults]);
         setNoVanInput("");
+        noVanScanRef.current?.clear();
         toast({
           title: "Validación completada",
           description: `Se agregaron ${validResults.length} paquetes correctamente.`,
@@ -491,9 +496,10 @@ export default function ClosePackageDispatchWizard({
       };
 
       const savedClosure = await save(closurePackageDispatch as any);
-      
+
       toast({ title: "Cierre exitoso", description: "La ruta se ha cerrado correctamente." });
-      
+      collectionsScanRef.current?.clear();
+
       await handleSendEmail(savedClosure);
       onSuccess();
     } catch (error) {
@@ -1000,6 +1006,7 @@ export default function ClosePackageDispatchWizard({
                   <div className="p-6 bg-purple-50/30 border-r border-purple-100 flex flex-col min-h-[350px]">
                     <div className="flex-1">
                       <ScanInput
+                        ref={collectionsScanRef}
                         storageKey="scan:dispatch-close-collections"
                         defaultView="simple"
                         onTrackingNumbersChange={setCollectionsRaw}
@@ -1034,6 +1041,7 @@ export default function ClosePackageDispatchWizard({
                   <div className="p-6 bg-slate-50 border-r border-slate-200 flex flex-col min-h-[400px]">
                     <div className="flex-1 flex flex-col gap-4">
                       <ScanInput
+                        ref={noVanScanRef}
                         storageKey="scan:dispatch-close-novan"
                         defaultView="simple"
                         onTrackingNumbersChange={setNoVanInput}

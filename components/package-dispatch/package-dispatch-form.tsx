@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib
 import { useAuthStore } from "@/store/auth.store";
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input";
-import { ScanInput } from "@/components/scanner/scan-input";
+import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -159,6 +159,9 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   const user = useAuthStore((s) => s.user);
   const { toast } = useToast();
+
+  // Ref al escáner para poder limpiar su buffer persistido tras un éxito.
+  const scanInputRef = useRef<ScanInputHandle>(null);
 
   // Traspaso inline (corregir paquete mal enrutado) — solo roles elevados.
   const canTransfer = ["subadmin", "admin", "superadmin"].includes((user?.role as string) || "");
@@ -344,6 +347,7 @@ const PackageDispatchForm: React.FC<Props> = ({
       setPackages([]);
       setInvalidNumbers([]);
       setTrackingNumbersRaw("");
+      scanInputRef.current?.clear();
 
       toast({
         title: "Datos limpiados",
@@ -774,6 +778,7 @@ const PackageDispatchForm: React.FC<Props> = ({
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <ScanInput
+                  ref={scanInputRef}
                   storageKey="scan:dispatch"
                   defaultView="simple"
                   label=""

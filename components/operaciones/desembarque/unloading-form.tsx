@@ -1095,6 +1095,7 @@ export default function UnloadingForm({
     setConsolidatedValidation(null);
     setSelectedConsolidatedIds([]);
     setLastValidated("");
+    barScannerInputRef.current?.clear();
     try { toast?.({ title: "Datos limpiados", description: "Se eliminaron los datos temporales." }); } catch {}
   }, [setScannedPackages, setShipments, setMissingPackages, setSurplusTrackings, setSelectedReasons, setTrackingNumbersRaw, setConsolidatedValidation, setSelectedConsolidatedIds, setLastValidated, setSelectedUnidad, toast]);
 
