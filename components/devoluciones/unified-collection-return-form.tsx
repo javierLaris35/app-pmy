@@ -16,7 +16,7 @@ import { DevolutionCard } from "./devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { toast } from "@/lib/toast"
 import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
-import { BarcodeScannerInput } from "../barcode-scanner-input"
+import { ScanInput } from "@/components/scanner/scan-input"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
 import { Input } from "../ui/input"
@@ -527,8 +527,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
           <TabsContent value="collections" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <BarcodeScannerInput 
-                onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)} 
+              <ScanInput
+                storageKey="scan:devoluciones-collections"
+                defaultView="simple"
+                onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)}
               />
             </div>
 
@@ -632,8 +634,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
           <TabsContent value="devolutions" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <BarcodeScannerInput 
-                onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)} 
+              <ScanInput
+                storageKey="scan:devoluciones-devolutions"
+                defaultView="simple"
+                onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)}
               />
             </div>
 

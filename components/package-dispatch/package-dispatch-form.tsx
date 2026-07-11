@@ -16,7 +16,7 @@ import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib
 import { useAuthStore } from "@/store/auth.store";
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input";
-import { BarcodeScannerInput } from "../barcode-scanner-input";
+import { ScanInput } from "@/components/scanner/scan-input";
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -773,9 +773,10 @@ const PackageDispatchForm: React.FC<Props> = ({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <BarcodeScannerInput
+                <ScanInput
+                  storageKey="scan:dispatch"
+                  defaultView="simple"
                   label=""
-                  multiCarrier
                   onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)}
                   disabled={isLoading || !selectedSubsidiaryId}
                   placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
