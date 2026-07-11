@@ -1,72 +1,49 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import { pdf, PDFDownloadLink } from "@react-pdf/renderer"
-import { useBrowserVoice } from "@/hooks/use-browser-voice"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { CheckCircle2, AlertTriangle, FileSpreadsheet, History, Keyboard, PackagePlus } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { OperationHeader } from "@/components/shared/operation-header"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { PackagesList } from "@/components/shared/packages-list"
+import { SucursalSelector } from "@/components/sucursal-selector"
+import { toast } from "@/components/ui/use-toast"
 
 import { PackageEntryPDF } from "@/components/package-entry-pdf"
-import {
-  Download,
-  AlertTriangle,
-  X,
-  CheckCircle2,
-  Keyboard,
-  Package,
-  Clock,
-  DollarSign,
-  Box,
-  Truck,
-  PackagePlusIcon,
-  ScanBarcode,
-  HelpCircle,
-  FileSpreadsheet,
-  History,
-  GemIcon
-} from "lucide-react"
-
-// Selectores especializados
-import { UnidadSelector } from "@/components/selectors/unidad-selector"
-import { RepartidorSelector } from "@/components/selectors/repartidor-selector"
 
 // Servicios y tipos
-import { saveWarehouseInbound, sendNotificationEmail, validateShipment } from "@/lib/services/warehouse/warehouse"
-import { Driver, ScannedShipment, Vehicles } from "@/lib/types"
-import { useAuthStore } from "@/store/auth.store"
-import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
-import { PackagesList } from "@/components/shared/packages-list"
-import { toPackageInfo, RemittancePiecesPanel, hasRemittancePieces, groupRemittances } from "@/components/warehouse/shared/warehouse-package-list.helpers"
-import { RemittanceGroupToggle } from "@/components/warehouse/shared/remittance-group-toggle"
-import { SucursalSelector } from "@/components/sucursal-selector"
-import { generateWarehouseExcel } from "./excel-generator"
-import { toast } from "@/components/ui/use-toast"
-import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
-import { StatCard } from "@/components/shared/stat-card"
-import { cn } from "@/lib/utils"
+import { saveWarehouseInbound } from "@/lib/services/warehouse/warehouse"
+import type { Driver, Vehicles } from "@/lib/types"
 
-export type InboundShipment = ScannedShipment & {
-  pieces?: string[]; 
-  existingPieces?: string[]; 
-  recipientName?: string;
-  recipientAddress?: string;
-}
+// Capa compartida de bodega (Tasks 5-8)
+import { useWarehouseSession, type WarehouseShipment } from "@/components/warehouse/shared/use-warehouse-session"
+import { WarehouseStatsRow } from "@/components/warehouse/shared/warehouse-stats-row"
+import { ScannerCard } from "@/components/warehouse/shared/scanner-card"
+import { TransportAssignmentCard } from "@/components/warehouse/shared/transport-assignment-card"
+import { DetailModal } from "@/components/warehouse/shared/detail-modal"
+import { ShortcutsDialog } from "@/components/warehouse/shared/shortcuts-dialog"
+import { WarehouseRemittanceDialog } from "@/components/warehouse/shared/warehouse-remittance-dialog"
+import { SignatureDialog } from "@/components/warehouse/shared/signature-dialog"
+import { generateWarehouseExcel } from "@/components/warehouse/shared/warehouse-excel"
+import { RemittanceGroupToggle } from "@/components/warehouse/shared/remittance-group-toggle"
+import {
+  hasRemittancePieces,
+  RemittancePiecesPanel,
+} from "@/components/warehouse/shared/warehouse-package-list.helpers"
+import { resolveId } from "@/components/warehouse/shared/resolve-id"
+import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
+
+// ============================================================================
+// Tipos exportados: `package-entry-pdf.tsx` importa `SessionState` desde aquí
+// (ver components/package-entry-pdf.tsx línea 4). Se preservan para no romper
+// esa dependencia. `InboundShipment` es un alias del `WarehouseShipment` de la
+// capa compartida.
+// ============================================================================
+
+export type InboundShipment = WarehouseShipment
 
 export type SessionState = {
   id: string
@@ -80,522 +57,96 @@ export type SessionState = {
   status: "En Proceso" | "Completado"
 }
 
-// Variables en inglés para el flujo de remesas
-type RemittanceDialogState = {
-  isOpen: boolean;
-  step: "confirm" | "scan";
-  masterTracking: string;
-  pieceInput: string;
-  error: string | null;
-}
-
-// Normaliza el flag isWarehouse (puede venir como bit/Buffer del backend).
-const checkIsWarehouse = (val: any): boolean => {
-  if (val && typeof val === "object" && "data" in val) return val.data[0] === 1
-  return Boolean(val)
-}
-
-const isToday = (date: Date) => new Date().toDateString() === new Date(date).toDateString()
-const isTomorrow = (date: Date) => {
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  return tomorrow.toDateString() === new Date(date).toDateString()
-}
-
 export default function InboundPackage() {
-  const user = useAuthStore((state) => state.user);
-  
-  // Establecemos el ID por defecto si el usuario lo tiene en su Store
-  const defaultWarehouseId = user?.subsidiary?.id || user?.subsidiaryId || "";
-
-  const inputRef = useRef<HTMLInputElement>(null)
-  const pieceInputRef = useRef<HTMLInputElement>(null) 
-
-  const { speak: speakMessage } = useBrowserVoice({ pitch: 0.8, rate: 1.3 })
-
-  const safeSpeak = useCallback((text: string) => {
-    try {
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel()
-      }
-      if (typeof speakMessage === 'function') {
-        speakMessage(text)
-      }
-    } catch (err) {
-      console.warn("Aviso: Fallo silencioso en la síntesis de voz.", err)
-    }
-  }, [speakMessage])
-  
-  const [isClient, setIsClient] = useState(false)
-  const [session, setSession] = useState<SessionState>({
-    id: crypto.randomUUID(),
-    vehicle: null,
-    startTime: new Date(),
-    receivedByName: "",
-    enteredByName: "",
-    packages: [],
-    status: "En Proceso",
-    drivers: []
-  })
-  
-  // Guardamos únicamente la selección manual.
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("")
-  
-  // Esta es la fuente de la verdad para toda la vista y el envío
-  const effectiveWarehouseId = selectedWarehouse || defaultWarehouseId;
-  const [effectiveWarehouseName, setEffectiveWarehouseName] = useState<string>("")
-
-  // Choferes/unidades cuelgan de la sucursal de CIUDAD, no de la bodega.
-  // Resolvemos la sucursal operativa por ZONA: la sucursal no-bodega que
-  // comparte la zona de la bodega. Fallback: la bodega misma.
-  const { subsidiaries: allSubsidiaries } = useSubsidiaries()
-  const operationalSubsidiaryId = useMemo(() => {
-    const wh = allSubsidiaries.find((s) => s.id === effectiveWarehouseId)
-    if (!wh?.zoneId) return effectiveWarehouseId
-    const city = allSubsidiaries.find(
-      (s) => s.zoneId === wh.zoneId && s.id !== effectiveWarehouseId && !checkIsWarehouse(s.isWarehouse),
-    )
-    return city?.id || effectiveWarehouseId
-  }, [allSubsidiaries, effectiveWarehouseId])
-
-  const [scanInput, setScanInput] = useState("")
-  const [isScanning, setIsScanning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
-  // Vista de remesas: agrupadas (default) o cada pieza por separado.
-  const [groupRemesas, setGroupRemesas] = useState(true)
+  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID())
 
-  // Estado para el modal de remesas
-  const [remittanceDialog, setRemittanceDialog] = useState<RemittanceDialogState>({
-    isOpen: false,
-    step: "confirm",
-    masterTracking: "",
-    pieceInput: "",
-    error: null
-  })
+  // isReadyToFinish vive en el componente (no en el hook). La verificación de F2
+  // se delega al hook vía onRequestFinish; usamos un ref para que el hook lea el
+  // estado más reciente sin resuscribir su listener de teclado en cada render.
+  const requestFinishRef = useRef<() => void>(() => {})
+  const requestFinish = useCallback(() => requestFinishRef.current(), [])
 
-  const [modals, setModals] = useState({
-    shortcuts: false,
-    expiringToday: false,
-    highValue: false,
-    charges: false,
-    signatures: false
-  })
+  const s = useWarehouseSession({ context: "inbound", onRequestFinish: requestFinish })
 
-  useEffect(() => { setIsClient(true) }, [])
+  // Regla local de habilitación del cierre.
+  const isReadyToFinish =
+    s.packages.length > 0 && !!s.vehicleId && s.driverIds.length > 0 && !!s.effectiveWarehouseId
 
-  // Auto-focus en el input de piezas cuando el paso cambia a "scan"
-  useEffect(() => {
-    if (remittanceDialog.isOpen && remittanceDialog.step === "scan") {
-      setTimeout(() => pieceInputRef.current?.focus(), 100);
+  requestFinishRef.current = () => {
+    if (isReadyToFinish) {
+      s.toggleModal("signatures", true)
+    } else {
+      s.safeSpeak("Faltan datos para finalizar")
     }
-  }, [remittanceDialog.isOpen, remittanceDialog.step]);
-
-  const toggleModal = (key: keyof typeof modals, value: boolean) => {
-    setModals(prev => ({ ...prev, [key]: value }))
-    if (!value && !remittanceDialog.isOpen) setTimeout(() => inputRef.current?.focus(), 100)
   }
 
-  const expiringTodayPackages = useMemo(() => session.packages.filter(p => isToday(p.commitDateTime)), [session.packages])
-  const highValuePackages = useMemo(() => session.packages.filter(p => p.isHighValue), [session.packages])
-  const cargoPackages = useMemo(() => session.packages.filter(p => p.isCharge), [session.packages])
-  const packagesWithCharges = useMemo(() => session.packages.filter(p => p.hasPayment), [session.packages])
-  const totalChargesAmount = useMemo(() => 
-    packagesWithCharges.reduce((acc, p) => acc + (Number(p.paymentAmount) || 0), 0), 
-  [packagesWithCharges])
-  
-  // LOGICA ACTUALIZADA PARA CONTAR PIEZAS DENTRO DE LOS PAQUETES
-  const totalCount = useMemo(() => session.packages.reduce((acc, p) => acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0), 0), [session.packages])
-  const fedexCount = useMemo(() => session.packages.reduce((acc, p) => p.shipmentType.toLowerCase() === "fedex" ? acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0) : acc, 0), [session.packages])
-  const dhlCount = useMemo(() => session.packages.reduce((acc, p) => p.shipmentType.toLowerCase() === "dhl" ? acc + 1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0) : acc, 0), [session.packages])
+  const canConfirm = s.receivedByName.trim() !== ""
 
-  const sortedPackages = useMemo(() => {
-    return [...session.packages].sort((a, b) => {
-      const getSubName = (pkg: any) => {
-        if (pkg?.subsidiary?.name) return String(pkg.subsidiary.name).trim();
-        if (typeof pkg?.subsidiaryId === 'string') return pkg.subsidiaryId.trim();
-        if (typeof pkg?.subsidiaryId === 'object' && pkg?.subsidiaryId !== null) return String(pkg.subsidiaryId.name || "S/N").trim();
-        return "S/N";
-      };
+  // Sesión sintética para PDF/Excel (los generadores leen `id`, `packages`,
+  // `enteredByName` y `receivedByName`). El operador se deriva de los choferes.
+  const pdfSession: SessionState = useMemo(
+    () => ({
+      id: sessionId,
+      vehicle: null,
+      startTime: new Date(),
+      drivers: [],
+      receivedByName: s.receivedByName,
+      enteredByName: s.derivedDriverName,
+      packages: s.packages,
+      status: "En Proceso",
+    }),
+    [sessionId, s.receivedByName, s.derivedDriverName, s.packages],
+  )
 
-      const branchA = getSubName(a);
-      const branchB = getSubName(b);
-      const cmpBranch = branchA.localeCompare(branchB);
-      if (cmpBranch !== 0) return cmpBranch;
+  const buildInboundPayload = () => ({
+    warehouse: s.effectiveWarehouseId,
+    vehicle: resolveId(s.vehicleId),
+    drivers: s.driverIds.map(resolveId),
+    shipments: s.packages.map((p) => ({
+      id: p.id,
+      trackingNumber: p.trackingNumber,
+      shipmentType: p.shipmentType,
+      isCharge: p.isCharge || false,
+      remittances: (p.pieces || []).map((t) => ({ pieceTrackingNumber: t, shipmentId: p.id })),
+    })),
+  })
 
-      const zipA = String(a.recipientZip || "").trim();
-      const zipB = String(b.recipientZip || "").trim();
-      const cmpZip = zipA.localeCompare(zipB, undefined, { numeric: true }); 
-      if (cmpZip !== 0) return cmpZip;
-
-      const carrierA = String(a.shipmentType || "").trim().toUpperCase();
-      const carrierB = String(b.shipmentType || "").trim().toUpperCase();
-      return carrierA.localeCompare(carrierB);
-    });
-  }, [session.packages]);
-  
-  // AÑADIDA VALIDACIÓN: !!effectiveWarehouseId 
-  const isReadyToFinish = session.packages.length > 0 && session.vehicle?.id && session.drivers.length > 0 && !!effectiveWarehouseId;
-  
-  const derivedDriverName = session.drivers.map(d => {
-    if (typeof d.id === 'object' && d.id !== null) {
-      return (d.id as any).name || (d.id as any).nombre || "Operador Seleccionado";
-    }
-    return (d as any).name || (d as any).nombre || d.id || "Operador Seleccionado";
-  }).join(", ")
-  
-  const canSaveAndGeneratePDF = session.receivedByName.trim() !== "";
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isInputFocused = document.activeElement instanceof HTMLInputElement;
-
-      if (e.key === "F1") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      } 
-      else if (e.key === "F2") {
-        e.preventDefault();
-        if (isReadyToFinish) {
-          toggleModal("signatures", true);
-        } else {
-          safeSpeak("Faltan datos para finalizar"); 
-        }
-      } 
-      else if (e.key === "F3") {
-        e.preventDefault();
-        const searchInput = document.querySelector('input[placeholder*="Buscar"]') as HTMLInputElement;
-        if (searchInput) searchInput.focus();
-      } 
-      else if (e.key === "Escape") {
-        setModals({ signatures: false, shortcuts: false, expiringToday: false, highValue: false, charges: false });
-        if (remittanceDialog.isOpen) {
-          setRemittanceDialog(prev => ({...prev, isOpen: false}));
-        }
-        setTimeout(() => inputRef.current?.focus(), 100);
-      } 
-      else if (!isInputFocused && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        if (remittanceDialog.isOpen && remittanceDialog.step === "scan") {
-          pieceInputRef.current?.focus();
-        } else if (!remittanceDialog.isOpen) {
-          inputRef.current?.focus();
-        }
+  const handleConfirm = () => {
+    s.runSubmit(async () => {
+      try {
+        await saveWarehouseInbound(buildInboundPayload())
+        // La notificación por correo (PDF + Excel) la envía el backend.
+        s.safeSpeak("Entrada guardada con éxito")
+        s.resetPackages()
+        setSessionId(crypto.randomUUID())
+        s.toggleModal("signatures", false)
+        toast({ title: "Entrada a bodega guardada", description: "Entrada guardada con éxito." })
+      } catch (error) {
+        console.error("Error al guardar la entrada en bodega:", error)
+        s.safeSpeak("Error al guardar en el servidor")
       }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isReadyToFinish, safeSpeak, remittanceDialog.isOpen, remittanceDialog.step]);
-
-  const handlePieceScan = useCallback(() => {
-    const pieceTracking = remittanceDialog.pieceInput.trim().toUpperCase();
-    if (!pieceTracking) return;
-
-    setSession(prev => {
-      const pkgIndex = prev.packages.findIndex(p => p.trackingNumber === remittanceDialog.masterTracking);
-      if (pkgIndex === -1) return prev;
-
-      const pkg = prev.packages[pkgIndex];
-      
-      if (pkg.pieces?.includes(pieceTracking) || pkg.existingPieces?.includes(pieceTracking)) {
-        setRemittanceDialog(d => ({ ...d, error: `Pieza duplicada o ya registrada: ${pieceTracking}` }));
-        safeSpeak("Pieza duplicada");
-        setTimeout(() => pieceInputRef.current?.select(), 50);
-        return prev;
-      }
-
-      safeSpeak("Pieza agregada");
-      
-      setRemittanceDialog(d => ({ ...d, error: null, pieceInput: "" })); 
-      
-      const updatedPackages = [...prev.packages];
-      updatedPackages[pkgIndex] = {
-        ...pkg,
-        pieces: [...(pkg.pieces || []), pieceTracking]
-      };
-      return { ...prev, packages: updatedPackages };
-    });
-
-    setTimeout(() => pieceInputRef.current?.focus(), 50);
-  }, [remittanceDialog.pieceInput, remittanceDialog.masterTracking, safeSpeak]);
-
-
-  const handleScan = useCallback(async () => {
-    if (!scanInput.trim()) return
-    setIsScanning(true)
-    setError(null)
-    
-    // Obtenemos el input original en mayúsculas
-    let scannedCode = scanInput.trim().toUpperCase()
-
-    // ==============================================================
-    // VALIDACIÓN FEDEX: RECORTAR CÓDIGOS DE MÁS DE 20 DÍGITOS
-    // ==============================================================
-    // Si la cadena tiene 20 caracteres o más Y contiene ÚNICAMENTE NÚMEROS (^\d+$),
-    // recortamos para quedarnos con los últimos 12 dígitos (Guía real de FedEx).
-    // NOTA: Si contiene letras (como los JJD o JDD de DHL) la validación es Falsa
-    // y el código pasa intacto sin cortarse.
-    if (scannedCode.length >= 20 && /^\d+$/.test(scannedCode)) {
-      scannedCode = scannedCode.slice(-12);
-    }
-
-    // 1. PRIMERA DEFENSA LOCAL: ¿Escanearon exactamente un código que ya tenemos en pantalla?
-    const localMatch = session.packages.find(
-      (p) => p.trackingNumber === scannedCode || p.dhlUniqueId === scannedCode
-    );
-
-    if (localMatch) {
-      // Si el código escaneado es exactamente un dhlUniqueId que ya tenemos, es pieza duplicada
-      if (localMatch.dhlUniqueId === scannedCode) {
-        setError(`La pieza ${scannedCode} ya está en la lista.`);
-        safeSpeak("Pieza repetida.");
-        setScanInput("");
-        setIsScanning(false);
-        return;
-      }
-
-      // Si el código escaneado es el trackingNumber maestro...
-      if (localMatch.trackingNumber === scannedCode) {
-        if (localMatch.shipmentType.toLowerCase() === "dhl") {
-          // Es la guía maestra de DHL: abrimos modal de remesa
-          setRemittanceDialog({
-            isOpen: true,
-            step: "confirm",
-            masterTracking: localMatch.trackingNumber,
-            pieceInput: "",
-            error: null
-          });
-          safeSpeak("Guía principal detectada. Confirme remesa.");
-        } else {
-          // Es una guía de FedEx (o carga) repetida
-          setError(`Guía ya en lista: ${scannedCode}`);
-          safeSpeak("Guía repetida.");
-        }
-        setScanInput("");
-        setIsScanning(false);
-        return;
-      }
-    }
-
-    try {
-      // 2. CONSULTA AL BACKEND (usando el scannedCode ya validado/recortado)
-      const result = await validateShipment(scannedCode, effectiveWarehouseId, "inbound")
-
-      if (result.isValid === false) {
-        setError(result.reason || "No encontrado en sistema")
-        safeSpeak("No encontrado.")
-      } else {
-
-        // 3. SEGUNDA DEFENSA (Post-Backend): Aplicamos tu regla de negocio
-        const isDuplicate = session.packages.find((p) => {
-          // Si no comparten el mismo tracking principal, no hay conflicto
-          if (p.trackingNumber !== result.trackingNumber) return false;
-
-          // SI COMPARTEN EL MISMO TRACKING NUMBER (Posible remesa)
-          // Verificamos si ambos tienen un dhlUniqueId asignado
-          if (p.dhlUniqueId && result.dhlUniqueId) {
-            // AQUÍ ESTÁ LA MAGIA: Solo es duplicado si los Unique ID son EXACTAMENTE IGUALES.
-            return p.dhlUniqueId === result.dhlUniqueId;
-          }
-
-          // Si no usan dhlUniqueId (Ej. FedEx), compartir tracking significa que es un duplicado real
-          return true;
-        });
-
-        // Si la validación determinó que sí es un duplicado real
-        if (isDuplicate) {
-          if (result.shipmentType.toLowerCase() === "dhl") {
-            setRemittanceDialog({
-              isOpen: true,
-              step: "confirm",
-              masterTracking: result.trackingNumber,
-              pieceInput: "",
-              error: null
-            });
-            safeSpeak("Guía repetida. Confirme remesa.");
-          } else {
-            setError(`El paquete con guía ${result.trackingNumber} ya está en la lista.`);
-            safeSpeak("Paquete duplicado.");
-          }
-          setScanInput("");
-          setIsScanning(false);
-          return;
-        }
-
-        // 4. SI LLEGÓ HASTA AQUÍ, ES TOTALMENTE VÁLIDO (Nuevo paquete o Nueva pieza de la remesa)
-        const newShipment: InboundShipment = {
-          ...result,
-          recipientZip: result.recipientZip ? String(result.recipientZip).trim() : "",
-          commitDateTime: new Date(result.commitDateTime),
-          isCharge: result.isCharge || false,
-          hasPayment: result.hasPayment || false,
-          paymentAmount: result.paymentAmount || 0,
-          pieces: [], 
-          existingPieces: result.existingPieces || [],
-          recipientName: result.recipientName || "",
-          recipientAddress: result.recipientAddress || ""
-        }
-
-        if (result.statusWarning) {
-          // Aviso no bloqueante: el operador decide si lo ingresa.
-          setError(result.statusWarning)
-          safeSpeak("Atención, revise el estado del paquete.")
-        } else if (newShipment.existingPieces && newShipment.existingPieces.length > 0) {
-          safeSpeak("Guía existente. Escanee piezas restantes.");
-        } else {
-          safeSpeak(isToday(newShipment.commitDateTime) ? "Vence hoy" : isTomorrow(newShipment.commitDateTime) ? "Vence mañana" : "Registrado")
-        }
-
-        setSession(prev => ({ ...prev, packages: [newShipment, ...prev.packages] }))
-        setScanInput("")
-      }
-    } catch (err) {
-      setError("Error de servidor")
-      safeSpeak("Error de sistema")
-    } finally {
-      setIsScanning(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
-  }, [scanInput, session.packages, safeSpeak])
-
-
-  const handleKeyPress = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); handleScan() } }
-
-  // PackageListItem llama onRemove con (dhlUniqueId || trackingNumber).
-  const handleRemovePackage = useCallback((identifier: string) => {
-    setSession(prev => {
-      if (groupRemesas) {
-        // En vista agrupada el identificador es la guía principal: quitamos toda la remesa (mismo trackingNumber).
-        const target = prev.packages.find((p) => (p.dhlUniqueId || p.trackingNumber) === identifier)
-        if (target?.trackingNumber) {
-          return { ...prev, packages: prev.packages.filter((p) => p.trackingNumber !== target.trackingNumber) }
-        }
-      }
-      return { ...prev, packages: prev.packages.filter((p) => (p.dhlUniqueId || p.trackingNumber) !== identifier) }
     })
-  }, [groupRemesas])
-
-  // Adaptamos los paquetes locales al formato estandarizado (mismo estilo que inventario/salidas).
-  // En DHL, varias guías con el mismo trackingNumber y distinto dhlUniqueId se agrupan como una remesa.
-  const listPackages = useMemo(() => {
-    const mapped = sortedPackages.map(toPackageInfo)
-    return groupRemesas ? groupRemittances(mapped) : mapped
-  }, [sortedPackages, groupRemesas])
-
-  const handleCompleteSession = async () => {
-    setIsScanning(true);
-    
-    try {
-      const payload = {
-        warehouse: effectiveWarehouseId, // SE ENVÍA LA BODEGA VALIDADA
-        vehicle: typeof session.vehicle?.id === 'object' && session.vehicle?.id !== null
-          ? (session.vehicle.id as any).id 
-          : (session.vehicle?.id || ""), 
-        drivers: session.drivers.map(driver => {
-          if (typeof driver.id === 'object' && driver.id !== null) {
-            return String((driver.id as any).id);
-          }
-          return String(driver.id);
-        }),
-        // Mapeo de los envíos principales
-        shipments: session.packages.map(pkg => ({
-          id: pkg.id,
-          trackingNumber: pkg.trackingNumber,
-          shipmentType: pkg.shipmentType,
-          isCharge: pkg.isCharge || false,
-          
-          // Mapeamos el arreglo de strings a un arreglo de objetos relacionales
-          remittances: (pkg.pieces || []).map(pieceTracking => ({
-            pieceTrackingNumber: pieceTracking,
-            shipmentId: pkg.id 
-          }))
-        }))
-      };
-
-      const savedInbound = await saveWarehouseInbound(payload);
-      safeSpeak("Entrada guardada con éxito");
-
-      await handleSendEmailNotification(savedInbound);
-      
-      setSession({
-        id: crypto.randomUUID(),
-        vehicle: null,
-        startTime: new Date(),
-        receivedByName: "",
-        enteredByName: "",
-        packages: [],
-        status: "En Proceso",
-        drivers: []
-      });
-      
-      toggleModal("signatures", false);
-
-      toast({ 
-        title: "Entrada a bodega guardada", 
-        description: `Entrada guardada con éxito.` 
-      });
-
-    } catch (error) {
-      console.error("Error al guardar la entrada en bodega:", error);
-      safeSpeak("Error al guardar en el servidor");
-    } finally {
-      setIsScanning(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
   }
 
   const handleDownloadExcel = async () => {
     try {
-      safeSpeak("Generando archivo Excel")
-    
-      await generateWarehouseExcel(session, sortedPackages, true);
-    
-      safeSpeak("Archivo excel generado")
+      s.safeSpeak("Generando archivo Excel")
+      await generateWarehouseExcel(pdfSession, s.sortedPackages, true)
+      s.safeSpeak("Archivo excel generado")
     } catch (err) {
       console.error("Error al exportar el archivo Excel en cliente:", err)
-      safeSpeak("Error al exportar excel")
-    }
-  }
-
-  const handleSendEmailNotification = async (inboundPackage: any) => {
-    try {
-      const blob = await pdf(<PackageEntryPDF session={session} vehicle={session.vehicle} />).toBlob();
-      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-      window.open(blobUrl, "_blank");
-
-      const safeDate = new Date().toLocaleDateString("es-MX").replace(/\//g, "-");
-      const pdfFileName = `ENTRADA-${effectiveWarehouseName || "Bodega"}-${safeDate}.pdf`;
-      const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
-
-      const excelBuffer = await generateWarehouseExcel(session, sortedPackages, false) as Buffer;
-      const excelBlob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-       const excelFileName = `ENTRADA--${effectiveWarehouseName || "Bodega"}--${safeDate}.xlsx`;
-      const excelFile = new File([excelBlob], excelFileName, {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-
-      await sendNotificationEmail(
-        pdfFile, 
-        excelFile,
-        effectiveWarehouseName,
-        "inbound",
-        inboundPackage.id
-      );
-
-
-      safeSpeak("Notificación por correo enviada")
-    } catch (err) {
-      console.error("Error en el envío de la notificación por correo:", err)
+      s.safeSpeak("Error al exportar excel")
     }
   }
 
   return (
-    <div className="text-slate-900 min-h-screen"> 
+    <div className="text-slate-900 min-h-screen">
       <OperationHeader
-        icon={PackagePlusIcon}
+        icon={PackagePlus}
         title="Entrada a Bodega"
         description="Registro y seguimiento de paquetes entrantes a la bodega."
-        subsidiaryName={effectiveWarehouseName}
+        subsidiaryName={s.effectiveWarehouseName}
         actions={
           <div className="flex items-center gap-2">
             <TooltipProvider>
@@ -618,7 +169,7 @@ export default function InboundPackage() {
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 rounded-full hover:bg-muted"
-                    onClick={() => toggleModal("shortcuts", true)}
+                    onClick={() => s.toggleModal("shortcuts", true)}
                   >
                     <Keyboard className="w-5 h-5" />
                   </Button>
@@ -629,81 +180,43 @@ export default function InboundPackage() {
 
             <div className="w-full sm:w-[230px]">
               <SucursalSelector
-                value={effectiveWarehouseId}
-                returnObject={true}
-                onlyWarehouses={true}
+                value={s.effectiveWarehouseId}
+                returnObject
+                onlyWarehouses
                 onValueChange={(val) => {
-                  const sucursalId = typeof val === 'object' && val !== null ? (val as any).id : val;
-                  const sucursalName = typeof val === 'object' && val !== null ? (val as any).name : "";
-                  setEffectiveWarehouseName(sucursalName);
-                  setSelectedWarehouse(sucursalId);
+                  const id = typeof val === "object" && val !== null ? (val as any).id : val
+                  const name = typeof val === "object" && val !== null ? (val as any).name : ""
+                  s.setEffectiveWarehouse(String(id ?? ""), String(name ?? ""))
                 }}
               />
             </div>
           </div>
         }
       />
-      
+
       <Separator className="bg-slate-200" />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
-        {/* AQUI SE ACTUALIZO EL VALOR DEL TOTAL PARA USAR LA NUEVA VARIABLE totalCount */}
-        <StatCard title="Total" value={totalCount} icon={Package} isTotal={true}/>
+      <WarehouseStatsRow
+        stats={s.stats}
+        onOpenExpiring={() => s.stats.expiringToday.length > 0 && s.toggleModal("expiringToday", true)}
+        onOpenHighValue={() => s.stats.highValue.length > 0 && s.toggleModal("highValue", true)}
+        onOpenCharges={() => s.stats.withCharges.length > 0 && s.toggleModal("charges", true)}
+      />
 
-
-        <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col justify-center shadow-sm">
-          <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-[12px] font-bold text-[#4d148c]">FEDEX</p>
-                <p className="text-2xl font-black tracking-tight text-slate-800">{fedexCount}</p>
-              </div>
-              <Separator orientation="vertical" className="h-10 bg-slate-200" />
-              <div className="flex-1 text-right">
-                <p className="text-[12px] font-bold text-[#d40511]">DHL</p>
-                <p className="text-2xl font-black tracking-tight text-slate-800">{dhlCount}</p>
-              </div>
-          </div>
-          <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3">
-            <span
-              className={cn(
-                "text-[12px] font-bold uppercase tracking-widest truncate text-slate-500",
-              )}
-            >
-              Carrier
-            </span>
-          </div>
-          {/*<div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-bold uppercase text-slate-500 tracking-wider">Carrier</span>
-            <Truck className="h-4 w-4 text-slate-300" />
-          </div>*/}
-        </div>
-        <StatCard title="Vencen Hoy" value={expiringTodayPackages.length} icon={Clock} alert={expiringTodayPackages.length > 0} onClick={() => expiringTodayPackages.length > 0 && toggleModal("expiringToday", true)} />
-        <StatCard title="Alto Valor" value={highValuePackages.length} icon={GemIcon} alert={highValuePackages.length > 0} onClick={() => highValuePackages.length > 0 && toggleModal("highValue", true)} />
-        <StatCard title="Carga" value={cargoPackages.length} icon={Box} />
-        <StatCard 
-          title="Cobros" 
-          value={packagesWithCharges.length} 
-          subValue={`$${totalChargesAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`} 
-          icon={DollarSign} 
-          alert={packagesWithCharges.length > 0} 
-          onClick={() => packagesWithCharges.length > 0 && toggleModal("charges", true)} 
-        />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pt-6"> 
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pt-6">
         <div className="xl:col-span-8 space-y-6">
           <Card className="border-none shadow-none bg-transparent">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-slate-800">Guías Escaneadas</h2>
               </div>
-              <RemittanceGroupToggle grouped={groupRemesas} onToggle={() => setGroupRemesas((v) => !v)} />
+              <RemittanceGroupToggle grouped={s.groupRemesas} onToggle={() => s.setGroupRemesas((v) => !v)} />
             </div>
-            
+
             <CardContent className="p-0 overflow-hidden">
               <PackagesList
-                packages={listPackages}
-                onRemove={handleRemovePackage}
+                packages={s.listPackages}
+                onRemove={s.handleRemovePackage}
                 renderExpanded={(pkg) => (hasRemittancePieces(pkg) ? <RemittancePiecesPanel pkg={pkg} /> : null)}
                 maxHeightClass="max-h-[640px]"
                 emptyTitle="Sin paquetes escaneados"
@@ -714,103 +227,36 @@ export default function InboundPackage() {
         </div>
 
         <div className="xl:col-span-4 space-y-4">
-          {/** Escaner */}
-          <Card className="border-red-200">
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2 text-red-600 mb-2">
-                <span className="text-sm font-bold uppercase tracking-wide">Escáner de Entrada</span>
-              </div>
+          <ScannerCard
+            title="Escáner de Entrada"
+            inputRef={s.inputRef}
+            value={s.scanInput}
+            onChange={s.setScanInput}
+            onScan={s.handleScan}
+            isScanning={s.isScanning}
+            error={s.error}
+          />
 
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
-                  <Input
-                    ref={inputRef}
-                    type="text"
-                    placeholder="Código de barras..."
-                    value={scanInput}
-                    onChange={(e) => setScanInput(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    className="h-12 text-base pl-10 pr-10 font-mono border-slate-300 focus-visible:ring-red-500 shadow-sm"
-                    disabled={isScanning}
-                  />
-                  {scanInput && (
-                    <button
-                      onClick={() => {
-                        setScanInput('')
-                        inputRef.current?.focus()
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <Button 
-                  onClick={handleScan}
-                  disabled={!scanInput.trim() || isScanning}
-                  className="h-12 px-5 bg-red-800 hover:bg-red-900 text-white"
-                >
-                  {isScanning ? (
-                    <span className="flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ...
-                    </span>
-                  ) : (
-                    'Agregar'
-                  )}
-                </Button>
-              </div>  
+          <TransportAssignmentCard
+            vehicleId={s.vehicleId}
+            onVehicleChange={s.setVehicleId}
+            driverIds={s.driverIds}
+            onDriversChange={s.setDriverIds}
+            subsidiaryId={s.operationalSubsidiaryId}
+          />
 
-              {error && (
-                <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-md flex items-start gap-2 border border-red-100 shadow-sm animate-in fade-in slide-in-from-top-1">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> 
-                  <span className="font-medium">{error}</span>
-                </div>
-              )}
-
-            </CardContent>
-          </Card>
-
-          {/** Asignación de Salida */}
-          <Card className="border-red-200">
-            <CardContent className="space-y-4">
-              <Label className="font-bold text-slate-800 uppercase text-xs tracking-wider">Asignación de Salida</Label>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-semibold text-slate-600">Unidad de Traslado</Label>
-                  <UnidadSelector
-                    selectedUnidad={session.vehicle?.id || ""}
-                    onSelectionChange={(id) => setSession(s => ({...s, vehicle: { id } as Vehicles }))}
-                    subsidiaryId={operationalSubsidiaryId}
-                  />
-                </div>
-                <Separator className="bg-slate-100" />
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-semibold text-slate-600">Chofer Asignado</Label>
-                  <RepartidorSelector
-                    selectedRepartidores={session.drivers.map(d => d.id)}
-                    onSelectionChange={(ids) => setSession(s => ({...s, drivers: ids.map(id => ({ id } as Driver))}))}
-                    subsidiaryId={operationalSubsidiaryId}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/** Finalizar Ingreso */}
-          <Card className="border-red-200">
+          <Card className="border-primary/20">
             <CardContent className="space-y-3">
               {!isReadyToFinish && (
                 <p className="text-[11px] text-amber-700 font-medium bg-amber-100/50 p-2.5 rounded-md flex items-start gap-2 leading-tight border border-amber-200">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> 
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   Seleccione Bodega, Unidad, Chofer y escanee paquetes para habilitar el cierre.
                 </p>
               )}
-              
-              <Button 
-                onClick={() => toggleModal("signatures", true)} 
-                disabled={!isReadyToFinish} 
+
+              <Button
+                onClick={() => s.toggleModal("signatures", true)}
+                disabled={!isReadyToFinish}
                 className="w-full bg-green-600 hover:bg-green-700 text-white shadow-sm h-12 text-sm font-bold tracking-wide"
               >
                 <CheckCircle2 className="mr-2 h-5 w-5" /> FINALIZAR INGRESO
@@ -820,294 +266,77 @@ export default function InboundPackage() {
         </div>
       </div>
 
-      {/* --- NUEVO DIALOG PARA FLUJO DE REMESAS DHL --- */}
-      <Dialog 
-        open={remittanceDialog.isOpen} 
-        onOpenChange={(v) => {
-          setRemittanceDialog(prev => ({...prev, isOpen: v}))
-          if (!v) setTimeout(() => inputRef.current?.focus(), 100)
-        }}
-      >
-        <DialogContent className="sm:max-w-[450px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-slate-800">
-              <HelpCircle className="w-5 h-5 text-red-600" />
-              Guía Duplicada Detectada
-            </DialogTitle>
-          </DialogHeader>
+      {/* --- Diálogos --- */}
+      <WarehouseRemittanceDialog
+        state={s.remittanceDialog}
+        onStateChange={s.setRemittanceDialog}
+        pieceInputRef={s.pieceInputRef}
+        onPieceScan={s.handlePieceScan}
+        onFocusScanner={() => s.inputRef.current?.focus()}
+      />
 
-          {remittanceDialog.step === "confirm" ? (
-            <div className="space-y-4 py-3">
-              <p className="text-sm text-slate-600">
-                El número de guía <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">{remittanceDialog.masterTracking}</span> ya fue ingresado a la lista. 
-              </p>
-              <p className="text-sm font-semibold text-slate-700">
-                ¿Desea abrir esta guía para agregar piezas de remesa?
-              </p>
-              <DialogFooter className="mt-4">
-                <Button variant="outline" onClick={() => setRemittanceDialog(prev => ({...prev, isOpen: false}))}>No, Cancelar</Button>
-                <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={() => setRemittanceDialog(prev => ({...prev, step: "scan"}))}>
-                  Sí, es una Remesa
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : (
-            <div className="space-y-4 py-2">
-              <DialogDescription>
-                Escanee los códigos de barras de las piezas correspondientes a la guía <strong className="font-mono text-slate-800">{remittanceDialog.masterTracking}</strong>.
-              </DialogDescription>
-              
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Código de Pieza</Label>
-                <div className="relative">
-                  <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input 
-                    ref={pieceInputRef}
-                    placeholder="Ej. JJD014600012624033086"
-                    value={remittanceDialog.pieceInput}
-                    onChange={(e) => setRemittanceDialog(prev => ({...prev, pieceInput: e.target.value}))}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePieceScan(); } }}
-                    className="pl-9 font-mono text-sm border-red-200 focus-visible:ring-red-500 h-11"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-500">Presione ENTER después de escanear cada pieza para agregarla a la lista.</p>
-              </div>
+      <ShortcutsDialog
+        open={s.modals.shortcuts}
+        onOpenChange={(v) => s.toggleModal("shortcuts", v)}
+        finishActionLabel="Finalizar Ingreso"
+      />
 
-              {remittanceDialog.error && (
-                <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-md flex items-center gap-2 border border-red-100 shadow-sm">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> 
-                  <span className="font-medium">{remittanceDialog.error}</span>
-                </div>
-              )}
-
-              <DialogFooter className="mt-6 border-t border-slate-100 pt-4">
-                <Button variant="outline" onClick={() => setRemittanceDialog(prev => ({...prev, isOpen: false}))}>Terminar y Cerrar</Button>
-                <Button className="bg-red-600 hover:bg-red-700" onClick={handlePieceScan}>Agregar Manualmente</Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* --- FIN DIALOG REMESAS --- */}
-
-      <Dialog open={modals.shortcuts} onOpenChange={(v) => toggleModal("shortcuts", v)}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader><DialogTitle className="flex items-center gap-2 text-slate-800"><Keyboard className="w-5 h-5"/> Atajos de Teclado</DialogTitle></DialogHeader>
-          <div className="grid gap-2 py-3">
-            {[
-              { key: "F1", action: "Enfocar campo de Escáner" },
-              { key: "F2", action: "Abrir ventana de Finalizar Ingreso" },
-              { key: "F3", action: "Buscar en listado (Guía o CP)" },
-              { key: "ESC", action: "Cerrar modales o ventanas" },
-            ].map(({ key, action }) => (
-              <div key={key} className="flex justify-between items-center text-sm border-b pb-2.5 pt-1 last:border-0 border-slate-100">
-                <kbd className="px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-slate-700 font-mono text-xs shadow-sm font-bold">{key}</kbd>
-                <span className="text-slate-600 text-xs font-medium">{action}</span>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <DetailModal 
-        open={modals.expiringToday} 
-        onOpenChange={(val: boolean) => toggleModal("expiringToday", val)}
+      <DetailModal
+        open={s.modals.expiringToday}
+        onOpenChange={(v) => s.toggleModal("expiringToday", v)}
         title="Paquetes que Vencen Hoy"
         description="Lista de paquetes con urgencia crítica para hoy."
-        packages={expiringTodayPackages}
+        packages={s.stats.expiringToday}
       />
 
-      <DetailModal 
-        open={modals.highValue} 
-        onOpenChange={(val: boolean) => toggleModal("highValue", val)}
+      <DetailModal
+        open={s.modals.highValue}
+        onOpenChange={(v) => s.toggleModal("highValue", v)}
         title="Paquetes de Alto Valor"
         description="Requieren manejo de seguridad especial."
-        packages={highValuePackages}
+        packages={s.stats.highValue}
       />
 
-      <DetailModal 
-        open={modals.charges} 
-        onOpenChange={(val: boolean) => toggleModal("charges", val)}
+      <DetailModal
+        open={s.modals.charges}
+        onOpenChange={(v) => s.toggleModal("charges", v)}
         title="Cobros Pendientes"
-        description={`Monto Total a Cobrar: $${totalChargesAmount.toLocaleString()} MXN`}
-        packages={packagesWithCharges}
+        description={`Monto Total a Cobrar: $${s.stats.totalCharges.toLocaleString()} MXN`}
+        packages={s.stats.withCharges}
       />
 
-      <Dialog open={modals.signatures} onOpenChange={(v) => toggleModal("signatures", v)}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Cerrar Recepción y Firmas</DialogTitle>
-            <DialogDescription className="text-slate-500">
-              Confirme quién recibe la mercancía para habilitar la descarga del PDF y guardar el registro de la sesión.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5 py-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Entregado por (Operador)</Label>
-              <Input 
-                value={derivedDriverName} 
-                readOnly
-                className="bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed font-medium h-11"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Recibido por (Bodega)</Label>
-              <Input 
-                value={session.receivedByName} 
-                onChange={(e) => setSession({...session, receivedByName: e.target.value})} 
-                placeholder="Nombre completo..."
-                autoFocus
-                className="h-11 border-slate-300 focus-visible:ring-green-500"
-              />
-            </div>
-          </div>
-          <DialogFooter className="flex flex-col sm:flex-row gap-3 mt-2 border-t border-slate-100 pt-4">
-            <Button variant="ghost" className="w-full sm:w-auto text-slate-500 hover:text-slate-700 hover:bg-slate-100" onClick={() => toggleModal("signatures", false)}>
-              Cancelar
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              className="w-full sm:w-auto h-10 border-slate-300 text-green-700 hover:text-green-800 hover:bg-green-50 font-semibold border-green-200" 
-              onClick={handleDownloadExcel}
-              disabled={!canSaveAndGeneratePDF}
-            >
-              <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
-            </Button>
-
-            {isClient && canSaveAndGeneratePDF ? (
-              <PDFDownloadLink 
-                document={
-                  <PackageEntryPDF 
-                    session={{...session, enteredByName: derivedDriverName}} 
-                    vehiculo={session.vehicle} 
-                  />
-                } 
-                fileName="recepcion.pdf"
-                className="w-full sm:w-auto"
-              >
-                {({ loading }) => (
-                  <Button variant="outline" className="w-full h-10 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold" disabled={loading}>
-                    <Download className="mr-2 h-4 w-4" /> PDF
-                  </Button>
-                )}
-              </PDFDownloadLink>
-            ) : (
-              <Button variant="outline" className="w-full sm:w-auto h-10 border-slate-200 text-slate-400" disabled>
-                <Download className="mr-2 h-4 w-4" /> PDF
-              </Button>
-            )}
-
-            <Button 
-              onClick={handleCompleteSession} 
-              disabled={!canSaveAndGeneratePDF}
-              className="w-full sm:w-auto h-10 bg-green-600 hover:bg-green-700 text-white font-bold tracking-wide shadow-sm"
-            >
-              Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SignatureDialog
+        open={s.modals.signatures}
+        onOpenChange={(v) => s.toggleModal("signatures", v)}
+        variant="inbound"
+        deliveredByLabel="Entregado por (Operador)"
+        deliveredByValue={s.derivedDriverName}
+        receivedByLabel="Recibido por (Bodega)"
+        receivedByValue={s.receivedByName}
+        onReceivedByChange={s.setReceivedByName}
+        onConfirm={handleConfirm}
+        isSubmitting={s.isSubmitting}
+        canConfirm={canConfirm}
+        pdfDocument={<PackageEntryPDF session={pdfSession} vehiculo={{ id: s.vehicleId }} />}
+        excelButton={
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto h-10 border-slate-300 text-green-700 hover:text-green-800 hover:bg-green-50 font-semibold border-green-200"
+            onClick={handleDownloadExcel}
+            disabled={!canConfirm}
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+          </Button>
+        }
+      />
 
       <WarehouseHistoryDialog
         open={showHistory}
         onOpenChange={setShowHistory}
         kind="inbound"
-        subsidiaryId={effectiveWarehouseId}
-        subsidiaryName={effectiveWarehouseName}
+        subsidiaryId={s.effectiveWarehouseId}
+        subsidiaryName={s.effectiveWarehouseName}
       />
     </div>
-  )
-}
-
-{/*function StatCard({ 
-  title, 
-  value, 
-  subValue, 
-  icon: Icon, 
-  alert = false, 
-  isTotal = false, // <-- Nuevo prop agregado aquí
-  onClick 
-}: any) {
-  return (
-    <div 
-      onClick={onClick} 
-      className={`rounded-xl border p-3.5 shadow-sm transition-all duration-200 ${
-        alert 
-          ? "border-red-200 bg-red-50/80 cursor-pointer hover:bg-red-100 hover:border-red-300" 
-          : "border-slate-200 bg-white"
-      }`}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <span className={`text-[10px] font-bold uppercase tracking-wider ${alert ? "text-red-700" : "text-slate-500"}`}>
-          {title}
-        </span>
-        <div className={`p-1.5 rounded-md ${alert ? "bg-red-100" : "bg-slate-50"}`}>
-          <Icon className={`h-4 w-4 ${alert ? "text-red-600" : "text-slate-400"}`} />
-        </div>
-      </div>
-      
-      <div className="flex items-baseline gap-2 mt-1">
-        <p className={`${isTotal ? "text-4xl md:text-5xl" : "text-2xl"} font-black ${alert ? "text-red-700" : "text-slate-800"}`}>
-          {value}
-        </p>
-        
-        {subValue && (
-          <p className="text-[11px] text-slate-500 font-semibold">{subValue}</p>
-        )}
-      </div>
-    </div>
-  )
-}*/}
-
-function DetailModal({ open, onOpenChange, title, description, packages }: any) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl text-slate-800">{title}</DialogTitle>
-          <DialogDescription className="text-slate-500">{description}</DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[450px] overflow-auto border border-slate-200 rounded-lg shadow-inner mt-2">
-          <Table>
-            <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
-              <TableRow>
-                <TableHead className="font-bold text-slate-600">Guía / Piezas</TableHead>
-                <TableHead className="font-bold text-slate-600">Destinatario</TableHead>
-                <TableHead className="font-bold text-slate-600">Carrier</TableHead>
-                <TableHead className="text-right font-bold text-slate-600">Info</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {packages.map((pkg: any) => (
-                <TableRow key={pkg.id} className="hover:bg-slate-50/50">
-                  <TableCell>
-                    <span className="font-mono text-sm font-bold text-slate-700">{pkg.trackingNumber}</span>
-                    {pkg.pieces && pkg.pieces.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {pkg.pieces.map((p: string) => (
-                          <Badge key={p} variant="outline" className="text-[10px] font-mono bg-slate-100 text-slate-500">{p}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-slate-800">{pkg.recipientName || 'S/N'}</span>
-                      <span className="text-[10px] text-slate-500 truncate max-w-[200px]" title={pkg.recipientAddress}>{pkg.recipientAddress}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="uppercase text-[10px] font-bold text-slate-600">{pkg.shipmentType}</TableCell>
-                  <TableCell className="text-right text-[11px] font-semibold text-slate-700">
-                    {pkg.hasPayment ? <span className="text-amber-600">${Number(pkg.paymentAmount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span> : <span className="text-green-600">OK</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }

@@ -2,6 +2,12 @@
 
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
 import { SessionState } from "./warehouse/inbound-package/inbound-package"
+import type { Vehicles } from "@/lib/types"
+
+interface PDFProps {
+  session: SessionState
+  vehiculo?: Vehicles | { id: string } | null
+}
 
 const styles = StyleSheet.create({
   page: { padding: 30, fontSize: 8, fontFamily: "Helvetica", color: "#1e293b" },
