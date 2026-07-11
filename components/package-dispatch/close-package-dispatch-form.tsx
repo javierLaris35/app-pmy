@@ -34,7 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import { BarcodeScannerInput } from "@/components/barcode-scanner-input";
+import { ScanInput } from "@/components/scanner/scan-input";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -999,11 +999,11 @@ export default function ClosePackageDispatchWizard({
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   <div className="p-6 bg-purple-50/30 border-r border-purple-100 flex flex-col min-h-[350px]">
                     <div className="flex-1">
-                      <BarcodeScannerInput 
-                        value={collectionsRaw} 
-                        onTrackingNumbersChange={setCollectionsRaw} 
-                        className="h-full bg-white border-purple-200 focus:ring-purple-500 rounded-xl shadow-inner" 
-                        placeholder="Escanea guías recolectadas..." 
+                      <ScanInput
+                        storageKey="scan:dispatch-close-collections"
+                        defaultView="simple"
+                        onTrackingNumbersChange={setCollectionsRaw}
+                        placeholder="Escanea guías recolectadas..."
                       />
                     </div>
                   </div>
@@ -1033,14 +1033,14 @@ export default function ClosePackageDispatchWizard({
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   <div className="p-6 bg-slate-50 border-r border-slate-200 flex flex-col min-h-[400px]">
                     <div className="flex-1 flex flex-col gap-4">
-                      <BarcodeScannerInput 
-                        value={noVanInput} 
-                        onTrackingNumbersChange={setNoVanInput} 
-                        className="flex-1 bg-white border-slate-200 focus:ring-slate-800 rounded-xl shadow-inner" 
-                        placeholder="Escanea guías externas..." 
+                      <ScanInput
+                        storageKey="scan:dispatch-close-novan"
+                        defaultView="simple"
+                        onTrackingNumbersChange={setNoVanInput}
+                        placeholder="Escanea guías externas..."
                         disabled={isValidatingNoVan}
                       />
-                      <Button 
+                      <Button
                         onClick={handleAddNoVanPackages} 
                         disabled={!noVanInput.trim() || isValidatingNoVan} 
                         className="w-full bg-slate-800 hover:bg-slate-900 h-12 rounded-xl font-bold shadow-md transition-all shrink-0"
