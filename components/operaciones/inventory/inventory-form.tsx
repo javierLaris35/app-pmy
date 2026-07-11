@@ -40,7 +40,7 @@ import {
   InventoryValidationPayload
 } from "@/lib/services/inventories";
 import { InventoryRequest, PackageInfo, Inventory } from "@/lib/types";
-import { BarcodeScannerInput, BarcodeScannerInputHandle } from "@/components/barcode-input/barcode-scanner-input-list";
+import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { InventoryPDFReport } from "@/lib/services/inventory/inventory-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
 import { generateInventoryExcel } from "@/lib/services/inventory/inventory-excel-generator";
@@ -160,7 +160,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
   const [shownExpiringPackages, setShownExpiringPackages] = useState<Set<string>>(new Set());
 
-  const barScannerInputRef = useRef<BarcodeScannerInputHandle>(null);
+  const barScannerInputRef = useRef<ScanInputHandle>(null);
   // Firma del último contenido validado (ver efecto de auto-validación).
   const lastSignatureRef = useRef<string>("");
   const { toast } = useToast();
@@ -821,9 +821,10 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                 <Card>
                   <CardContent className="space-y-4">
                     <div className="space-y-3">
-                      <BarcodeScannerInput
+                      <ScanInput
                         ref={barScannerInputRef}
-                        multiCarrier
+                        storageKey="scan:inventario"
+                        defaultView="rich"
                         onPackagesChange={setScannedPackages}
                         disabled={isValidationPackages || !selectedSubsidiaryId}
                         placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
