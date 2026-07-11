@@ -96,39 +96,10 @@ const saveWarehouseOutbound = async (data: OutboundWarehouseDto) => {
   return response.data;
 }
 
-const sendNotificationEmail = async (
-  pdfFile: File,
-  excelFile: File,
-  warehouseName: string,
-  type: "inbound" | "outbound",
-  id: string
-) => {
-  try {
-    const formData = new FormData();
-    formData.append('files', pdfFile);
-    formData.append('files', excelFile);
-    formData.append('warehouseName', warehouseName);
-    formData.append('type', type);
-    formData.append('id', id);
-
-    const response = await axiosConfig.post(`${url}/notification`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    return response.data;
-  } catch (error) {
-    console.error("Error sending notification email:", error);
-  }
-};
-
-
 export {
     validateShipment,
     saveWarehouseInbound,
     saveWarehouseOutbound,
-    sendNotificationEmail,
     getInboundHistory,
     getOutboundHistory
 }
