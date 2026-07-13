@@ -18,6 +18,7 @@ import {
   getGeocodeCache, updateGeocodeCache, deleteGeocodeCache, clearGeocodeCache,
   type GeocodeCacheItem,
 } from "@/lib/services/geocode"
+import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "../ui/panel"
 
 const sourceBadge = (item: GeocodeCacheItem) => {
   if (item.manual || item.source === "manual") return <Badge className="rounded-full bg-emerald-500 hover:bg-emerald-500">manual</Badge>
@@ -88,17 +89,17 @@ export function GeocodePanel() {
   }
 
   return (
-    <Card className="rounded-xl border-border/60 shadow-sm">
-      <CardHeader className="gap-1 border-b bg-muted/30 px-4 py-3 sm:px-6">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Panel>
+      <PanelHeader>
+        <PanelTitle className="flex items-center gap-2 text-base">
           <BrainCircuit className="h-4 w-4 text-primary" /> Geolocalización aprendida
-        </CardTitle>
-        <CardDescription>
+        </PanelTitle>
+        <PanelDescription>
           Coordenadas memorizadas de direcciones ya resueltas. Las <b>manuales</b> (corregidas en el mapa) tienen prioridad.
-        </CardDescription>
-      </CardHeader>
+        </PanelDescription>
+      </PanelHeader>
 
-      <CardContent className="space-y-4 p-4 sm:p-6">
+      <PanelContent className="space-y-4 p-4 sm:p-6">
         {/* Barra: búsqueda + contadores + limpiar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-xs">
@@ -220,7 +221,7 @@ export function GeocodePanel() {
             </div>
           </>
         )}
-      </CardContent>
+      </PanelContent>
 
       {/* Editar coordenadas */}
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null) }}>
@@ -247,6 +248,6 @@ export function GeocodePanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </Panel>
   )
 }

@@ -32,3 +32,5 @@ electron.js
 .idea
 
 nvm
+# Graphify knowledge-graph output
+graphify-out/

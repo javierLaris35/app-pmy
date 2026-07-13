@@ -359,14 +359,10 @@ function SucursalesPage() {
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="p-6">
-              <DataTable
-                columns={columns}
-                data={subsidiaries}
-              />
-            </CardContent>
-          </Card>
+          <DataTable
+            columns={columns}
+            data={subsidiaries}
+          />
         )}
       </div>
 

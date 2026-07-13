@@ -180,11 +180,7 @@ function VehiclesPage() {
         ) : isError ? (
           <p className="text-red-500">Error al cargar los choferes.</p>
         ) : (
-          <Card>
-            <CardContent className="p-6">
-              <DataTable columns={updatedColumns} data={drivers} />
-            </CardContent>
-          </Card>
+            <DataTable columns={updatedColumns} data={drivers} />
         )}
       </div>
 

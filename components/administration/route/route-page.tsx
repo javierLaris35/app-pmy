@@ -177,11 +177,7 @@ function RoutesPage() {
         ) : isError ? (
           <p className="text-red-500">Error al cargar las rutas.</p>
         ) : (
-          <Card>
-            <CardContent className="p-6">
-              <DataTable columns={updatedColumns} data={routes ?? []} />
-            </CardContent>
-          </Card>
+          <DataTable columns={updatedColumns} data={routes ?? []} />
         )}
       </div>
 

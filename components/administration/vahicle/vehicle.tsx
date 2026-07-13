@@ -161,18 +161,14 @@ function VehiclesPage() {
         ) : isError ? (
           <p className="text-red-500">Error al cargar los vehículos.</p>
         ) : (
-          <Card>
-            <CardContent className="p-6">
-              <DataTable
-                columns={updatedColumns}
-                data={vehicles}
-                filters={[
-                  { columnId: "type", title: "Tipo", options: buildFilterOptions(vehicles.map((v: Vehicles) => v.type)) },
-                  { columnId: "status", title: "Estado", options: buildFilterOptions(vehicles.map((v: Vehicles) => v.status)) },
-                ]}
-              />
-            </CardContent>
-          </Card>
+          <DataTable
+            columns={updatedColumns}
+            data={vehicles}
+            filters={[
+              { columnId: "type", title: "Tipo", options: buildFilterOptions(vehicles.map((v: Vehicles) => v.type)) },
+              { columnId: "status", title: "Estado", options: buildFilterOptions(vehicles.map((v: Vehicles) => v.status)) },
+            ]}
+          />
         )}
       </div>
 
