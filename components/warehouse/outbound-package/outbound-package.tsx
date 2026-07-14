@@ -346,7 +346,7 @@ export default function OutboundPackage() {
                     <RutaSelector
                       selectedRutas={selectedRutas}
                       onSelectionChange={setSelectedRutas}
-                      subsidiaryId={s.operationalSubsidiaryId}
+                      subsidiaryId={s.effectiveWarehouseId}
                     />
                   </div>
                 </div>
@@ -388,7 +388,7 @@ export default function OutboundPackage() {
             onVehicleChange={s.setVehicleId}
             driverIds={s.driverIds}
             onDriversChange={s.setDriverIds}
-            subsidiaryId={s.operationalSubsidiaryId}
+            subsidiaryId={s.effectiveWarehouseId}
           />
 
           <Card className="border-primary/20">
