@@ -344,8 +344,10 @@ export interface Consolidated {
   // Nota: isConsolidatedComplete es el nombre que usamos en el DTO del backend
   isConsolidatedComplete: boolean; 
   consNumber: string;
+  carrier: 'fedex' | 'dhl' | string;
   efficiency: number;
   shipments: any[]; // O el tipo Shipment[] que tengas definido
+  pendingShipments?: any[]; // O el tipo Shipment[] que tengas definido
 }
 
 export interface SubsidiaryMetrics {

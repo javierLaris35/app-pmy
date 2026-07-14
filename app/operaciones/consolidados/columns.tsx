@@ -15,11 +15,11 @@ import {
   CircleDashed,
   ArrowUpRight
 } from "lucide-react";
-import { ConsolidatedDto } from "@/lib/types"; 
+import { Consolidated } from "@/lib/types"; 
 import { ConsolidatedDetailDialog } from "@/components/modals/consolidated-shipment-detail-dialog";
 import { formatShortDate } from "@/utils/date.utils";
 
-export const columns: ColumnDef<ConsolidatedDto>[] = [
+export const columns: ColumnDef<Consolidated>[] = [
   {
     accessorKey: "date",
     header: "Fecha",
@@ -37,6 +37,30 @@ export const columns: ColumnDef<ConsolidatedDto>[] = [
     }
   },
   {
+    accessorKey: "carrier",
+    header: "Empresa",
+    cell: ({ row }) => {
+      const carrier: string = row.getValue("carrier");
+
+      let color: string;
+      
+      switch (carrier) {
+        case "fedex":
+          color = "bg-[#4D148C] hover:bg-[#3c0f6e] text-white";
+          break;
+        case "dhl":
+          color = "bg-[#FFE100] hover:bg-[#ffd700] text-[#D40511] font-semibold";
+          break;
+      }
+
+      return (
+        <Badge className={`${color} text-white`}>
+          {carrier.charAt(0).toUpperCase() + carrier.slice(1)}
+        </Badge>
+      );
+    },
+  },
+  {
     header: "Tipo",
     cell: ({ row }) => {
       const type = row.original.type?.toLowerCase() || "";
@@ -44,7 +68,7 @@ export const columns: ColumnDef<ConsolidatedDto>[] = [
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex justify-center p-1">
+            <div className="flex justify-center items-center gap-1 cursor-help">
               {isAereo ? (
                 <Plane className="h-6 w-6 text-purple-600 stroke-[2.5]" />
               ) : (
