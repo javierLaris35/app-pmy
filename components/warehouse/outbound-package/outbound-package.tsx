@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -31,15 +31,26 @@ import { toast } from "@/components/ui/use-toast"
 import { PackageEntryPDF } from "@/components/package-entry-pdf"
 
 // Servicios y tipos
-import { saveWarehouseOutbound } from "@/lib/services/warehouse/warehouse"
+import { saveWarehouseOutbound, validateShipment } from "@/lib/services/warehouse/warehouse"
 import type { OutboundWarehouseDto } from "@/lib/services/warehouse/warehouse"
-import { OutboundTypeEnum, type Route as RouteType } from "@/lib/types"
+import { OutboundTypeEnum, type Route as RouteType, type PackageInfo } from "@/lib/types"
 import type { SessionState } from "@/components/warehouse/inbound-package/inbound-package"
 
-// Capa compartida de bodega (Tasks 5-9)
-import { useWarehouseSession } from "@/components/warehouse/shared/use-warehouse-session"
-import { WarehouseStatsRow } from "@/components/warehouse/shared/warehouse-stats-row"
-import { ScannerCard } from "@/components/warehouse/shared/scanner-card"
+// Escáner unificado (Task 1) + helpers puros de bodega (Task 2)
+import { ScanInput, type ScanInputHandle } from "@/components/scanner/scan-input"
+import {
+  makeResolveWarehouseScan,
+  computeWarehouseStats,
+  sortWarehousePackages,
+} from "@/components/warehouse/shared/warehouse-scan"
+
+// Capa compartida de bodega
+import {
+  useWarehouseSession,
+  type WarehouseShipment,
+  type RemittanceDialogState,
+} from "@/components/warehouse/shared/use-warehouse-session"
+import { WarehouseStatsRow, type WarehouseStatsRowStats } from "@/components/warehouse/shared/warehouse-stats-row"
 import { TransportAssignmentCard } from "@/components/warehouse/shared/transport-assignment-card"
 import { DetailModal } from "@/components/warehouse/shared/detail-modal"
 import { ShortcutsDialog } from "@/components/warehouse/shared/shortcuts-dialog"
@@ -48,11 +59,36 @@ import { SignatureDialog } from "@/components/warehouse/shared/signature-dialog"
 import { generateWarehouseExcel } from "@/components/warehouse/shared/warehouse-excel"
 import { RemittanceGroupToggle } from "@/components/warehouse/shared/remittance-group-toggle"
 import {
+  groupRemittances,
   hasRemittancePieces,
   RemittancePiecesPanel,
+  type WarehousePackageInfo,
 } from "@/components/warehouse/shared/warehouse-package-list.helpers"
 import { resolveId } from "@/components/warehouse/shared/resolve-id"
 import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
+
+/**
+ * Adapta un `WarehousePackageInfo` (modelo del ScanInput, con `payment: {amount,type}`)
+ * a la forma que consumen los generadores heredados de PDF/Excel (que leen
+ * `hasPayment`/`paymentAmount`). Preserva piezas de remesa y normaliza
+ * `commitDateTime` a `Date`. Cast final a `WarehouseShipment` para satisfacer
+ * `SessionState.packages` sin tocar esos consumidores (fuera de alcance).
+ */
+function toSessionShipment(p: WarehousePackageInfo): WarehouseShipment {
+  return {
+    ...p,
+    commitDateTime: p.commitDateTime ? new Date(p.commitDateTime) : new Date(),
+    hasPayment: !!p.payment,
+    paymentAmount: Number(p.payment?.amount) || 0,
+    pieces: p.pieces || [],
+    existingPieces: p.existingPieces || [],
+  } as unknown as WarehouseShipment
+}
+
+/** Igual que `toSessionShipment` pero conserva `commitDateTime` como está (para el DetailModal). */
+function adaptPayment(p: WarehousePackageInfo) {
+  return { ...p, hasPayment: !!p.payment, paymentAmount: Number(p.payment?.amount) || 0 }
+}
 
 export default function OutboundPackage() {
   const [showHistory, setShowHistory] = useState(false)
@@ -74,9 +110,109 @@ export default function OutboundPackage() {
 
   const s = useWarehouseSession({ context: "outbound", onRequestFinish: requestFinish })
 
-  // Regla local de habilitación del cierre (arregla bug #4: deps completas).
+  // ---- Escáner unificado + estado local de paquetes (alimentado por onPackagesChange) ----
+  const scanRef = useRef<ScanInputHandle>(null)
+  const [packages, setPackages] = useState<PackageInfo[]>([])
+
+  // Resolvedor per-scan: validación instantánea + defensa de duplicados + remesa DHL.
+  const resolveScan = useMemo(
+    () =>
+      makeResolveWarehouseScan({
+        validate: validateShipment,
+        warehouseId: s.effectiveWarehouseId,
+        context: "outbound",
+        speak: s.safeSpeak,
+      }),
+    [s.effectiveWarehouseId, s.safeSpeak],
+  )
+
+  // ---- Diálogo de remesa DHL (estado local; reusa WarehouseRemittanceDialog) ----
+  const pieceInputRef = useRef<HTMLInputElement>(null)
+  const [remittance, setRemittance] = useState<RemittanceDialogState>({
+    isOpen: false,
+    step: "confirm",
+    masterTracking: "",
+    pieceInput: "",
+    error: null,
+  })
+
+  // Auto-focus del input de piezas cuando el paso cambia a "scan".
+  useEffect(() => {
+    if (remittance.isOpen && remittance.step === "scan") {
+      setTimeout(() => pieceInputRef.current?.focus(), 100)
+    }
+  }, [remittance.isOpen, remittance.step])
+
+  const onRemittance = useCallback((masterTracking: string) => {
+    setRemittance({ isOpen: true, step: "confirm", masterTracking, pieceInput: "", error: null })
+  }, [])
+
+  // Agrega una pieza a la guía maestra: deduplica contra el paquete y la adjunta
+  // al buffer del ScanInput (attachPieces). onPackagesChange refleja el cambio en
+  // `packages`, así que las stats y el panel expandible se actualizan solos.
+  const handlePieceScan = useCallback(() => {
+    const piece = remittance.pieceInput.trim().toUpperCase()
+    if (!piece) return
+
+    const master = packages.find((p) => p.trackingNumber === remittance.masterTracking) as
+      | WarehousePackageInfo
+      | undefined
+
+    if (master && (master.pieces?.includes(piece) || master.existingPieces?.includes(piece))) {
+      setRemittance((d) => ({ ...d, error: `Pieza duplicada o ya registrada: ${piece}` }))
+      s.safeSpeak("Pieza duplicada")
+      setTimeout(() => pieceInputRef.current?.select(), 50)
+      return
+    }
+
+    scanRef.current?.attachPieces(remittance.masterTracking, [piece])
+    s.safeSpeak("Pieza agregada")
+    setRemittance((d) => ({ ...d, error: null, pieceInput: "" }))
+    setTimeout(() => pieceInputRef.current?.focus(), 50)
+  }, [remittance.pieceInput, remittance.masterTracking, packages, s.safeSpeak])
+
+  // F1 enfoca el escáner unificado (el resto de atajos siguen en el hook).
+  // Además, si el operador teclea cualquier carácter imprimible sin tener un
+  // input/textarea enfocado (y sin el diálogo de remesa abierto), reenfoca el
+  // escáner para no perder el tecleo (paridad con el hook viejo, que apuntaba
+  // a un inputRef ya no usado por este flujo).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F1") {
+        e.preventDefault()
+        scanRef.current?.focus()
+        return
+      }
+
+      const active = document.activeElement
+      const isInputFocused = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+
+      if (
+        !isInputFocused &&
+        e.key.length === 1 &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !remittance.isOpen
+      ) {
+        scanRef.current?.focus()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [remittance.isOpen])
+
+  // ---- Stats derivadas de los paquetes locales (modelo PackageInfo con `payment`) ----
+  const stats = useMemo(() => computeWarehouseStats(packages), [packages])
+
+  // ---- Orden canónico para payload / PDF / Excel ----
+  const sessionPackages = useMemo(
+    () => [...packages].sort(sortWarehousePackages).map((p) => toSessionShipment(p as WarehousePackageInfo)),
+    [packages],
+  )
+
+  // Regla local de habilitación del cierre (deps completas).
   const isReadyToFinish = useMemo(() => {
-    const hasPackages = s.packages.length > 0
+    const hasPackages = packages.length > 0
     const hasVehicle = !!s.vehicleId
     const hasDrivers = s.driverIds.length > 0
     const hasWarehouse = !!s.effectiveWarehouseId
@@ -89,7 +225,7 @@ export default function OutboundPackage() {
     const hasKms = selectedKms !== null && selectedKms > 0
     return hasPackages && hasVehicle && hasDrivers && hasWarehouse && hasRoutes && hasKms
   }, [
-    s.packages.length,
+    packages.length,
     s.vehicleId,
     s.driverIds.length,
     s.effectiveWarehouseId,
@@ -119,21 +255,26 @@ export default function OutboundPackage() {
       drivers: [],
       receivedByName: s.receivedByName,
       enteredByName: s.derivedDriverName,
-      packages: s.packages,
+      packages: sessionPackages,
       status: "En Proceso",
     }),
-    [sessionId, s.receivedByName, s.derivedDriverName, s.packages],
+    [sessionId, s.receivedByName, s.derivedDriverName, sessionPackages],
   )
 
   const buildOutboundPayload = (): OutboundWarehouseDto => ({
     warehouse: s.effectiveWarehouseId,
-    shipments: s.packages.map((p) => ({
-      id: p.id,
-      trackingNumber: p.trackingNumber,
-      shipmentType: p.shipmentType,
-      isCharge: p.isCharge || false,
-      remittances: (p.pieces || []).map((t) => ({ pieceTrackingNumber: t, shipmentId: p.id })),
-    })),
+    shipments: [...packages]
+      .sort(sortWarehousePackages)
+      .map((p) => {
+        const wp = p as WarehousePackageInfo
+        return {
+          id: wp.id ?? "",
+          trackingNumber: wp.trackingNumber,
+          shipmentType: wp.shipmentType ?? "",
+          isCharge: wp.isCharge || false,
+          remittances: (wp.pieces || []).map((t) => ({ pieceTrackingNumber: t, shipmentId: wp.id ?? "" })),
+        }
+      }),
     vehicle: resolveId(s.vehicleId),
     drivers: s.driverIds.map(resolveId),
     type: outputType,
@@ -154,8 +295,11 @@ export default function OutboundPackage() {
     s.runSubmit(async () => {
       try {
         await saveWarehouseOutbound(buildOutboundPayload())
+        // La notificación por correo (PDF + Excel) la envía el backend.
         s.safeSpeak("Salida guardada con éxito")
-        s.resetPackages()
+        // Limpia el buffer del escáner en la ruta de éxito (evita guías colgadas).
+        scanRef.current?.clear()
+        setPackages([])
         setSelectedRutas([])
         setSelectedKms(0)
         setDestinationSubsidiary("")
@@ -173,7 +317,7 @@ export default function OutboundPackage() {
   const handleDownloadExcel = async () => {
     try {
       s.safeSpeak("Generando archivo Excel")
-      await generateWarehouseExcel(pdfSession, s.sortedPackages, true, {
+      await generateWarehouseExcel(pdfSession, sessionPackages, true, {
         sheetName: "Salida",
         fileNamePrefix: "Salida_Bodega",
       })
@@ -243,10 +387,10 @@ export default function OutboundPackage() {
       <Separator className="bg-slate-200" />
 
       <WarehouseStatsRow
-        stats={s.stats}
-        onOpenExpiring={() => s.stats.expiringToday.length > 0 && s.toggleModal("expiringToday", true)}
-        onOpenHighValue={() => s.stats.highValue.length > 0 && s.toggleModal("highValue", true)}
-        onOpenCharges={() => s.stats.withCharges.length > 0 && s.toggleModal("charges", true)}
+        stats={stats as unknown as WarehouseStatsRowStats}
+        onOpenExpiring={() => stats.expiringToday.length > 0 && s.toggleModal("expiringToday", true)}
+        onOpenHighValue={() => stats.highValue.length > 0 && s.toggleModal("highValue", true)}
+        onOpenCharges={() => stats.withCharges.length > 0 && s.toggleModal("charges", true)}
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pt-6">
@@ -260,13 +404,39 @@ export default function OutboundPackage() {
             </div>
 
             <CardContent className="p-0 overflow-hidden">
-              <PackagesList
-                packages={s.listPackages}
-                onRemove={s.handleRemovePackage}
-                renderExpanded={(pkg) => (hasRemittancePieces(pkg) ? <RemittancePiecesPanel pkg={pkg} /> : null)}
-                maxHeightClass="max-h-[640px]"
-                emptyTitle="Sin paquetes escaneados"
-                emptyDescription="Escanee un código de barras para comenzar la salida."
+              <ScanInput
+                ref={scanRef}
+                mode="perScan"
+                storageKey="scan:outbound"
+                defaultView="rich"
+                label="Escáner de Salida"
+                onScan={resolveScan}
+                onRemittance={onRemittance}
+                onPackagesChange={setPackages}
+                sortComparator={sortWarehousePackages}
+                renderRichList={(pkgs, { onRemove }) => (
+                  <PackagesList
+                    packages={s.groupRemesas ? groupRemittances(pkgs as WarehousePackageInfo[]) : pkgs}
+                    onRemove={(id) => {
+                      if (s.groupRemesas) {
+                        const target = pkgs.find((p) => (p.dhlUniqueId || p.trackingNumber) === id)
+                        if (target?.trackingNumber) {
+                          scanRef.current?.removeByTracking(target.trackingNumber)
+                          return
+                        }
+                      }
+                      onRemove(id)
+                    }}
+                    renderExpanded={(pkg) =>
+                      hasRemittancePieces(pkg as WarehousePackageInfo) ? (
+                        <RemittancePiecesPanel pkg={pkg as WarehousePackageInfo} />
+                      ) : null
+                    }
+                    maxHeightClass="max-h-[640px]"
+                    emptyTitle="Sin paquetes escaneados"
+                    emptyDescription="Escanee un código de barras para comenzar la salida."
+                  />
+                )}
               />
             </CardContent>
           </Card>
@@ -373,16 +543,6 @@ export default function OutboundPackage() {
             </CardContent>
           </Card>
 
-          <ScannerCard
-            title="Escáner de Salida"
-            inputRef={s.inputRef}
-            value={s.scanInput}
-            onChange={s.setScanInput}
-            onScan={s.handleScan}
-            isScanning={s.isScanning}
-            error={s.error}
-          />
-
           <TransportAssignmentCard
             vehicleId={s.vehicleId}
             onVehicleChange={s.setVehicleId}
@@ -416,11 +576,11 @@ export default function OutboundPackage() {
 
       {/* --- Diálogos --- */}
       <WarehouseRemittanceDialog
-        state={s.remittanceDialog}
-        onStateChange={s.setRemittanceDialog}
-        pieceInputRef={s.pieceInputRef}
-        onPieceScan={s.handlePieceScan}
-        onFocusScanner={() => s.inputRef.current?.focus()}
+        state={remittance}
+        onStateChange={setRemittance}
+        pieceInputRef={pieceInputRef}
+        onPieceScan={handlePieceScan}
+        onFocusScanner={() => scanRef.current?.focus()}
       />
 
       <ShortcutsDialog
@@ -434,7 +594,7 @@ export default function OutboundPackage() {
         onOpenChange={(v) => s.toggleModal("expiringToday", v)}
         title="Paquetes que Vencen Hoy"
         description="Lista de paquetes con urgencia crítica para hoy."
-        packages={s.stats.expiringToday}
+        packages={stats.expiringToday.map(adaptPayment)}
       />
 
       <DetailModal
@@ -442,15 +602,15 @@ export default function OutboundPackage() {
         onOpenChange={(v) => s.toggleModal("highValue", v)}
         title="Paquetes de Alto Valor"
         description="Requieren manejo de seguridad especial."
-        packages={s.stats.highValue}
+        packages={stats.highValue.map(adaptPayment)}
       />
 
       <DetailModal
         open={s.modals.charges}
         onOpenChange={(v) => s.toggleModal("charges", v)}
         title="Cobros Pendientes"
-        description={`Monto Total a Cobrar: $${s.stats.totalCharges.toLocaleString()} MXN`}
-        packages={s.stats.withCharges}
+        description={`Monto Total a Cobrar: $${stats.totalCharges.toLocaleString()} MXN`}
+        packages={stats.withCharges.map(adaptPayment)}
       />
 
       <SignatureDialog
