@@ -320,6 +320,11 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
           const res = await onScan?.(code, current);
           if (!res) continue;
           if (res.action === "add") {
+            // Actualiza el espejo sincrónicamente para que la siguiente
+            // iteración del loop vea este paquete (setPackages es async
+            // respecto al loop; sin esto, un paste con códigos duplicados
+            // no se detecta entre sí).
+            packagesRef.current = [res.package, ...packagesRef.current];
             setPackages((prev) => [res.package, ...prev]);
           } else if (res.action === "reject") {
             setScanError(res.message);
