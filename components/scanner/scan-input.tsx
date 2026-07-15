@@ -9,15 +9,18 @@ import {
   useImperativeHandle,
   useMemo,
   type ComponentType,
+  type ReactNode,
 } from "react";
 import classNames from "classnames";
 import {
   AlertCircle,
+  AlertTriangle,
   Calendar,
   Copy,
   Check,
   HelpCircle,
   Inbox,
+  Loader2,
   Trash2,
   BanknoteIcon,
   BarcodeIcon,
@@ -26,9 +29,21 @@ import {
   Rows3,
 } from "lucide-react";
 import { PackageInfo } from "@/lib/types";
+import type { WarehousePackageInfo } from "@/components/warehouse/shared/warehouse-package-list.helpers";
 import { normalizeScannedCode } from "@/lib/tracking/normalize-scan";
 import { addNewCodes, matchValidatedPackage } from "@/components/scanner/scan-normalize";
 import { useScanBuffer, type ScanView } from "@/components/scanner/use-scan-buffer";
+
+/**
+ * Resolución que el padre devuelve por cada código escaneado en modo `perScan`.
+ * - `add`: agrega un paquete ya validado al buffer.
+ * - `reject`: muestra un banner de error interno con el mensaje dado.
+ * - `remittance`: delega el master tracking al padre (flujo de piezas DHL).
+ */
+export type ScanResolution =
+  | { action: "add"; package: PackageInfo }
+  | { action: "reject"; message: string }
+  | { action: "remittance"; masterTracking: string };
 
 /** Chip de métrica del pie del escáner (vencen hoy / mañana / no encontradas). */
 const MetricChip = ({
@@ -59,6 +74,8 @@ export interface ScanInputHandle {
   clear: () => void;
   getInputElement: () => HTMLTextAreaElement | null;
   updateValidatedPackages: (validated: PackageInfo[]) => void;
+  /** Adjunta piezas de remesa (perScan/warehouse) al paquete maestro por trackingNumber. */
+  attachPieces: (masterTracking: string, pieces: string[]) => void;
 }
 
 export interface ScanInputProps {
@@ -74,6 +91,22 @@ export interface ScanInputProps {
   onPackagesChange?: (packages: PackageInfo[]) => void;
   onTrackingNumbersChange?: (trackingNumbers: string) => void;
   onHasDueTomorrow?: (has: boolean) => void;
+  /**
+   * Modo de procesamiento. `batch` (default) acumula códigos localmente para
+   * validación en lote. `perScan` delega cada código al padre vía `onScan`.
+   */
+  mode?: "batch" | "perScan";
+  /** perScan: valida/resuelve cada código escaneado. Recibe snapshot del buffer actual. */
+  onScan?: (code: string, current: PackageInfo[]) => Promise<ScanResolution>;
+  /** perScan: se invoca cuando un código resuelve como remesa (master tracking DHL). */
+  onRemittance?: (masterTracking: string) => void;
+  /** Render alternativo de la lista rica (warehouse). Reemplaza las tarjetas por defecto. */
+  renderRichList?: (
+    packages: PackageInfo[],
+    api: { onRemove: (id: string) => void }
+  ) => ReactNode;
+  /** Comparador opcional para ordenar los paquetes mostrados. */
+  sortComparator?: (a: PackageInfo, b: PackageInfo) => number;
 }
 
 export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function ScanInput(
@@ -88,6 +121,11 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
     onPackagesChange,
     onTrackingNumbersChange,
     onHasDueTomorrow,
+    mode = "batch",
+    onScan,
+    onRemittance,
+    renderRichList,
+    sortComparator,
   },
   ref
 ) {
@@ -106,6 +144,17 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
 
   const [currentScan, setCurrentScan] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // perScan: error interno del último código rechazado + flag de procesamiento.
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+
+  // Espejo del buffer para leer el estado actual dentro del loop async sin
+  // recrear `processTrackingLines` en cada cambio de `packages`.
+  const packagesRef = useRef<PackageInfo[]>(packages);
+  useEffect(() => {
+    packagesRef.current = packages;
+  }, [packages]);
 
   /* ===================== Helpers de fecha ===================== */
 
@@ -192,6 +241,18 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
     updateValidatedPackages: (validated: PackageInfo[]) => {
       setPackages((prev) => prev.map((p) => matchValidatedPackage(p, validated) ?? p));
     },
+    attachPieces: (masterTracking: string, pieces: string[]) => {
+      setPackages((prev) =>
+        prev.map((p) => {
+          if (p.trackingNumber !== masterTracking) return p;
+          const wp = p as WarehousePackageInfo;
+          return {
+            ...wp,
+            pieces: Array.from(new Set([...(wp.pieces || []), ...pieces])),
+          } as PackageInfo;
+        })
+      );
+    },
   }));
 
   /* ===================== Effects ===================== */
@@ -232,7 +293,7 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
   /* ===================== Entrada ===================== */
 
   const processTrackingLines = useCallback(
-    (text: string) => {
+    async (text: string) => {
       const normalizedLines = text
         .split("\n")
         .map((l) => normalizeScannedCode(l)?.code ?? null)
@@ -240,20 +301,45 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
 
       if (!normalizedLines.length) return;
 
-      setPackages((prev) => {
-        const toAdd = addNewCodes(prev, normalizedLines);
-        return toAdd.length ? [...prev, ...toAdd] : prev;
-      });
+      if (mode === "batch") {
+        setPackages((prev) => {
+          const toAdd = addNewCodes(prev, normalizedLines);
+          return toAdd.length ? [...prev, ...toAdd] : prev;
+        });
+        setCurrentScan("");
+        return;
+      }
 
-      setCurrentScan("");
+      // perScan: delega cada código al padre (validación + remesa).
+      setIsScanning(true);
+      setScanError(null);
+      try {
+        for (const code of normalizedLines) {
+          // Snapshot del buffer actual para que el padre detecte duplicados.
+          const current = packagesRef.current;
+          const res = await onScan?.(code, current);
+          if (!res) continue;
+          if (res.action === "add") {
+            setPackages((prev) => [res.package, ...prev]);
+          } else if (res.action === "reject") {
+            setScanError(res.message);
+          } else if (res.action === "remittance") {
+            onRemittance?.(res.masterTracking);
+          }
+        }
+      } finally {
+        setIsScanning(false);
+        setCurrentScan("");
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      }
     },
-    [setPackages]
+    [mode, onScan, onRemittance, setPackages]
   );
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     wasPastedRef.current = true;
-    processTrackingLines(e.clipboardData.getData("text"));
+    void processTrackingLines(e.clipboardData.getData("text"));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -263,7 +349,7 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
         wasPastedRef.current = false;
         return;
       }
-      processTrackingLines(currentScan);
+      void processTrackingLines(currentScan);
     }
   };
 
@@ -275,6 +361,12 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
       );
     },
     [setPackages]
+  );
+
+  // Lista a mostrar, ordenada con el comparador opcional (no muta el buffer).
+  const displayPackages = useMemo(
+    () => (sortComparator ? [...packages].sort(sortComparator) : packages),
+    [packages, sortComparator]
   );
 
   /* ===================== Render ===================== */
@@ -363,9 +455,9 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
       {/* Zona de escaneo */}
       <div
         className={classNames(
-          "rounded-xl border-2 border-dashed bg-muted/30 transition-colors focus-within:border-primary focus-within:bg-background",
+          "relative rounded-xl border-2 border-dashed bg-muted/30 transition-colors focus-within:border-primary focus-within:bg-background",
           hasErrors && "border-red-500",
-          disabled && "opacity-60"
+          (disabled || isScanning) && "opacity-60"
         )}
       >
         <textarea
@@ -376,14 +468,31 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={placeholder}
-          disabled={disabled}
+          disabled={disabled || isScanning}
           rows={2}
           className="w-full resize-none bg-transparent p-3 text-sm font-mono placeholder:font-sans placeholder:text-muted-foreground focus:outline-none"
         />
+        {mode === "perScan" && isScanning && (
+          <span className="pointer-events-none absolute right-3 top-3 text-primary">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </span>
+        )}
       </div>
+
+      {/* perScan: banner de error del último código rechazado */}
+      {mode === "perScan" && scanError && (
+        <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-md flex items-start gap-2 border border-red-100">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span className="font-medium">{scanError}</span>
+        </div>
+      )}
 
       {/* Cuerpo condicional por vista */}
       {view === "rich" ? (
+        renderRichList ? (
+          /* Render alternativo (warehouse): reemplaza tarjetas y omite MetricChip. */
+          renderRichList(displayPackages, { onRemove: removeById })
+        ) : (
         <>
           {/* Lista de tarjetas */}
           <div className="overflow-hidden rounded-xl border bg-background">
@@ -391,7 +500,7 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
               ref={packagesListRef}
               className="max-h-72 overflow-y-auto [&>li:last-child]:border-b-0"
             >
-              {packages.length === 0 ? (
+              {displayPackages.length === 0 ? (
                 <li className="flex flex-col items-center justify-center gap-2 py-10 text-center">
                   <Inbox className="h-8 w-8 text-muted-foreground/40" />
                   <span className="text-sm text-muted-foreground">
@@ -399,7 +508,7 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
                   </span>
                 </li>
               ) : (
-                packages.map((pkg) => {
+                displayPackages.map((pkg) => {
                   const validated = !pkg.isPendingValidation;
                   const isNotFound = validated && !pkg.commitDateTime && !pkg.payment;
                   const today = validated && isDueToday(pkg.commitDateTime);
@@ -528,13 +637,14 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
             </div>
           )}
         </>
+        )
       ) : (
         /* Vista simple: fila de chips horizontal con scroll */
         <div className="flex gap-1.5 overflow-x-auto rounded-xl border bg-background p-2">
-          {packages.length === 0 ? (
+          {displayPackages.length === 0 ? (
             <span className="px-2 py-1 text-sm text-muted-foreground">Sin guías</span>
           ) : (
-            packages.map((pkg) => (
+            displayPackages.map((pkg) => (
               <span
                 key={pkg.dhlUniqueId ?? pkg.trackingNumber}
                 className="inline-flex shrink-0 items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs"
