@@ -300,6 +300,8 @@ export default function OutboundPackage() {
         // Limpia el buffer del escáner en la ruta de éxito (evita guías colgadas).
         scanRef.current?.clear()
         setPackages([])
+        // Limpia la firma "Recibido por" (dato por operación, no debe persistir a la siguiente salida).
+        s.setReceivedByName("")
         setSelectedRutas([])
         setSelectedKms(0)
         setDestinationSubsidiary("")

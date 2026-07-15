@@ -244,16 +244,16 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
       setPackages((prev) => prev.map((p) => matchValidatedPackage(p, validated) ?? p));
     },
     attachPieces: (masterTracking: string, pieces: string[]) => {
-      setPackages((prev) =>
-        prev.map((p) => {
-          if (p.trackingNumber !== masterTracking) return p;
-          const wp = p as WarehousePackageInfo;
-          return {
-            ...wp,
-            pieces: Array.from(new Set([...(wp.pieces || []), ...pieces])),
-          } as PackageInfo;
-        })
-      );
+      setPackages((prev) => {
+        const idx = prev.findIndex((p) => p.trackingNumber === masterTracking);
+        if (idx === -1) return prev;
+        const target = prev[idx] as WarehousePackageInfo;
+        const merged = Array.from(new Set([...(target.pieces || []), ...pieces]));
+        const next = [...prev];
+        next[idx] = { ...target, pieces: merged } as PackageInfo;
+        packagesRef.current = next;
+        return next;
+      });
     },
     removeByTracking: (trackingNumber: string) => {
       setPackages((prev) => {

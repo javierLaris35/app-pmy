@@ -262,6 +262,8 @@ export default function InboundPackage() {
         // Limpia el buffer del escáner en la ruta de éxito (evita guías colgadas).
         scanRef.current?.clear()
         setPackages([])
+        // Limpia la firma "Recibido por" (dato por operación, no debe persistir a la siguiente entrada).
+        s.setReceivedByName("")
         setSessionId(crypto.randomUUID())
         s.toggleModal("signatures", false)
         toast({ title: "Entrada a bodega guardada", description: "Entrada guardada con éxito." })
