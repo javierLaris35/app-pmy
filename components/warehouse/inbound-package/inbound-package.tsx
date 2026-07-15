@@ -167,16 +167,34 @@ export default function InboundPackage() {
   }, [remittance.pieceInput, remittance.masterTracking, packages, s.safeSpeak])
 
   // F1 enfoca el escáner unificado (el resto de atajos siguen en el hook).
+  // Además, si el operador teclea cualquier carácter imprimible sin tener un
+  // input/textarea enfocado (y sin el diálogo de remesa abierto), reenfoca el
+  // escáner para no perder el tecleo (paridad con el hook viejo, que apuntaba
+  // a un inputRef ya no usado por este flujo).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "F1") {
         e.preventDefault()
         scanRef.current?.focus()
+        return
+      }
+
+      const active = document.activeElement
+      const isInputFocused = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+
+      if (
+        !isInputFocused &&
+        e.key.length === 1 &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !remittance.isOpen
+      ) {
+        scanRef.current?.focus()
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [remittance.isOpen])
 
   // ---- Stats derivadas de los paquetes locales (modelo PackageInfo con `payment`) ----
   const stats = useMemo(() => computeWarehouseStats(packages), [packages])
@@ -352,7 +370,16 @@ export default function InboundPackage() {
                 renderRichList={(pkgs, { onRemove }) => (
                   <PackagesList
                     packages={s.groupRemesas ? groupRemittances(pkgs as WarehousePackageInfo[]) : pkgs}
-                    onRemove={onRemove}
+                    onRemove={(id) => {
+                      if (s.groupRemesas) {
+                        const target = pkgs.find((p) => (p.dhlUniqueId || p.trackingNumber) === id)
+                        if (target?.trackingNumber) {
+                          scanRef.current?.removeByTracking(target.trackingNumber)
+                          return
+                        }
+                      }
+                      onRemove(id)
+                    }}
                     renderExpanded={(pkg) =>
                       hasRemittancePieces(pkg as WarehousePackageInfo) ? (
                         <RemittancePiecesPanel pkg={pkg as WarehousePackageInfo} />

@@ -76,6 +76,8 @@ export interface ScanInputHandle {
   updateValidatedPackages: (validated: PackageInfo[]) => void;
   /** Adjunta piezas de remesa (perScan/warehouse) al paquete maestro por trackingNumber. */
   attachPieces: (masterTracking: string, pieces: string[]) => void;
+  /** Elimina TODOS los paquetes que comparten un trackingNumber (remesa DHL agrupada). */
+  removeByTracking: (trackingNumber: string) => void;
 }
 
 export interface ScanInputProps {
@@ -252,6 +254,13 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
           } as PackageInfo;
         })
       );
+    },
+    removeByTracking: (trackingNumber: string) => {
+      setPackages((prev) => {
+        const next = prev.filter((p) => p.trackingNumber !== trackingNumber);
+        packagesRef.current = next;
+        return next;
+      });
     },
   }));
 
