@@ -14,11 +14,12 @@ interface GrapesEditorProps {
   initialMjml?: string | null;
   initialDesign?: any | null;
   onReady?: (api: GrapesEditorApi) => void;
+  onDestroy?: () => void;
 }
 
 const DEFAULT_MJML = `<mjml><mj-body><mj-section><mj-column><mj-text>Escribe tu contenido…</mj-text></mj-column></mj-section></mj-body></mjml>`;
 
-export default function GrapesEditor({ initialMjml, initialDesign, onReady }: GrapesEditorProps) {
+export default function GrapesEditor({ initialMjml, initialDesign, onReady, onDestroy }: GrapesEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
 
@@ -73,6 +74,7 @@ export default function GrapesEditor({ initialMjml, initialDesign, onReady }: Gr
     });
 
     return () => {
+      onDestroy?.();
       editor.destroy();
       editorRef.current = null;
     };

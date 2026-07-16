@@ -27,7 +27,7 @@ function pickWorkingVersion(data: TemplateForEdit): DocumentTemplateVersion | nu
   const drafts = data.versions.filter((v) => v.status === "draft").sort((a, b) => b.version - a.version);
   if (drafts[0]) return drafts[0];
   const pub = data.versions.find((v) => v.id === data.template.currentVersionId);
-  return pub || data.versions.sort((a, b) => b.version - a.version)[0] || null;
+  return pub || [...data.versions].sort((a, b) => b.version - a.version)[0] || null;
 }
 
 function initialSample(vars: { name: string; example?: string | null }[]): Record<string, any> {
@@ -55,8 +55,8 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   };
   useEffect(() => { reload().catch(() => toast.error?.("No se pudo cargar la plantilla")); /* eslint-disable-next-line */ }, [templateId]);
 
-  const onSave = async () => {
-    if (!apiRef.current) return;
+  const onSave = async (): Promise<string | null> => {
+    if (!apiRef.current) return null;
     setSaving(true);
     try {
       const { mjml, designJson } = apiRef.current.getContent();
@@ -64,13 +64,13 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
       setDraftVersionId(v.id);
       toast.success?.("Borrador guardado");
       await reload();
-    } catch { toast.error?.("No se pudo guardar"); }
+      return v.id;
+    } catch { toast.error?.("No se pudo guardar"); return null; }
     finally { setSaving(false); }
   };
 
   const onPublish = async () => {
-    let vId = draftVersionId;
-    if (!vId) { await onSave(); vId = draftVersionId; }
+    const vId = draftVersionId ?? (await onSave());
     if (!vId) return;
     try { await publishVersion(templateId, vId); toast.success?.("Plantilla publicada"); await reload(); }
     catch { toast.error?.("No se pudo publicar"); }
@@ -119,6 +119,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
                   initialMjml={working?.compiledBody}
                   initialDesign={working?.designJson}
                   onReady={(api) => { apiRef.current = api; }}
+                  onDestroy={() => { apiRef.current = null; }}
                 />
               )}
             </CardContent></Card>

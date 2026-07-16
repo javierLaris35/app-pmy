@@ -2,7 +2,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Copy } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { TemplateVariableDef } from "@/lib/services/document-templates";

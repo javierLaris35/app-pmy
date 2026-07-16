@@ -38,7 +38,7 @@ export function PreviewPanel({
       </div>
       <Button size="sm" onClick={run} disabled={loading}><Eye className="h-4 w-4 mr-1" /> {loading ? "Generando…" : "Vista previa"}</Button>
       {html && (
-        <iframe title="preview" className="w-full h-[500px] rounded-md border bg-white" srcDoc={html} />
+        <iframe title="preview" className="w-full h-[500px] rounded-md border bg-white" srcDoc={html} sandbox="" />
       )}
     </div>
   );
