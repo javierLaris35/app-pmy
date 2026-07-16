@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
@@ -24,6 +24,7 @@ import { ServerStatsPanel } from "@/components/configuracion/server-stats-panel"
 import { ServerLogsPanel } from "@/components/configuracion/server-logs-panel"
 import { WhatsappConfigPanel } from "@/components/configuracion/whatsapp-config-panel"
 import { PlantillasPanel } from "@/components/configuracion/plantillas/plantillas-panel"
+import { BrandingPanel } from "@/components/configuracion/branding-panel"
 
 const SECTIONS = [
   { id: "empresa", label: "Empresa", icon: Building2, description: "Datos de la empresa" },
@@ -34,6 +35,7 @@ const SECTIONS = [
   { id: "geocode", label: "Geolocalización", icon: MapPin, description: "Direcciones aprendidas" },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, description: "Avisos al chofer" },
   { id: "plantillas", label: "Plantillas", icon: Mail, description: "Correos configurables" },
+  { id: "branding", label: "Branding", icon: Palette, description: "Identidad visual" },
   { id: "servidor", label: "Servidor", icon: Server, description: "Uso de CPU/RAM/disco/red" },
   { id: "general", label: "General", icon: Settings, description: "Preferencias" },
 ] as const
@@ -109,6 +111,8 @@ function ConfiguracionPage() {
             {section === "whatsapp" && <WhatsappConfigPanel />}
 
             {section === "plantillas" && <PlantillasPanel />}
+
+            {section === "branding" && <BrandingPanel />}
 
             {section === "servidor" && (
               <Tabs defaultValue="metricas" className="space-y-4">
