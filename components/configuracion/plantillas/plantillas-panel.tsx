@@ -21,7 +21,7 @@ export function PlantillasPanel() {
   };
   useEffect(() => { void load(); }, []);
 
-  const openEditor = (id: string) => router.push(`/configuracion/plantillas/${id}`);
+  const openEditor = (id: string) => router.push(`/configuracion/plantillas/editor?id=${id}`);
 
   return (
     <Card>
