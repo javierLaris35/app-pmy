@@ -107,7 +107,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
             <TabsTrigger value="editor">Editor</TabsTrigger>
             <TabsTrigger value="preview">Vista previa</TabsTrigger>
           </TabsList>
-          <TabsContent value="editor" className="space-y-3">
+          <TabsContent value="editor" forceMount className="space-y-3 data-[state=inactive]:hidden">
             <div className="space-y-1">
               <Label>Asunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto (admite {{variables}})" />
@@ -123,7 +123,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
               )}
             </CardContent></Card>
           </TabsContent>
-          <TabsContent value="preview">
+          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden">
             {data && (
               <PreviewPanel
                 templateId={templateId}
