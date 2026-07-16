@@ -48,6 +48,12 @@ export default function BlockEditor({ initialDoc, onReady }: Props) {
 
   const update = (id: string, patch: Partial<EmailBlock>) =>
     setBlocks((bs) => bs.map((b) => (b.id === id ? ({ ...b, ...patch } as EmailBlock) : b)));
+  /** Actualiza el valor de una fila keyValue leyendo el arreglo ACTUAL (evita closures viejas de bindFocus). */
+  const patchKeyValueItem = (blockId: string, idx: number, value: string) =>
+    setBlocks((bs) => bs.map((bb) =>
+      bb.id === blockId && bb.type === 'keyValue'
+        ? { ...bb, items: bb.items.map((it, i) => (i === idx ? { ...it, value } : it)) }
+        : bb));
   const add = (type: EmailBlockType) => setBlocks((bs) => [...bs, newBlock(type)]);
   const remove = (id: string) => setBlocks((bs) => bs.filter((b) => b.id !== id));
   const move = (i: number, dir: -1 | 1) => setBlocks((bs) => {
@@ -73,7 +79,7 @@ export default function BlockEditor({ initialDoc, onReady }: Props) {
               <Button variant="ghost" size="icon" onClick={() => remove(b.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
             </div>
           </div>
-          <BlockFields block={b} update={update} bindFocus={bindFocus} />
+          <BlockFields block={b} update={update} bindFocus={bindFocus} patchKeyValueItem={patchKeyValueItem} />
         </div>
       ))}
 
@@ -89,10 +95,11 @@ export default function BlockEditor({ initialDoc, onReady }: Props) {
   );
 }
 
-function BlockFields({ block: b, update, bindFocus }: {
+function BlockFields({ block: b, update, bindFocus, patchKeyValueItem }: {
   block: EmailBlock;
   update: (id: string, patch: Partial<EmailBlock>) => void;
   bindFocus: (apply: (v: string) => void) => { onFocus: (e: any) => void };
+  patchKeyValueItem: (blockId: string, idx: number, value: string) => void;
 }) {
   switch (b.type) {
     case 'heading':
@@ -125,7 +132,7 @@ function BlockFields({ block: b, update, bindFocus }: {
           {b.items.map((it, idx) => (
             <div key={idx} className="grid grid-cols-2 gap-2">
               <Input value={it.label} onChange={(e) => { const items = [...b.items]; items[idx] = { ...it, label: e.target.value }; update(b.id, { items } as any); }} placeholder="Etiqueta" />
-              <Input value={it.value} {...bindFocus((v) => { const items = [...b.items]; items[idx] = { ...it, value: v }; update(b.id, { items } as any); })} onChange={(e) => { const items = [...b.items]; items[idx] = { ...it, value: e.target.value }; update(b.id, { items } as any); }} placeholder="Valor (p.ej. {{fecha}})" />
+              <Input value={it.value} {...bindFocus((v) => patchKeyValueItem(b.id, idx, v))} onChange={(e) => patchKeyValueItem(b.id, idx, e.target.value)} placeholder="Valor (p.ej. {{fecha}})" />
             </div>
           ))}
           <Button variant="ghost" size="sm" onClick={() => update(b.id, { items: [...b.items, { label: '', value: '' }] } as any)}><Plus className="h-3.5 w-3.5 mr-1" /> Agregar fila</Button>
