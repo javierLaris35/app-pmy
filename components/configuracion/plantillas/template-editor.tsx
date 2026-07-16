@@ -19,9 +19,8 @@ import { VariablePalette } from "./variable-palette";
 import { VersionHistory } from "./version-history";
 import { PreviewPanel } from "./preview-panel";
 import { TestSendDialog } from "./test-send-dialog";
-import type { GrapesEditorApi } from "./grapes-editor";
-
-const GrapesEditor = dynamic(() => import("./grapes-editor"), { ssr: false });
+import BlockEditor, { BlockEditorApi } from "./blocks/block-editor";
+import { EmailDoc } from "./blocks/email-block.types";
 
 function pickWorkingVersion(data: TemplateForEdit): DocumentTemplateVersion | null {
   const drafts = data.versions.filter((v) => v.status === "draft").sort((a, b) => b.version - a.version);
@@ -42,7 +41,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   const [saving, setSaving] = useState(false);
   const [draftVersionId, setDraftVersionId] = useState<string | null>(null);
   const [sample, setSample] = useState<Record<string, any>>({});
-  const apiRef = useRef<GrapesEditorApi | null>(null);
+  const apiRef = useRef<BlockEditorApi | null>(null);
 
   const reload = async () => {
     const d = await getTemplateForEdit(templateId);
@@ -59,8 +58,8 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
     if (!apiRef.current) return null;
     setSaving(true);
     try {
-      const { mjml, designJson } = apiRef.current.getContent();
-      const v = await saveDraft(templateId, { subject, compiledBody: mjml, designJson });
+      const doc = apiRef.current.getDoc();
+      const v = await saveDraft(templateId, { subject, designJson: doc });
       setDraftVersionId(v.id);
       toast.success?.("Borrador guardado");
       await reload();
@@ -112,14 +111,12 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
               <Label>Asunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto (admite {{variables}})" />
             </div>
-            <Card><CardContent className="p-0 h-[600px]">
+            <Card><CardContent className="p-0 h-[600px] overflow-hidden">
               {data && (
-                <GrapesEditor
+                <BlockEditor
                   key={working?.id}
-                  initialMjml={working?.compiledBody}
-                  initialDesign={working?.designJson}
+                  initialDoc={(working?.designJson && Array.isArray(working.designJson.blocks) ? working.designJson : { blocks: [] }) as EmailDoc}
                   onReady={(api) => { apiRef.current = api; }}
-                  onDestroy={() => { apiRef.current = null; }}
                 />
               )}
             </CardContent></Card>
