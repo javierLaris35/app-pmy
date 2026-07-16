@@ -48,9 +48,23 @@ export default function GrapesEditor({ initialMjml, initialDesign, onReady }: Gr
         insertVariable: (name: string) => {
           const token = `{{${name}}}`;
           const selected = editor.getSelected();
-          // Inserta el token en el componente seleccionado o al final del cuerpo.
-          if (selected) selected.append(token);
-          else editor.getWrapper()?.append(token);
+          if (selected) {
+            // Inserta el token en el componente seleccionado.
+            selected.append(token);
+            return;
+          }
+          // Sin selección: editor.getWrapper() es un contenedor genérico cuyo único
+          // hijo es el componente <mjml>; appendear ahí deja el token como hermano
+          // DESPUÉS de </mjml> al serializar (MJML inválido, el token se pierde al
+          // compilar). Hay que insertar dentro de <mj-body>.
+          // Nota: find() usa selectores CSS sobre el tag del DOM renderizado (la vista
+          // de grapesjs-mjml usa <div>/<table>/<tr>, no las etiquetas mjml), así que
+          // nunca matchea "mj-body". Usamos findType(), que busca por el `type` real
+          // del modelo del componente (funciona sin importar el nivel de anidamiento).
+          const wrapper = editor.getWrapper();
+          const body = wrapper?.findType("mj-body")?.[0];
+          const target = body?.findType("mj-text")?.[0] || body?.findType("mj-column")?.[0] || body || wrapper;
+          target?.append(token);
         },
         // getHtml() bajo el preset grapesjs-mjml devuelve el MJML fuente.
         getContent: () => ({ mjml: editor.getHtml(), designJson: editor.getProjectData() }),
