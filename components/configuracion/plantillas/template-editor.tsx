@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Mail, Save, Send } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
@@ -16,6 +17,8 @@ import {
 } from "@/lib/services/document-templates";
 import { VariablePalette } from "./variable-palette";
 import { VersionHistory } from "./version-history";
+import { PreviewPanel } from "./preview-panel";
+import { TestSendDialog } from "./test-send-dialog";
 import type { GrapesEditorApi } from "./grapes-editor";
 
 const GrapesEditor = dynamic(() => import("./grapes-editor"), { ssr: false });
@@ -27,11 +30,18 @@ function pickWorkingVersion(data: TemplateForEdit): DocumentTemplateVersion | nu
   return pub || data.versions.sort((a, b) => b.version - a.version)[0] || null;
 }
 
+function initialSample(vars: { name: string; example?: string | null }[]): Record<string, any> {
+  const o: Record<string, any> = {};
+  for (const v of vars) o[v.name] = v.example ?? "";
+  return o;
+}
+
 export function TemplateEditor({ templateId }: { templateId: string }) {
   const [data, setData] = useState<TemplateForEdit | null>(null);
   const [subject, setSubject] = useState("");
   const [saving, setSaving] = useState(false);
   const [draftVersionId, setDraftVersionId] = useState<string | null>(null);
+  const [sample, setSample] = useState<Record<string, any>>({});
   const apiRef = useRef<GrapesEditorApi | null>(null);
 
   const reload = async () => {
@@ -40,6 +50,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
     const wv = pickWorkingVersion(d);
     setSubject(wv?.subject || "");
     setDraftVersionId(wv && wv.status === "draft" ? wv.id : null);
+    setSample(initialSample(d.variables));
     return d;
   };
   useEffect(() => { reload().catch(() => toast.error?.("No se pudo cargar la plantilla")); /* eslint-disable-next-line */ }, [templateId]);
@@ -83,6 +94,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
         description={data?.template.code}
         actions={
           <div className="flex gap-2">
+            {data && <TestSendDialog code={data.template.code} sample={sample} />}
             <Button variant="outline" size="sm" onClick={onSave} disabled={saving}><Save className="h-4 w-4 mr-1" /> Guardar</Button>
             <Button size="sm" onClick={onPublish} disabled={saving}><Send className="h-4 w-4 mr-1" /> Publicar</Button>
           </div>
@@ -90,22 +102,39 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label>Asunto</Label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto (admite {{variables}})" />
-          </div>
-          <Card><CardContent className="p-0 h-[600px]">
+        <Tabs defaultValue="editor" className="space-y-3">
+          <TabsList>
+            <TabsTrigger value="editor">Editor</TabsTrigger>
+            <TabsTrigger value="preview">Vista previa</TabsTrigger>
+          </TabsList>
+          <TabsContent value="editor" className="space-y-3">
+            <div className="space-y-1">
+              <Label>Asunto</Label>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto (admite {{variables}})" />
+            </div>
+            <Card><CardContent className="p-0 h-[600px]">
+              {data && (
+                <GrapesEditor
+                  key={working?.id}
+                  initialMjml={working?.compiledBody}
+                  initialDesign={working?.designJson}
+                  onReady={(api) => { apiRef.current = api; }}
+                />
+              )}
+            </CardContent></Card>
+          </TabsContent>
+          <TabsContent value="preview">
             {data && (
-              <GrapesEditor
-                key={working?.id}
-                initialMjml={working?.compiledBody}
-                initialDesign={working?.designJson}
-                onReady={(api) => { apiRef.current = api; }}
+              <PreviewPanel
+                templateId={templateId}
+                versionId={draftVersionId}
+                variables={data.variables}
+                sample={sample}
+                onSampleChange={setSample}
               />
             )}
-          </CardContent></Card>
-        </div>
+          </TabsContent>
+        </Tabs>
         <div className="space-y-4">
           <VariablePalette variables={data?.variables || []} onInsert={(n) => apiRef.current?.insertVariable(n)} />
           {data && <VersionHistory versions={data.versions} currentVersionId={data.template.currentVersionId} onRestore={onRestore} />}
