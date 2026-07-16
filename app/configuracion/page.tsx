@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
+import { useAuthStore } from "@/store/auth.store"
 import { CompanyPanel } from "@/components/configuracion/company-panel"
 import { PermissionsPanel } from "@/components/configuracion/permissions-panel"
 import { UsersPanel } from "@/components/configuracion/users-panel"
@@ -22,6 +23,7 @@ import { GeocodePanel } from "@/components/configuracion/geocode-panel"
 import { ServerStatsPanel } from "@/components/configuracion/server-stats-panel"
 import { ServerLogsPanel } from "@/components/configuracion/server-logs-panel"
 import { WhatsappConfigPanel } from "@/components/configuracion/whatsapp-config-panel"
+import { PlantillasPanel } from "@/components/configuracion/plantillas/plantillas-panel"
 
 const SECTIONS = [
   { id: "empresa", label: "Empresa", icon: Building2, description: "Datos de la empresa" },
@@ -31,6 +33,7 @@ const SECTIONS = [
   { id: "catalogos", label: "Catálogos", icon: Tags, description: "Valores de los enums" },
   { id: "geocode", label: "Geolocalización", icon: MapPin, description: "Direcciones aprendidas" },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, description: "Avisos al chofer" },
+  { id: "plantillas", label: "Plantillas", icon: Mail, description: "Correos configurables" },
   { id: "servidor", label: "Servidor", icon: Server, description: "Uso de CPU/RAM/disco/red" },
   { id: "general", label: "General", icon: Settings, description: "Preferencias" },
 ] as const
@@ -40,6 +43,9 @@ type SectionId = (typeof SECTIONS)[number]["id"]
 function ConfiguracionPage() {
   const [section, setSection] = useState<SectionId>("empresa")
   const { theme, setTheme } = useTheme()
+  const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase()
+  const isSuper = ["superadmin", "superamin"].includes(role)
+  const sections = SECTIONS.filter((s) => (s.id === "plantillas" || s.id === "branding") ? isSuper : true)
 
   return (
     <AppLayout>
@@ -55,7 +61,7 @@ function ConfiguracionPage() {
           <Select value={section} onValueChange={(v) => setSection(v as SectionId)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {SECTIONS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+              {sections.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -63,7 +69,7 @@ function ConfiguracionPage() {
         <div className="grid grid-cols-1 md:grid-cols-[230px_1fr] gap-6">
           {/* Sub-sidebar */}
           <nav className="hidden md:flex flex-col gap-1">
-            {SECTIONS.map((s) => {
+            {sections.map((s) => {
               const Icon = s.icon
               const active = section === s.id
               return (
@@ -101,6 +107,8 @@ function ConfiguracionPage() {
             {section === "geocode" && <GeocodePanel />}
 
             {section === "whatsapp" && <WhatsappConfigPanel />}
+
+            {section === "plantillas" && <PlantillasPanel />}
 
             {section === "servidor" && (
               <Tabs defaultValue="metricas" className="space-y-4">
