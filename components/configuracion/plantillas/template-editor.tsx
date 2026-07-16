@@ -11,10 +11,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mail, Save, Send } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
-  getTemplateForEdit, saveDraft, publishVersion,
+  getTemplateForEdit, saveDraft, publishVersion, restoreVersion,
   TemplateForEdit, DocumentTemplateVersion,
 } from "@/lib/services/document-templates";
 import { VariablePalette } from "./variable-palette";
+import { VersionHistory } from "./version-history";
 import type { GrapesEditorApi } from "./grapes-editor";
 
 const GrapesEditor = dynamic(() => import("./grapes-editor"), { ssr: false });
@@ -64,6 +65,14 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
     catch { toast.error?.("No se pudo publicar"); }
   };
 
+  const onRestore = async (versionId: string) => {
+    try {
+      const v = await restoreVersion(templateId, versionId);
+      toast.success?.(`Restaurado como borrador v${v.version}`);
+      await reload();
+    } catch { toast.error?.("No se pudo restaurar"); }
+  };
+
   const working = data ? pickWorkingVersion(data) : null;
 
   return (
@@ -89,6 +98,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
           <Card><CardContent className="p-0 h-[600px]">
             {data && (
               <GrapesEditor
+                key={working?.id}
                 initialMjml={working?.compiledBody}
                 initialDesign={working?.designJson}
                 onReady={(api) => { apiRef.current = api; }}
@@ -98,6 +108,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
         </div>
         <div className="space-y-4">
           <VariablePalette variables={data?.variables || []} onInsert={(n) => apiRef.current?.insertVariable(n)} />
+          {data && <VersionHistory versions={data.versions} currentVersionId={data.template.currentVersionId} onRestore={onRestore} />}
         </div>
       </div>
     </div>
