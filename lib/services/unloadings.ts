@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { Consolidateds, Unloading, UnloadingFormData, UnloadingResponse, UnloadingValidationTrackings, ValidTrackingAndConsolidateds } from "@/lib/types"
+import { Consolidateds, Unloading, UnloadingFormData, UnloadingResponse, UnloadingValidationTrackings, ValidTrackingAndConsolidateds, UnloadingSessionInit, ValidatedUnloadingOne } from "@/lib/types"
 import { Paginated, ListParams } from "./pagination"
 
 const url = '/unloadings'
@@ -40,6 +40,19 @@ const getConsolidatedsToStartUnloading = async(subsidiaryId: string) => {
     const response = await axiosConfig.get<Consolidateds>(`${url}/consolidateds/${subsidiaryId}`);
     return response.data;
 }
+
+const getUnloadingSessionInit = async (subsidiaryId: string) => {
+  const response = await axiosConfig.get<UnloadingSessionInit>(`${url}/session-init/${subsidiaryId}`);
+  return response.data;
+};
+
+const validateOne = async (trackingNumber: string, subsidiaryId: string) => {
+  const response = await axiosConfig.post<ValidatedUnloadingOne>(
+    `${url}/validate-one`,
+    { trackingNumber, subsidiaryId }
+  );
+  return response.data;
+};
 
 
 export async function uploadPDFile(
@@ -83,5 +96,7 @@ export {
     saveUnloading,
     getUnloadingById,
     validateTrackingNumbers,
-    getConsolidatedsToStartUnloading
+    getConsolidatedsToStartUnloading,
+    getUnloadingSessionInit,
+    validateOne
 }

@@ -982,3 +982,43 @@ export interface CreateTransferPayload {
   vehicleId?: string;
   driverIds?: string[];
 }
+
+// --- Desembarque: validación en tiempo real (uno por uno) ---
+
+export interface ConsolidatedInitItem {
+  id: string;
+  type: string;
+  typeCode: string;
+  numberOfPackages: number;
+  color: string;
+  expected: {
+    trackingNumber: string;
+    recipientName?: string;
+    recipientAddress?: string;
+    recipientPhone?: string;
+    recipientZip?: string;
+  }[];
+}
+
+export interface UnloadingSessionInit {
+  airConsolidated: ConsolidatedInitItem[];
+  groundConsolidated: ConsolidatedInitItem[];
+  f2Consolidated: ConsolidatedInitItem[];
+}
+
+export interface ValidatedUnloadingOne {
+  id?: string;
+  trackingNumber: string;
+  isValid: boolean;
+  isCharge: boolean;
+  reason?: string;
+  consolidatedId?: string;
+  recipientName?: string;
+  recipientAddress?: string;
+  recipientPhone?: string;
+  recipientZip?: string;
+  priority?: string;
+  isHighValue?: boolean;
+  payment?: { type: string; amount: number };
+  commitDateTime?: string;
+}
