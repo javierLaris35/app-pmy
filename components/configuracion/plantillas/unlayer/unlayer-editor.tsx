@@ -38,18 +38,24 @@ export default function UnlayerEditor({ initialDesign, variables, brand, onReady
   };
 
   return (
-    // `minHeight` es una PROP de react-email-editor (controla el alto real del
-    // editor/iframe). Pasarlo por `style` NO funciona → el editor salía diminuto.
-    <EmailEditor
-      ref={ref}
-      onReady={onLoad}
-      minHeight="100%"
-      options={{
-        mergeTags,
-        appearance: { theme: "modern_light" },
-        features: { textEditor: { tables: true } },
-      }}
-      style={{ height: "100%", width: "100%" }}
-    />
+    // El iframe interno de Unlayer se queda clavado en ~150px si no se fuerza.
+    // Forzamos la cadena de contenedores + el iframe a llenar el alto disponible.
+    <div className="pmy-unlayer" style={{ height: "100%", width: "100%" }}>
+      <style>{`
+        .pmy-unlayer, .pmy-unlayer > div, .pmy-unlayer > div > div { height: 100% !important; }
+        .pmy-unlayer iframe { height: 100% !important; min-height: 100% !important; }
+      `}</style>
+      <EmailEditor
+        ref={ref}
+        onReady={onLoad}
+        minHeight="100%"
+        options={{
+          mergeTags,
+          appearance: { theme: "modern_light" },
+          features: { textEditor: { tables: true } },
+        }}
+        style={{ height: "100%", width: "100%" }}
+      />
+    </div>
   );
 }
