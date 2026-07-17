@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { useHistoryStore } from '@/store/history.store';
 import { UserRole } from '@/lib/types';
-import { hasPermission } from '@/lib/access/permissions';
+import { hasPermission, getLandingRoute } from '@/lib/access/permissions';
 
 const SUPER_ROLES = ['superadmin', 'superamin'];
 
@@ -56,12 +56,18 @@ export function withAuth<P extends object>(
             if (!user?.role) return;
 
             if (!computeAllowed()) {
-                if (previous && previous !== pathname) {
+                // Destino seguro: nunca regresar a una ruta que a su vez redirige
+                // (`/login`, `/`, `/dashboard`), porque provoca loops de redirección.
+                const landing = getLandingRoute(user);
+                const REDIRECTING_ROUTES = new Set(['/login', '/', '/dashboard']);
+                const canGoBack =
+                    previous && previous !== pathname && !REDIRECTING_ROUTES.has(previous);
+                if (canGoBack) {
                     console.warn(`Acceso no permitido (${user.role}), regresando a la página anterior`);
                     router.push(previous);
                 } else {
-                    console.warn(`Acceso no permitido (${user.role}), redirigiendo a /dashboard`);
-                    router.push('/dashboard');
+                    console.warn(`Acceso no permitido (${user.role}), redirigiendo a ${landing}`);
+                    router.push(landing);
                 }
             }
         }, [hasHydrated, isAuthenticated, user, access, router, pathname, previous]);

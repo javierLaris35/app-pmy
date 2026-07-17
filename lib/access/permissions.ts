@@ -56,3 +56,14 @@ export function hasPermission(user: User | null | undefined, code: string): bool
   const roles = legacyRolesForCode(code);
   return roles.length === 0 || roles.includes(user.role);
 }
+
+/**
+ * Ruta de aterrizaje segura para un usuario autenticado.
+ *
+ * Única fuente de verdad para decidir a dónde mandar al usuario tras iniciar
+ * sesión o cuando un guard rechaza el acceso. Debe apuntar SIEMPRE a una ruta
+ * NO gateada como último recurso (`/inicio`), para evitar loops de redirección.
+ */
+export function getLandingRoute(user: User | null | undefined): string {
+  return hasPermission(user, "dashboard") ? "/dashboard" : "/inicio";
+}

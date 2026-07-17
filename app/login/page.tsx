@@ -2,6 +2,7 @@
 
 import { LoginForm } from "@/components/login-form"
 import { useAuthStore } from "@/store/auth.store";
+import { getLandingRoute } from "@/lib/access/permissions";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -11,7 +12,7 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (hasHydrated && isAuthenticated && user) {
-        router.replace("/dashboard");
+        router.replace(getLandingRoute(user));
         }
     }, [hasHydrated, isAuthenticated, user]);
 

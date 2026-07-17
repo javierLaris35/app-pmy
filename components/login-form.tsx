@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuthStore } from "@/store/auth.store"
 import { login } from "@/lib/services/login"
+import { getLandingRoute } from "@/lib/access/permissions"
 import { Loader2Icon, Mail } from "lucide-react"
 import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 
@@ -36,7 +37,7 @@ export function LoginForm({
       const user = await login(email, password)
       if (user && user.access_token) {
         useAuthStore.getState().login(user.user, user.access_token)
-        router.push("/dashboard")
+        router.push(getLandingRoute(user.user))
       } else {
         setError("Usuario o contraseña incorrectos")
       }
