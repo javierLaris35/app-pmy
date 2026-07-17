@@ -26,8 +26,8 @@ import { PackageListItem } from "@/components/shared/package-list-item";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useAuthStore } from "@/store/auth.store";
-import { validateTrackingNumbers, saveUnloading, uploadPDFile } from "@/lib/services/unloadings";
-import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types";
+import { validateTrackingNumbers, saveUnloading, uploadPDFile, getUnloadingSessionInit, validateOne } from "@/lib/services/unloadings";
+import { Consolidateds, ConsolidatedDetails, ConsolidatedInitItem, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, UnloadingSessionInit, ValidatedUnloadingOne, ValidTrackingAndConsolidateds } from "@/lib/types";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -48,6 +48,33 @@ import { ExpirationAlertModal, ExpiringPackage } from "@/components/ExpirationAl
 import { CorrectTrackingModal } from "./correct-tracking-modal";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+
+// Convierte la respuesta de session-init en la estructura Consolidateds que usa
+// el store: cada consolidado arranca con added vacío y notFound = universo
+// esperado (para contar faltantes en cliente sin reenviar la lista al backend).
+function seedConsolidatedFromInit(data: UnloadingSessionInit): Consolidateds {
+  const toDetails = (item: ConsolidatedInitItem): ConsolidatedDetails => ({
+    id: item.id,
+    type: item.type,
+    typeCode: item.typeCode,
+    numberOfPackages: item.numberOfPackages,
+    color: item.color,
+    icon: null,
+    added: [],
+    notFound: (item.expected || []).map((e) => ({
+      trackingNumber: e.trackingNumber,
+      recipientName: e.recipientName,
+      recipientAddress: e.recipientAddress,
+      recipientPhone: e.recipientPhone,
+    })),
+  });
+
+  return {
+    airConsolidated: (data.airConsolidated || []).map(toDetails),
+    groundConsolidated: (data.groundConsolidated || []).map(toDetails),
+    f2Consolidated: (data.f2Consolidated || []).map(toDetails),
+  };
+}
 
 // Hook useLocalStorage
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -845,54 +872,96 @@ export default function UnloadingForm({
     }
   }, [isOnline, selectedSubsidiaryId, setShipments, toast]);
 
-  // 🚨 SOLUCIÓN 2: handleValidatePackages con Payload DTO 🚨
+  // Validación UNO POR UNO (como inventarios). En cada escaneo solo se validan
+  // las guías NUEVAS con una llamada validate-one por guía (payload mínimo), en
+  // vez de reenviar toda la lista al batch. El conteo por consolidado se mantiene
+  // en cliente sobre consolidatedValidation (sembrado por session-init).
   const handleValidatePackages = useCallback(async () => {
     if (isLoading || isValidationPackages) return;
-    
-    if (!selectedSubsidiaryId) { 
-      toast({ title: "Error", description: "Selecciona una sucursal antes de validar.", variant: "destructive" }); 
-      return; 
+
+    if (!selectedSubsidiaryId) {
+      toast({ title: "Error", description: "Selecciona una sucursal antes de validar.", variant: "destructive" });
+      return;
     }
 
-    const trackingNumbers = safeScannedPackages.map(p => p.trackingNumber);
+    const trackingNumbers: string[] = safeScannedPackages.map((p: any) => p.trackingNumber);
     // Aceptamos FedEx (numérico) y DHL (JD/JJD o numérico de 18). El filtro previo
     // (/^\d{10,12}$/) descartaba TODO DHL, por eso los JD/JJD "no se leían".
     const validNumbers = trackingNumbers.filter(t => isValidScannedCode(normalizeScannedCode(t)));
     const invalidNumbers = trackingNumbers.filter(t => !isValidScannedCode(normalizeScannedCode(t)));
-    
+
     if (validNumbers.length === 0) return;
+
+    const currentShipments: PackageInfoForUnloading[] = Array.isArray(shipments) ? shipments : [];
+    const alreadyTns = new Set(currentShipments.map(p => p.trackingNumber));
+    // Solo las guías que aún no están en shipments (nuevas).
+    const newNumbers = validNumbers.filter(tn => !alreadyTns.has(tn));
 
     setIsValidationPackages(true);
     setIsLoading(true);
-    
-    try {
-      // 🚀 TRANSFORMACIÓN: Mandamos el arreglo de OBJETOS que NestJS espera 🚀
-      const payloadDTO = validNumbers.map(tn => ({
-        trackingNumber: tn,
-        isAlreadyValidated: false
-      }));
 
-      const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
-        payloadDTO as any, 
-        selectedSubsidiaryId
-      );
-      
-      if (barScannerInputRef.current?.updateValidatedPackages) {
-        barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
+    try {
+      // Validación uno por uno.
+      const results: ValidatedUnloadingOne[] = [];
+      for (const tn of newNumbers) {
+        const r = await validateOne(tn, selectedSubsidiaryId);
+        results.push(r);
       }
-      
-      setShipments(result.validatedShipments);
-      handleExpirationCheck(result.validatedShipments);
-      
-      const newMissing = updateMissingPackages(result.validatedShipments, result.consolidateds);
+
+      // Evita duplicados por variantes DHL (validate-one devuelve el tracking guardado).
+      const resultsToAdd = results.filter(r => !alreadyTns.has(r.trackingNumber));
+      const newShipments = resultsToAdd.map(r => ({ ...r })) as unknown as PackageInfoForUnloading[];
+      const updatedShipments = [...currentShipments, ...newShipments];
+
+      if (barScannerInputRef.current?.updateValidatedPackages) {
+        barScannerInputRef.current.updateValidatedPackages(updatedShipments);
+      }
+
+      setShipments(updatedShipments);
+      handleExpirationCheck(newShipments);
+
+      // Actualiza el conteo por consolidado en cliente: mueve cada guía válida de
+      // notFound a added dentro del consolidado indicado por consolidatedId.
+      let nextConsolidated = consolidatedValidation;
+      if (nextConsolidated) {
+        const cloneGroup = (arr: ConsolidatedDetails[]) =>
+          (arr || []).map(c => ({ ...c, added: [...(c.added || [])], notFound: [...(c.notFound || [])] }));
+        const clone: Consolidateds = {
+          airConsolidated: cloneGroup(nextConsolidated.airConsolidated),
+          groundConsolidated: cloneGroup(nextConsolidated.groundConsolidated),
+          f2Consolidated: cloneGroup(nextConsolidated.f2Consolidated),
+        };
+        const groups = [clone.airConsolidated, clone.groundConsolidated, clone.f2Consolidated];
+        for (const r of resultsToAdd) {
+          if (!r.isValid || !r.consolidatedId) continue;
+          for (const g of groups) {
+            const c = g.find(x => x.id === r.consolidatedId);
+            if (!c) continue;
+            if (!c.added.some(a => a.trackingNumber === r.trackingNumber)) {
+              c.added.push({
+                trackingNumber: r.trackingNumber,
+                recipientName: r.recipientName,
+                recipientAddress: r.recipientAddress,
+                recipientPhone: r.recipientPhone,
+              });
+            }
+            c.notFound = c.notFound.filter(m => m.trackingNumber !== r.trackingNumber);
+            break;
+          }
+        }
+        nextConsolidated = clone;
+        setConsolidatedValidation(clone);
+      }
+
+      const newMissing = updateMissingPackages(updatedShipments, nextConsolidated);
       setMissingPackages(newMissing);
-      
-      const validTrackings = result.validatedShipments.filter(p => p.isValid).map(p => p.trackingNumber);
+
+      const validTrackings = updatedShipments.filter(p => p.isValid).map(p => p.trackingNumber);
       const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
       const allSurplus = [...invalidNumbers, ...surplusFromValid];
       const prevSurplus = safeArray(surplusTrackings);
       const newSurplusItems = allSurplus.filter(s => !prevSurplus.includes(s));
-      
+
       if (newSurplusItems.length > 0) {
         speakMessage("La guía no se encontró. Por favor, verifica.");
         // Sonido diferenciado: formato inválido vs. sobrante (no encontrada en manifiesto).
@@ -902,30 +971,29 @@ export default function UnloadingForm({
           else playSurplusSound();
         } catch (err) {}
       }
-      
+
       setSurplusTrackings(allSurplus);
-      setConsolidatedValidation(result.consolidateds || null);
-      
-      toast({ 
-        title: "Validación completada", 
-        description: `✅ ${result.validatedShipments.filter(p => p.isValid).length} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes` 
+
+      toast({
+        title: "Validación completada",
+        description: `✅ ${validTrackings.length} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes`
       });
-      
+
     } catch (error) {
       console.error("Error validating packages:", error);
       if (!isOnline) {
-        const offlinePackages = validNumbers.map(tn => ({ 
-          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, 
-          trackingNumber: tn, 
-          isValid: false, 
-          isOffline: true, 
-          reason: "Sin conexión - validar cuando se restablezca internet", 
-          createdAt: new Date() 
-        } as PackageInfoForUnloading));
-        
+        const offlinePackages = newNumbers.map(tn => ({
+          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2,9)}`,
+          trackingNumber: tn,
+          isValid: false,
+          isOffline: true,
+          reason: "Sin conexión - validar cuando se restablezca internet",
+          createdAt: new Date()
+        } as unknown as PackageInfoForUnloading));
+
         setShipments(prev => [...safeArray(prev), ...offlinePackages]);
         setSurplusTrackings(invalidNumbers);
-        toast({ title: "Modo offline activado", description: `Se guardaron ${validNumbers.length} paquetes localmente.` });
+        toast({ title: "Modo offline activado", description: `Se guardaron ${newNumbers.length} paquetes localmente.` });
       } else {
         toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
       }
@@ -935,7 +1003,7 @@ export default function UnloadingForm({
       setTimeout(() => { try { barScannerInputRef.current?.focus(); } catch {} }, 150);
     }
   }, [
-    isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound, playInvalidSnd
+    isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, shipments, consolidatedValidation, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound, playInvalidSnd
   ]);
 
   const shipmentsArray = useMemo(() => Array.isArray(shipments) ? shipments : [], [shipments]);
@@ -969,6 +1037,23 @@ export default function UnloadingForm({
       { label: "Sobrantes", value: safeSurplusTrackings.length, valueClassName: "text-amber-600" },
     ];
   }, [validShipments, shipmentsArray.length, safeMissingPackages.length, safeSurplusTrackings.length]);
+
+  // Carga el universo esperado por consolidado UNA sola vez al iniciar la sesión.
+  // Si ya hay consolidatedValidation (sesión en curso persistida en el store), no
+  // se re-siembra para no perder los "added" ya escaneados.
+  useEffect(() => {
+    if (!selectedSubsidiaryId || consolidatedValidation) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getUnloadingSessionInit(selectedSubsidiaryId);
+        if (!cancelled) setConsolidatedValidation(seedConsolidatedFromInit(data));
+      } catch (error) {
+        console.error("Error cargando session-init:", error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedSubsidiaryId, consolidatedValidation, setConsolidatedValidation]);
 
   // 🚨 SOLUCIÓN 3: useEffect de validación automática estabilizado 🚨
   useEffect(() => {
