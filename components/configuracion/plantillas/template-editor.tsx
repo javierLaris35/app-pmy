@@ -15,12 +15,12 @@ import {
   getTemplateForEdit, saveDraft, publishVersion, restoreVersion,
   TemplateForEdit, DocumentTemplateVersion,
 } from "@/lib/services/document-templates";
-import { VariablePalette } from "./variable-palette";
 import { VersionHistory } from "./version-history";
 import { PreviewPanel } from "./preview-panel";
 import { TestSendDialog } from "./test-send-dialog";
-import BlockEditor, { BlockEditorApi } from "./blocks/block-editor";
-import { EmailDoc } from "./blocks/email-block.types";
+import type { UnlayerEditorApi } from "./unlayer/unlayer-editor";
+
+const UnlayerEditor = dynamic(() => import("./unlayer/unlayer-editor"), { ssr: false });
 
 function pickWorkingVersion(data: TemplateForEdit): DocumentTemplateVersion | null {
   const drafts = data.versions.filter((v) => v.status === "draft").sort((a, b) => b.version - a.version);
@@ -41,7 +41,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   const [saving, setSaving] = useState(false);
   const [draftVersionId, setDraftVersionId] = useState<string | null>(null);
   const [sample, setSample] = useState<Record<string, any>>({});
-  const apiRef = useRef<BlockEditorApi | null>(null);
+  const apiRef = useRef<UnlayerEditorApi | null>(null);
 
   const reload = async () => {
     const d = await getTemplateForEdit(templateId);
@@ -58,8 +58,8 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
     if (!apiRef.current) return null;
     setSaving(true);
     try {
-      const doc = apiRef.current.getDoc();
-      const v = await saveDraft(templateId, { subject, designJson: doc });
+      const { design, html } = await apiRef.current.exportDesign();
+      const v = await saveDraft(templateId, { subject, designJson: design, compiledBody: html });
       setDraftVersionId(v.id);
       toast.success?.("Borrador guardado");
       await reload();
@@ -111,11 +111,13 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
               <Label>Asunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto (admite {{variables}})" />
             </div>
-            <Card><CardContent className="p-0 h-[600px] overflow-hidden">
+            <Card><CardContent className="p-0 h-[640px] overflow-hidden">
               {data && (
-                <BlockEditor
+                <UnlayerEditor
                   key={working?.id}
-                  initialDoc={(working?.designJson && Array.isArray(working.designJson.blocks) ? working.designJson : { blocks: [] }) as EmailDoc}
+                  initialDesign={working?.designJson}
+                  variables={data.variables}
+                  brand={null}
                   onReady={(api) => { apiRef.current = api; }}
                 />
               )}
@@ -134,7 +136,6 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
           </TabsContent>
         </Tabs>
         <div className="space-y-4">
-          <VariablePalette variables={data?.variables || []} onInsert={(n) => apiRef.current?.insertVariable(n)} />
           {data && <VersionHistory versions={data.versions} currentVersionId={data.template.currentVersionId} onRestore={onRestore} />}
         </div>
       </div>
