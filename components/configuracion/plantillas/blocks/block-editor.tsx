@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
 import { EmailBlock, EmailBlockType, EmailDoc, BLOCK_TYPES, newBlock } from "./email-block.types";
+import { toast } from "@/lib/toast";
 
 export interface BlockEditorApi {
   getDoc: () => EmailDoc;
@@ -35,7 +36,7 @@ export default function BlockEditor({ initialDoc, onReady }: Props) {
       insertVariable: (name: string) => {
         const token = `{{${name}}}`;
         const f = focusedRef.current;
-        if (!f) return;
+        if (!f) { toast.message?.("Coloca el cursor en un campo de texto primero"); return; }
         const el = f.el;
         const start = el.selectionStart ?? el.value.length;
         const end = el.selectionEnd ?? el.value.length;
@@ -55,7 +56,7 @@ export default function BlockEditor({ initialDoc, onReady }: Props) {
         ? { ...bb, items: bb.items.map((it, i) => (i === idx ? { ...it, value } : it)) }
         : bb));
   const add = (type: EmailBlockType) => setBlocks((bs) => [...bs, newBlock(type)]);
-  const remove = (id: string) => setBlocks((bs) => bs.filter((b) => b.id !== id));
+  const remove = (id: string) => { focusedRef.current = null; setBlocks((bs) => bs.filter((b) => b.id !== id)); };
   const move = (i: number, dir: -1 | 1) => setBlocks((bs) => {
     const j = i + dir; if (j < 0 || j >= bs.length) return bs;
     const c = [...bs]; [c[i], c[j]] = [c[j], c[i]]; return c;
@@ -130,9 +131,10 @@ function BlockFields({ block: b, update, bindFocus, patchKeyValueItem }: {
       return (
         <div className="space-y-1">
           {b.items.map((it, idx) => (
-            <div key={idx} className="grid grid-cols-2 gap-2">
+            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2">
               <Input value={it.label} onChange={(e) => { const items = [...b.items]; items[idx] = { ...it, label: e.target.value }; update(b.id, { items } as any); }} placeholder="Etiqueta" />
               <Input value={it.value} {...bindFocus((v) => patchKeyValueItem(b.id, idx, v))} onChange={(e) => patchKeyValueItem(b.id, idx, e.target.value)} placeholder="Valor (p.ej. {{fecha}})" />
+              <Button variant="ghost" size="icon" onClick={() => update(b.id, { items: b.items.filter((_, i) => i !== idx) } as any)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
             </div>
           ))}
           <Button variant="ghost" size="sm" onClick={() => update(b.id, { items: [...b.items, { label: '', value: '' }] } as any)}><Plus className="h-3.5 w-3.5 mr-1" /> Agregar fila</Button>
@@ -143,9 +145,10 @@ function BlockFields({ block: b, update, bindFocus, patchKeyValueItem }: {
         <div className="space-y-1">
           <Input value={b.rowsVar} onChange={(e) => update(b.id, { rowsVar: e.target.value } as any)} placeholder="Variable-lista de filas (p.ej. rows)" />
           {b.columns.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-2 gap-2">
+            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2">
               <Input value={c.label} onChange={(e) => { const columns = [...b.columns]; columns[idx] = { ...c, label: e.target.value }; update(b.id, { columns } as any); }} placeholder="Encabezado" />
               <Input value={c.key} onChange={(e) => { const columns = [...b.columns]; columns[idx] = { ...c, key: e.target.value }; update(b.id, { columns } as any); }} placeholder="Campo del dato (p.ej. trackingNumber)" />
+              <Button variant="ghost" size="icon" onClick={() => update(b.id, { columns: b.columns.filter((_, i) => i !== idx) } as any)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
             </div>
           ))}
           <Button variant="ghost" size="sm" onClick={() => update(b.id, { columns: [...b.columns, { label: '', key: '' }] } as any)}><Plus className="h-3.5 w-3.5 mr-1" /> Agregar columna</Button>
