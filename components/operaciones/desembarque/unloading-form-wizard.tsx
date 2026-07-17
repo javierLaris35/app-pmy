@@ -9,8 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Loader2, Search, Filter, ChevronDown, ChevronUp, Download, X, ArrowRight, ArrowLeft, FileText, Mail } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
-import { validateTrackingNumbers, saveUnloading, uploadPDFile, getConsolidatedsToStartUnloading } from "@/lib/services/unloadings";
-import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types";
+import { validateTrackingNumbers, saveUnloading, uploadPDFile, getUnloadingSessionInit, validateOne } from "@/lib/services/unloadings";
+import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds, UnloadingSessionInit, ConsolidatedInitItem } from "@/lib/types";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -107,9 +107,11 @@ enum TrackingNotFoundEnum {
 interface ConsolidateItem {
   id: string;
   type: string;
+  typeCode: string;
   numberOfPackages: number;
   added: string[];
   notFound: string[];
+  expected: { trackingNumber: string }[];
 }
 
 interface SelectedConsolidate {
@@ -1145,7 +1147,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [consolidatedData, setConsolidatedData] = useState<Consolidateds>();
+  const [consolidatedData, setConsolidatedData] = useState<UnloadingSessionInit>();
   const [lastValidated, setLastValidated] = useState("");
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
@@ -1235,7 +1237,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       
       setLoadingConsolidates(true);
       try {
-        const data = await getConsolidatedsToStartUnloading(user.subsidiary.id);
+        const data = await getUnloadingSessionInit(user.subsidiary.id);
         setConsolidatedData(data);
       } catch (error) {
         console.error("Error loading consolidates:", error);
@@ -1255,40 +1257,22 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   // Obtener todos los consolidados disponibles como lista plana
   const allConsolidates = useMemo(() => {
     if (!consolidatedData) return [];
-    
-    const consolidates: ConsolidateItem[] = [];
-    
-    consolidatedData.airConsolidated?.forEach(item => {
-      consolidates.push({
-        id: `air-${item.type}-${Math.random().toString(36).substr(2, 9)}`,
-        type: item.type,
-        numberOfPackages: item.numberOfPackages,
-        added: item.added || [],
-        notFound: item.notFound || []
-      });
+
+    const toItem = (item: ConsolidatedInitItem): ConsolidateItem => ({
+      id: item.id,
+      type: item.type,
+      typeCode: item.typeCode,
+      numberOfPackages: item.numberOfPackages,
+      added: [],
+      notFound: item.expected.map((e) => e.trackingNumber),
+      expected: item.expected,
     });
-    
-    consolidatedData.groundConsolidated?.forEach(item => {
-      consolidates.push({
-        id: `ground-${item.type}-${Math.random().toString(36).substr(2, 9)}`,
-        type: item.type,
-        numberOfPackages: item.numberOfPackages,
-        added: item.added || [],
-        notFound: item.notFound || []
-      });
-    });
-    
-    consolidatedData.f2Consolidated?.forEach(item => {
-      consolidates.push({
-        id: `f2-${item.type}-${Math.random().toString(36).substr(2, 9)}`,
-        type: item.type,
-        numberOfPackages: item.numberOfPackages,
-        added: item.added || [],
-        notFound: item.notFound || []
-      });
-    });
-    
-    return consolidates;
+
+    return [
+      ...(consolidatedData.airConsolidated?.map(toItem) ?? []),
+      ...(consolidatedData.groundConsolidated?.map(toItem) ?? []),
+      ...(consolidatedData.f2Consolidated?.map(toItem) ?? []),
+    ];
   }, [consolidatedData]);
 
   // Navegación entre pasos
