@@ -9,8 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Loader2, Search, Filter, ChevronDown, ChevronUp, Download, X, ArrowRight, ArrowLeft, FileText, Mail } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
-import { validateTrackingNumbers, saveUnloading, uploadPDFile, getUnloadingSessionInit, validateOne } from "@/lib/services/unloadings";
-import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds, UnloadingSessionInit, ConsolidatedInitItem, ValidatedUnloadingOne } from "@/lib/types";
+import { validateTrackingNumbers, saveUnloading, uploadPDFile, getConsolidatedsToStartUnloading } from "@/lib/services/unloadings";
+import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -107,11 +107,9 @@ enum TrackingNotFoundEnum {
 interface ConsolidateItem {
   id: string;
   type: string;
-  typeCode: string;
   numberOfPackages: number;
   added: string[];
   notFound: string[];
-  expected: { trackingNumber: string }[];
 }
 
 interface SelectedConsolidate {
@@ -1147,7 +1145,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   const [showFilters, setShowFilters] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [consolidatedData, setConsolidatedData] = useState<UnloadingSessionInit>();
+  const [consolidatedData, setConsolidatedData] = useState<Consolidateds>();
   const [lastValidated, setLastValidated] = useState("");
   const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
@@ -1188,12 +1186,17 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
         
         offlinePackages.forEach(async (pkg) => {
           try {
-            const validated = await validateOne(pkg.trackingNumber, selectedSubsidiaryId);
-            setShipments(prev => prev.map(prevPkg =>
-              prevPkg.trackingNumber === pkg.trackingNumber
-                ? ({ ...validated, id: validated.id } as unknown as PackageInfoForUnloading)
-                : prevPkg
-            ));
+            const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(
+              [pkg.trackingNumber], 
+              selectedSubsidiaryId
+            );
+            
+            if (result.validatedShipments.length > 0) {
+              const validated = result.validatedShipments[0];
+              setShipments(prev => prev.map(prevPkg => 
+                prevPkg.trackingNumber === pkg.trackingNumber ? validated : prevPkg
+              ));
+            }
           } catch (error) {
             console.error("Error revalidando paquete offline:", error);
           }
@@ -1232,7 +1235,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       
       setLoadingConsolidates(true);
       try {
-        const data = await getUnloadingSessionInit(user.subsidiary.id);
+        const data = await getConsolidatedsToStartUnloading(user.subsidiary.id);
         setConsolidatedData(data);
       } catch (error) {
         console.error("Error loading consolidates:", error);
@@ -1252,22 +1255,40 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
   // Obtener todos los consolidados disponibles como lista plana
   const allConsolidates = useMemo(() => {
     if (!consolidatedData) return [];
-
-    const toItem = (item: ConsolidatedInitItem): ConsolidateItem => ({
-      id: item.id,
-      type: item.type,
-      typeCode: item.typeCode,
-      numberOfPackages: item.numberOfPackages,
-      added: [],
-      notFound: item.expected.map((e) => e.trackingNumber),
-      expected: item.expected,
+    
+    const consolidates: ConsolidateItem[] = [];
+    
+    consolidatedData.airConsolidated?.forEach(item => {
+      consolidates.push({
+        id: `air-${item.type}-${Math.random().toString(36).substr(2, 9)}`,
+        type: item.type,
+        numberOfPackages: item.numberOfPackages,
+        added: item.added || [],
+        notFound: item.notFound || []
+      });
     });
-
-    return [
-      ...(consolidatedData.airConsolidated?.map(toItem) ?? []),
-      ...(consolidatedData.groundConsolidated?.map(toItem) ?? []),
-      ...(consolidatedData.f2Consolidated?.map(toItem) ?? []),
-    ];
+    
+    consolidatedData.groundConsolidated?.forEach(item => {
+      consolidates.push({
+        id: `ground-${item.type}-${Math.random().toString(36).substr(2, 9)}`,
+        type: item.type,
+        numberOfPackages: item.numberOfPackages,
+        added: item.added || [],
+        notFound: item.notFound || []
+      });
+    });
+    
+    consolidatedData.f2Consolidated?.forEach(item => {
+      consolidates.push({
+        id: `f2-${item.type}-${Math.random().toString(36).substr(2, 9)}`,
+        type: item.type,
+        numberOfPackages: item.numberOfPackages,
+        added: item.added || [],
+        notFound: item.notFound || []
+      });
+    });
+    
+    return consolidates;
   }, [consolidatedData]);
 
   // Navegación entre pasos
@@ -1332,7 +1353,7 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setCurrentStep
   ]);
 
-  // handleValidatePackages: validación uno por uno (como inventarios) con conteo incremental.
+  // handleValidatePackages (MISMO que el original)
   const handleValidatePackages = async () => {
     if (isLoading || isValidationPackages) return;
 
@@ -1346,17 +1367,17 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       return;
     }
 
-    const trackingNumbers = scannedPackages.map((pkg) => pkg.trackingNumber);
+    const trackingNumbers = scannedPackages.map(pkg => pkg.trackingNumber);
     const validNumbers = trackingNumbers.filter((tn) => /^\d{12}$/.test(tn));
     const invalidNumbers = trackingNumbers.filter((tn) => !/^\d{12}$/.test(tn));
 
-    // Solo las guías que aún no están en shipments (nuevas).
-    const newNumbers = validNumbers.filter(
-      (tn) => !shipments.some((p) => p.trackingNumber === tn)
-    );
-
-    if (newNumbers.length === 0) {
-      setMissingTrackings(invalidNumbers);
+    if (validNumbers.length === 0) {
+      toast({
+        title: "Error",
+        description: "No se ingresaron números válidos.",
+        variant: "destructive",
+      });
+      setIsValidationPackages(false);
       return;
     }
 
@@ -1364,40 +1385,36 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
     setProgress(0);
 
     try {
-      // Validación uno por uno (como inventarios).
-      const results: ValidatedUnloadingOne[] = [];
-      for (const tn of newNumbers) {
-        const r = await validateOne(tn, selectedSubsidiaryId);
-        results.push(r);
-      }
-
-      const newValidShipments = results.map((r) => ({
-        ...r,
-        id: r.id,
-      })) as unknown as PackageInfoForUnloading[];
+      const result: ValidTrackingAndConsolidateds = await validateTrackingNumbers(validNumbers, selectedSubsidiaryId);
 
       if (barScannerInputRef.current && barScannerInputRef.current.updateValidatedPackages) {
-        barScannerInputRef.current.updateValidatedPackages(newValidShipments);
+        barScannerInputRef.current.updateValidatedPackages(result.validatedShipments);
       }
 
-      // Actualizar conteo por consolidado usando el consolidatedId real.
-      newValidShipments.forEach((packageInfo) => {
-        const cid = (packageInfo as any).consolidatedId;
-        if (!packageInfo.isValid || !cid) return;
+      const newValidShipments = result.validatedShipments.filter(
+          (r) => !shipments.some((p) => p.trackingNumber === r.trackingNumber)
+      );
 
-        setSelectedConsolidates((prev) =>
-          prev.map((consolidate) => {
-            if (consolidate.id !== cid) return consolidate;
-            return {
-              ...consolidate,
-              scannedPackages: [
-                ...consolidate.scannedPackages,
-                { ...packageInfo, consolidateId: consolidate.id },
-              ],
-              missingPackages: consolidate.missingPackages.filter(
-                (tracking) => tracking !== packageInfo.trackingNumber
-              ),
-            };
+      // Actualizar consolidados con los paquetes validados
+      newValidShipments.forEach(packageInfo => {
+        setSelectedConsolidates(prev => 
+          prev.map(consolidate => {
+            const belongsToConsolidate = consolidate.notFound.includes(packageInfo.trackingNumber) || 
+                                       consolidate.added.includes(packageInfo.trackingNumber);
+
+            if (belongsToConsolidate) {
+              const updatedPackage = {
+                ...packageInfo,
+                consolidateId: consolidate.id
+              };
+
+              return {
+                ...consolidate,
+                scannedPackages: [...consolidate.scannedPackages, updatedPackage],
+                missingPackages: consolidate.missingPackages.filter(tracking => tracking !== packageInfo.trackingNumber)
+              };
+            }
+            return consolidate;
           })
         );
       });
@@ -1407,15 +1424,15 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       setUnScannedTrackings([]);
 
       const todayExpiringPackages: ExpiringPackage[] = newValidShipments
-        .filter((pkg) => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
-        .map((pkg) => ({
-          trackingNumber: pkg.trackingNumber,
-          recipientName: pkg.recipientName || undefined,
-          recipientAddress: pkg.recipientAddress || undefined,
-          commitDateTime: pkg.commitDateTime || undefined,
-          daysUntilExpiration: pkg.commitDateTime ? getDaysUntilExpiration(pkg.commitDateTime) : 0,
-          priority: pkg.priority || undefined,
-        }));
+          .filter(pkg => pkg.isValid && pkg.commitDateTime && checkPackageExpiration(pkg))
+          .map(pkg => ({
+            trackingNumber: pkg.trackingNumber,
+            recipientName: pkg.recipientName || undefined,
+            recipientAddress: pkg.recipientAddress || undefined,
+            commitDateTime: pkg.commitDateTime || undefined,
+            daysUntilExpiration: pkg.commitDateTime ? getDaysUntilExpiration(pkg.commitDateTime) : 0,
+            priority: pkg.priority || undefined
+          }));
 
       if (todayExpiringPackages.length > 0) {
         setExpiringPackages(todayExpiringPackages);
@@ -1429,14 +1446,14 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
       toast({
         title: "Validación completada",
         description: `Se agregaron ${validCount} paquetes válidos. Paquetes inválidos: ${
-          invalidCount + invalidNumbers.length
+            invalidCount + invalidNumbers.length
         }`,
       });
     } catch (error) {
       console.error("Error validating packages:", error);
-
+      
       if (!isOnline) {
-        const offlinePackages: PackageInfoForUnloading[] = newNumbers.map((tn) => ({
+        const offlinePackages: PackageInfoForUnloading[] = validNumbers.map(tn => ({
           id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           trackingNumber: tn,
           isValid: false,
@@ -1444,13 +1461,13 @@ export default function UnloadingForm({ onClose, onSuccess }: Props) {
           isOffline: true,
           createdAt: new Date(),
         } as PackageInfoForUnloading));
-
+        
         setShipments((prev) => [...prev, ...offlinePackages]);
         setMissingTrackings(invalidNumbers);
-
+        
         toast({
           title: "Modo offline activado",
-          description: `Se guardaron ${newNumbers.length} paquetes localmente. Se validarán cuando se recupere la conexión.`,
+          description: `Se guardaron ${validNumbers.length} paquetes localmente. Se validarán cuando se recupere la conexión.`,
         });
       } else {
         toast({
