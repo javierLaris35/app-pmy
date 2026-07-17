@@ -111,7 +111,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
               <Label>Asunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto (admite {{variables}})" />
             </div>
-            <Card><CardContent className="p-0 h-[640px] overflow-hidden">
+            <Card><CardContent className="p-0 h-[78vh] min-h-[560px] overflow-hidden">
               {data && (
                 <UnlayerEditor
                   key={working?.id}

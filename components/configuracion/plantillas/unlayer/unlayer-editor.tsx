@@ -38,15 +38,18 @@ export default function UnlayerEditor({ initialDesign, variables, brand, onReady
   };
 
   return (
+    // `minHeight` es una PROP de react-email-editor (controla el alto real del
+    // editor/iframe). Pasarlo por `style` NO funciona → el editor salía diminuto.
     <EmailEditor
       ref={ref}
       onReady={onLoad}
+      minHeight="100%"
       options={{
         mergeTags,
         appearance: { theme: "modern_light" },
         features: { textEditor: { tables: true } },
       }}
-      style={{ height: "100%", minHeight: 600 }}
+      style={{ height: "100%", width: "100%" }}
     />
   );
 }
