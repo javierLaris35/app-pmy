@@ -502,7 +502,7 @@ function StopCard({ stop, waSettings, routeName, driverName }: {
   // "Avisar al chofer": solo en paradas EN RIESGO de Local Delay hoy — vencidas o
   // que vencen hoy y aún sin resolver. Y solo si la función está activa en Configuración.
   const atRisk = !resolved && (urgency === "overdue" || urgency === "today");
-  const canNotify = !!waSettings?.enabled && !!waSettings.driverPhone && atRisk;
+  const canNotify = !!waSettings?.enabled && atRisk;
   const messageContext: DriverMessageContext = {
     cliente: stop.recipientName || "—",
     direccion: stop.recipientAddress || "—",
@@ -605,9 +605,9 @@ function StopCard({ stop, waSettings, routeName, driverName }: {
           )}
         </div>
 
-        {canNotify && waSettings && (
+        {canNotify && (
           <div className="pt-0.5">
-            <SendDriverMessageButton settings={waSettings} context={messageContext} />
+            <SendDriverMessageButton context={messageContext} />
           </div>
         )}
       </div>
