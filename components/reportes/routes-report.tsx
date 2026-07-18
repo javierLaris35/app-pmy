@@ -24,6 +24,8 @@ import {
   fetchRoutesReportJson, fetchVisibility67FedexCheck, updateCommitDatesBatch,
 } from "@/lib/services/reportes/reportes";
 import { buildRoutesReportExcel } from "@/lib/services/reportes/routes-report-excel";
+import { getSubsidiaryById } from "@/lib/services/subsidiaries";
+import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion";
 import { LD_DEX_CODES, twoDigits } from "@/lib/ld-codes";
 import { cn } from "@/lib/utils";
 
@@ -352,6 +354,25 @@ export function RoutesReport({ onBack }: { onBack: () => void }) {
             <Button variant="outline" onClick={doExport} disabled={isExporting || rows.length === 0}>
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar Excel
             </Button>
+            {hasRun && rows.length > 0 && subsidiaryId && (
+              <EnviarNotificacionButton
+                triggerLabel="Enviar notificación"
+                triggerVariant="outline"
+                templateKeys={["reporte"]}
+                context={{
+                  sucursal: meta?.subsidiaryName || "",
+                  fecha: `${start} a ${end}`,
+                  link: `${typeof window !== "undefined" ? window.location.origin : ""}/reportes`,
+                }}
+                onResolve={async () => {
+                  const sub = await getSubsidiaryById(subsidiaryId);
+                  const numberOptions: NumberOption[] = sub.managerPhone
+                    ? [{ label: `Encargado (${sub.officeManager || "sucursal"})`, value: sub.managerPhone }]
+                    : [];
+                  return { numberOptions, context: { sucursal: sub.name || meta?.subsidiaryName || "" } };
+                }}
+              />
+            )}
             {hasRun && rows.length > 0 && (
               <>
                 <div className="flex items-center gap-2 px-2 border-l h-9">

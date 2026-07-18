@@ -22,14 +22,21 @@ export interface NumberOption {
 interface Props {
   /** Claves de plantilla ofrecidas para este módulo (ej. ["salida_ruta"]). */
   templateKeys: string[];
-  /** Valores para los {placeholders} de la plantilla (incluye {link}). */
+  /** Valores base para los {placeholders} (lo que ya se sabe desde la fila). */
   context: Record<string, string>;
-  /** Números prearmados (chofer/encargado). Siempre se agrega la opción "Custom". */
-  numberOptions: NumberOption[];
+  /** Números estáticos (chofer/encargado) si ya se conocen. Siempre se agrega "Custom". */
+  numberOptions?: NumberOption[];
+  /**
+   * Resolución perezosa al abrir el diálogo: carga el detalle del registro para
+   * traer teléfonos (chofer/encargado) y enriquecer el contexto (ruta, unidad…).
+   * Lo resuelto se fusiona con `numberOptions`/`context`.
+   */
+  onResolve?: () => Promise<{ numberOptions?: NumberOption[]; context?: Record<string, string> }>;
+  /** Texto del botón. Cadena vacía = solo icono (para columnas de acciones). */
   triggerLabel?: string;
   triggerClassName?: string;
   triggerVariant?: "default" | "outline" | "ghost";
-  triggerSize?: "default" | "sm";
+  triggerSize?: "default" | "sm" | "icon";
 }
 
 const CUSTOM = "__custom__";
@@ -47,17 +54,23 @@ function prettyPhone(digits: string): string {
  * de la API (gateway Baileys).
  */
 export function EnviarNotificacionButton({
-  templateKeys, context, numberOptions,
+  templateKeys, context, numberOptions = [], onResolve,
   triggerLabel = "Enviar notificación", triggerClassName,
   triggerVariant = "outline", triggerSize = "sm",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<WhatsappTemplate[]>([]);
   const [templateKey, setTemplateKey] = useState<string>("");
-  const [numberMode, setNumberMode] = useState<string>(numberOptions[0]?.value ?? CUSTOM);
+  const [resolvedNumbers, setResolvedNumbers] = useState<NumberOption[] | null>(null);
+  const [resolvedContext, setResolvedContext] = useState<Record<string, string>>({});
+  const [resolving, setResolving] = useState(false);
+  const [numberMode, setNumberMode] = useState<string>(CUSTOM);
   const [customNumber, setCustomNumber] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+
+  const effectiveNumbers = resolvedNumbers ?? numberOptions;
+  const effectiveContext = useMemo(() => ({ ...context, ...resolvedContext }), [context, resolvedContext]);
 
   useEffect(() => {
     if (!open) return;
@@ -68,13 +81,36 @@ export function EnviarNotificacionButton({
         setTemplateKey((prev) => (usable.some((t) => t.key === prev) ? prev : usable[0]?.key ?? ""));
       })
       .catch(() => toast.error("No se pudieron cargar las plantillas."));
-  }, [open, templateKeys]);
+    if (onResolve) {
+      setResolving(true);
+      onResolve()
+        .then((r) => {
+          if (r.numberOptions) setResolvedNumbers(r.numberOptions);
+          if (r.context) setResolvedContext(r.context);
+        })
+        .catch(() => toast.error("No se pudieron cargar los datos del registro."))
+        .finally(() => setResolving(false));
+    }
+  }, [open, templateKeys, onResolve]);
+
+  // Al resolver los números, preseleccionar el primero disponible.
+  const numbersKey = effectiveNumbers.map((o) => o.value).join(",");
+  useEffect(() => {
+    setNumberMode(effectiveNumbers[0]?.value ?? CUSTOM);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numbersKey]);
+
+  const handleOpenChange = (o: boolean) => {
+    if (sending) return;
+    setOpen(o);
+    if (!o) { setResolvedNumbers(null); setResolvedContext({}); }
+  };
 
   const selected = useMemo(() => templates.find((t) => t.key === templateKey), [templates, templateKey]);
 
   useEffect(() => {
-    if (selected) setMessage(buildMessage(selected.body, context));
-  }, [selected, context]);
+    if (selected) setMessage(buildMessage(selected.body, effectiveContext));
+  }, [selected, effectiveContext]);
 
   const to = numberMode === CUSTOM ? customNumber : numberMode;
   const toDigits = to.replace(/\D/g, "");
@@ -97,11 +133,11 @@ export function EnviarNotificacionButton({
 
   return (
     <>
-      <Button variant={triggerVariant} size={triggerSize} className={triggerClassName} onClick={() => setOpen(true)}>
-        <MessageCircle className="mr-1 h-3.5 w-3.5" /> {triggerLabel}
+      <Button variant={triggerVariant} size={triggerSize} className={triggerClassName} onClick={() => setOpen(true)} title={triggerLabel || "Enviar notificación"}>
+        <MessageCircle className={triggerLabel ? "mr-1 h-3.5 w-3.5" : "h-4 w-4"} />{triggerLabel}
       </Button>
 
-      <Dialog open={open} onOpenChange={(o) => !sending && setOpen(o)}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-emerald-600" /> Enviar notificación</DialogTitle>
@@ -122,11 +158,14 @@ export function EnviarNotificacionButton({
 
             {/* Número destino */}
             <div className="space-y-1.5">
-              <Label>Número destino</Label>
-              <Select value={numberMode} onValueChange={setNumberMode} disabled={sending}>
+              <Label className="flex items-center gap-2">
+                Número destino
+                {resolving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              </Label>
+              <Select value={numberMode} onValueChange={setNumberMode} disabled={sending || resolving}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {numberOptions.map((o) => (
+                  {effectiveNumbers.filter((o) => o.value).map((o) => (
                     <SelectItem key={o.value} value={o.value}>{o.label} ({prettyPhone(o.value)})</SelectItem>
                   ))}
                   <SelectItem value={CUSTOM}>Otro número…</SelectItem>
