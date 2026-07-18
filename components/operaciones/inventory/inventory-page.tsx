@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
@@ -36,8 +37,10 @@ export default function InventoryPageControl() {
   const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null)
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
-  const [searchInput, setSearchInput] = useState("")
-  const [search, setSearch] = useState("")
+  // Deep-link de correos: /operaciones/inventarios?seguimiento=XXXX enfoca el registro.
+  const seguimientoParam = useSearchParams().get("seguimiento") ?? ""
+  const [searchInput, setSearchInput] = useState(seguimientoParam)
+  const [search, setSearch] = useState(seguimientoParam)
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [isDetailLoading, setIsDetailLoading] = useState(false)
 

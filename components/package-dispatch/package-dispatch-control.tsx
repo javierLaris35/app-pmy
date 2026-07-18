@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -35,8 +36,10 @@ export default function PackageDispatchControl() {
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
-  const [searchInput, setSearchInput] = useState("")
-  const [search, setSearch] = useState("")
+  // Deep-link de correos: /operaciones/salidas-a-ruta?seguimiento=XXXX enfoca el registro.
+  const seguimientoParam = useSearchParams().get("seguimiento") ?? ""
+  const [searchInput, setSearchInput] = useState(seguimientoParam)
+  const [search, setSearch] = useState(seguimientoParam)
 
   // Debounce de la búsqueda por folio de salida (server-side).
   useEffect(() => {
