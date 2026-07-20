@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useTheme } from "next-themes"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
@@ -43,7 +44,10 @@ const SECTIONS = [
 type SectionId = (typeof SECTIONS)[number]["id"]
 
 function ConfiguracionPage() {
-  const [section, setSection] = useState<SectionId>("empresa")
+  const searchParams = useSearchParams()
+  const paramSection = searchParams.get("section")
+  const initialSection: SectionId = SECTIONS.some((s) => s.id === paramSection) ? (paramSection as SectionId) : "empresa"
+  const [section, setSection] = useState<SectionId>(initialSection)
   const { theme, setTheme } = useTheme()
   const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase()
   const isSuper = ["superadmin", "superamin"].includes(role)
@@ -157,4 +161,12 @@ function ConfiguracionPage() {
   )
 }
 
-export default withAuth(ConfiguracionPage, 'configuracion')
+function ConfiguracionPageWrapped() {
+  return (
+    <Suspense fallback={null}>
+      <ConfiguracionPage />
+    </Suspense>
+  )
+}
+
+export default withAuth(ConfiguracionPageWrapped, 'configuracion')

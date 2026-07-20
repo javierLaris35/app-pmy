@@ -3,13 +3,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Mail, Save, Send } from "lucide-react";
+import { ArrowLeft, Mail, Save, Send } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
   getTemplateForEdit, saveDraft, publishVersion, restoreVersion,
@@ -36,6 +37,7 @@ function initialSample(vars: { name: string; example?: string | null }[]): Recor
 }
 
 export function TemplateEditor({ templateId }: { templateId: string }) {
+  const router = useRouter();
   const [data, setData] = useState<TemplateForEdit | null>(null);
   const [subject, setSubject] = useState("");
   const [saving, setSaving] = useState(false);
@@ -93,6 +95,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
         description={data?.template.code}
         actions={
           <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/configuracion?section=plantillas")}><ArrowLeft className="h-4 w-4 mr-1" /> Regresar</Button>
             {data && <TestSendDialog code={data.template.code} sample={sample} />}
             <Button variant="outline" size="sm" onClick={onSave} disabled={saving}><Save className="h-4 w-4 mr-1" /> Guardar</Button>
             <Button size="sm" onClick={onPublish} disabled={saving}><Send className="h-4 w-4 mr-1" /> Publicar</Button>
