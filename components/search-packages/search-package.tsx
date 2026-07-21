@@ -15,7 +15,12 @@ import {
   Box,
   ShieldAlert,
   PackageCheck,
-  HelpCircle
+  HelpCircle,
+  History,
+  CalendarClock,
+  User,
+  Clock,
+  ChevronDown
 } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -24,6 +29,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import { getFedexTrackingInfo, searchPackageInfo, checkLdStatus, type LdCheckResult } from "@/lib/services/shipments"
 import { useUiStore } from "@/store/ui.store"
@@ -32,6 +39,39 @@ const formatMexicoPhone = (phone: string | number) => {
   const s = String(phone).replace(/\D/g, "")
   if (s.length !== 10) return s
   return `(${s.slice(0, 3)}) ${s.slice(3, 6)}-${s.slice(6)}`
+}
+
+// Fecha corta y consistente para todo el modal (tarjetas locales, FedEx y LD)
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return null
+  const parsed = new Date(dateStr)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+}
+
+// Un solo mapeo de color/ícono por estatus, reutilizado por las 3 pestañas y por
+// el timeline, para que "entregado", "en ruta", etc. se vean igual en todo el modal.
+const getStatusStyle = (status?: string) => {
+  const key = (status || "").toLowerCase()
+  if (key.includes("no entregado") || key.includes("no_entregado") || key.includes("error") || key.includes("rechazado")) {
+    return { badge: "bg-red-100 text-red-800 hover:bg-red-100", dot: "bg-red-50 text-red-500", ring: "bg-red-500", icon: AlertCircle }
+  }
+  if (key.includes("entregado")) {
+    return { badge: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100", dot: "bg-emerald-50 text-emerald-500", ring: "bg-emerald-500", icon: CheckCircle2 }
+  }
+  if (key.includes("ruta")) {
+    return { badge: "bg-blue-100 text-blue-800 hover:bg-blue-100", dot: "bg-blue-50 text-blue-500", ring: "bg-blue-500", icon: Truck }
+  }
+  if (key.includes("bodega")) {
+    return { badge: "bg-indigo-100 text-indigo-800 hover:bg-indigo-100", dot: "bg-indigo-50 text-indigo-500", ring: "bg-indigo-500", icon: Box }
+  }
+  if (key.includes("recol")) {
+    return { badge: "bg-purple-100 text-purple-800 hover:bg-purple-100", dot: "bg-purple-50 text-purple-500", ring: "bg-purple-500", icon: Package }
+  }
+  if (key.includes("pendiente")) {
+    return { badge: "bg-amber-100 text-amber-800 hover:bg-amber-100", dot: "bg-amber-50 text-amber-500", ring: "bg-amber-500", icon: Clock }
+  }
+  return { badge: "bg-slate-100 text-slate-700 hover:bg-slate-100", dot: "bg-slate-50 text-slate-500", ring: "bg-slate-400", icon: Package }
 }
 
 export function CommandPalette() {
@@ -199,16 +239,16 @@ export function CommandPalette() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Ingresa número de guía o carga..."
-                    className="pl-12 h-12 text-base bg-slate-50 border-transparent focus-visible:bg-white focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary transition-all"
+                    className="pl-12 h-12 text-base bg-slate-50 border-transparent focus-visible:bg-white transition-all"
                   />
                   {loading && <Loader2 className="absolute right-7 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-primary" />}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div className="flex-1 overflow-y-auto bg-gray-100 p-4">
                   {results.length > 0 ? (
                     <div className="space-y-4">
                       {results.map((item) => (
-                        <div key={item.trackingNumber} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                        <div key={item.trackingNumber} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                           
                           {/* Banner de Prioridad */}
                           {item.priority === "ALTA" && (
@@ -218,11 +258,11 @@ export function CommandPalette() {
                             </div>
                           )}
 
-                          <div className="p-5 md:p-6">
+                          <div className="p-4 md:p-5">
                             {/* Cabecera de la Tarjeta Local */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-100">
                               <div>
-                                <p className="text-sm text-slate-500 mb-1">Guía de rastreo</p>
+                                <p className="text-sm text-slate-700 mb-1">Guía de rastreo</p>
                                 <div className="flex items-center gap-3 flex-wrap">
                                   <h3 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">{item.trackingNumber}</h3>
                                   
@@ -234,76 +274,257 @@ export function CommandPalette() {
                                     </Badge>
                                   )}
 
-                                  {item.isCharge && <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-bold uppercase tracking-wider text-[10px] px-3 py-1">CARGA</Badge>}
+                                  {item.isCharge && <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100 font-bold uppercase tracking-wider text-[10px] px-3 py-1">CARGA</Badge>}
                                 </div>
                               </div>
-                              <Badge className={cn(
-                                "px-4 py-1.5 text-sm font-bold w-fit uppercase tracking-wide",
-                                item.status.toLowerCase() === "entregado" ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-blue-100 text-blue-800 hover:bg-blue-100"
-                              )}>
-                                {item.status}
+                              <Badge className={cn("px-4 py-1.5 text-sm font-bold w-fit uppercase tracking-wide", getStatusStyle(item.status).badge)}>
+                                {(item.status).replace(/_/g, " ").toUpperCase()}
                               </Badge>
                             </div>
 
-                            {/* Contenido Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                              {/* Columna Destino */}
-                              <div className="md:col-span-2 space-y-4">
+                            {/* CONTENIDO PRINCIPAL: Grid de 2 columnas */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                              
+                              {/* Columna Izquierda: Destino */}
+                              <div className="space-y-3">
                                 <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900 uppercase tracking-wide">
                                   <MapPin className="h-4 w-4 text-primary" /> Destino y Contacto
                                 </h4>
-                                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                                  <p className="font-semibold text-slate-900">{item.recipient?.name}</p>
-                                  <p className="text-sm text-slate-600 mt-1">{item.recipient?.address}</p>
-                                  <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-slate-200/60">
-                                    <span className="text-sm text-slate-600">CP: <span className="font-semibold text-slate-900">{item.recipient?.zipCode}</span></span>
-                                    <div className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block" />
-                                    <a href={`tel:${item.recipient?.phoneNumber}`} className="text-sm flex items-center gap-1.5 text-primary hover:underline font-medium">
-                                      <Phone className="h-3.5 w-3.5" /> {formatMexicoPhone(item.recipient?.phoneNumber || "")}
+                                
+                                {/* Tarjeta de Destino Mejorada */}
+                                <div className="bg-slate-50/70 rounded-xl p-5 border border-slate-200 h-[calc(100%-2rem)] flex flex-col justify-between">
+                                  <div className="space-y-4">
+                                    {/* Recibe */}
+                                    <div className="flex items-start gap-3">
+                                      <div className="mt-0.5 p-2 bg-white rounded-lg shadow-sm border border-slate-100">
+                                        <User className="h-4 w-4 text-slate-500" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-0.5">Recibe</p>
+                                        <p className="text-base font-bold text-slate-900">{item.recipient?.name}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Dirección */}
+                                    <div className="flex items-start gap-3">
+                                      <div className="mt-0.5 p-2 bg-white rounded-lg shadow-sm border border-slate-100">
+                                        <MapPin className="h-4 w-4 text-slate-500" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-0.5">Dirección de entrega</p>
+                                        <p className="text-sm font-medium text-slate-700 leading-relaxed">{item.recipient?.address}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Footer de Destino (CP y Teléfono) */}
+                                  <div className="mt-5 pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/60">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-slate-500 font-medium">CP:</span>
+                                      <span className="bg-slate-200/60 text-slate-700 font-bold px-2 py-1 rounded-md text-sm tracking-wide">
+                                        {item.recipient?.zipCode}
+                                      </span>
+                                    </div>
+                                    
+                                    <a 
+                                      href={`tel:${item.recipient?.phoneNumber}`} 
+                                      className="flex items-center gap-2 bg-white border border-slate-200 hover:border-primary/50 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors group shadow-sm"
+                                    >
+                                      <Phone className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary transition-colors" /> 
+                                      <span className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">
+                                        {formatMexicoPhone(item.recipient?.phoneNumber || "")}
+                                      </span>
                                     </a>
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Columna Finanzas y Logística */}
+                              {/* Columna Derecha: Finanzas y Logística */}
                               <div className="space-y-6">
+                                
+                                {/* Cobro Mejorado */}
                                 <div className="space-y-3">
                                   <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900 uppercase tracking-wide">
                                     <CreditCard className="h-4 w-4 text-primary" /> Cobro
                                   </h4>
                                   {item.payment?.amount > 0 ? (
-                                    <div className={cn("p-3 rounded-lg border", item.isPaid ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200")}>
-                                      <p className="text-xs text-slate-500 uppercase font-medium mb-1">{item.payment.type}</p>
+                                    <div className={cn("p-4 rounded-xl border flex flex-col justify-center", item.isPaid ? "bg-green-50/50 border-green-200" : "bg-amber-50/50 border-amber-200")}>
+                                      <p className="text-xs text-slate-500 uppercase font-bold tracking-wide mb-2">{item.payment.type}</p>
                                       <div className="flex items-center justify-between">
-                                        <span className={cn("font-bold text-lg", item.isPaid ? "text-green-700" : "text-amber-700")}>${item.payment.amount}</span>
-                                        <Badge variant="outline" className={cn("font-bold text-[10px] uppercase tracking-wider", item.isPaid ? "border-green-300 text-green-700" : "border-amber-300 text-amber-700")}>
+                                        <span className={cn("font-black text-2xl tracking-tight", item.isPaid ? "text-green-700" : "text-amber-700")}>
+                                          ${item.payment.amount}
+                                        </span>
+                                        <Badge variant="outline" className={cn("font-bold text-[11px] uppercase tracking-wider px-3 py-1", item.isPaid ? "border-green-300 text-green-700 bg-green-100/50" : "border-amber-300 text-amber-700 bg-amber-100/50")}>
                                           {item.isPaid ? 'Pagado' : 'Por cobrar'}
                                         </Badge>
                                       </div>
                                     </div>
                                   ) : (
-                                    <p className="text-sm text-slate-500 py-2 italic">Sin cargos pendientes</p>
+                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                      <p className="text-sm text-slate-500 font-medium flex items-center gap-2">
+                                        <CreditCard className="h-4 w-4 text-slate-400" /> Sin cargos pendientes
+                                      </p>
+                                    </div>
                                   )}
                                 </div>
 
+                                {/* Logística (Con los estilos Premium que ya teníamos) */}
                                 <div className="space-y-3">
                                   <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900 uppercase tracking-wide">
                                     <Truck className="h-4 w-4 text-primary" /> Logística
                                   </h4>
-                                  <div>
-                                    <p className="text-sm font-semibold text-slate-900">{item.route ? item.route.driver.name : "Operador Pendiente"}</p>
-                                    <p className="text-xs text-slate-500 mt-0.5">Ruta: {item.route?.trackingNumber || "N/A"} • {item.subsidiary}</p>
-                                  </div>
+                                  
+                                  {item.route ? (
+                                    <div className="bg-blue-50/60 rounded-xl p-4 border border-blue-100">
+                                      {/* Cabecera de la ruta */}
+                                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-3 border-b border-blue-200/60">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wide">
+                                          <div className="p-1.5 bg-blue-100 rounded-md">
+                                            <Truck className="h-3.5 w-3.5" />
+                                          </div>
+                                          Ruta activa
+                                        </div>
+                                        {item.route.date && (
+                                          <span className="text-xs font-medium text-blue-600 flex items-center gap-1.5 bg-blue-100/50 px-2 py-1 rounded-md">
+                                            <CalendarClock className="h-3.5 w-3.5" /> {formatDate(item.route.date)}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Detalles del Operador y Unidad */}
+                                      <div className="space-y-3">
+                                        <div className="flex items-start gap-3">
+                                          <div className="mt-0.5 bg-white p-1.5 rounded-full shadow-sm border border-blue-50">
+                                            <User className="h-4 w-4 text-blue-500" />
+                                          </div>
+                                          <div>
+                                            <p className="text-base font-bold text-slate-900 leading-none">
+                                              {item.route.driver?.name || "Operador Pendiente"}
+                                            </p>
+                                            <p className="text-sm text-slate-500 mt-1">Operador asignado</p>
+                                          </div>
+                                        </div>
+
+                                        {item.route.vehicle && (
+                                          <div className="flex items-start gap-3">
+                                            <div className="mt-0.5 bg-white p-1.5 rounded-full shadow-sm border border-blue-50">
+                                              <Truck className="h-4 w-4 text-blue-500" />
+                                            </div>
+                                            <p className="text-sm font-semibold text-slate-700 mt-1">
+                                              Unidad {item.route.vehicle}
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Pie de la tarjeta (Folio y Sucursal) */}
+                                      <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-2 text-sm border-t border-blue-200/60">
+                                        <span className="text-slate-600">
+                                          Folio: <span className="font-mono font-semibold text-slate-900">{item.route.trackingNumber || "N/A"}</span>
+                                        </span>
+                                        <span className="text-slate-600 font-medium bg-white px-2.5 py-0.5 rounded-full border border-slate-200 text-xs shadow-sm">
+                                          {item.subsidiary}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex items-center gap-3">
+                                      <div className="p-2 bg-slate-200/50 rounded-full">
+                                        <Truck className="h-4 w-4 text-slate-400" />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-medium text-slate-600">Sin ruta activa</p>
+                                        <p className="text-xs text-slate-500">{item.subsidiary}</p>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
+
+                            {/* FILA INFERIOR: Historial (Ancho completo) */}
+                            {item.statusTimeline?.length > 0 && (
+                              <div className="pt-4 border-t border-slate-100">
+                                <Collapsible>
+                                  <CollapsibleTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-10 -ml-2 px-3 gap-2 text-sm font-bold text-primary hover:bg-primary/10 hover:text-primary [&[data-state=open]>svg]:rotate-180 transition-all"
+                                    >
+                                      <History className="h-4 w-4" />
+                                      Ver historial de movimientos ({item.statusTimeline.length})
+                                      <ChevronDown className="h-4 w-4 transition-transform ml-1" />
+                                    </Button>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent>
+                                    <div className="mt-4 max-h-80 overflow-y-auto pr-3 bg-slate-50/80 p-5 rounded-xl border border-slate-200">
+                                      {[...item.statusTimeline].reverse().map((entry: any, i: number, arr: any[]) => {
+                                        const style = getStatusStyle(entry.status)
+                                        const isLast = i === arr.length - 1
+                                        return (
+                                          <div key={i} className="relative pl-8 pb-6 last:pb-0">
+                                            {/* Línea conectora */}
+                                            {!isLast && <span className="absolute left-[11px] top-5 bottom-0 w-0.5 bg-slate-200" />}
+                                            
+                                            {/* Punto de la línea de tiempo */}
+                                            <span className={cn("absolute left-0 top-1.5 h-6 w-6 rounded-full border-4 border-slate-50 flex items-center justify-center bg-white shadow-sm", style.ring)}>
+                                              <span className={cn("h-2 w-2 rounded-full", style.bg)} />
+                                            </span>
+
+                                            <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
+                                              <span className="text-sm font-bold text-slate-800">{entry.statusLabel}</span>
+                                              {/* Fecha en formato etiqueta */}
+                                              <span className="text-xs font-medium text-slate-600 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
+                                                {formatDate(entry.date) || "Sin fecha"}
+                                              </span>
+                                            </div>
+
+                                            {/* Tarjeta de Ruta (Dispatch) - Estilo Limpio pero con Folio resaltado */}
+                                            {entry.dispatch && (
+                                              <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 shadow-sm rounded-lg p-3.5 sm:p-4 w-full sm:w-[90%]">
+                                                
+                                                {/* Izquierda: Operador y Unidad */}
+                                                <div className="space-y-2">
+                                                  <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                                                    <User className="h-4 w-4 text-slate-400 shrink-0" /> 
+                                                    {entry.dispatch.driverName}
+                                                  </p>
+                                                  {entry.dispatch.vehicle && (
+                                                    <p className="text-sm text-slate-600 flex items-center gap-2">
+                                                      <Truck className="h-4 w-4 text-slate-400 shrink-0" /> 
+                                                      Unidad <b>{entry.dispatch.vehicle}</b>
+                                                    </p>
+                                                  )}
+                                                </div>
+
+                                                {/* Derecha: Folio Resaltado */}
+                                                <div className="pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 sm:border-l sm:pl-5 flex flex-col gap-1.5">
+                                                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                                    No. Seguimiento
+                                                  </span>
+                                                  <span className="inline-flex items-center justify-center bg-blue-50 border border-blue-200 text-blue-700 font-mono font-bold px-3 py-1.5 rounded-md text-sm shadow-sm w-fit">
+                                                    {entry.dispatch.folio || entry.dispatch.id}
+                                                  </span>
+                                                </div>
+
+                                              </div>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
-                      <div className="bg-slate-100 p-4 rounded-full">
+                      <div className="bg-white p-4 rounded-full shadow-sm border border-slate-100">
                         <Search className="h-10 w-10 text-slate-300" />
                       </div>
                       <p className="text-sm font-medium">Ingresa un número de rastreo para comenzar</p>
@@ -377,41 +598,41 @@ export function CommandPalette() {
 
                       {/* Lista de Resultados */}
                       <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-200">
-                        {fedexResults.map((res, idx) => (
-                          <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-slate-200 bg-white hover:border-primary/30 transition-all gap-4">
-                            
-                            <div className="flex items-start gap-4 flex-1">
-                              <div className={cn(
-                                "p-2 rounded-full shrink-0",
-                                res.isError ? "bg-red-50 text-red-500" : res.status?.toLowerCase().includes("entregado") ? "bg-emerald-50 text-emerald-500" : "bg-blue-50 text-blue-500"
-                              )}>
-                                {res.isError ? <AlertCircle className="h-5 w-5" /> : res.status?.toLowerCase().includes("entregado") ? <CheckCircle2 className="h-5 w-5" /> : <Truck className="h-5 w-5" />}
-                              </div>
-                              
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                  <p className="font-mono text-base font-bold text-slate-900">{res.trackingNumber}</p>
-                                  <Badge className={cn(
-                                    "px-2 py-0.5 text-[10px] uppercase font-bold",
-                                    res.isError ? "bg-red-100 text-red-700" : res.status?.toLowerCase().includes("entregado") ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
-                                  )}>
-                                    {res.status || 'ERROR'}
-                                  </Badge>
+                        {fedexResults.map((res, idx) => {
+                          const statusStyle = getStatusStyle(res.isError ? "error" : res.status)
+                          const StatusIcon = res.isError ? AlertCircle : statusStyle.icon
+                          return (
+                            <Card key={idx} className="rounded-xl border-slate-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all p-0">
+                              <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-4">
+
+                                <div className="flex items-start gap-4 flex-1">
+                                  <div className={cn("p-2 rounded-full shrink-0", statusStyle.dot)}>
+                                    <StatusIcon className="h-5 w-5" />
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-3">
+                                      <p className="font-mono text-base font-bold text-slate-900">{res.trackingNumber}</p>
+                                      <Badge className={cn("px-2 py-0.5 text-[10px] uppercase font-bold", statusStyle.badge)}>
+                                        {res.status || 'ERROR'}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-sm text-slate-600">{res.description}</p>
+                                  </div>
                                 </div>
-                                <p className="text-sm text-slate-600">{res.description}</p>
-                              </div>
-                            </div>
 
-                            <div className="flex flex-col sm:items-end gap-2 pl-14 sm:pl-0">
-                              {!res.isError && res.location && (
-                                <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                                  <MapPin className="h-3 w-3 text-slate-400" /> {res.location}
-                                </span>
-                              )}
-                            </div>
+                                <div className="flex flex-col sm:items-end gap-2 pl-14 sm:pl-0">
+                                  {!res.isError && res.location && (
+                                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                                      <MapPin className="h-3 w-3 text-slate-400" /> {res.location}
+                                    </span>
+                                  )}
+                                </div>
 
-                          </div>
-                        ))}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -479,7 +700,7 @@ export function CommandPalette() {
                         </div>
                       </div>
 
-                      <div className="flex-1 overflow-auto rounded-xl border border-slate-200 bg-white">
+                      <Card className="flex-1 overflow-auto rounded-xl border-slate-200 p-0">
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -516,7 +737,7 @@ export function CommandPalette() {
                             ))}
                           </TableBody>
                         </Table>
-                      </div>
+                      </Card>
                     </div>
                   )}
                 </div>
