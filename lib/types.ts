@@ -740,9 +740,11 @@ export interface UnloadingFormData {
 export interface ShortShipment {
   id?: string;
   trackingNumber: string;
+  dhlUniqueId?: string;
   recipientName?: string;
   recipientAddress?: string;
   recipientPhone?: string;
+  recipientZip?: string;
 }
 
 export interface ConsolidatedDetails {
@@ -750,6 +752,7 @@ export interface ConsolidatedDetails {
   type: string;
   typeCode: string;
   numberOfPackages: number;
+  consNumber?: string;
   added: ShortShipment[];
   notFound: ShortShipment[];
   icon: any;
@@ -990,9 +993,11 @@ export interface ConsolidatedInitItem {
   type: string;
   typeCode: string;
   numberOfPackages: number;
+  consNumber?: string;
   color: string;
   expected: {
     trackingNumber: string;
+    dhlUniqueId?: string;
     recipientName?: string;
     recipientAddress?: string;
     recipientPhone?: string;
@@ -1009,6 +1014,7 @@ export interface UnloadingSessionInit {
 export interface ValidatedUnloadingOne {
   id?: string;
   trackingNumber: string;
+  dhlUniqueId?: string;
   isValid: boolean;
   isCharge: boolean;
   reason?: string;

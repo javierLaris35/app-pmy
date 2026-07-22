@@ -58,14 +58,17 @@ function seedConsolidatedFromInit(data: UnloadingSessionInit): Consolidateds {
     type: item.type,
     typeCode: item.typeCode,
     numberOfPackages: item.numberOfPackages,
+    consNumber: item.consNumber,
     color: item.color,
     icon: null,
     added: [],
     notFound: (item.expected || []).map((e) => ({
       trackingNumber: e.trackingNumber,
+      dhlUniqueId: e.dhlUniqueId,
       recipientName: e.recipientName,
       recipientAddress: e.recipientAddress,
       recipientPhone: e.recipientPhone,
+      recipientZip: e.recipientZip,
     })),
   });
 
@@ -893,7 +896,14 @@ export default function UnloadingForm({
     if (validNumbers.length === 0) return;
 
     const currentShipments: PackageInfoForUnloading[] = Array.isArray(shipments) ? shipments : [];
-    const alreadyTns = new Set(currentShipments.map(p => p.trackingNumber));
+    // Clave DHL-aware: una guía ya escaneada puede estar guardada por su
+    // trackingNumber canónico o por su dhlUniqueId (JD/JJD). Contemplamos ambas
+    // para no re-enviar al backend la misma guía escaneada por otra variante.
+    const alreadyTns = new Set<string>();
+    for (const p of currentShipments) {
+      if (p.trackingNumber) alreadyTns.add(p.trackingNumber);
+      if ((p as any).dhlUniqueId) alreadyTns.add((p as any).dhlUniqueId);
+    }
     // Solo las guías que aún no están en shipments (nuevas).
     const newNumbers = validNumbers.filter(tn => !alreadyTns.has(tn));
 
@@ -901,17 +911,52 @@ export default function UnloadingForm({
     setIsLoading(true);
 
     try {
-      // Validación uno por uno.
-      const results: ValidatedUnloadingOne[] = [];
+      // Validación uno por uno RESILIENTE: el fallo de UNA guía (500/red) ya no
+      // aborta el lote; las demás se cuentan igual. Antes un solo error tiraba
+      // toda la tanda y "dejaba de contar".
+      const settled: { code: string; result?: ValidatedUnloadingOne; failed?: boolean }[] = [];
       for (const tn of newNumbers) {
-        const r = await validateOne(tn, selectedSubsidiaryId);
-        results.push(r);
+        try {
+          const r = await validateOne(tn, selectedSubsidiaryId);
+          settled.push({ code: tn, result: r });
+        } catch (err) {
+          console.error(`Error validando ${tn}:`, err);
+          settled.push({ code: tn, failed: true });
+        }
       }
+      const results = settled.filter(s => s.result).map(s => s.result!);
+      const failedCodes = settled.filter(s => s.failed).map(s => s.code);
 
-      // Evita duplicados por variantes DHL (validate-one devuelve el tracking guardado).
-      const resultsToAdd = results.filter(r => !alreadyTns.has(r.trackingNumber));
+      // Dedup DHL-aware: validate-one devuelve trackingNumber Y dhlUniqueId; una
+      // guía ya presente por CUALQUIERA de las dos variantes no se re-agrega.
+      const alreadyKeys = new Set<string>();
+      for (const p of currentShipments) {
+        if (p.trackingNumber) alreadyKeys.add(p.trackingNumber);
+        if ((p as any).dhlUniqueId) alreadyKeys.add((p as any).dhlUniqueId);
+      }
+      const resultsToAdd: ValidatedUnloadingOne[] = [];
+      for (const r of results) {
+        const rk = [r.trackingNumber, r.dhlUniqueId].filter(Boolean) as string[];
+        if (rk.some(k => alreadyKeys.has(k))) continue;
+        rk.forEach(k => alreadyKeys.add(k));
+        resultsToAdd.push(r);
+      }
       const newShipments = resultsToAdd.map(r => ({ ...r })) as unknown as PackageInfoForUnloading[];
-      const updatedShipments = [...currentShipments, ...newShipments];
+
+      // Guías cuya validación FALLÓ (no cuya validación dio "no encontrado"): se
+      // conservan como pendientes para no perderlas y reintentar al reconectar.
+      const pendingShipments = failedCodes
+        .filter(tn => !alreadyKeys.has(tn))
+        .map(tn => ({
+          id: `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          trackingNumber: tn,
+          isValid: false,
+          isOffline: true,
+          reason: isOnline ? "No se pudo validar (reintentar)" : "Sin conexión - validar al reconectar",
+          createdAt: new Date(),
+        } as unknown as PackageInfoForUnloading));
+
+      const updatedShipments = [...currentShipments, ...newShipments, ...pendingShipments];
 
       if (barScannerInputRef.current?.updateValidatedPackages) {
         barScannerInputRef.current.updateValidatedPackages(updatedShipments);
@@ -919,6 +964,14 @@ export default function UnloadingForm({
 
       setShipments(updatedShipments);
       handleExpirationCheck(newShipments);
+
+      // Casa una guía (resultado) contra un item por trackingNumber O dhlUniqueId:
+      // un DHL puede venir por cualquiera de las dos y debe salir de "faltantes".
+      const sameGuide = (m: any, r: ValidatedUnloadingOne) => {
+        const rk = [r.trackingNumber, r.dhlUniqueId].filter(Boolean);
+        const mk = [m.trackingNumber, m.dhlUniqueId].filter(Boolean);
+        return rk.some(k => mk.includes(k));
+      };
 
       // Actualiza el conteo por consolidado en cliente: mueve cada guía válida de
       // notFound a added dentro del consolidado indicado por consolidatedId.
@@ -937,15 +990,17 @@ export default function UnloadingForm({
           for (const g of groups) {
             const c = g.find(x => x.id === r.consolidatedId);
             if (!c) continue;
-            if (!c.added.some(a => a.trackingNumber === r.trackingNumber)) {
+            if (!c.added.some(a => sameGuide(a, r))) {
               c.added.push({
                 trackingNumber: r.trackingNumber,
+                dhlUniqueId: r.dhlUniqueId,
                 recipientName: r.recipientName,
                 recipientAddress: r.recipientAddress,
                 recipientPhone: r.recipientPhone,
+                recipientZip: r.recipientZip,
               });
             }
-            c.notFound = c.notFound.filter(m => m.trackingNumber !== r.trackingNumber);
+            c.notFound = c.notFound.filter(m => !sameGuide(m, r));
             break;
           }
         }
@@ -956,10 +1011,26 @@ export default function UnloadingForm({
       const newMissing = updateMissingPackages(updatedShipments, nextConsolidated);
       setMissingPackages(newMissing);
 
-      const validTrackings = updatedShipments.filter(p => p.isValid).map(p => p.trackingNumber);
-      const surplusFromValid = validNumbers.filter(tn => !validTrackings.includes(tn));
-      const allSurplus = [...invalidNumbers, ...surplusFromValid];
+      // Conjunto de claves (trackingNumber + dhlUniqueId) de TODAS las guías
+      // válidas: una guía escaneada que exista aquí NO es sobrante.
+      const validKeySet = new Set<string>();
+      for (const p of updatedShipments) {
+        if (!p.isValid) continue;
+        if (p.trackingNumber) validKeySet.add(p.trackingNumber);
+        if ((p as any).dhlUniqueId) validKeySet.add((p as any).dhlUniqueId);
+      }
+
+      // Sobrante = guía escaneada cuyo resultado NO fue válido (no encontrada / de
+      // otra sucursal) + formato inválido. Se asocia CADA código con SU resultado
+      // (no por comparar strings), así un DHL válido escaneado por su dhlUniqueId
+      // ya no cae como falso "sobrante". Se conserva lo acumulado y se depura lo
+      // que ya quedó válido.
+      const surplusFromResults = settled
+        .filter(s => s.result && !s.result.isValid)
+        .map(s => s.code);
       const prevSurplus = safeArray(surplusTrackings);
+      const allSurplus = Array.from(new Set([...prevSurplus, ...invalidNumbers, ...surplusFromResults]))
+        .filter(code => !validKeySet.has(code));
       const newSurplusItems = allSurplus.filter(s => !prevSurplus.includes(s));
 
       if (newSurplusItems.length > 0) {
@@ -974,29 +1045,15 @@ export default function UnloadingForm({
 
       setSurplusTrackings(allSurplus);
 
+      const validCount = updatedShipments.filter(p => p.isValid).length;
       toast({
         title: "Validación completada",
-        description: `✅ ${validTrackings.length} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes`
+        description: `✅ ${validCount} válidos | ❌ ${newMissing.length} faltantes | ⚠️ ${allSurplus.length} sobrantes${failedCodes.length ? ` | ⏳ ${failedCodes.length} pendientes` : ""}`
       });
 
     } catch (error) {
       console.error("Error validating packages:", error);
-      if (!isOnline) {
-        const offlinePackages = newNumbers.map(tn => ({
-          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2,9)}`,
-          trackingNumber: tn,
-          isValid: false,
-          isOffline: true,
-          reason: "Sin conexión - validar cuando se restablezca internet",
-          createdAt: new Date()
-        } as unknown as PackageInfoForUnloading));
-
-        setShipments(prev => [...safeArray(prev), ...offlinePackages]);
-        setSurplusTrackings(invalidNumbers);
-        toast({ title: "Modo offline activado", description: `Se guardaron ${newNumbers.length} paquetes localmente.` });
-      } else {
-        toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
-      }
+      toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
     } finally {
       setIsValidationPackages(false);
       setIsLoading(false);
@@ -1050,10 +1107,19 @@ export default function UnloadingForm({
         if (!cancelled) setConsolidatedValidation(seedConsolidatedFromInit(data));
       } catch (error) {
         console.error("Error cargando session-init:", error);
+        // Antes el error se tragaba en silencio: el usuario se quedaba sin
+        // conteo por consolidado y sin saber por qué. Ahora lo avisamos.
+        if (!cancelled) {
+          toast({
+            title: "No se pudo iniciar el conteo por consolidado",
+            description: "No se cargó el universo esperado; el escaneo funciona, pero el conteo de faltantes puede no reflejarse. Reintenta o recarga.",
+            variant: "destructive",
+          });
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedSubsidiaryId, consolidatedValidation, setConsolidatedValidation]);
+  }, [selectedSubsidiaryId, consolidatedValidation, setConsolidatedValidation, toast]);
 
   // 🚨 SOLUCIÓN 3: useEffect de validación automática estabilizado 🚨
   useEffect(() => {
