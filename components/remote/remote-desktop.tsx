@@ -7,12 +7,9 @@ import { remoteWsBaseUrl, type RemoteProtocol } from "@/lib/services/remote";
 type Status = "connecting" | "connected" | "disconnected" | "error";
 
 interface RemoteDesktopProps {
-  /** JWT de sesión (se valida + exige superadmin en el gateway). */
   authToken: string;
-  /** Token cifrado de POST /remote/session. */
   connectionToken: string;
   protocol: RemoteProtocol;
-  /** wss base; default derivado de NEXT_PUBLIC_API_URL. */
   wsBaseUrl?: string;
 }
 
@@ -25,94 +22,160 @@ export function RemoteDesktop({ authToken, connectionToken, protocol, wsBaseUrl 
   const clientRef = useRef<any>(null);
   const keyboardRef = useRef<any>(null);
   const roRef = useRef<ResizeObserver | null>(null);
+  
+  const isConnectingRef = useRef(false);
   const retry = useRef<{ attempts: number; timer?: any; dead?: boolean }>({ attempts: 0 });
   const [status, setStatus] = useState<Status>("connecting");
 
   const cleanup = useCallback(() => {
+    isConnectingRef.current = false;
     roRef.current?.disconnect();
     roRef.current = null;
     keyboardRef.current?.reset?.();
     keyboardRef.current = null;
-    try { clientRef.current?.disconnect(); } catch { /* noop */ }
+    try {
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+      }
+    } catch {
+      /* noop */
+    }
     clientRef.current = null;
   }, []);
 
-  const scheduleReconnect = useCallback((connect: () => void) => {
+  const scheduleReconnect = useCallback((connectFn: () => void) => {
     const st = retry.current;
-    if (st.dead || st.attempts >= 6) { setStatus("error"); return; }
-    const delay = Math.min(1000 * 2 ** st.attempts, 15_000); // backoff exponencial
+    if (st.dead || st.attempts >= 6) {
+      setStatus("error");
+      return;
+    }
+    const delay = Math.min(1000 * 2 ** st.attempts, 15_000);
     st.attempts += 1;
-    st.timer = setTimeout(() => { setStatus("connecting"); connect(); }, delay);
+    st.timer = setTimeout(() => {
+      setStatus("connecting");
+      connectFn();
+    }, delay);
   }, []);
 
   const connect = useCallback(async () => {
-    const mod: any = await import("guacamole-common-js");
-    const Guacamole = mod.default ?? mod;
-    guacRef.current = Guacamole;
+    // Evita ejecuciones duplicadas simultáneas por StrictMode o montajes rápidos
+    if (isConnectingRef.current || retry.current.dead) return;
+    isConnectingRef.current = true;
 
     const viewport = viewportRef.current;
-    if (!viewport || retry.current.dead) return;
+    if (!viewport) {
+      isConnectingRef.current = false;
+      return;
+    }
+
     cleanup();
 
-    const base = wsBaseUrl ?? remoteWsBaseUrl();
-    const params = new URLSearchParams({
-      token: authToken,
-      connection: connectionToken,
-      width: String(Math.max(640, Math.floor(viewport.clientWidth))),
-      height: String(Math.max(480, Math.floor(viewport.clientHeight))),
-      dpi: "96",
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
+    try {
+      const mod: any = await import("guacamole-common-js");
+      const Guacamole = mod.default ?? mod;
+      guacRef.current = Guacamole;
 
-    const tunnel = new Guacamole.WebSocketTunnel(`${base}/ws/guacamole`);
-    const client = new Guacamole.Client(tunnel);
-    clientRef.current = client;
+      // El upgrade WS NO vive bajo /api (el global prefix de Nest no aplica al
+      // servidor HTTP raw). Tomamos el ORIGEN del API (https→wss), quitamos el
+      // sufijo /api si lo trae, y colgamos /ws/guacamole. Así funciona contra el
+      // backend actual y detrás de Cloudflare Tunnel, sin IPs hardcodeadas.
+      const wsBase = (wsBaseUrl ?? remoteWsBaseUrl())
+        .replace(/\/api\/?$/i, "")
+        .replace(/\/+$/, "");
+      const tunnelUrl = `${wsBase}/ws/guacamole`;
 
-    const displayEl = client.getDisplay().getElement();
-    viewport.replaceChildren(displayEl);
+      const params = new URLSearchParams({
+        token: authToken,
+        connection: connectionToken,
+        width: String(Math.max(640, Math.floor(viewport.clientWidth))),
+        height: String(Math.max(480, Math.floor(viewport.clientHeight))),
+        dpi: "96",
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
 
-    client.onstatechange = (s: number) => {
-      if (s === CONNECTED) { setStatus("connected"); retry.current.attempts = 0; }
-      if (s === DISCONNECTED) { setStatus("disconnected"); scheduleReconnect(connect); }
-    };
-    tunnel.onerror = () => { setStatus("disconnected"); scheduleReconnect(connect); };
+      const tunnel = new Guacamole.WebSocketTunnel(tunnelUrl);
+      const client = new Guacamole.Client(tunnel);
+      clientRef.current = client;
 
-    // ===== TECLADO ===== atado al CONTENEDOR: solo captura con foco (no rompe atajos del navegador).
-    const keyboard = new Guacamole.Keyboard(viewport);
-    keyboard.onkeydown = (keysym: number) => { client.sendKeyEvent(1, keysym); return false; };
-    keyboard.onkeyup = (keysym: number) => { client.sendKeyEvent(0, keysym); return false; };
-    keyboardRef.current = keyboard;
+      const displayEl = client.getDisplay().getElement();
+      viewport.replaceChildren(displayEl);
 
-    // ===== MOUSE + TOUCH =====
-    const sendMouse = (state: any) => client.sendMouseState(state);
-    const mouse = new Guacamole.Mouse(displayEl);
-    mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = sendMouse;
-    const touch = new Guacamole.Mouse.Touchpad(displayEl);
-    touch.onmousedown = touch.onmouseup = touch.onmousemove = sendMouse;
+      client.onstatechange = (s: number) => {
+        if (s === CONNECTED) {
+          setStatus("connected");
+          retry.current.attempts = 0;
+          isConnectingRef.current = false;
+          viewport.focus(); // el teclado sólo captura si el div tiene foco
+        }
+        if (s === DISCONNECTED) {
+          setStatus("disconnected");
+          isConnectingRef.current = false;
+          scheduleReconnect(connect);
+        }
+      };
 
-    // ===== PORTAPAPELES remoto → local =====
-    client.onclipboard = (stream: any, mimetype: string) => {
-      if (!mimetype.startsWith("text/")) return;
-      const reader = new Guacamole.StringReader(stream);
-      let buf = "";
-      reader.ontext = (t: string) => (buf += t);
-      reader.onend = () => navigator.clipboard?.writeText(buf).catch(() => {});
-    };
+      tunnel.onerror = () => {
+        setStatus("disconnected");
+        isConnectingRef.current = false;
+        scheduleReconnect(connect);
+      };
 
-    // ===== Escalado automático =====
-    const rescale = () => {
-      const d = client.getDisplay();
-      if (!d.getWidth() || !d.getHeight() || !viewport.clientWidth) return;
-      d.scale(Math.min(viewport.clientWidth / d.getWidth(), viewport.clientHeight / d.getHeight()));
-    };
-    client.getDisplay().onresize = rescale;
-    roRef.current = new ResizeObserver(rescale);
-    roRef.current.observe(viewport);
+      // ===== TECLADO =====
+      const keyboard = new Guacamole.Keyboard(viewport);
+      keyboard.onkeydown = (keysym: number) => {
+        client.sendKeyEvent(1, keysym);
+        return false;
+      };
+      keyboard.onkeyup = (keysym: number) => {
+        client.sendKeyEvent(0, keysym);
+        return false;
+      };
+      keyboardRef.current = keyboard;
 
-    client.connect(params.toString());
+      // ===== MOUSE + TOUCH =====
+      // `true` = applyDisplayScale: convierte coords del display escalado a las
+      // del remoto (sin esto el puntero "se queda corto" y no llega a los bordes).
+      const sendMouse = (state: any) => client.sendMouseState(state, true);
+      // Enfocamos el viewport en cada click: Guacamole.Mouse hace preventDefault
+      // y le roba el foco al div, dejando el teclado muerto.
+      const focusAndSend = (state: any) => {
+        viewport.focus();
+        sendMouse(state);
+      };
+      const mouse = new Guacamole.Mouse(displayEl);
+      mouse.onmousedown = focusAndSend;
+      mouse.onmouseup = mouse.onmousemove = sendMouse;
+      const touch = new Guacamole.Mouse.Touchpad(displayEl);
+      touch.onmousedown = focusAndSend;
+      touch.onmouseup = touch.onmousemove = sendMouse;
+
+      // ===== PORTAPAPELES remoto → local =====
+      client.onclipboard = (stream: any, mimetype: string) => {
+        if (!mimetype.startsWith("text/")) return;
+        const reader = new Guacamole.StringReader(stream);
+        let buf = "";
+        reader.ontext = (t: string) => (buf += t);
+        reader.onend = () => navigator.clipboard?.writeText(buf).catch(() => {});
+      };
+
+      // ===== Escalado automático =====
+      const rescale = () => {
+        const d = client.getDisplay();
+        if (!d.getWidth() || !d.getHeight() || !viewport.clientWidth) return;
+        d.scale(Math.min(viewport.clientWidth / d.getWidth(), viewport.clientHeight / d.getHeight()));
+      };
+      client.getDisplay().onresize = rescale;
+      roRef.current = new ResizeObserver(rescale);
+      roRef.current.observe(viewport);
+
+      client.connect(params.toString());
+    } catch {
+      isConnectingRef.current = false;
+      setStatus("disconnected");
+      scheduleReconnect(connect);
+    }
   }, [authToken, connectionToken, wsBaseUrl, cleanup, scheduleReconnect]);
 
-  // ===== PORTAPAPELES local → remoto (al enfocar el visor) =====
   const pushLocalClipboard = useCallback(async () => {
     const Guacamole = guacRef.current;
     const client = clientRef.current;
@@ -124,12 +187,15 @@ export function RemoteDesktop({ authToken, connectionToken, protocol, wsBaseUrl 
       const writer = new Guacamole.StringWriter(stream);
       writer.sendText(text);
       writer.sendEnd();
-    } catch { /* permiso de clipboard denegado */ }
+    } catch {
+      /* permisos denegados */
+    }
   }, []);
 
   useEffect(() => {
-    retry.current = { attempts: 0 };
+    retry.current = { attempts: 0, dead: false };
     void connect();
+
     return () => {
       retry.current.dead = true;
       clearTimeout(retry.current.timer);
