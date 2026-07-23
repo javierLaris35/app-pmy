@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
@@ -24,6 +25,8 @@ import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getInventoryDetail } from "@/lib/services/inventories"
+import { getSubsidiaryById } from "@/lib/services/subsidiaries"
+import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { toast } from "@/lib/toast"
 
 export default function InventoryPageControl() {
@@ -34,8 +37,10 @@ export default function InventoryPageControl() {
   const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null)
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
-  const [searchInput, setSearchInput] = useState("")
-  const [search, setSearch] = useState("")
+  // Deep-link de correos: /operaciones/inventarios?seguimiento=XXXX enfoca el registro.
+  const seguimientoParam = useSearchParams().get("seguimiento") ?? ""
+  const [searchInput, setSearchInput] = useState(seguimientoParam)
+  const [search, setSearch] = useState(seguimientoParam)
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [isDetailLoading, setIsDetailLoading] = useState(false)
 
@@ -147,6 +152,27 @@ export default function InventoryPageControl() {
               >
                 <Eye className="h-4 w-4" />
               </Button>
+              <EnviarNotificacionButton
+                triggerLabel=""
+                triggerVariant="ghost"
+                triggerClassName="h-8 w-8 p-0 text-emerald-700"
+                templateKeys={["inventario"]}
+                context={{
+                  sucursal: row.original.subsidiary?.name || effectiveSucursalName || "",
+                  seguimiento: row.original.trackingNumber || "",
+                  fecha: row.original.inventoryDate ? new Date(row.original.inventoryDate).toLocaleDateString("es-MX") : "",
+                  link: `${typeof window !== "undefined" ? window.location.origin : ""}/operaciones/inventarios?seguimiento=${encodeURIComponent(row.original.trackingNumber || "")}`,
+                }}
+                onResolve={async () => {
+                  const subId = row.original.subsidiary?.id;
+                  if (!subId) return {};
+                  const sub = await getSubsidiaryById(subId);
+                  const numberOptions: NumberOption[] = sub.managerPhone
+                    ? [{ label: `Encargado (${sub.officeManager || "sucursal"})`, value: sub.managerPhone }]
+                    : [];
+                  return { numberOptions, context: { sucursal: sub.name || row.original.subsidiary?.name || "" } };
+                }}
+              />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

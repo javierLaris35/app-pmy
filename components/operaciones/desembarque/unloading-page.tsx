@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
@@ -23,6 +24,7 @@ import type { PaginationState } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { getUnloadingDetail } from "@/lib/services/unloadings"
+import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { toast } from "@/lib/toast"
 
 export default function UnLoadingPageControl() {
@@ -34,8 +36,10 @@ export default function UnLoadingPageControl() {
   const [selectedUnloading, setSelectedUnloading] = useState<Unloading | null>(null)
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
-  const [searchInput, setSearchInput] = useState("")
-  const [search, setSearch] = useState("")
+  // Deep-link de correos: /operaciones/desembarques?seguimiento=XXXX enfoca el registro.
+  const seguimientoParam = useSearchParams().get("seguimiento") ?? ""
+  const [searchInput, setSearchInput] = useState(seguimientoParam)
+  const [search, setSearch] = useState(seguimientoParam)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
 
   // Debounce de la búsqueda por número de seguimiento (server-side).
@@ -149,6 +153,29 @@ export default function UnLoadingPageControl() {
               >
                 <Eye className="h-4 w-4" />
               </Button>
+              <EnviarNotificacionButton
+                triggerLabel=""
+                triggerVariant="ghost"
+                triggerClassName="h-8 w-8 p-0 text-emerald-700"
+                templateKeys={["desembarque"]}
+                context={{
+                  sucursal: row.original.subsidiary?.name || effectiveSucursalName || "",
+                  unidad: row.original.vehicle?.name || "",
+                  seguimiento: row.original.trackingNumber || "",
+                  fecha: row.original.date ? new Date(row.original.date).toLocaleString("es-MX") : "",
+                  link: `${typeof window !== "undefined" ? window.location.origin : ""}/operaciones/desembarques?seguimiento=${encodeURIComponent(row.original.trackingNumber || "")}`,
+                }}
+                onResolve={async () => {
+                  const d = await getUnloadingDetail(row.original.id);
+                  const numberOptions: NumberOption[] = d.subsidiary?.managerPhone
+                    ? [{ label: `Encargado (${d.subsidiary.officeManager || "sucursal"})`, value: d.subsidiary.managerPhone }]
+                    : [];
+                  return {
+                    numberOptions,
+                    context: { sucursal: d.subsidiary?.name || row.original.subsidiary?.name || effectiveSucursalName || "", unidad: d.vehicle?.name || row.original.vehicle?.name || "" },
+                  };
+                }}
+              />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

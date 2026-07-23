@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -19,6 +20,7 @@ import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/pac
 import PackageDispatchDetails from "./package-dispatch-details"
 import ClosePackageDisptach from "./close-package-dispatch-form"
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
+import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
 import type { PaginationState } from "@tanstack/react-table"
@@ -34,8 +36,10 @@ export default function PackageDispatchControl() {
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
-  const [searchInput, setSearchInput] = useState("")
-  const [search, setSearch] = useState("")
+  // Deep-link de correos: /operaciones/salidas-a-ruta?seguimiento=XXXX enfoca el registro.
+  const seguimientoParam = useSearchParams().get("seguimiento") ?? ""
+  const [searchInput, setSearchInput] = useState(seguimientoParam)
+  const [search, setSearch] = useState(seguimientoParam)
 
   // Debounce de la búsqueda por folio de salida (server-side).
   useEffect(() => {
@@ -134,6 +138,37 @@ const updatedColumns = columns.map((col) =>
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
+
+                <EnviarNotificacionButton
+                  triggerLabel=""
+                  triggerVariant="ghost"
+                  triggerClassName="h-8 w-8 p-0 text-emerald-700"
+                  templateKeys={["salida_ruta"]}
+                  context={{
+                    sucursal: selectedSucursalName || "",
+                    chofer: row.original.driverName || "",
+                    unidad: row.original.vehicle?.name || "",
+                    seguimiento: row.original.trackingNumber || "",
+                    fecha: row.original.createdAt ? new Date(row.original.createdAt).toLocaleString("es-MX") : "",
+                    link: `${typeof window !== "undefined" ? window.location.origin : ""}/operaciones/salidas-a-ruta?seguimiento=${encodeURIComponent(row.original.trackingNumber || "")}`,
+                  }}
+                  onResolve={async () => {
+                    const d = await getShipmensByDispatchId(row.original.id);
+                    const numberOptions: NumberOption[] = [
+                      ...(d.drivers ?? []).filter((dr) => dr.phoneNumber).map((dr) => ({ label: `Chofer (${dr.name})`, value: dr.phoneNumber })),
+                      ...(d.subsidiary?.managerPhone ? [{ label: `Encargado (${d.subsidiary.officeManager || "sucursal"})`, value: d.subsidiary.managerPhone }] : []),
+                    ];
+                    return {
+                      numberOptions,
+                      context: {
+                        sucursal: d.subsidiary?.name || selectedSucursalName || "",
+                        chofer: d.drivers?.[0]?.name || row.original.driverName || "",
+                        ruta: (d.routes ?? []).map((r) => r.name).join(" -> "),
+                        unidad: d.vehicle?.name || row.original.vehicle?.name || "",
+                      },
+                    };
+                  }}
+                />
 
                 <Tooltip>
                   <TooltipTrigger asChild>

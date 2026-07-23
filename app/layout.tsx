@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import HistoryTracker from "@/app/HistoryTracker";
 import { Suspense } from "react"
 import DashboardWelcomeClient from "@/components/welcome-dashboard/DashboardWelcomeClient"
+import { SessionRefresher } from "@/components/session-refresher"
 
 
 
@@ -37,6 +38,8 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <TooltipProvider>
                 <HistoryTracker/>
+                {/* Refresca permisos/sucursales al recargar (el JWT ya no los trae). */}
+                <SessionRefresher />
                 <Suspense fallback={null}>
                   {children}
                 </Suspense>

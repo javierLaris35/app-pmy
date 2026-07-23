@@ -1,0 +1,147 @@
+// components/configuracion/plantillas/template-editor.tsx
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { OperationHeader } from "@/components/shared/operation-header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ArrowLeft, Mail, Save, Send } from "lucide-react";
+import { toast } from "@/lib/toast";
+import {
+  getTemplateForEdit, saveDraft, publishVersion, restoreVersion,
+  TemplateForEdit, DocumentTemplateVersion,
+} from "@/lib/services/document-templates";
+import { VersionHistory } from "./version-history";
+import { PreviewPanel } from "./preview-panel";
+import { TestSendDialog } from "./test-send-dialog";
+import type { UnlayerEditorApi } from "./unlayer/unlayer-editor";
+
+const UnlayerEditor = dynamic(() => import("./unlayer/unlayer-editor"), { ssr: false });
+
+function pickWorkingVersion(data: TemplateForEdit): DocumentTemplateVersion | null {
+  const drafts = data.versions.filter((v) => v.status === "draft").sort((a, b) => b.version - a.version);
+  if (drafts[0]) return drafts[0];
+  const pub = data.versions.find((v) => v.id === data.template.currentVersionId);
+  return pub || [...data.versions].sort((a, b) => b.version - a.version)[0] || null;
+}
+
+function initialSample(vars: { name: string; example?: string | null }[]): Record<string, any> {
+  const o: Record<string, any> = {};
+  for (const v of vars) o[v.name] = v.example ?? "";
+  return o;
+}
+
+export function TemplateEditor({ templateId }: { templateId: string }) {
+  const router = useRouter();
+  const [data, setData] = useState<TemplateForEdit | null>(null);
+  const [subject, setSubject] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [draftVersionId, setDraftVersionId] = useState<string | null>(null);
+  const [sample, setSample] = useState<Record<string, any>>({});
+  const apiRef = useRef<UnlayerEditorApi | null>(null);
+
+  const reload = async () => {
+    const d = await getTemplateForEdit(templateId);
+    setData(d);
+    const wv = pickWorkingVersion(d);
+    setSubject(wv?.subject || "");
+    setDraftVersionId(wv && wv.status === "draft" ? wv.id : null);
+    setSample(initialSample(d.variables));
+    return d;
+  };
+  useEffect(() => { reload().catch(() => toast.error?.("No se pudo cargar la plantilla")); /* eslint-disable-next-line */ }, [templateId]);
+
+  const onSave = async (): Promise<string | null> => {
+    if (!apiRef.current) return null;
+    setSaving(true);
+    try {
+      const { design, html } = await apiRef.current.exportDesign();
+      const v = await saveDraft(templateId, { subject, designJson: design, compiledBody: html });
+      setDraftVersionId(v.id);
+      toast.success?.("Borrador guardado");
+      await reload();
+      return v.id;
+    } catch { toast.error?.("No se pudo guardar"); return null; }
+    finally { setSaving(false); }
+  };
+
+  const onPublish = async () => {
+    const vId = draftVersionId ?? (await onSave());
+    if (!vId) return;
+    try { await publishVersion(templateId, vId); toast.success?.("Plantilla publicada"); await reload(); }
+    catch { toast.error?.("No se pudo publicar"); }
+  };
+
+  const onRestore = async (versionId: string) => {
+    try {
+      const v = await restoreVersion(templateId, versionId);
+      toast.success?.(`Restaurado como borrador v${v.version}`);
+      await reload();
+    } catch { toast.error?.("No se pudo restaurar"); }
+  };
+
+  const working = data ? pickWorkingVersion(data) : null;
+
+  return (
+    <div className="space-y-4">
+      <OperationHeader
+        icon={Mail}
+        title={data ? `Editar: ${data.template.name}` : "Editar plantilla"}
+        description={data?.template.code}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/configuracion?section=plantillas")}><ArrowLeft className="h-4 w-4 mr-1" /> Regresar</Button>
+            {data && <TestSendDialog code={data.template.code} sample={sample} />}
+            <Button variant="outline" size="sm" onClick={onSave} disabled={saving}><Save className="h-4 w-4 mr-1" /> Guardar</Button>
+            <Button size="sm" onClick={onPublish} disabled={saving}><Send className="h-4 w-4 mr-1" /> Publicar</Button>
+          </div>
+        }
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
+        <Tabs defaultValue="editor" className="space-y-3">
+          <TabsList>
+            <TabsTrigger value="editor">Editor</TabsTrigger>
+            <TabsTrigger value="preview">Vista previa</TabsTrigger>
+          </TabsList>
+          <TabsContent value="editor" forceMount className="space-y-3 data-[state=inactive]:hidden">
+            <div className="space-y-1">
+              <Label>Asunto</Label>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto (admite {{variables}})" />
+            </div>
+            <Card><CardContent className="p-0 h-[78vh] min-h-[560px] overflow-hidden">
+              {data && (
+                <UnlayerEditor
+                  key={working?.id}
+                  initialDesign={working?.designJson}
+                  variables={data.variables}
+                  brand={null}
+                  onReady={(api) => { apiRef.current = api; }}
+                />
+              )}
+            </CardContent></Card>
+          </TabsContent>
+          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden">
+            {data && (
+              <PreviewPanel
+                templateId={templateId}
+                versionId={draftVersionId}
+                variables={data.variables}
+                sample={sample}
+                onSampleChange={setSample}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
+        <div className="space-y-4">
+          {data && <VersionHistory versions={data.versions} currentVersionId={data.template.currentVersionId} onRestore={onRestore} />}
+        </div>
+      </div>
+    </div>
+  );
+}

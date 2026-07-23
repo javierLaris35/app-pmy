@@ -4,10 +4,6 @@ export interface WhatsappSettings {
   id?: string;
   /** Interruptor general del feature. */
   enabled: boolean;
-  /** Número destino, solo dígitos, formato internacional (ej. "526444230374"). */
-  driverPhone: string;
-  /** Plantilla del mensaje. Placeholders: {cliente} {direccion} {cp} {guias} {vence} {ruta} {chofer}. */
-  messageTemplate: string;
   updatedAt?: string;
 }
 
@@ -73,8 +69,8 @@ export const logoutWhatsapp = async () => {
   return res.data;
 };
 
-/** Envía el mensaje directo desde la API. Si `to` se omite, usa el número configurado. */
-export const sendWhatsappMessage = async (message: string, to?: string) => {
+/** Envía el mensaje directo desde la API. El número `to` es obligatorio. */
+export const sendWhatsappMessage = async (message: string, to: string) => {
   const res = await axiosConfig.post<{ ok: boolean; to: string }>("whatsapp/send", { message, to });
   return res.data;
 };

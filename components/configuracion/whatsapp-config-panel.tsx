@@ -1,30 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, MessageCircle, Smartphone, LinkIcon, Unlink, RefreshCw, CheckCircle2, AlertTriangle, Send } from "lucide-react";
+import { Loader2, Save, MessageCircle, Smartphone, LinkIcon, Unlink, RefreshCw, CheckCircle2, AlertTriangle, Send, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
   getWhatsappSettings, updateWhatsappSettings, type WhatsappSettings,
   getWhatsappConnection, linkWhatsapp, logoutWhatsapp, sendWhatsappMessage, type WhatsappConnection,
 } from "@/lib/services/whatsapp-settings";
+import {
+  listWhatsappTemplates, createWhatsappTemplate, updateWhatsappTemplate, deleteWhatsappTemplate,
+  WHATSAPP_PLACEHOLDERS, type WhatsappTemplate,
+} from "@/lib/services/whatsapp-templates";
 
-const PLACEHOLDERS = [
-  { key: "{cliente}", desc: "Nombre del destinatario" },
-  { key: "{direccion}", desc: "Dirección" },
-  { key: "{cp}", desc: "Código postal" },
-  { key: "{guias}", desc: "Número(s) de guía" },
-  { key: "{vence}", desc: "Fecha/hora de vencimiento" },
-  { key: "{ruta}", desc: "Nombre de la ruta" },
-  { key: "{chofer}", desc: "Nombre del chofer" },
-];
-
-const EMPTY: WhatsappSettings = { enabled: true, driverPhone: "", messageTemplate: "" };
+const EMPTY: WhatsappSettings = { enabled: true };
 
 function prettyPhone(digits?: string | null): string {
   const d = (digits || "").replace(/\D/g, "");
@@ -168,6 +162,158 @@ function WhatsappConnectionCard() {
   );
 }
 
+/**
+ * Gestor de plantillas de WhatsApp: lista editable de mensajes por evento
+ * (salida a ruta, desembarque, inventario, reporte, prioridad de entrega…).
+ * El número destino NO se define aquí: se elige al enviar la notificación.
+ */
+function TemplatesManagerCard() {
+  const [templates, setTemplates] = useState<WhatsappTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<WhatsappTemplate>>({});
+  const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  const load = async (keepId?: string | null) => {
+    try {
+      const all = await listWhatsappTemplates();
+      setTemplates(all);
+      const pick = all.find((t) => t.id === keepId) ?? all[0] ?? null;
+      setSelectedId(pick?.id ?? null);
+      setDraft(pick ? { ...pick } : {});
+      setCreating(false);
+    } catch {
+      toast.error("No se pudieron cargar las plantillas de WhatsApp.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const select = (t: WhatsappTemplate) => { setSelectedId(t.id); setDraft({ ...t }); setCreating(false); };
+
+  const startNew = () => { setCreating(true); setSelectedId(null); setDraft({ key: "", name: "", body: "", active: true }); };
+
+  const insertPlaceholder = (ph: string) => setDraft((d) => ({ ...d, body: `${d.body ?? ""}${ph}` }));
+
+  const handleSave = async () => {
+    if (!draft.name?.trim() || !draft.body?.trim()) { toast.error("Nombre y cuerpo son obligatorios."); return; }
+    if (creating && !draft.key?.trim()) { toast.error("La clave es obligatoria para una plantilla nueva."); return; }
+    setSaving(true);
+    try {
+      const saved = creating
+        ? await createWhatsappTemplate({ key: draft.key!.trim(), name: draft.name, body: draft.body, active: draft.active ?? true })
+        : await updateWhatsappTemplate(selectedId!, { name: draft.name, body: draft.body, active: draft.active });
+      toast.success("Plantilla guardada.");
+      await load(saved.id);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo guardar la plantilla.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    if (!confirm("¿Eliminar esta plantilla?")) return;
+    setSaving(true);
+    try {
+      await deleteWhatsappTemplate(selectedId);
+      toast.success("Plantilla eliminada.");
+      await load(null);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo eliminar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-emerald-600" /> Plantillas de WhatsApp</CardTitle>
+        <CardDescription>
+          Mensajes por evento (salida a ruta, desembarque, inventario, reportes…). Al enviar una notificación se elige la plantilla y el número destino (custom, chofer o encargado). Usa <span className="font-mono">*texto*</span> para negritas.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex h-40 items-center justify-center text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+            {/* Lista de plantillas */}
+            <div className="space-y-1">
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => select(t)}
+                  className={`flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors ${selectedId === t.id ? "border-emerald-300 bg-emerald-50" : "hover:bg-muted/50"}`}
+                >
+                  <span className="truncate">{t.name}</span>
+                  {!t.active && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">inactiva</span>}
+                </button>
+              ))}
+              <Button variant="outline" size="sm" className="mt-1 w-full gap-1" onClick={startNew}>
+                <Plus className="h-3.5 w-3.5" /> Nueva plantilla
+              </Button>
+            </div>
+
+            {/* Editor */}
+            {(selectedId || creating) ? (
+              <div className="space-y-3">
+                {creating && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wa-tpl-key">Clave</Label>
+                    <Input id="wa-tpl-key" value={draft.key ?? ""} onChange={(e) => setDraft((d) => ({ ...d, key: e.target.value }))} placeholder="ej. salida_ruta" />
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-tpl-name">Nombre</Label>
+                  <Input id="wa-tpl-name" value={draft.name ?? ""} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-tpl-body">Mensaje</Label>
+                  <Textarea id="wa-tpl-body" value={draft.body ?? ""} onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))} rows={9} className="font-mono text-xs" />
+                  <div className="rounded-lg border bg-muted/40 p-3">
+                    <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Variables (clic para insertar):</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {WHATSAPP_PLACEHOLDERS.map((p) => (
+                        <button key={p.key} type="button" title={p.desc} onClick={() => insertPlaceholder(p.key)} className="rounded bg-background px-1.5 py-0.5 font-mono text-[11px] text-emerald-700 ring-1 ring-border hover:bg-emerald-50">{p.key}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="wa-tpl-active">Activa</Label>
+                  <Switch id="wa-tpl-active" checked={draft.active ?? true} onCheckedChange={(v) => setDraft((d) => ({ ...d, active: v }))} />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  {!creating ? (
+                    <Button variant="ghost" size="sm" className="gap-1 text-rose-600 hover:text-rose-700" onClick={handleDelete} disabled={saving}>
+                      <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                    </Button>
+                  ) : <span />}
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {creating ? "Crear plantilla" : "Guardar"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">Selecciona o crea una plantilla.</div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function WhatsappConfigPanel() {
   const [data, setData] = useState<WhatsappSettings>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -180,15 +326,11 @@ export function WhatsappConfigPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSave = async () => {
+  const handleSaveEnabled = async (enabled: boolean) => {
+    setData((p) => ({ ...p, enabled }));
     setSaving(true);
     try {
-      const saved = await updateWhatsappSettings({
-        enabled: data.enabled,
-        driverPhone: data.driverPhone,
-        messageTemplate: data.messageTemplate,
-      });
-      setData({ ...EMPTY, ...saved });
+      await updateWhatsappSettings({ enabled });
       toast.success("Configuración de WhatsApp guardada.");
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo guardar.");
@@ -199,73 +341,31 @@ export function WhatsappConfigPanel() {
 
   return (
     <div className="space-y-4">
-    <WhatsappConnectionCard />
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-emerald-600" /> Avisos por WhatsApp al chofer</CardTitle>
-        <CardDescription>
-          Desde el monitoreo de rutas se puede enviar un aviso al chofer por WhatsApp para guías en riesgo de Local Delay.
-          El mensaje se envía directo desde el sistema. Aquí defines el número del chofer, la plantilla y si está activo.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {loading ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…
-          </div>
-        ) : (
-          <>
+      <WhatsappConnectionCard />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-emerald-600" /> Avisos por WhatsApp</CardTitle>
+          <CardDescription>
+            Interruptor general del envío de avisos por WhatsApp. El número destino se elige al enviar cada notificación.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex h-16 items-center justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…
+            </div>
+          ) : (
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="wa-enabled">Función activa</Label>
-                <p className="text-sm text-muted-foreground">Muestra el botón "Enviar mensaje al chofer" en el monitoreo.</p>
+                <p className="text-sm text-muted-foreground">Habilita el envío de notificaciones por WhatsApp en la app.</p>
               </div>
-              <Switch id="wa-enabled" checked={data.enabled} onCheckedChange={(v) => setData((p) => ({ ...p, enabled: v }))} />
+              <Switch id="wa-enabled" checked={data.enabled} disabled={saving} onCheckedChange={handleSaveEnabled} />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="wa-phone">Número del chofer (WhatsApp)</Label>
-              <Input
-                id="wa-phone"
-                value={data.driverPhone}
-                onChange={(e) => setData((p) => ({ ...p, driverPhone: e.target.value }))}
-                placeholder="526444230374"
-              />
-              <p className="text-xs text-muted-foreground">Formato internacional sin "+" ni espacios. Ej: 52 (México) + número a 10 dígitos → 526444230374.</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="wa-template">Plantilla del mensaje</Label>
-              <Textarea
-                id="wa-template"
-                value={data.messageTemplate}
-                onChange={(e) => setData((p) => ({ ...p, messageTemplate: e.target.value }))}
-                rows={10}
-                className="font-mono text-xs"
-              />
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Variables disponibles (se reemplazan con los datos de la parada):</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {PLACEHOLDERS.map((p) => (
-                    <span key={p.key} title={p.desc} className="rounded bg-background px-1.5 py-0.5 font-mono text-[11px] text-emerald-700 ring-1 ring-border">{p.key}</span>
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                El usuario podrá personalizar el mensaje antes de enviarlo; esta es solo la base por defecto.
-                Usa <span className="font-mono">*texto*</span> para negritas de WhatsApp.
-              </p>
-            </div>
-          </>
-        )}
-      </CardContent>
-      <CardFooter className="flex justify-end">
-        <Button onClick={handleSave} disabled={loading || saving}>
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          Guardar Cambios
-        </Button>
-      </CardFooter>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+      <TemplatesManagerCard />
     </div>
   );
 }

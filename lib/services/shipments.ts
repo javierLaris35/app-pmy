@@ -370,6 +370,12 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     };
   };
 
+  // 🔧 PRUEBAS: dispara el envío del correo DEX03 de una sucursal (flujo del cron). Solo superadmin.
+  const sendDex03Test = async (subsidiaryId: string) => {
+    const response = await axiosConfig.post(`${url}/dex03/test-send/${subsidiaryId}`);
+    return response.data as { subsidiaryId: string; count: number; sent: boolean; message: string };
+  };
+
 export {
     getShipments,
     getShipmentById,
@@ -381,5 +387,6 @@ export {
     getShipmentByTrackingNumberShowHistory,
     getShipmentByTrackingNumber,
     updateFromDHL,
-    runDevTracking
+    runDevTracking,
+    sendDex03Test
 }
