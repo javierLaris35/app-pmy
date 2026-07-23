@@ -7,7 +7,7 @@ import { saveAs } from "file-saver";
 import {
   Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap, Truck,
 } from "lucide-react";
-import { runDevTracking } from "@/lib/services/shipments";
+import { runDevTracking, sendDex03Test } from "@/lib/services/shipments";
 import { runDhlSyncCron } from "@/lib/services/dhl-tracking";
 import { EventDetailDialog } from "@/components/auditoria/event-detail-dialog";
 import { UsersPanel } from "@/components/auditoria/users-panel";
@@ -115,6 +115,8 @@ function AuditoriaPage() {
   const [exporting, setExporting] = useState(false);
   const [devRunning, setDevRunning] = useState(false);
   const [dhlRunning, setDhlRunning] = useState(false);
+  const [dex03Sub, setDex03Sub] = useState("");
+  const [dex03Running, setDex03Running] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
 
   // 🔧 DEV: dispara el tracking de FedEx on-demand (prueba rápida de 60 guías).
@@ -147,6 +149,21 @@ function AuditoriaPage() {
       toast.error(e?.response?.data?.message || "No se pudo ejecutar el tracking de DHL");
     } finally {
       setDhlRunning(false);
+    }
+  };
+
+  // 🔧 PRUEBAS: envía el correo DEX03 de una sucursal (mismo flujo del cron). Fiel: 0 guías → no envía.
+  const handleSendDex03 = async () => {
+    if (!dex03Sub) { toast.error("Selecciona una sucursal"); return; }
+    try {
+      setDex03Running(true);
+      const r = await sendDex03Test(dex03Sub);
+      if (r.sent) toast.success(r.message, { duration: 8000 });
+      else toast.info(r.message, { duration: 8000 });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo enviar el DEX03");
+    } finally {
+      setDex03Running(false);
     }
   };
 
@@ -267,6 +284,20 @@ function AuditoriaPage() {
               </Button>
               <Button size="sm" variant="outline" onClick={handleDhlTracking} disabled={dhlRunning} title="Probar tracking DHL (WhereParcel)">
                 {dhlRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">DHL</span>
+              </Button>
+              <select
+                value={dex03Sub}
+                onChange={(e) => setDex03Sub(e.target.value)}
+                title="Sucursal para el correo DEX03 de prueba"
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="">Sucursal (DEX03)…</option>
+                {(subsidiaries || []).map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <Button size="sm" variant="outline" onClick={handleSendDex03} disabled={dex03Running || !dex03Sub} title="Enviar correo DEX03 de la sucursal (prueba, mismo flujo del cron)">
+                {dex03Running ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">DEX03</span>
               </Button>
               <Button size="icon" variant="outline" className="h-9 w-9" onClick={refreshAll} aria-label="Actualizar"><RefreshCw className="h-4 w-4" /></Button>
               <Button size="sm" onClick={handleExport} disabled={exporting}>
