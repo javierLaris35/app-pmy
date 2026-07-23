@@ -96,10 +96,63 @@ const saveWarehouseOutbound = async (data: OutboundWarehouseDto) => {
   return response.data;
 }
 
+export type WarehouseOpKind = "inbound" | "outbound";
+
+/**
+ * Descarga el PDF/Excel de una operación de bodega generado por el BACKEND
+ * (mismo archivo que el correo) y dispara la descarga en el navegador. El nombre
+ * sale del header `Content-Disposition` para coincidir con el del correo.
+ */
+const downloadWarehouseFile = async (
+  opKind: WarehouseOpKind,
+  id: string,
+  fileKind: "pdf" | "excel",
+) => {
+  const response = await axiosConfig.get(`${url}/${opKind}/${id}/${fileKind}`, {
+    responseType: "blob",
+  });
+
+  const disposition = response.headers["content-disposition"] as string | undefined;
+  let fileName = fileKind === "pdf" ? "bodega.pdf" : "bodega.xlsx";
+  if (disposition) {
+    const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    if (match) fileName = decodeURIComponent(match[1]);
+  }
+
+  const blobUrl = window.URL.createObjectURL(response.data as Blob);
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+};
+
+/** Atajo para salidas (usado por el modal de Salida de Bodega). */
+const downloadOutboundFile = (id: string, fileKind: "pdf" | "excel") =>
+  downloadWarehouseFile("outbound", id, fileKind);
+
+/** Detalle hidratado de una operación (metadata + paquetes) para "Ver detalles". */
+const getWarehouseOperationDetails = async (opKind: WarehouseOpKind, id: string) => {
+  const response = await axiosConfig.get(`${url}/${opKind}/${id}/details`);
+  return response.data;
+};
+
+/** Rollback de una operación (solo superadmin). Devuelve { reverted, skipped }. */
+const rollbackWarehouseOperation = async (opKind: WarehouseOpKind, id: string) => {
+  const response = await axiosConfig.post(`${url}/${opKind}/${id}/rollback`);
+  return response.data as { reverted: number; skipped: { trackingNumber: string; reason: string }[] };
+};
+
 export {
     validateShipment,
     saveWarehouseInbound,
     saveWarehouseOutbound,
     getInboundHistory,
-    getOutboundHistory
+    getOutboundHistory,
+    downloadOutboundFile,
+    downloadWarehouseFile,
+    getWarehouseOperationDetails,
+    rollbackWarehouseOperation
 }

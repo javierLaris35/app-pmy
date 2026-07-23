@@ -6,7 +6,6 @@ import {
   ArrowRightLeft,
   Building2,
   CheckCircle2,
-  FileSpreadsheet,
   GaugeIcon,
   History,
   Keyboard,
@@ -28,13 +27,10 @@ import { SucursalSelector } from "@/components/sucursal-selector"
 import { RutaSelector } from "@/components/selectors/ruta-selector"
 import { toast } from "@/components/ui/use-toast"
 
-import { PackageEntryPDF } from "@/components/package-entry-pdf"
-
 // Servicios y tipos
-import { saveWarehouseOutbound, validateShipment } from "@/lib/services/warehouse/warehouse"
+import { downloadOutboundFile, saveWarehouseOutbound, validateShipment } from "@/lib/services/warehouse/warehouse"
 import type { OutboundWarehouseDto } from "@/lib/services/warehouse/warehouse"
 import { OutboundTypeEnum, type Route as RouteType, type PackageInfo } from "@/lib/types"
-import type { SessionState } from "@/components/warehouse/inbound-package/inbound-package"
 
 // Escáner unificado (Task 1) + helpers puros de bodega (Task 2)
 import { ScanInput, type ScanInputHandle } from "@/components/scanner/scan-input"
@@ -47,7 +43,6 @@ import {
 // Capa compartida de bodega
 import {
   useWarehouseSession,
-  type WarehouseShipment,
   type RemittanceDialogState,
 } from "@/components/warehouse/shared/use-warehouse-session"
 import { WarehouseStatsRow, type WarehouseStatsRowStats } from "@/components/warehouse/shared/warehouse-stats-row"
@@ -56,7 +51,6 @@ import { DetailModal } from "@/components/warehouse/shared/detail-modal"
 import { ShortcutsDialog } from "@/components/warehouse/shared/shortcuts-dialog"
 import { WarehouseRemittanceDialog } from "@/components/warehouse/shared/warehouse-remittance-dialog"
 import { SignatureDialog } from "@/components/warehouse/shared/signature-dialog"
-import { generateWarehouseExcel } from "@/components/warehouse/shared/warehouse-excel"
 import { RemittanceGroupToggle } from "@/components/warehouse/shared/remittance-group-toggle"
 import {
   groupRemittances,
@@ -68,24 +62,9 @@ import { resolveId } from "@/components/warehouse/shared/resolve-id"
 import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
 
 /**
- * Adapta un `WarehousePackageInfo` (modelo del ScanInput, con `payment: {amount,type}`)
- * a la forma que consumen los generadores heredados de PDF/Excel (que leen
- * `hasPayment`/`paymentAmount`). Preserva piezas de remesa y normaliza
- * `commitDateTime` a `Date`. Cast final a `WarehouseShipment` para satisfacer
- * `SessionState.packages` sin tocar esos consumidores (fuera de alcance).
+ * Normaliza `payment` a los flags `hasPayment`/`paymentAmount` que consume el
+ * DetailModal, conservando `commitDateTime` como está.
  */
-function toSessionShipment(p: WarehousePackageInfo): WarehouseShipment {
-  return {
-    ...p,
-    commitDateTime: p.commitDateTime ? new Date(p.commitDateTime) : new Date(),
-    hasPayment: !!p.payment,
-    paymentAmount: Number(p.payment?.amount) || 0,
-    pieces: p.pieces || [],
-    existingPieces: p.existingPieces || [],
-  } as unknown as WarehouseShipment
-}
-
-/** Igual que `toSessionShipment` pero conserva `commitDateTime` como está (para el DetailModal). */
 function adaptPayment(p: WarehousePackageInfo) {
   return { ...p, hasPayment: !!p.payment, paymentAmount: Number(p.payment?.amount) || 0 }
 }
@@ -204,12 +183,6 @@ export default function OutboundPackage() {
   // ---- Stats derivadas de los paquetes locales (modelo PackageInfo con `payment`) ----
   const stats = useMemo(() => computeWarehouseStats(packages), [packages])
 
-  // ---- Orden canónico para payload / PDF / Excel ----
-  const sessionPackages = useMemo(
-    () => [...packages].sort(sortWarehousePackages).map((p) => toSessionShipment(p as WarehousePackageInfo)),
-    [packages],
-  )
-
   // Regla local de habilitación del cierre (deps completas).
   const isReadyToFinish = useMemo(() => {
     const hasPackages = packages.length > 0
@@ -245,22 +218,6 @@ export default function OutboundPackage() {
 
   const canConfirm = s.receivedByName.trim() !== ""
 
-  // Sesión sintética para PDF/Excel (los generadores leen `id`, `packages`,
-  // `enteredByName` y `receivedByName`). El operador se deriva de los choferes.
-  const pdfSession: SessionState = useMemo(
-    () => ({
-      id: sessionId,
-      vehicle: null,
-      startTime: new Date(),
-      drivers: [],
-      receivedByName: s.receivedByName,
-      enteredByName: s.derivedDriverName,
-      packages: sessionPackages,
-      status: "En Proceso",
-    }),
-    [sessionId, s.receivedByName, s.derivedDriverName, sessionPackages],
-  )
-
   const buildOutboundPayload = (): OutboundWarehouseDto => ({
     warehouse: s.effectiveWarehouseId,
     shipments: [...packages]
@@ -291,43 +248,50 @@ export default function OutboundPackage() {
     }),
   })
 
+  /** Limpia la sesión de salida tras guardar. */
+  const resetOutboundSession = () => {
+    scanRef.current?.clear()
+    setPackages([])
+    s.setReceivedByName("")
+    setSelectedRutas([])
+    setSelectedKms(0)
+    setDestinationSubsidiary("")
+    setDestinationSubsidiaryName("")
+    setSessionId(crypto.randomUUID())
+  }
+
   const handleConfirm = () => {
     s.runSubmit(async () => {
       try {
-        await saveWarehouseOutbound(buildOutboundPayload())
-        // La notificación por correo (PDF + Excel) la envía el backend.
+        const result = await saveWarehouseOutbound(buildOutboundPayload())
         s.safeSpeak("Salida guardada con éxito")
-        // Limpia el buffer del escáner en la ruta de éxito (evita guías colgadas).
-        scanRef.current?.clear()
-        setPackages([])
-        // Limpia la firma "Recibido por" (dato por operación, no debe persistir a la siguiente salida).
-        s.setReceivedByName("")
-        setSelectedRutas([])
-        setSelectedKms(0)
-        setDestinationSubsidiary("")
-        setDestinationSubsidiaryName("")
-        setSessionId(crypto.randomUUID())
+
+        // Auto-descarga de los MISMOS archivos que el correo (generados por el
+        // backend). Si la descarga falla, no bloquea: se pueden regenerar desde
+        // el historial.
+        const outboundId: string | undefined = result?.outboundId
+        if (outboundId) {
+          try {
+            await downloadOutboundFile(outboundId, "pdf")
+            await downloadOutboundFile(outboundId, "excel")
+          } catch (dlErr) {
+            console.error("Error al auto-descargar archivos de la salida:", dlErr)
+            toast({
+              title: "Salida guardada",
+              description: "No se pudieron descargar los archivos; regénéralos desde el historial.",
+              variant: "destructive",
+            })
+          }
+        }
+
+        resetOutboundSession()
         s.toggleModal("signatures", false)
-        toast({ title: "Salida de bodega guardada", description: "Salida guardada con éxito." })
+        toast({ title: "Salida de bodega guardada", description: "PDF y Excel descargados." })
       } catch (error) {
         console.error("Error al guardar la salida de bodega:", error)
         s.safeSpeak("Error al guardar en el servidor")
       }
     })
-  }
-
-  const handleDownloadExcel = async () => {
-    try {
-      s.safeSpeak("Generando archivo Excel")
-      await generateWarehouseExcel(pdfSession, sessionPackages, true, {
-        sheetName: "Salida",
-        fileNamePrefix: "Salida_Bodega",
-      })
-      s.safeSpeak("Archivo excel generado")
-    } catch (err) {
-      console.error("Error al exportar el archivo Excel en cliente:", err)
-      s.safeSpeak("Error al exportar excel")
-    }
   }
 
   const signatureVariant = outputType === OutboundTypeEnum.DISPATCH ? "dispatch" : "transfer"
@@ -637,18 +601,8 @@ export default function OutboundPackage() {
         onConfirm={handleConfirm}
         isSubmitting={s.isSubmitting}
         canConfirm={canConfirm}
-        pdfDocument={<PackageEntryPDF session={pdfSession} vehiculo={s.vehicleId} title="Reporte de Salida de Bodega" />}
-        pdfFileName={`salida-${outputType}-${new Date().toISOString().split('T')[0]}.pdf`}
-        excelButton={
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto h-10 border-slate-300 text-green-700 hover:text-green-800 hover:bg-green-50 font-semibold border-green-200"
-            onClick={handleDownloadExcel}
-            disabled={!canConfirm}
-          >
-            <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
-          </Button>
-        }
+        // Los archivos se descargan solos al confirmar; sin botones manuales aquí.
+        hideDownloads
       />
 
       <WarehouseHistoryDialog

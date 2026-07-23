@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History, Package } from "lucide-react";
+import { Eye, FileSpreadsheet, FileText, History, Package, Undo2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,8 +13,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { WeekRangePicker } from "@/components/shared/week-range-picker";
 import { getWeekRange, WeekRange } from "@/lib/week";
-import { getInboundHistory, getOutboundHistory } from "@/lib/services/warehouse/warehouse";
+import {
+  downloadWarehouseFile,
+  getInboundHistory,
+  getOutboundHistory,
+  rollbackWarehouseOperation,
+} from "@/lib/services/warehouse/warehouse";
+import { OperationDetailsDialog } from "@/components/warehouse/shared/operation-details-dialog";
+import { useAuthStore } from "@/store/auth.store";
+import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+
+const SUPER_ROLES = ["superadmin", "superamin"];
 
 interface Props {
   open: boolean;
@@ -34,6 +44,41 @@ export function WarehouseHistoryDialog({ open, onOpenChange, kind, subsidiaryId,
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const limit = 50;
+
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = SUPER_ROLES.includes((user?.role || "").toString().toLowerCase());
+  const [reloadKey, setReloadKey] = useState(0);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const handleDownload = async (id: string, fileKind: "pdf" | "excel") => {
+    try {
+      setBusyId(id);
+      await downloadWarehouseFile(kind, id, fileKind);
+    } catch {
+      toast({ title: "Error al generar", description: "No se pudo generar el archivo.", variant: "destructive" });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRollback = async (id: string) => {
+    if (!window.confirm("¿Revertir esta operación? Regresará los paquetes a su estado anterior. La acción queda registrada.")) return;
+    try {
+      setBusyId(id);
+      const res = await rollbackWarehouseOperation(kind, id);
+      const skipped = res?.skipped?.length ?? 0;
+      toast({
+        title: "Operación revertida",
+        description: `${res?.reverted ?? 0} paquete(s) revertido(s)${skipped ? `, ${skipped} omitido(s) porque ya avanzaron.` : "."}`,
+      });
+      setReloadKey((k) => k + 1);
+    } catch (e: any) {
+      toast({ title: "No se pudo revertir", description: e?.response?.data?.message ?? "Error en el servidor.", variant: "destructive" });
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   useEffect(() => {
     if (open) setPage(1);
@@ -57,12 +102,13 @@ export function WarehouseHistoryDialog({ open, onOpenChange, kind, subsidiaryId,
     return () => {
       cancelled = true;
     };
-  }, [open, subsidiaryId, kind, page, week.from, week.to]);
+  }, [open, subsidiaryId, kind, page, week.from, week.to, reloadKey]);
 
   const isOutbound = kind === "outbound";
   const title = isOutbound ? "Historial de salidas" : "Historial de entradas";
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
@@ -102,11 +148,12 @@ export function WarehouseHistoryDialog({ open, onOpenChange, kind, subsidiaryId,
                   <th className="px-3 py-2 font-medium">Vehículo</th>
                   <th className="px-3 py-2 font-medium">Chofer</th>
                   <th className="px-3 py-2 font-medium text-right">Paq. / Pzas.</th>
+                  <th className="px-3 py-2 font-medium text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-muted/30">
+                  <tr key={r.id} className={cn("hover:bg-muted/30", r.rolledBack && "opacity-60")}>
                     <td className="px-3 py-2 text-muted-foreground">
                       {r.createdAt ? new Date(r.createdAt).toLocaleString("es-MX", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}
                     </td>
@@ -125,6 +172,31 @@ export function WarehouseHistoryDialog({ open, onOpenChange, kind, subsidiaryId,
                     <td className="px-3 py-2 text-right font-medium tabular-nums">
                       {r.totalPackages}
                       <span className="text-muted-foreground"> / {r.totalPieces}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        {r.rolledBack && (
+                          <Badge variant="secondary" className="mr-1 text-[11px] bg-red-100 text-red-700">Revertido</Badge>
+                        )}
+                        <Button variant="ghost" size="icon" title="Ver detalles" className="h-8 w-8" disabled={busyId === r.id} onClick={() => setDetailsId(r.id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {!r.rolledBack && (
+                          <>
+                            <Button variant="ghost" size="icon" title="Regenerar Excel" className="h-8 w-8 text-green-700" disabled={busyId === r.id} onClick={() => handleDownload(r.id, "excel")}>
+                              <FileSpreadsheet className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" title="Regenerar PDF" className="h-8 w-8" disabled={busyId === r.id} onClick={() => handleDownload(r.id, "pdf")}>
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            {isSuperAdmin && (
+                              <Button variant="ghost" size="icon" title="Rollback (revertir)" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" disabled={busyId === r.id} onClick={() => handleRollback(r.id)}>
+                                <Undo2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -146,5 +218,13 @@ export function WarehouseHistoryDialog({ open, onOpenChange, kind, subsidiaryId,
         </div>
       </DialogContent>
     </Dialog>
+
+    <OperationDetailsDialog
+      open={!!detailsId}
+      onOpenChange={(v) => !v && setDetailsId(null)}
+      opKind={kind}
+      operationId={detailsId}
+    />
+    </>
   );
 }

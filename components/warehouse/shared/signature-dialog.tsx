@@ -68,12 +68,15 @@ export interface SignatureDialogProps {
   onConfirm: () => void
   isSubmitting: boolean
   canConfirm: boolean
-  /** Elemento `@react-pdf/renderer` (ej. `<PackageEntryPDF .../>`) para `PDFDownloadLink`. */
-  pdfDocument: ReactElement<DocumentProps>
+  /** Elemento `@react-pdf/renderer` (ej. `<PackageEntryPDF .../>`) para `PDFDownloadLink`. Opcional si `hideDownloads`. */
+  pdfDocument?: ReactElement<DocumentProps>
   /** Nombre del archivo PDF descargado. Default: "recepcion.pdf" (Entrada a Bodega). */
   pdfFileName?: string
   /** Slot opcional para el botón de Excel (solo Entrada a Bodega lo usa). */
   excelButton?: ReactNode
+  /** Oculta los botones de descarga (PDF/Excel) del modal. Se usa en Salida de
+   *  Bodega, donde los archivos se descargan solos al confirmar. */
+  hideDownloads?: boolean
 }
 
 /**
@@ -96,6 +99,7 @@ export function SignatureDialog({
   pdfDocument,
   pdfFileName = "recepcion.pdf",
   excelButton,
+  hideDownloads = false,
 }: SignatureDialogProps) {
   // Evita el mismatch de hidratación de PDFDownloadLink (solo se monta en cliente).
   const [isClient, setIsClient] = useState(false)
@@ -148,24 +152,28 @@ export function SignatureDialog({
             Cancelar
           </Button>
 
-          {excelButton}
+          {!hideDownloads && (
+            <>
+              {excelButton}
 
-          {isClient && canConfirm ? (
-            <PDFDownloadLink document={pdfDocument} fileName={pdfFileName} className="w-full sm:w-auto">
-              {({ loading }) => (
-                <Button
-                  variant="outline"
-                  className="w-full h-10 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
-                  disabled={loading}
-                >
+              {isClient && canConfirm && pdfDocument ? (
+                <PDFDownloadLink document={pdfDocument} fileName={pdfFileName} className="w-full sm:w-auto">
+                  {({ loading }) => (
+                    <Button
+                      variant="outline"
+                      className="w-full h-10 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
+                      disabled={loading}
+                    >
+                      <Download className="mr-2 h-4 w-4" /> PDF
+                    </Button>
+                  )}
+                </PDFDownloadLink>
+              ) : (
+                <Button variant="outline" className="w-full sm:w-auto h-10 border-slate-200 text-slate-400" disabled>
                   <Download className="mr-2 h-4 w-4" /> PDF
                 </Button>
               )}
-            </PDFDownloadLink>
-          ) : (
-            <Button variant="outline" className="w-full sm:w-auto h-10 border-slate-200 text-slate-400" disabled>
-              <Download className="mr-2 h-4 w-4" /> PDF
-            </Button>
+            </>
           )}
 
           <Button
