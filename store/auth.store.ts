@@ -9,6 +9,13 @@ interface AuthState {
   isAuthenticated: boolean;
   hasHydrated: boolean;
   login: (user: User, token: string) => void;
+  /**
+   * Guarda SOLO el token y marca la sesión como autenticada. Se usa en el flujo
+   * de login antes de pedir el perfil: el interceptor de axios necesita el token
+   * en el store para adjuntarlo al GET /auth/profile. El estado pesado (user) se
+   * setea después con setUser.
+   */
+  setToken: (token: string) => void;
   logout: () => void;
   setUser: (user: User) => void;
   setHasHydrated: (hydrated: boolean) => void;
@@ -31,6 +38,10 @@ export const useAuthStore = create<AuthState>()(
 
       login: (user, token) => {
         set({ user, token, isAuthenticated: true });
+      },
+
+      setToken: (token) => {
+        set({ token, isAuthenticated: true });
       },
 
       logout: () => {

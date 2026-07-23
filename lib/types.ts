@@ -204,9 +204,11 @@ export type User = {
   subsidiaryName?: string
   /** Sucursales adicionales (más allá de la main) asignadas por un superadmin. */
   additionalSubsidiaries?: Subsidiary[]
+  /** IDs planos de sucursales permitidas (main + adicionales) para scoping. */
+  subsidiaryIds?: string[]
   avatar?: string
   active: boolean
-  /** Permisos efectivos (codes RBAC) sembrados en el JWT al iniciar sesión. */
+  /** Permisos efectivos (codes RBAC). Ahora se obtienen vía GET /auth/profile. */
   permissions?: string[]
 }
 

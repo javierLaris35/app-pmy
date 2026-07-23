@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuthStore } from "@/store/auth.store"
 import { login } from "@/lib/services/login"
+import { getProfile } from "@/lib/services/profile"
 import { Loader2Icon, Mail } from "lucide-react"
 import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 
@@ -33,15 +34,26 @@ export function LoginForm({
     setIsLoading(true)
 
     try {
-      const user = await login(email, password)
-      if (user && user.access_token) {
-        useAuthStore.getState().login(user.user, user.access_token)
-        router.push("/dashboard")
-      } else {
+      // 1) Autentica: el token ya NO trae el estado pesado, solo { sub, email, role }.
+      const res = await login(email, password)
+      if (!res || !res.access_token) {
         setError("Usuario o contraseña incorrectos")
+        return
       }
+
+      // 2) Guarda el token primero: el interceptor de axios lo necesita en el
+      //    store para adjuntarlo al GET /auth/profile.
+      useAuthStore.getState().setToken(res.access_token)
+
+      // 3) Trae el perfil "pesado" (permisos, sucursales) y guárdalo en el estado.
+      const profile = await getProfile()
+      useAuthStore.getState().setUser(profile)
+
+      router.push("/dashboard")
     } catch (err) {
       console.error("Login error:", err)
+      // Si algo falla tras autenticar, no dejamos una sesión a medias.
+      useAuthStore.getState().logout()
       setError("Usuario o contraseña incorrectos")
     } finally {
       setIsLoading(false)
