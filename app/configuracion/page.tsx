@@ -23,6 +23,7 @@ import { CatalogPanel } from "@/components/configuracion/catalog-panel"
 import { GeocodePanel } from "@/components/configuracion/geocode-panel"
 import { ServerStatsPanel } from "@/components/configuracion/server-stats-panel"
 import { ServerLogsPanel } from "@/components/configuracion/server-logs-panel"
+import { ServerBackupPanel } from "@/components/configuracion/server-backup-panel"
 import { WhatsappConfigPanel } from "@/components/configuracion/whatsapp-config-panel"
 import { PlantillasPanel } from "@/components/configuracion/plantillas/plantillas-panel"
 import { BrandingPanel } from "@/components/configuracion/branding-panel"
@@ -123,9 +124,11 @@ function ConfiguracionPage() {
                 <TabsList>
                   <TabsTrigger value="metricas">Métricas</TabsTrigger>
                   <TabsTrigger value="logs">Logs en vivo</TabsTrigger>
+                  {isSuper && <TabsTrigger value="respaldo">Respaldo</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="metricas"><ServerStatsPanel /></TabsContent>
                 <TabsContent value="logs"><ServerLogsPanel /></TabsContent>
+                {isSuper && <TabsContent value="respaldo"><ServerBackupPanel /></TabsContent>}
               </Tabs>
             )}
 
