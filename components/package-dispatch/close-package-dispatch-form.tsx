@@ -323,17 +323,39 @@ export default function ClosePackageDispatchWizard({
   };
 }, [dispatch, noVanPackages]);
 
-  // Sembrar 'OK' (entregado) por defecto para cada paquete DHL aún sin código.
-  useEffect(() => {
-    setDhlCodes((prev) => {
-      const next = { ...prev };
-      for (const p of dhlShipments) {
-        const id = p.id ?? '';
-        if (id && next[id] == null) next[id] = 'OK';
-      }
-      return next;
-    });
-  }, [dhlShipments]);
+  // Los paquetes DHL inician SIN CONFIRMAR (ya NO se siembran como 'OK' por defecto):
+  // el operador debe confirmarlos uno por uno o con el switch "Marcar todos como entregados".
+  // Así se evita cerrar "por la vía rápida" mandando todo a entregado sin revisar.
+  const dhlConfirmedCount = dhlShipments.filter((p) => !!dhlCodes[p.id ?? '']).length;
+  const dhlUnconfirmedCount = dhlShipments.length - dhlConfirmedCount;
+  const dhlExceptionCount = dhlShipments.filter((p) => {
+    const c = dhlCodes[p.id ?? ''];
+    return !!c && c !== 'OK';
+  }).length;
+  const allDhlDelivered = dhlShipments.length > 0 && dhlShipments.every((p) => dhlCodes[p.id ?? ''] === 'OK');
+
+  // KPIs del cierre reactivos a la confirmación DHL: FedEx viene del useMemo (delivered/
+  // notDelivered/other, que excluyen DHL) y se le suma la clasificación DHL por código.
+  // Regla: OK → entregado; excepción (no-OK) → no entregado; SIN CONFIRMAR → no cuenta
+  // en ningún KPI (queda pendiente en la tarjeta DHL hasta que se confirme).
+  const dhlDeliveredPkgs = dhlShipments
+    .filter((p) => dhlCodes[p.id ?? ''] === 'OK')
+    .map((p) => ({ ...p, status: 'entregado' }));
+  const dhlExceptionPkgs = dhlShipments
+    .filter((p) => { const c = dhlCodes[p.id ?? '']; return !!c && c !== 'OK'; })
+    .map((p) => ({ ...p, status: dhlCodes[p.id ?? ''] }));
+
+  const shownDeliveredCount = deliveredCount + dhlDeliveredPkgs.length;
+  const shownNotDeliveredCount = notDeliveredCount + dhlExceptionPkgs.length;
+  const shownOtherCount = otherCount; // los DHL sin confirmar NO cuentan aquí
+  const shownTotal = deliveredCount + notDeliveredCount + otherCount + dhlShipments.length;
+  const shownReturnRate = shownTotal > 0 ? (shownNotDeliveredCount / shownTotal) * 100 : 0;
+  const shownDeliveryRate = shownTotal > 0 ? (shownDeliveredCount / shownTotal) * 100 : 0;
+  const shownNotDeliveredRate = shownTotal > 0 ? (shownNotDeliveredCount / shownTotal) * 100 : 0;
+
+  // Listas combinadas (FedEx + DHL ya confirmados) para las tarjetas de detalle del step 1.
+  const shownDeliveredPackages = [...deliveredPackages, ...dhlDeliveredPkgs];
+  const shownNotDeliveredPackages = [...notDeliveredPackages, ...dhlExceptionPkgs];
 
   const [activeTab, setActiveTab] = useState<'dhl' | 'collections' | 'novan'>(
     dhlShipments.length > 0 ? 'dhl' : 'collections'
@@ -560,6 +582,14 @@ export default function ClosePackageDispatchWizard({
   };
 
   const nextStep = () => {
+    if (currentStep === 2 && dhlUnconfirmedCount > 0) {
+      toast({
+        title: "Faltan confirmar entregas DHL",
+        description: `Hay ${dhlUnconfirmedCount} paquete(s) DHL sin confirmar. Marca cada uno o usa "Marcar todos como entregados".`,
+        variant: "destructive",
+      });
+      return;
+    }
     if (currentStep === 2 && pendingDhlUpdates) {
       toast({ title: "Atención", description: "Faltan estatus de DHL por actualizar.", variant: "destructive" });
       return;
@@ -670,8 +700,8 @@ export default function ClosePackageDispatchWizard({
           <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium uppercase tracking-wider">
             <BarChart3 className="h-3.5 w-3.5" /> Tasa Devolución
           </div>
-          <div className={`text-sm font-bold ${returnRate > 20 ? 'text-red-600' : 'text-green-600'}`}>
-            {returnRate.toFixed(1)}%
+          <div className={`text-sm font-bold ${shownReturnRate > 20 ? 'text-red-600' : 'text-green-600'}`}>
+            {shownReturnRate.toFixed(1)}%
           </div>
         </div>
 
@@ -685,7 +715,7 @@ export default function ClosePackageDispatchWizard({
                 <PackageCheck className="h-3.5 w-3.5 text-green-600" /> Entregados
               </div>
               <div className="text-sm font-bold text-green-700">
-                {deliveredCount}
+                {shownDeliveredCount}
               </div>
             </div>
 
@@ -694,7 +724,7 @@ export default function ClosePackageDispatchWizard({
                 <PackageX className="h-3.5 w-3.5 text-red-600" /> No Entregados
               </div>
               <div className="text-sm font-bold text-red-700">
-                {notDeliveredCount}
+                {shownNotDeliveredCount}
               </div>
             </div>
 
@@ -703,7 +733,7 @@ export default function ClosePackageDispatchWizard({
                 <PackageSearch className="h-3.5 w-3.5 text-amber-600" /> Otros
               </div>
               <div className="text-sm font-bold text-amber-700">
-                {otherCount}
+                {shownOtherCount}
               </div>
             </div>
           </div>
@@ -742,13 +772,13 @@ export default function ClosePackageDispatchWizard({
                     <CheckCircle className="h-5 w-5" /> Entregados
                   </span>
                   <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                    {deliveryRate.toFixed(1)}%
+                    {shownDeliveryRate.toFixed(1)}%
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-green-700 mb-2">{deliveredCount}</div>
+                  <div className="text-5xl font-bold text-green-700 mb-2">{shownDeliveredCount}</div>
                   <div className="text-sm text-gray-600 mb-4">de {totalPackages} paquetes</div>
                   <Button
                     variant="outline"
@@ -762,10 +792,10 @@ export default function ClosePackageDispatchWizard({
                     <CollapsibleContent className="mt-4 pt-4 border-t border-green-200">
                       <ScrollArea className="h-64">
                         <div className="space-y-2 pr-2">
-                          {deliveredPackages.length === 0 ? (
+                          {shownDeliveredPackages.length === 0 ? (
                             <div className="text-center py-4 text-gray-500">No hay paquetes entregados</div>
                           ) : (
-                            deliveredPackages.map((pkg) => (
+                            shownDeliveredPackages.map((pkg) => (
                               <div key={pkg.id || pkg.trackingNumber} className="p-2 rounded hover:bg-green-50 space-y-1 text-left">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="font-medium text-sm text-gray-800 truncate">{pkg.trackingNumber}</div>
@@ -792,13 +822,13 @@ export default function ClosePackageDispatchWizard({
                     <PackageX className="h-5 w-5" /> No Entregados
                   </span>
                   <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
-                    {notDeliveredRate.toFixed(1)}%
+                    {shownNotDeliveredRate.toFixed(1)}%
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-red-700 mb-2">{notDeliveredCount}</div>
+                  <div className="text-5xl font-bold text-red-700 mb-2">{shownNotDeliveredCount}</div>
                   <div className="text-sm text-gray-600 mb-4">de {totalPackages} paquetes</div>
                   <Button
                     variant="outline"
@@ -812,10 +842,10 @@ export default function ClosePackageDispatchWizard({
                     <CollapsibleContent className="mt-4 pt-4 border-t border-red-200">
                       <ScrollArea className="h-64">
                         <div className="space-y-2 pr-2">
-                          {notDeliveredPackages.length === 0 ? (
+                          {shownNotDeliveredPackages.length === 0 ? (
                             <div className="text-center py-4 text-gray-500">No hay paquetes no entregados</div>
                           ) : (
-                            notDeliveredPackages.map((pkg) => {
+                            shownNotDeliveredPackages.map((pkg) => {
                               const rawExceptionCode = pkg.exceptionCode ?? pkg.statusHistory
                                 ?.filter(h => h.status === 'no_entregado' && h.exceptionCode)
                                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]?.exceptionCode;
@@ -862,7 +892,7 @@ export default function ClosePackageDispatchWizard({
               </CardHeader>
               <CardContent>
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-amber-700 mb-2">{otherCount}</div>
+                  <div className="text-5xl font-bold text-amber-700 mb-2">{shownOtherCount}</div>
                   <div className="text-sm text-gray-600 mb-4">de {totalPackages} paquetes</div>
                   <Button
                     variant="outline"
@@ -995,48 +1025,71 @@ export default function ClosePackageDispatchWizard({
                   <div className="p-6 bg-orange-50/30 border-r border-orange-100 flex flex-col justify-between min-h-[350px]">
                     <div>
                       <h3 className="text-orange-900 font-bold text-lg leading-tight mb-1">Estatus DHL</h3>
-                      <p className="text-xs text-orange-700/70">Todos van como <b>entregados</b> por defecto. Marca solo las excepciones.</p>
+                      <p className="text-xs text-orange-700/70">Confirma cada paquete: marca las excepciones en la lista y usa el switch para dar por <b>entregados</b> los demás. No se puede avanzar con paquetes sin confirmar.</p>
                     </div>
                     <div className="mt-4 space-y-3">
                       <div className="bg-orange-600 text-white p-6 rounded-2xl shadow-lg">
                         <div className="text-4xl font-black">{dhlShipments.length}</div>
                         <div className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Paquetes DHL</div>
                         <div className="text-[11px] mt-1 opacity-90">
-                          {dhlShipments.filter((p) => (dhlCodes[p.id ?? ''] ?? 'OK') !== 'OK').length} con excepción
+                          {dhlUnconfirmedCount > 0
+                            ? `${dhlUnconfirmedCount} sin confirmar · ${dhlExceptionCount} con excepción`
+                            : `Todos confirmados · ${dhlExceptionCount} con excepción`}
                         </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-orange-300 text-orange-800 hover:bg-orange-100"
-                        onClick={() => setDhlCodes(Object.fromEntries(dhlShipments.map((p) => [p.id ?? '', 'OK'])))}
-                      >
-                        <PackageCheck className="h-4 w-4 mr-1" /> Marcar todos como entregados
-                      </Button>
+                      {/* Switch maestro: reemplaza al botón. Prender = marcar TODOS como entregados
+                          (acción deliberada de confirmación); apagar = volver a "sin confirmar". */}
+                      <div className="flex items-center justify-between w-full border border-orange-300 rounded-xl p-3 bg-white">
+                        <div className="flex items-center gap-2">
+                          <PackageCheck className="h-4 w-4 text-orange-700" />
+                          <span className="text-sm font-medium text-orange-800">Marcar todos como entregados</span>
+                        </div>
+                        <Switch
+                          checked={allDhlDelivered}
+                          onCheckedChange={(on) =>
+                            setDhlCodes(
+                              on ? Object.fromEntries(dhlShipments.map((p) => [p.id ?? '', 'OK'])) : {}
+                            )
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="p-6">
                     <ScrollArea className="h-[300px] pr-4">
                       <div className="space-y-2">
-                        {dhlShipments.map((pkg) => (
-                          <div key={pkg.id} className="flex justify-between items-center p-3 bg-slate-50 border rounded-xl hover:border-orange-300 transition-all">
-                            <span className="font-mono font-bold text-sm text-slate-700">{pkg.trackingNumber}</span>
+                        {dhlShipments.map((pkg) => {
+                          const code = dhlCodes[pkg.id ?? ''];
+                          const jd = (pkg as any).dhlUniqueId as string | undefined;
+                          return (
+                          <div key={pkg.id} className={cn(
+                            "flex justify-between items-center gap-2 p-3 border rounded-xl transition-all",
+                            !code ? "bg-amber-50 border-amber-300" : "bg-slate-50 border-slate-200 hover:border-orange-300"
+                          )}>
+                            <div className="flex flex-col min-w-0">
+                              {/* JD (pieza DHL) como PRINCIPAL; la guía/AWB va secundaria. */}
+                              <span className="font-mono font-bold text-sm text-slate-800 truncate">{jd || pkg.trackingNumber}</span>
+                              {jd && <span className="font-mono text-[10px] text-slate-400 truncate">Guía: {pkg.trackingNumber}</span>}
+                            </div>
                             <select
-                              value={dhlCodes[pkg.id ?? ''] ?? 'OK'}
+                              value={code ?? ''}
                               onChange={(e) => setDhlCodes((prev) => ({ ...prev, [pkg.id ?? '']: e.target.value }))}
                               className={cn(
-                                "h-8 w-44 rounded-lg border-slate-300 text-[11px] px-2 outline-none focus:ring-2 focus:ring-orange-200 bg-white",
-                                (dhlCodes[pkg.id ?? ''] ?? 'OK') !== 'OK' && "border-orange-400 bg-orange-50 font-semibold"
+                                "h-8 w-44 shrink-0 rounded-lg border text-[11px] px-2 outline-none focus:ring-2 focus:ring-orange-200 bg-white",
+                                !code ? "border-amber-400 bg-amber-50 text-amber-800 font-semibold"
+                                  : code !== 'OK' ? "border-orange-400 bg-orange-50 font-semibold"
+                                  : "border-slate-300"
                               )}
                             >
+                              <option value="" disabled>Sin confirmar…</option>
                               {dhlOptions.length === 0 && <option value="OK">POD / Entregado</option>}
                               {dhlOptions.map((opt) => (
                                 <option key={opt.key} value={opt.key}>{opt.label}</option>
                               ))}
                             </select>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </ScrollArea>
                   </div>
@@ -1184,15 +1237,15 @@ export default function ClosePackageDispatchWizard({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-3 rounded border text-center">
                   <div className="text-xs text-slate-500">Entregados</div>
-                  <div className="text-xl font-bold text-green-600">{deliveredCount}</div>
+                  <div className="text-xl font-bold text-green-600">{shownDeliveredCount}</div>
                 </div>
                 <div className="bg-white p-3 rounded border text-center">
                   <div className="text-xs text-slate-500">No Entregados</div>
-                  <div className="text-xl font-bold text-red-600">{notDeliveredCount}</div>
+                  <div className="text-xl font-bold text-red-600">{shownNotDeliveredCount}</div>
                 </div>
                 <div className="bg-white p-3 rounded border text-center">
                   <div className="text-xs text-slate-500">Otros</div>
-                  <div className="text-xl font-bold text-amber-600">{otherCount}</div>
+                  <div className="text-xl font-bold text-amber-600">{shownOtherCount}</div>
                 </div>
                 <div className="bg-white p-3 rounded border text-center">
                   <div className="text-xs text-slate-500">Recolecciones</div>
