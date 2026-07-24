@@ -49,6 +49,7 @@ import { RouteClosurePDF } from "@/lib/services/route-closure/route-closure-pdf-
 import { generateRouteClosureExcel } from "@/lib/services/route-closure/route-closure-excel-generator";
 import { updateDataFromFedexByPackageDispatchId } from "@/lib/services/monitoring/monitoring";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getCatalogOptions, CatalogItem } from "@/lib/services/catalog";
 
 interface ClosePackageDispatchProps {
   dispatchId: string;
@@ -91,6 +92,11 @@ export default function ClosePackageDispatchWizard({
   const [noVanPackages, setNoVanPackages] = useState<NoVanPackageDetail[]>([]);
   const [noVanInput, setNoVanInput] = useState("");
 
+  // Catálogo de códigos DHL (OK/NH/BA/RD/CM) + selección por paquete. Default OK
+  // ("todos entregados por defecto"; el operador solo marca las excepciones).
+  const [dhlOptions, setDhlOptions] = useState<CatalogItem[]>([]);
+  const [dhlCodes, setDhlCodes] = useState<Record<string, string>>({});
+
   
   // ESTADO PARA VALIDACIÓN BACKEND
   const [isValidatingNoVan, setIsValidatingNoVan] = useState(false);
@@ -121,6 +127,13 @@ export default function ClosePackageDispatchWizard({
       fetchDispatchData();
     }
   }, [dispatchId, toast, onClose]);
+
+  // Opciones del catálogo DHL (extendible desde Configuración → Catálogos).
+  useEffect(() => {
+    getCatalogOptions('dhl_status')
+      .then(setDhlOptions)
+      .catch(() => setDhlOptions([]));
+  }, []);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "—";
@@ -232,7 +245,9 @@ export default function ClosePackageDispatchWizard({
   // 2. Procesar paquetes originales
   shipments.forEach(pkg => {
     const isDhl = pkg.shipmentType?.toLowerCase() === 'dhl';
-    if (isDhl) dhlOnly.push(pkg);
+    // DHL se clasifica por su CÓDIGO propio (OK/NH/BA/RD/CM) en la sección DHL, no por
+    // el estatus canónico; se saca del bucketing FedEx para no mezclar ni bloquear el cierre.
+    if (isDhl) { dhlOnly.push(pkg); return; }
 
     const statusStr = pkg.status?.toLowerCase() || 'desconocido';
     const isDelivered = statusStr === 'entregado' || pkg.status === (ShipmentStatusType as any).ENTREGADO;
@@ -307,6 +322,18 @@ export default function ClosePackageDispatchWizard({
     routeNames: routes,
   };
 }, [dispatch, noVanPackages]);
+
+  // Sembrar 'OK' (entregado) por defecto para cada paquete DHL aún sin código.
+  useEffect(() => {
+    setDhlCodes((prev) => {
+      const next = { ...prev };
+      for (const p of dhlShipments) {
+        const id = p.id ?? '';
+        if (id && next[id] == null) next[id] = 'OK';
+      }
+      return next;
+    });
+  }, [dhlShipments]);
 
   const [activeTab, setActiveTab] = useState<'dhl' | 'collections' | 'novan'>(
     dhlShipments.length > 0 ? 'dhl' : 'collections'
@@ -476,12 +503,24 @@ export default function ClosePackageDispatchWizard({
     setIsSubmitting(true);
     
     try {
-      const returnedShipmentIds = returnedPackages
+      // FedEx / otros: por estatus canónico (DHL ya no está en estos buckets).
+      const returnedShipmentIds: any[] = returnedPackages
         .filter(p => p.isValid)
         .map(p => ({ id: p.id, status: p.status, isCharge: p.isCharge }));
 
-      const podShipmentIds = deliveredPackages
+      const podShipmentIds: any[] = deliveredPackages
         .map(p => ({ id: p.id, status: p.status, isCharge: p.isCharge }));
+
+      // DHL: por CÓDIGO propio (default OK). OK → entregado (pod); resto → no entregado (returned).
+      // Se envía `code`: el backend lo traduce al estatus canónico y solo cobra si es OK.
+      for (const p of dhlShipments) {
+        const id = p.id ?? '';
+        if (!id) continue;
+        const code = dhlCodes[id] ?? 'OK';
+        const entry = { id, code, isCharge: (p as any).isCharge ?? false };
+        if (code === 'OK') podShipmentIds.push(entry);
+        else returnedShipmentIds.push(entry);
+      }
       
       const closurePackageDispatch: RouteClosure = {
         packageDispatch: { id: dispatch.id },
@@ -509,18 +548,7 @@ export default function ClosePackageDispatchWizard({
     }
   };
 
-  const handleDhlStatusChange = useCallback((pkgId: string, newStatus: string) => {
-    setDispatch((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        shipments: prev.shipments?.map((pkg) => pkg.id === pkgId ? { ...pkg, status: newStatus } : pkg),
-        chargeShipments: prev.chargeShipments?.map((pkg) => pkg.id === pkgId ? { ...pkg, status: newStatus } : pkg)
-      };
-    });
-  }, []);
-
-  const handleUpdateFedex = async () => { 
+  const handleUpdateFedex = async () => {
     try {
       setIsLoading(true);
       await updateDataFromFedexByPackageDispatchId(dispatchId);
@@ -967,11 +995,25 @@ export default function ClosePackageDispatchWizard({
                   <div className="p-6 bg-orange-50/30 border-r border-orange-100 flex flex-col justify-between min-h-[350px]">
                     <div>
                       <h3 className="text-orange-900 font-bold text-lg leading-tight mb-1">Estatus DHL</h3>
-                      <p className="text-xs text-orange-700/70">Actualiza entregas de terceros.</p>
+                      <p className="text-xs text-orange-700/70">Todos van como <b>entregados</b> por defecto. Marca solo las excepciones.</p>
                     </div>
-                    <div className="bg-orange-600 text-white p-6 rounded-2xl shadow-lg mt-4">
-                      <div className="text-4xl font-black">{dhlShipments.length}</div>
-                      <div className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Pendientes</div>
+                    <div className="mt-4 space-y-3">
+                      <div className="bg-orange-600 text-white p-6 rounded-2xl shadow-lg">
+                        <div className="text-4xl font-black">{dhlShipments.length}</div>
+                        <div className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Paquetes DHL</div>
+                        <div className="text-[11px] mt-1 opacity-90">
+                          {dhlShipments.filter((p) => (dhlCodes[p.id ?? ''] ?? 'OK') !== 'OK').length} con excepción
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-orange-300 text-orange-800 hover:bg-orange-100"
+                        onClick={() => setDhlCodes(Object.fromEntries(dhlShipments.map((p) => [p.id ?? '', 'OK'])))}
+                      >
+                        <PackageCheck className="h-4 w-4 mr-1" /> Marcar todos como entregados
+                      </Button>
                     </div>
                   </div>
                   <div className="p-6">
@@ -981,13 +1023,16 @@ export default function ClosePackageDispatchWizard({
                           <div key={pkg.id} className="flex justify-between items-center p-3 bg-slate-50 border rounded-xl hover:border-orange-300 transition-all">
                             <span className="font-mono font-bold text-sm text-slate-700">{pkg.trackingNumber}</span>
                             <select
-                              value={Object.values(ShipmentStatusType).includes(pkg.status as any) ? pkg.status : ""}
-                              onChange={(e) => handleDhlStatusChange(pkg.id, e.target.value)}
-                              className="h-8 w-36 rounded-lg border-slate-300 text-[11px] px-2 outline-none focus:ring-2 focus:ring-orange-200 bg-white"
+                              value={dhlCodes[pkg.id ?? ''] ?? 'OK'}
+                              onChange={(e) => setDhlCodes((prev) => ({ ...prev, [pkg.id ?? '']: e.target.value }))}
+                              className={cn(
+                                "h-8 w-44 rounded-lg border-slate-300 text-[11px] px-2 outline-none focus:ring-2 focus:ring-orange-200 bg-white",
+                                (dhlCodes[pkg.id ?? ''] ?? 'OK') !== 'OK' && "border-orange-400 bg-orange-50 font-semibold"
+                              )}
                             >
-                              <option value="" disabled>Estatus...</option>
-                              {Object.values(ShipmentStatusType).map((val) => (
-                                <option key={val} value={val}>{val.toUpperCase()}</option>
+                              {dhlOptions.length === 0 && <option value="OK">POD / Entregado</option>}
+                              {dhlOptions.map((opt) => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
                               ))}
                             </select>
                           </div>
