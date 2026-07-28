@@ -335,16 +335,36 @@ export interface Consolidated {
   };
   shipmentCounts?: {
     total: number;
+    countNormal: number;    // Normales (tabla shipment)
+    countF2: number;        // F2 (charge_shipment)
+    countHighValue: number; // Alto Valor: subconjunto de Normales
+    countCobros: number;    // Cobros (COD): subconjunto de Normales
+    totalCargas: number;    // TOTAL CARGA = Normales + F2
     en_ruta: number;
     en_bodega: number;      // Nuevo: Paquetes en sucursal
-    entregado: number;
+    entregado: number;      // POD
     dex03: number;          // Dirección incorrecta
     dex07: number;          // Rechazado
     dex08: number;          // Cliente no disponible
+    ocurre: number;         // Ocurre (es_ocurre)
+    totalDex: number;
+    podPlusDexs: number;    // POD + DEX07 + DEX03 + DEX08 + Ocurre
+    guiasPendientesDeMov: number; // guías aún sin movimiento
+    otros: number;          // ya movidas fuera de POD/DEX/Ocurre
+    otrosBreakdown?: Record<string, number>;
+    totalDevueltos: number;
+    pendiente: number;
+    porcEfectividad: number;
+    porcEfectividadEntrega: number;
+    porcRendimientoIntentos: number;
     other: number;
   };
   // Nota: isConsolidatedComplete es el nombre que usamos en el DTO del backend
-  isConsolidatedComplete: boolean; 
+  isConsolidatedComplete: boolean;
+  // estatusCuadre: 'cerrado' cuando no quedan guías pendientes de movimiento, si no 'abierto'.
+  estatusCuadre?: 'cerrado' | 'abierto';
+  status?: string;
+  code?: string;
   consNumber: string;
   carrier: 'fedex' | 'dhl' | string;
   efficiency: number;

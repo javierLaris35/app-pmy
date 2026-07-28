@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { Consolidateds, Unloading, UnloadingFormData, UnloadingResponse, UnloadingValidationTrackings, ValidTrackingAndConsolidateds, UnloadingSessionInit, ValidatedUnloadingOne } from "@/lib/types"
+import { Consolidateds, Unloading, UnloadingFormData, UnloadingResponse, UnloadingValidationTrackings, ValidTrackingAndConsolidateds, UnloadingSessionInit, ValidatedUnloadingOne, ConsolidatedInitItem } from "@/lib/types"
 import { Paginated, ListParams } from "./pagination"
 
 const url = '/unloadings'
@@ -54,6 +54,19 @@ const validateOne = async (trackingNumber: string, subsidiaryId: string) => {
   return response.data;
 };
 
+/**
+ * Busca UN consolidado por su número (consulta directa a BD, con alcance por
+ * sucursal) para desembarcarlo aunque no aparezca en la lista del día. Devuelve el
+ * mismo formato que session-init (con universo esperado) o null si no existe.
+ */
+const getUnloadingConsolidatedByConsNumber = async (subsidiaryId: string, consNumber: string) => {
+  const response = await axiosConfig.get<ConsolidatedInitItem | null>(
+    `${url}/consolidated-by-cons-number/${subsidiaryId}`,
+    { params: { consNumber } }
+  );
+  return response.data;
+};
+
 
 export async function uploadPDFile(
     file: File,
@@ -98,5 +111,6 @@ export {
     validateTrackingNumbers,
     getConsolidatedsToStartUnloading,
     getUnloadingSessionInit,
-    validateOne
+    validateOne,
+    getUnloadingConsolidatedByConsNumber
 }

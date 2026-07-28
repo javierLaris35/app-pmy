@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table/data-table";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { LoaderWithOverlay } from "@/components/loader";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
-import { 
+import {
   Package, CheckCircle2, Layers3, AlertTriangle, Clock, RefreshCcwIcon, FileDown,
-  Warehouse, CornerDownLeft, Ban, HelpCircle, TrendingUp
+  Warehouse, CornerDownLeft, Ban, HelpCircle, TrendingUp, Gem, DollarSign, MapPin, PackageCheck
 } from "lucide-react";
 import { SucursalSelector } from "@/components/sucursal-selector";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useZones } from "@/hooks/services/zones/use-zones";
 import { useConsolidated } from "@/hooks/services/consolidateds/use-consolidated";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -35,15 +37,29 @@ function ConsolidatedWithKpis() {
     to: endDayOfMonth,
   });
 
+  // Alcance del reporte: por sucursal / por zona / todas las sucursales.
+  const role = String(user?.role || "").toLowerCase();
+  const isGlobal = ["superadmin", "superamin", "owner"].includes(role);
+  const [scopeMode, setScopeMode] = useState<"sucursal" | "zona" | "todas">("sucursal");
+  const [selectedZoneId, setSelectedZoneId] = useState<string | undefined>(undefined);
+  const { zones } = useZones();
+
   const effectiveSubsidiaryId = selectedSucursalId || user?.subsidiary?.id;
 
+  // Construye el scope que consume el hook según el modo elegido.
+  const scope = useMemo(() => {
+    if (scopeMode === "todas") return {};
+    if (scopeMode === "zona") return { zoneId: selectedZoneId };
+    return { subsidiaryId: effectiveSubsidiaryId };
+  }, [scopeMode, selectedZoneId, effectiveSubsidiaryId]);
+
   const { consolidateds, isLoading, mutate } = useConsolidated(
-    effectiveSubsidiaryId, dateRange.from, dateRange.to
+    scope, dateRange.from, dateRange.to
   );
 
   useEffect(() => {
     mutate();
-  }, [dateRange.from, dateRange.to, selectedSucursalId, mutate]);
+  }, [dateRange.from, dateRange.to, scopeMode, selectedSucursalId, selectedZoneId, mutate]);
 
   const handleDateChange = (type: 'from' | 'to', value: string) => {
     setDateRange(prev => ({ ...prev, [type]: value }));
@@ -54,6 +70,7 @@ function ConsolidatedWithKpis() {
   // --- CÁLCULO DE KPIS VISUALES ---
   let totalShipments = 0; let totalPOD = 0; let totalDEX03 = 0; let totalDEX07 = 0;
   let totalDEX08 = 0; let totalBodega = 0; let totalEnRuta = 0; let totalPendiente = 0; let totalDevueltos = 0;
+  let totalHighValue = 0; let totalCobros = 0; let totalOcurre = 0; let totalPodPlusDexs = 0; let totalPendMov = 0;
 
   consolidateds.forEach(c => {
     const counts = c.shipmentCounts || {};
@@ -65,160 +82,124 @@ function ConsolidatedWithKpis() {
     totalBodega += counts.en_bodega || 0;
     totalEnRuta += counts.en_ruta || 0;
     totalPendiente += counts.pendiente || 0;
-    totalDevueltos += counts.totalDevueltos || counts.devueltos || 0;
+    totalDevueltos += counts.totalDevueltos || 0;
+    totalHighValue += counts.countHighValue || 0;
+    totalCobros += counts.countCobros || 0;
+    totalOcurre += counts.ocurre || 0;
+    totalPodPlusDexs += counts.podPlusDexs || 0;
+    totalPendMov += counts.guiasPendientesDeMov || 0;
   });
 
-  const completedConsolidateds = consolidateds.filter(c => c.status === "completo").length;
+  // Cerrado/Abierto lo determina el backend (estatusCuadre); fallback a isConsolidatedComplete.
+  const isCerrado = (c: typeof consolidateds[number]) =>
+    (c.estatusCuadre ? c.estatusCuadre === "cerrado" : c.isConsolidatedComplete);
+  const completedConsolidateds = consolidateds.filter(isCerrado).length;
 
   const handleUpdateFedexStatus = async () => {
     await getFedexStatus(selectedSucursalId, dateRange.from, dateRange.to);
     mutate();
   };
 
-  // --- EXPORTACIÓN A EXCEL ARREGLADA ---
+  // --- EXPORTACIÓN A EXCEL: CUADRE OPERATIVO (layout manual) ---
   const handleExportExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Sistema de Logística";
     workbook.created = new Date();
 
-    const wsResumen = workbook.addWorksheet("Resumen Ejecutivo", { views: [{ showGridLines: false }] });
-    const wsDetalle = workbook.addWorksheet("Detalle Operativo");
+    const ws = workbook.addWorksheet("Cuadre Operativo");
     const wsPendientes = workbook.addWorksheet("Paquetes Pendientes");
 
     // ==========================================
-    // HOJA 3: PENDIENTES
+    // HOJA 1: CUADRE OPERATIVO (columnas del CONS CABO)
+    // ==========================================
+    ws.columns = [
+      { header: "CONSOLIDADO", key: "consolidado", width: 24 },
+      { header: "FECHA", key: "fecha", width: 13 },
+      { header: "NORMAL", key: "normal", width: 10 },
+      { header: "HV", key: "hv", width: 8 },
+      { header: "COBROS", key: "cobros", width: 10 },
+      { header: "F2", key: "f2", width: 8 },
+      { header: "TOTAL CARGA", key: "totalCarga", width: 13 },
+      { header: "POD", key: "pod", width: 9 },
+      { header: "DEX 07", key: "dex07", width: 9 },
+      { header: "DEX 03", key: "dex03", width: 9 },
+      { header: "DEX 08", key: "dex08", width: 9 },
+      { header: "OCURRE", key: "ocurre", width: 9 },
+      { header: "POD + DEXS", key: "podDexs", width: 12 },
+      { header: "GUIAS PTES DE MOV", key: "ptes", width: 18 },
+      { header: "ESTATUS", key: "estatus", width: 12 },
+    ];
+
+    ws.getRow(1).height = 26;
+    ws.getRow(1).eachCell(cell => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    });
+
+    // Acumuladores para la fila de TOTAL.
+    const t = { normal: 0, hv: 0, cobros: 0, f2: 0, totalCarga: 0, pod: 0, dex07: 0, dex03: 0, dex08: 0, ocurre: 0, podDexs: 0, ptes: 0 };
+
+    consolidateds.forEach(c => {
+      const k = c.shipmentCounts || ({} as NonNullable<typeof c.shipmentCounts>);
+      const row = {
+        normal: k.countNormal || 0,
+        hv: k.countHighValue || 0,
+        cobros: k.countCobros || 0,
+        f2: k.countF2 || 0,
+        totalCarga: k.totalCargas || 0,
+        pod: k.entregado || 0,
+        dex07: k.dex07 || 0,
+        dex03: k.dex03 || 0,
+        dex08: k.dex08 || 0,
+        ocurre: k.ocurre || 0,
+        podDexs: k.podPlusDexs || 0,
+        ptes: k.guiasPendientesDeMov || 0,
+      };
+      (Object.keys(t) as (keyof typeof t)[]).forEach(key => { t[key] += (row as any)[key] || 0; });
+
+      const added = ws.addRow({
+        consolidado: c.consNumber || c.code || c.id,
+        fecha: c.date ? format(new Date(c.date), "yyyy-MM-dd") : "",
+        ...row,
+        estatus: isCerrado(c) ? "CERRADO" : "ABIERTO",
+      });
+      // Resalta el estatus.
+      const estatusCell = added.getCell(15);
+      const cerrado = isCerrado(c);
+      estatusCell.font = { bold: true, color: { argb: cerrado ? "FF059669" : "FFB45309" } };
+      estatusCell.alignment = { horizontal: "center" };
+    });
+
+    // Fila de TOTAL.
+    const totalRow = ws.addRow({
+      consolidado: "TOTAL",
+      fecha: "",
+      normal: t.normal, hv: t.hv, cobros: t.cobros, f2: t.f2, totalCarga: t.totalCarga,
+      pod: t.pod, dex07: t.dex07, dex03: t.dex03, dex08: t.dex08, ocurre: t.ocurre,
+      podDexs: t.podDexs, ptes: t.ptes, estatus: "",
+    });
+    totalRow.eachCell(cell => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+    });
+
+    // ==========================================
+    // HOJA 2: PENDIENTES (utilidad, sin cambios de fondo)
     // ==========================================
     wsPendientes.columns = [
-      { header: "Consolidado ID", key: "cId", width: 20 },
+      { header: "Consolidado", key: "cId", width: 24 },
       { header: "Tracking", key: "tracking", width: 20 },
       { header: "Estatus Actual", key: "status", width: 20 },
       { header: "Carrier", key: "carrier", width: 15 }
     ];
-
-    // Llenar hoja de pendientes
     consolidateds.forEach(c => {
       c.pendingShipments?.forEach(p => {
-        wsPendientes.addRow({
-          cId: c.consNumber,
-          tracking: p.tracking,
-          status: p.status,
-          carrier: p.carrier
-        });
+        wsPendientes.addRow({ cId: c.consNumber, tracking: p.tracking, status: p.status, carrier: p.carrier });
       });
     });
-
-    // Estilos de hoja 3
-    wsPendientes.getRow(1).fill = { type: 'pattern', pattern:'solid', fgColor:{ argb:'FF1E293B' } };
+    wsPendientes.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
     wsPendientes.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-
-    // ==========================================
-    // HOJA 2: DETALLE
-    // ==========================================
-    wsDetalle.columns = [
-      { header: "Código Consolidado", key: "codigo", width: 22 },
-      { header: "Empresa", key: "empresa", width: 15 },
-      { header: "Sucursal", key: "sucursal", width: 25 },
-      { header: "Estado", key: "estado", width: 18 },
-      { header: "POD (Entregado)", key: "pod", width: 15 },
-      { header: "DEX03", key: "dex03", width: 12 },
-      { header: "DEX07", key: "dex07", width: 12 },
-      { header: "DEX08", key: "dex08", width: 12 },
-      { header: "En Bodega", key: "bodega", width: 14 },
-      { header: "En Ruta", key: "enRuta", width: 14 },
-      { header: "Pendiente", key: "pendiente", width: 14 },
-      { header: "Devueltos", key: "devueltos", width: 14 },
-      { header: "Total Paquetes", key: "total", width: 18 },
-    ];
-
-    wsDetalle.getRow(1).height = 30;
-    wsDetalle.getRow(1).eachCell(cell => {
-      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-    });
-
-    consolidateds.forEach(c => {
-      const counts = c.shipmentCounts || {};
-      const targetRowIndex = wsDetalle.rowCount + 1; // FIX: Índice exacto de la nueva fila
-
-      wsDetalle.addRow({
-        codigo: c.consNumber || c.code || c.id,
-        empresa: c.carrier || "N/A",
-        sucursal: c.subsidiary?.name || "N/A",
-        estado: c.status || (c.isConsolidatedComplete ? "completo" : "incompleto"),
-        pod: counts.entregado || 0,
-        dex03: counts.dex03 || 0,
-        dex07: counts.dex07 || 0,
-        dex08: counts.dex08 || 0,
-        bodega: counts.en_bodega || 0,
-        enRuta: counts.en_ruta || 0,
-        pendiente: counts.pendiente || 0,
-        devueltos: counts.totalDevueltos || counts.devueltos || 0,
-        // FIX: La suma ahora apunta a su propia fila, evitando arrastre duplicador (SUM(E2:L2), SUM(E3:L3), etc)
-        total: { formula: `SUM(E${targetRowIndex}:M${targetRowIndex})`, result: counts.total || 0 }
-      });
-    });
-
-    // Fila de Totales
-    const lastRowIndex = wsDetalle.rowCount + 1;
-    const totalsRow = wsDetalle.getRow(lastRowIndex);
-    totalsRow.getCell(1).value = "TOTAL GENERAL";
-    
-    // 1. Sumamos las columnas individuales del 5 (E) al 12 (L)
-    for (let col = 5; col <= 12; col++) {
-      const colLetter = wsDetalle.getColumn(col).letter;
-      const cell = totalsRow.getCell(col);
-      cell.value = { formula: `SUM(${colLetter}2:${colLetter}${lastRowIndex - 1})` };
-      cell.font = { bold: true };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
-    }
-
-    // 2. CORRECCIÓN: Para el Total General (Columna 13 / M), 
-    // en lugar de sumar la columna M, sumamos la fila de totales actual
-    // de E a L. Esto garantiza el cuadre matemático exacto.
-    const cellTotal = totalsRow.getCell(13);
-    cellTotal.value = { formula: `SUM(E${lastRowIndex}:L${lastRowIndex})` };
-    cellTotal.font = { bold: true };
-    cellTotal.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
-
-    // ==========================================
-    // HOJA 1: DASHBOARD
-    // ==========================================
-    wsResumen.columns = [{ width: 4 }, { width: 28 }, { width: 28 }, { width: 28 }, { width: 28 }];
-
-    wsResumen.mergeCells('B2:E2');
-    wsResumen.getCell('B2').value = "DASHBOARD OPERATIVO Y CUADRE EXACTO";
-    wsResumen.getCell('B2').font = { size: 15, bold: true, color: { argb: "FF0F172A" } };
-
-    const detailSheet = "'Detalle Operativo'";
-    
-    const kpisGrid = [
-      { r: 5, cStart: 'B', cEnd: 'B', title: "TOTAL DE ENVÍOS", formula: `=${detailSheet}!M${lastRowIndex}`, color: "FF0F172A" },
-      { r: 5, cStart: 'C', cEnd: 'C', title: "ENTREGADOS (POD)", formula: `=${detailSheet}!E${lastRowIndex}`, color: "FF059669" },
-      { r: 5, cStart: 'D', cEnd: 'D', title: "DEVUELTOS A FEDEX", formula: `=${detailSheet}!L${lastRowIndex}`, color: "FFE11D48" },
-      { r: 5, cStart: 'E', cEnd: 'E', title: "TOTAL EN BODEGA", formula: `=${detailSheet}!I${lastRowIndex}`, color: "FF475569" },
-      
-      { r: 9, cStart: 'B', cEnd: 'B', title: "DEX03 (DIR. INCORRECTA)", formula: `=${detailSheet}!F${lastRowIndex}`, color: "FFD97706" },
-      { r: 9, cStart: 'C', cEnd: 'C', title: "DEX07 (RECHAZADO)", formula: `=${detailSheet}!G${lastRowIndex}`, color: "FFDC2626" },
-      { r: 9, cStart: 'D', cEnd: 'D', title: "DEX08 (NO DISPONIBLE)", formula: `=${detailSheet}!H${lastRowIndex}`, color: "FFCA8A04" },
-      { r: 9, cStart: 'E', cEnd: 'E', title: "PENDIENTE / EN RUTA", formula: `=${detailSheet}!K${lastRowIndex}+${detailSheet}!J${lastRowIndex}`, color: "FF7C3AED" },
-    ];
-
-    kpisGrid.forEach(kpi => {
-      wsResumen.mergeCells(`${kpi.cStart}${kpi.r}:${kpi.cEnd}${kpi.r}`);
-      const tCell = wsResumen.getCell(`${kpi.cStart}${kpi.r}`);
-      tCell.value = kpi.title;
-      tCell.font = { bold: true, size: 9, color: { argb: "FF475569" } };
-      tCell.alignment = { horizontal: "center", vertical: "middle" };
-      tCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
-
-      wsResumen.mergeCells(`${kpi.cStart}${kpi.r + 1}:${kpi.cEnd}${kpi.r + 2}`);
-      const vCell = wsResumen.getCell(`${kpi.cStart}${kpi.r + 1}`);
-      vCell.value = { formula: kpi.formula, result: 0 };
-      vCell.font = { bold: true, size: 20, color: { argb: kpi.color } };
-      vCell.alignment = { horizontal: "center", vertical: "middle" };
-      vCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
-    });
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `Cuadre_Operativo_${dateRange.from}_al_${dateRange.to}.xlsx`);
@@ -251,9 +232,32 @@ function ConsolidatedWithKpis() {
                 <TooltipContent>Actualizar estatus de FedEx</TooltipContent>
               </Tooltip>
 
-              <div className="w-[190px]">
-                <SucursalSelector value={selectedSucursalId} onValueChange={setSelectedSucursalId} />
-              </div>
+              {/* Alcance del reporte: sucursal / zona / todas */}
+              <Select value={scopeMode} onValueChange={(v) => setScopeMode(v as typeof scopeMode)}>
+                <SelectTrigger className="h-9 w-[140px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sucursal">Por sucursal</SelectItem>
+                  <SelectItem value="zona">Por zona</SelectItem>
+                  {isGlobal && <SelectItem value="todas">Todas las sucursales</SelectItem>}
+                </SelectContent>
+              </Select>
+
+              {scopeMode === "sucursal" && (
+                <div className="w-[190px]">
+                  <SucursalSelector value={selectedSucursalId} onValueChange={(v) => setSelectedSucursalId(v as string)} />
+                </div>
+              )}
+
+              {scopeMode === "zona" && (
+                <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
+                  <SelectTrigger className="h-9 w-[190px]"><SelectValue placeholder="Seleccionar zona..." /></SelectTrigger>
+                  <SelectContent>
+                    {zones.map((z) => (
+                      <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               <Input id="fromDate" type="date" className="h-9 w-[150px]" value={dateRange.from} onChange={(e) => handleDateChange('from', e.target.value)} />
               <Input id="toDate" type="date" className="h-9 w-[150px]" value={dateRange.to} onChange={(e) => handleDateChange('to', e.target.value)} min={dateRange.from} />
@@ -263,12 +267,32 @@ function ConsolidatedWithKpis() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="bg-slate-900 p-4 rounded-xl text-white shadow-sm border border-slate-700">
-            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-slate-400">Total Envíos</span><Package className="h-5 w-5 text-slate-300" /></div>
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-slate-400">Total Carga</span><Package className="h-5 w-5 text-slate-300" /></div>
             <div className="text-3xl font-extrabold">{totalShipments}</div>
+          </div>
+          <div className="bg-purple-50 p-4 rounded-xl border border-purple-200">
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-purple-800">Alto Valor</span><Gem className="h-5 w-5 text-purple-600" /></div>
+            <div className="text-3xl font-extrabold text-purple-900">{totalHighValue}</div>
+          </div>
+          <div className="bg-lime-50 p-4 rounded-xl border border-lime-200">
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-lime-800">Cobros</span><DollarSign className="h-5 w-5 text-lime-600" /></div>
+            <div className="text-3xl font-extrabold text-lime-900">{totalCobros}</div>
           </div>
           <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
             <div className="flex justify-between mb-2"><span className="text-xs uppercase text-emerald-800">Entregados (POD)</span><CheckCircle2 className="h-5 w-5 text-emerald-600" /></div>
             <div className="text-3xl font-extrabold text-emerald-900">{totalPOD}</div>
+          </div>
+          <div className="bg-cyan-50 p-4 rounded-xl border border-cyan-200">
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-cyan-800">Ocurre</span><MapPin className="h-5 w-5 text-cyan-600" /></div>
+            <div className="text-3xl font-extrabold text-cyan-900">{totalOcurre}</div>
+          </div>
+          <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-green-800">POD + DEXs</span><PackageCheck className="h-5 w-5 text-green-600" /></div>
+            <div className="text-3xl font-extrabold text-green-900">{totalPodPlusDexs}</div>
+          </div>
+          <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-orange-800">Ptes. de Mov.</span><Clock className="h-5 w-5 text-orange-600" /></div>
+            <div className="text-3xl font-extrabold text-orange-900">{totalPendMov}</div>
           </div>
           <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
             <div className="flex justify-between mb-2"><span className="text-xs uppercase text-amber-800">DEX 03</span><AlertTriangle className="h-5 w-5 text-amber-600" /></div>
@@ -301,6 +325,10 @@ function ConsolidatedWithKpis() {
           <div className="bg-teal-50 p-4 rounded-xl border border-teal-200">
             <div className="flex justify-between mb-2"><span className="text-xs uppercase text-teal-800">Consolidados</span><Layers3 className="h-5 w-5 text-teal-600" /></div>
             <div className="text-3xl font-extrabold text-teal-900">{consolidateds.length}</div>
+          </div>
+          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-emerald-800">Cerrados</span><CheckCircle2 className="h-5 w-5 text-emerald-600" /></div>
+            <div className="text-3xl font-extrabold text-emerald-900">{completedConsolidateds}<span className="text-base font-bold text-emerald-700/60"> / {consolidateds.length}</span></div>
           </div>
         </div>
 

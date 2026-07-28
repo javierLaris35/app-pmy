@@ -564,9 +564,18 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
                             </span>
                           )}
 
+                          {/* DHL: el JD (dhlUniqueId) es el identificador de la
+                              pieza (lo que se escanea) → va como principal; la guía
+                              maestra (trackingNumber) queda a un lado como referencia. */}
                           <span className="truncate font-mono text-sm font-medium">
-                            {pkg.trackingNumber}
+                            {isDhl && pkg.dhlUniqueId ? pkg.dhlUniqueId : pkg.trackingNumber}
                           </span>
+
+                          {isDhl && pkg.dhlUniqueId && pkg.trackingNumber && pkg.trackingNumber !== pkg.dhlUniqueId && (
+                            <span className="truncate font-mono text-[11px] text-muted-foreground">
+                              Guía: {pkg.trackingNumber}
+                            </span>
+                          )}
 
                           {pkg.isPendingValidation && (
                             <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
@@ -662,8 +671,9 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
               <span
                 key={pkg.dhlUniqueId ?? pkg.trackingNumber}
                 className="inline-flex shrink-0 items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs"
+                title={pkg.shipmentType === "dhl" && pkg.dhlUniqueId && pkg.trackingNumber !== pkg.dhlUniqueId ? `Guía: ${pkg.trackingNumber}` : undefined}
               >
-                {pkg.trackingNumber}
+                {pkg.shipmentType === "dhl" && pkg.dhlUniqueId ? pkg.dhlUniqueId : pkg.trackingNumber}
                 {!disabled && (
                   <button
                     type="button"

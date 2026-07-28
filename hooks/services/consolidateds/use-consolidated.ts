@@ -2,12 +2,25 @@ import { getConsolidated, getFedexStatus } from "@/lib/services/consolidated";
 import useSWR from "swr";
 import qs from "query-string";
 
+type ConsolidatedScope = {
+    subsidiaryId?: string;
+    subsidiaryIds?: string[];
+    zoneId?: string;
+};
+
 export function useConsolidated(
-    subsidiaryId: string,
+    scope: ConsolidatedScope,
     fromDate: string,
     toDate: string) {
 
-    const query = qs.stringify({subsidiaryId, fromDate, toDate})
+    const { subsidiaryId, subsidiaryIds, zoneId } = scope || {};
+
+    // Alcance: sin filtro = todas; zoneId = por zona; subsidiaryId(s) = por sucursal(es).
+    // subsidiaryIds se serializa como CSV ("a,b"); el backend lo separa por comas.
+    const query = qs.stringify(
+        { subsidiaryId, subsidiaryIds, zoneId, fromDate, toDate },
+        { arrayFormat: 'comma', skipNull: true, skipEmptyString: true },
+    );
 
     const { data, error, isLoading, mutate } = useSWR(`/consolidated?${query}`, getConsolidated);
 

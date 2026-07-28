@@ -9,10 +9,22 @@ export function variantOf(code: string): string {
   return c;
 }
 
-/** Claves de dedup de un paquete: su tracking, su dhlUniqueId, y las variantes JJD/JD de ambos. */
+/**
+ * Claves de identidad de un paquete (para dedup y para casar con su validado).
+ *
+ * IMPORTANTE DHL multi-pieza: cuando el paquete tiene `dhlUniqueId` (JD), ESA es su
+ * identidad ÚNICA y se usa SOLA. El `trackingNumber` en DHL puede ser la guía
+ * maestra COMPARTIDA entre varias piezas; si se usara como clave, las piezas
+ * hermanas se casarían entre sí (la 2ª y 3ª pieza terminaban tomando el JD de la
+ * 1ª → keys duplicadas en React y piezas colapsadas). Sólo cuando NO hay JD (DHL
+ * viejo o FedEx) se usa el trackingNumber.
+ */
 function keysOf(p: PackageInfo): string[] {
-  const raw = [p.trackingNumber, (p as any).dhlUniqueId].filter(Boolean).map((k) => String(k).trim().toUpperCase());
-  return raw.flatMap((k) => [k, variantOf(k)]);
+  const dhl = (p as any).dhlUniqueId;
+  const base = dhl ? String(dhl) : (p.trackingNumber ? String(p.trackingNumber) : "");
+  const k = base.trim().toUpperCase();
+  if (!k) return [];
+  return [k, variantOf(k)];
 }
 
 /**

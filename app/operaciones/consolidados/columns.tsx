@@ -86,15 +86,21 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "Volumen",
     cell: ({ row }) => {
-      const { total, countNormal, countF2 } = row.original.shipmentCounts;
+      const { total, countNormal, countF2, countHighValue, countCobros } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-slate-500" />
             <span className="font-black text-lg leading-none">{total}</span>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-bold border-slate-300">N: {countNormal}</Badge>
+            {countHighValue > 0 && (
+              <Tooltip><TooltipTrigger><Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200 font-bold">HV: {countHighValue}</Badge></TooltipTrigger><TooltipContent>Alto Valor (subconjunto de Normales)</TooltipContent></Tooltip>
+            )}
+            {countCobros > 0 && (
+              <Tooltip><TooltipTrigger><Badge className="text-[10px] px-1.5 py-0 bg-lime-100 text-lime-700 hover:bg-lime-100 border-lime-200 font-bold">$: {countCobros}</Badge></TooltipTrigger><TooltipContent>Cobros / COD (subconjunto de Normales)</TooltipContent></Tooltip>
+            )}
             {countF2 > 0 && (
               <Badge className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200 font-bold">F2: {countF2}</Badge>
             )}
@@ -106,7 +112,7 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "POD",
     cell: ({ row }) => {
-      const { entregado } = row.original.shipmentCounts;
+      const { entregado, podPlusDexs } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col items-center">
           <div className="flex items-center gap-1.5 text-emerald-600">
@@ -114,6 +120,12 @@ export const columns: ColumnDef<Consolidated>[] = [
             <span className="text-xl font-black leading-none">{entregado}</span>
           </div>
           <span className="text-[10px] font-bold text-emerald-700/70 uppercase">Entregados</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="mt-1 text-[10px] font-bold text-slate-500 cursor-help bg-slate-50 border rounded px-1">POD+DEX: {podPlusDexs}</span>
+            </TooltipTrigger>
+            <TooltipContent>POD + DEX 07/03/08 + Ocurre</TooltipContent>
+          </Tooltip>
         </div>
       );
     }
@@ -121,7 +133,7 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "DEX / DEV",
     cell: ({ row }) => {
-      const { dex03, dex07, dex08, totalDex, totalDevueltos } = row.original.shipmentCounts;
+      const { dex03, dex07, dex08, totalDex, totalDevueltos, ocurre } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-4">
@@ -146,6 +158,9 @@ export const columns: ColumnDef<Consolidated>[] = [
             <Tooltip><TooltipTrigger><Badge variant="outline" className="text-[10px] px-1 h-4 text-red-600 border-red-200 font-bold bg-red-50">03:{dex03}</Badge></TooltipTrigger><TooltipContent>Dirección Incorrecta</TooltipContent></Tooltip>
             <Tooltip><TooltipTrigger><Badge variant="outline" className="text-[10px] px-1 h-4 text-red-600 border-red-200 font-bold bg-red-50">07:{dex07}</Badge></TooltipTrigger><TooltipContent>Rechazado</TooltipContent></Tooltip>
             <Tooltip><TooltipTrigger><Badge variant="outline" className="text-[10px] px-1 h-4 text-red-600 border-red-200 font-bold bg-red-50">08:{dex08}</Badge></TooltipTrigger><TooltipContent>No Disponible</TooltipContent></Tooltip>
+            {ocurre > 0 && (
+              <Tooltip><TooltipTrigger><Badge variant="outline" className="text-[10px] px-1 h-4 text-cyan-700 border-cyan-200 font-bold bg-cyan-50">OC:{ocurre}</Badge></TooltipTrigger><TooltipContent>Ocurre</TooltipContent></Tooltip>
+            )}
           </div>
         </div>
       );
@@ -154,19 +169,19 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "S.I. / Ubicación",
     cell: ({ row }) => {
-      const { pendiente, en_ruta, en_bodega, other } = row.original.shipmentCounts;
+      const { en_ruta, en_bodega, other, guiasPendientesDeMov } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col gap-1.5 min-w-[100px]">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={`flex items-center gap-1.5 cursor-help ${pendiente > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+              <div className={`flex items-center gap-1.5 cursor-help ${guiasPendientesDeMov > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
                 <Clock className="h-5 w-5 stroke-[3]" />
-                <span className="text-lg font-black leading-none">{pendiente}</span>
+                <span className="text-lg font-black leading-none">{guiasPendientesDeMov}</span>
               </div>
             </TooltipTrigger>
-            <TooltipContent className="font-bold">Sin Intento (Pendientes)</TooltipContent>
+            <TooltipContent className="font-bold">Guías pendientes de movimiento</TooltipContent>
           </Tooltip>
-          
+
           <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -245,36 +260,31 @@ export const columns: ColumnDef<Consolidated>[] = [
   },
   {
     // id 'status' + accessor/filterFn para que el filtro del toolbar
-    // (Completo/Incompleto) funcione sobre la entidad Consolidado.
+    // (Cerrado/Abierto) funcione sobre la entidad Consolidado.
     id: "status",
-    header: "Estado",
+    header: "Estatus",
+    // Cerrado/Abierto lo determina el backend (estatusCuadre); fallback a isConsolidatedComplete.
     accessorFn: (row) => {
-      const { pendiente, en_ruta, en_bodega, total, other } = row.shipmentCounts;
-      const complete = total > 0 && en_ruta === 0 && en_bodega === 0 && pendiente === 0 && other === 0;
-      return complete ? "completo" : "incompleto";
+      const cerrado = row.estatusCuadre ? row.estatusCuadre === "cerrado" : row.isConsolidatedComplete;
+      return cerrado ? "cerrado" : "abierto";
     },
     filterFn: (row, id, value: string[]) => value.includes(row.getValue(id) as string),
     cell: ({ row }) => {
-      const { pendiente, en_ruta, en_bodega, total, other } = row.original.shipmentCounts;
-      // AGREGADO: other === 0 para que no marque completo si hay desconocidos
-      const realIsComplete = total > 0 && en_ruta === 0 && en_bodega === 0 && pendiente === 0 && other === 0;
+      const cerrado = row.original.estatusCuadre
+        ? row.original.estatusCuadre === "cerrado"
+        : row.original.isConsolidatedComplete;
 
       return (
         <div className="flex justify-center">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                {realIsComplete ? (
-                  <CheckCircle2 className="h-8 w-8 text-emerald-600 stroke-[2.5] animate-in zoom-in" />
-                ) : (
-                  <CircleDashed className="h-8 w-8 text-amber-500 stroke-[2] animate-spin-slow" />
-                )}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="font-bold">
-              {realIsComplete ? "Cerrado / Completo" : "En Proceso Operativo"}
-            </TooltipContent>
-          </Tooltip>
+          {cerrado ? (
+            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200 font-bold gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5 stroke-[3]" /> CERRADO
+            </Badge>
+          ) : (
+            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 font-bold gap-1">
+              <CircleDashed className="h-3.5 w-3.5 stroke-[2.5] animate-spin-slow" /> ABIERTO
+            </Badge>
+          )}
         </div>
       );
     }

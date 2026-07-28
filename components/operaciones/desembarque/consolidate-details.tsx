@@ -1,5 +1,6 @@
-import { Eye, SearchIcon, Truck, Plane } from "lucide-react";
+import { Eye, SearchIcon, Truck, Plane, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { IconTruckLoading } from "@tabler/icons-react";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import useSWR from "swr";
@@ -15,6 +16,12 @@ interface ConsolidateDetailsProps {
   initialSelectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
   subsidiaryId?: string | null;
+  /** Recarga el universo esperado desde BD sin perder los escaneos ya hechos. */
+  onReload?: () => void;
+  /** Busca un consolidado por número (consulta directa a BD) y lo agrega a la lista. */
+  onSearchConsNumber?: (consNumber: string) => void;
+  /** Indica que hay una recarga/búsqueda en curso. */
+  reloading?: boolean;
 }
 
 // Mapeo local de iconos
@@ -39,8 +46,28 @@ export default function ConsolidateDetails({
   initialSelectedIds = [],
   onSelectionChange,
   subsidiaryId,
+  onReload,
+  onSearchConsNumber,
+  reloading = false,
 }: ConsolidateDetailsProps) {
   const user = useAuthStore((s) => s.user);
+  const [consNumberInput, setConsNumberInput] = useState("");
+
+  // Ref para poder llamar al refetch interno desde handleReload sin problemas de orden.
+  const handleRefetchRef = useRef<(() => void) | null>(null);
+
+  // Recarga: usa el handler del padre (sesión con conteo) o el refetch interno.
+  const handleReload = useCallback(() => {
+    if (onReload) onReload();
+    else handleRefetchRef.current?.();
+  }, [onReload]);
+
+  const submitConsNumberSearch = useCallback(() => {
+    const cn = consNumberInput.trim();
+    if (!cn || !onSearchConsNumber) return;
+    onSearchConsNumber(cn);
+    setConsNumberInput("");
+  }, [consNumberInput, onSearchConsNumber]);
   
   // SOLUCIÓN: Validar que initialSelectedIds sea un array antes de crear el Set
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => {
@@ -132,7 +159,6 @@ export default function ConsolidateDetails({
     // Si no hay subsidiaryId, no hacer nada
     if (!subsidiaryId) {
       console.log("[ConsolidateDetails] No subsidiaryId, clearing");
-      setConsolidates([]);
       setConsolidateds({ airConsolidated: [], groundConsolidated: [], f2Consolidated: [] });
       setLoading(false);
       return;
@@ -154,7 +180,6 @@ export default function ConsolidateDetails({
     // Procesar datos de SWR
     if (swData === null) {
       console.log("[ConsolidateDetails] No data (404)");
-      setConsolidates([]);
       setConsolidateds({ airConsolidated: [], groundConsolidated: [], f2Consolidated: [] });
       setDataSource("database");
       setLoading(false);
@@ -219,6 +244,27 @@ export default function ConsolidateDetails({
     if (!item) return `empty-${idx}`;
     return item.id ?? item.consNumber ?? `${item.type || 'item'}-${idx}`;
   }, []);
+
+  // Orden de la lista: sube hasta arriba lo que el usuario está trabajando —
+  // primero los consolidados con paquetes AGREGADOS, luego los SELECCIONADOS
+  // (manual o por búsqueda), y el resto abajo. Así no pierde el foco de lo que
+  // está desembarcando. Los items tienen `id`, así que reordenar no afecta las
+  // keys de React ni la selección (que va por id).
+  const orderedItems = useMemo(() => {
+    const scored = allItems.map((it: any, i: number) => {
+      const key = getItemKey(it, i);
+      const added = Array.isArray(it?.added) ? it.added.length : 0;
+      const selected = selectedKeys.has(key) ? 1 : 0;
+      const priority = (added > 0 ? 2 : 0) + selected;
+      return { it, i, added, priority };
+    });
+    scored.sort((a, b) => {
+      if (b.priority !== a.priority) return b.priority - a.priority;
+      if (b.added !== a.added) return b.added - a.added;
+      return a.i - b.i;
+    });
+    return scored.map((s) => s.it);
+  }, [allItems, selectedKeys, getItemKey]);
 
   const toggleKey = useCallback((key: string) => {
     setSelectedKeys((prev) => {
@@ -296,6 +342,50 @@ export default function ConsolidateDetails({
     // Mutate para forzar re-fetch
     mutate();
   }, [subsidiaryId, mutate]);
+
+  // Exponer el refetch interno al handler unificado de recarga.
+  useEffect(() => {
+    handleRefetchRef.current = handleRefetch;
+  }, [handleRefetch]);
+
+  // Barra de acciones: recargar + buscar por número de consolidado.
+  const actionsBar = (
+    <div className="flex flex-col gap-2 pb-2">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <SearchIcon className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+          <Input
+            value={consNumberInput}
+            onChange={(e) => setConsNumberInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitConsNumberSearch(); } }}
+            placeholder="Buscar consolidado por número..."
+            className="h-8 pl-7 text-xs"
+            disabled={!subsidiaryId || reloading || !onSearchConsNumber}
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          onClick={submitConsNumberSearch}
+          disabled={!subsidiaryId || reloading || !consNumberInput.trim() || !onSearchConsNumber}
+        >
+          Buscar
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 text-xs gap-1"
+          onClick={handleReload}
+          disabled={!subsidiaryId || reloading}
+          title="Recargar consolidados desde la base de datos"
+        >
+          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Recargar
+        </Button>
+      </div>
+    </div>
+  );
 
   // SOLUCIÓN: Si no hay subsidiaryId, mostrar mensaje
   if (!subsidiaryId) {
@@ -376,19 +466,9 @@ export default function ConsolidateDetails({
             ({dataSource === 'database' ? 'Desde BD' : 'Desde props'})
           </span>
         </div>
-        
-        {dataSource === 'database' && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-            onClick={handleRefetch}
-            title="Recargar datos desde la base de datos"
-          >
-            <SearchIcon className="h-3 w-3" />
-          </Button>
-        )}
       </div>
+
+      {actionsBar}
 
       <div className="flex items-center justify-between pb-2">
         <div className="flex items-center gap-2">
@@ -419,7 +499,7 @@ export default function ConsolidateDetails({
       )}
 
       <div className="space-y-1">
-        {allItems.map((item, index) => {
+        {orderedItems.map((item, index) => {
           if (!item || typeof item !== 'object') return null;
           
           const IconComponent = typeIcons[item.type] || Truck;
@@ -510,16 +590,15 @@ export default function ConsolidateDetails({
             <Truck className="h-4 w-4 opacity-50" />
           </div>
           <p className="text-xs">No hay consolidados para mostrar</p>
-          {dataSource === 'database' && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2"
-              onClick={handleRefetch}
-            >
-              Buscar consolidados
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={handleReload}
+            disabled={reloading}
+          >
+            {reloading ? "Buscando..." : "Buscar consolidados"}
+          </Button>
         </div>
       )}
     </div>

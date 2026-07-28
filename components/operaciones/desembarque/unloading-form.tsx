@@ -26,7 +26,7 @@ import { PackageListItem } from "@/components/shared/package-list-item";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useAuthStore } from "@/store/auth.store";
-import { validateTrackingNumbers, saveUnloading, uploadPDFile, getUnloadingSessionInit, validateOne } from "@/lib/services/unloadings";
+import { validateTrackingNumbers, saveUnloading, uploadPDFile, getUnloadingSessionInit, validateOne, getUnloadingConsolidatedByConsNumber } from "@/lib/services/unloadings";
 import { Consolidateds, ConsolidatedDetails, ConsolidatedInitItem, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, UnloadingSessionInit, ValidatedUnloadingOne, ValidTrackingAndConsolidateds } from "@/lib/types";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -76,6 +76,66 @@ function seedConsolidatedFromInit(data: UnloadingSessionInit): Consolidateds {
     airConsolidated: (data.airConsolidated || []).map(toDetails),
     groundConsolidated: (data.groundConsolidated || []).map(toDetails),
     f2Consolidated: (data.f2Consolidated || []).map(toDetails),
+  };
+}
+
+// Identidad ÚNICA por pieza para el conteo (agregados / faltantes).
+// DHL comparte trackingNumber (guía maestra / AWB) entre las piezas de una misma
+// guía; el identificador único por pieza es el dhlUniqueId (JD), que es lo que se
+// escanea. FedEx usa su trackingNumber. Casar por trackingNumber colapsaba las
+// piezas DHL de una guía y las dejaba a todas como faltantes: por eso se cuenta
+// por JD, y sólo se cae al trackingNumber cuando no hay JD (DHL viejo sin PID).
+function pieceKey(x: { trackingNumber?: string | null; dhlUniqueId?: string | null } | null | undefined): string {
+  return ((x?.dhlUniqueId || x?.trackingNumber) || "").trim().toUpperCase();
+}
+
+// Aplica los escaneos válidos ya realizados sobre una lista de consolidados recién
+// sembrada (mueve cada guía de notFound a added según su consolidatedId), para no
+// perder el avance al recargar o al agregar un consolidado por número.
+function applyScannedToConsolidateds(seeded: Consolidateds, validScanned: any[]): Consolidateds {
+  const cloneGroup = (arr: ConsolidatedDetails[]) =>
+    (arr || []).map((c) => ({ ...c, added: [...(c.added || [])], notFound: [...(c.notFound || [])] }));
+  const clone: Consolidateds = {
+    airConsolidated: cloneGroup(seeded.airConsolidated),
+    groundConsolidated: cloneGroup(seeded.groundConsolidated),
+    f2Consolidated: cloneGroup(seeded.f2Consolidated),
+  };
+  const groups = [clone.airConsolidated, clone.groundConsolidated, clone.f2Consolidated];
+  for (const r of validScanned) {
+    if (!r?.isValid || !r?.consolidatedId) continue;
+    for (const g of groups) {
+      const c = g.find((x) => x.id === r.consolidatedId);
+      if (!c) continue;
+      if (!c.added.some((a) => pieceKey(a) === pieceKey(r))) {
+        c.added.push({
+          trackingNumber: r.trackingNumber,
+          dhlUniqueId: r.dhlUniqueId,
+          recipientName: r.recipientName,
+          recipientAddress: r.recipientAddress,
+          recipientPhone: r.recipientPhone,
+          recipientZip: r.recipientZip,
+        } as any);
+      }
+      c.notFound = c.notFound.filter((m) => pieceKey(m) !== pieceKey(r));
+      break;
+    }
+  }
+  return clone;
+}
+
+// Fusiona consolidados nuevos (p.ej. traídos por búsqueda de consNumber) en la
+// estructura existente, reemplazando por id para no duplicar.
+function mergeConsolidateds(prev: Consolidateds | null, add: Consolidateds): Consolidateds {
+  const base: Consolidateds = prev ?? { airConsolidated: [], groundConsolidated: [], f2Consolidated: [] };
+  const mergeGroup = (prevArr: ConsolidatedDetails[], addArr: ConsolidatedDetails[]) => {
+    const map = new Map((prevArr || []).map((c) => [c.id, c]));
+    (addArr || []).forEach((c) => map.set(c.id, c));
+    return Array.from(map.values());
+  };
+  return {
+    airConsolidated: mergeGroup(base.airConsolidated, add.airConsolidated),
+    groundConsolidated: mergeGroup(base.groundConsolidated, add.groundConsolidated),
+    f2Consolidated: mergeGroup(base.f2Consolidated, add.f2Consolidated),
   };
 }
 
@@ -707,14 +767,16 @@ export default function UnloadingForm({
 
   const updateMissingPackages = useCallback((currentShipments: PackageInfoForUnloading[], currentConsolidateds: Consolidateds | null) => {
     if (!currentConsolidateds) return [];
-    const validTrackings = currentShipments.filter(p => p.isValid).map(p => p.trackingNumber);
+    // Identidad por pieza (JD/dhlUniqueId o trackingNumber), consistente con el
+    // conteo: así las piezas DHL válidas dejan de contarse como faltantes.
+    const validKeys = new Set(currentShipments.filter(p => p.isValid).map(p => pieceKey(p)));
     const allConsolidateds = Object.values(currentConsolidateds).flat();
-    const relevantConsolidateds = allConsolidateds.filter(c => c.added?.some((t: any) => validTrackings.includes(t.trackingNumber)));
+    const relevantConsolidateds = allConsolidateds.filter(c => c.added?.some((t: any) => validKeys.has(pieceKey(t))));
     const updatedMissing: any[] = [];
     relevantConsolidateds.forEach(c => {
       (c.notFound || []).forEach((m: any) => {
         const excluded = selectedReasons[m.trackingNumber] === TrackingNotFoundEnum.NOT_SCANNED || selectedReasons[m.trackingNumber] === TrackingNotFoundEnum.NOT_IN_CHARGE;
-        if (!validTrackings.includes(m.trackingNumber) && !excluded) {
+        if (!validKeys.has(pieceKey(m)) && !excluded) {
           updatedMissing.push({
             trackingNumber: m.trackingNumber,
             recipientName: m.recipientName,
@@ -927,18 +989,20 @@ export default function UnloadingForm({
       const results = settled.filter(s => s.result).map(s => s.result!);
       const failedCodes = settled.filter(s => s.failed).map(s => s.code);
 
-      // Dedup DHL-aware: validate-one devuelve trackingNumber Y dhlUniqueId; una
-      // guía ya presente por CUALQUIERA de las dos variantes no se re-agrega.
+      // Dedup por IDENTIDAD DE PIEZA (JD si existe, si no trackingNumber). Antes
+      // deduplicaba por trackingNumber O dhlUniqueId: como las piezas DHL comparten
+      // la guía maestra, al escanear la 2ª pieza de una guía se descartaba por
+      // "ya presente". Con pieceKey cada pieza distinta (distinto JD) se agrega.
       const alreadyKeys = new Set<string>();
       for (const p of currentShipments) {
-        if (p.trackingNumber) alreadyKeys.add(p.trackingNumber);
-        if ((p as any).dhlUniqueId) alreadyKeys.add((p as any).dhlUniqueId);
+        const k = pieceKey(p);
+        if (k) alreadyKeys.add(k);
       }
       const resultsToAdd: ValidatedUnloadingOne[] = [];
       for (const r of results) {
-        const rk = [r.trackingNumber, r.dhlUniqueId].filter(Boolean) as string[];
-        if (rk.some(k => alreadyKeys.has(k))) continue;
-        rk.forEach(k => alreadyKeys.add(k));
+        const rk = pieceKey(r);
+        if (!rk || alreadyKeys.has(rk)) continue;
+        alreadyKeys.add(rk);
         resultsToAdd.push(r);
       }
       const newShipments = resultsToAdd.map(r => ({ ...r })) as unknown as PackageInfoForUnloading[];
@@ -965,12 +1029,14 @@ export default function UnloadingForm({
       setShipments(updatedShipments);
       handleExpirationCheck(newShipments);
 
-      // Casa una guía (resultado) contra un item por trackingNumber O dhlUniqueId:
-      // un DHL puede venir por cualquiera de las dos y debe salir de "faltantes".
+      // Casa una guía (resultado) contra un item por su IDENTIDAD DE PIEZA
+      // (dhlUniqueId/JD si existe; si no, trackingNumber). Antes casaba por
+      // trackingNumber O dhlUniqueId, y como las piezas DHL comparten la guía
+      // maestra, escanear una pieza sacaba de "faltantes" a TODAS las de esa guía
+      // (o no dejaba entrar las demás). Con pieceKey cada pieza cuenta por su JD.
       const sameGuide = (m: any, r: ValidatedUnloadingOne) => {
-        const rk = [r.trackingNumber, r.dhlUniqueId].filter(Boolean);
-        const mk = [m.trackingNumber, m.dhlUniqueId].filter(Boolean);
-        return rk.some(k => mk.includes(k));
+        const a = pieceKey(m), b = pieceKey(r);
+        return !!a && a === b;
       };
 
       // Actualiza el conteo por consolidado en cliente: mueve cada guía válida de
@@ -985,6 +1051,9 @@ export default function UnloadingForm({
           f2Consolidated: cloneGroup(nextConsolidated.f2Consolidated),
         };
         const groups = [clone.airConsolidated, clone.groundConsolidated, clone.f2Consolidated];
+        // Consolidados que reciben al menos una guía en este escaneo → se
+        // autoseleccionan y suben al tope de la lista (el usuario no pierde el foco).
+        const touchedConsolidatedIds = new Set<string>();
         for (const r of resultsToAdd) {
           if (!r.isValid || !r.consolidatedId) continue;
           for (const g of groups) {
@@ -1001,11 +1070,19 @@ export default function UnloadingForm({
               });
             }
             c.notFound = c.notFound.filter(m => !sameGuide(m, r));
+            touchedConsolidatedIds.add(c.id);
             break;
           }
         }
         nextConsolidated = clone;
         setConsolidatedValidation(clone);
+
+        // Autoselección de los consolidados a los que se está agregando.
+        if (touchedConsolidatedIds.size > 0) {
+          setSelectedConsolidatedIds(
+            Array.from(new Set([...(selectedConsolidatedIds || []), ...touchedConsolidatedIds]))
+          );
+        }
       }
 
       const newMissing = updateMissingPackages(updatedShipments, nextConsolidated);
@@ -1060,7 +1137,7 @@ export default function UnloadingForm({
       setTimeout(() => { try { barScannerInputRef.current?.focus(); } catch {} }, 150);
     }
   }, [
-    isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, shipments, consolidatedValidation, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound, playInvalidSnd
+    isLoading, isValidationPackages, selectedSubsidiaryId, safeScannedPackages, shipments, consolidatedValidation, speakMessage, surplusTrackings, updateMissingPackages, isOnline, setShipments, setMissingPackages, setSurplusTrackings, setConsolidatedValidation, handleExpirationCheck, toast, playSurplusSound, playInvalidSnd, selectedConsolidatedIds, setSelectedConsolidatedIds
   ]);
 
   const shipmentsArray = useMemo(() => Array.isArray(shipments) ? shipments : [], [shipments]);
@@ -1120,6 +1197,60 @@ export default function UnloadingForm({
     })();
     return () => { cancelled = true; };
   }, [selectedSubsidiaryId, consolidatedValidation, setConsolidatedValidation, toast]);
+
+  // Recarga manual: vuelve a traer el universo esperado desde BD (por si se cargó
+  // un consolidado nuevo o quedó algo en caché) SIN perder los escaneos ya hechos.
+  const [reloadingConsolidateds, setReloadingConsolidateds] = useState(false);
+  const reloadConsolidateds = useCallback(async () => {
+    if (!selectedSubsidiaryId || reloadingConsolidateds) return;
+    setReloadingConsolidateds(true);
+    try {
+      const data = await getUnloadingSessionInit(selectedSubsidiaryId);
+      const seeded = seedConsolidatedFromInit(data);
+      const validScanned = (Array.isArray(shipments) ? shipments : []).filter((p: any) => p.isValid);
+      const applied = applyScannedToConsolidateds(seeded, validScanned);
+      setConsolidatedValidation(applied);
+      setMissingPackages(updateMissingPackages(shipments, applied));
+      toast({ title: "Consolidados recargados", description: "Se actualizó la lista desde la base de datos." });
+    } catch (error) {
+      console.error("Error recargando consolidados:", error);
+      toast({ title: "Error", description: "No se pudieron recargar los consolidados.", variant: "destructive" });
+    } finally {
+      setReloadingConsolidateds(false);
+    }
+  }, [selectedSubsidiaryId, reloadingConsolidateds, shipments, setConsolidatedValidation, setMissingPackages, updateMissingPackages, toast]);
+
+  // Búsqueda directa por número de consolidado (consulta a BD). Lo agrega a la lista
+  // y lo autoselecciona, para desembarcar un consolidado que no salió en el día.
+  const searchByConsNumber = useCallback(async (consNumber: string) => {
+    const cn = (consNumber || "").trim();
+    if (!selectedSubsidiaryId || !cn) return;
+    setReloadingConsolidateds(true);
+    try {
+      const item = await getUnloadingConsolidatedByConsNumber(selectedSubsidiaryId, cn);
+      if (!item) {
+        toast({ title: "No encontrado", description: `No existe el consolidado "${cn}" en esta sucursal.`, variant: "destructive" });
+        return;
+      }
+      const seededItem = seedConsolidatedFromInit({
+        airConsolidated: item.typeCode === "AER" ? [item] : [],
+        groundConsolidated: item.typeCode === "TER" ? [item] : [],
+        f2Consolidated: item.typeCode === "F2" ? [item] : [],
+      });
+      const validScanned = (Array.isArray(shipments) ? shipments : []).filter((p: any) => p.isValid);
+      const applied = applyScannedToConsolidateds(seededItem, validScanned);
+      const merged = mergeConsolidateds(consolidatedValidation, applied);
+      setConsolidatedValidation(merged);
+      setMissingPackages(updateMissingPackages(shipments, merged));
+      setSelectedConsolidatedIds(Array.from(new Set([...(selectedConsolidatedIds || []), item.id])));
+      toast({ title: "Consolidado agregado", description: `${item.type} · ${item.consNumber ?? item.id}` });
+    } catch (error) {
+      console.error("Error buscando consolidado por número:", error);
+      toast({ title: "Error", description: "No se pudo buscar el consolidado.", variant: "destructive" });
+    } finally {
+      setReloadingConsolidateds(false);
+    }
+  }, [selectedSubsidiaryId, shipments, consolidatedValidation, selectedConsolidatedIds, setConsolidatedValidation, setMissingPackages, setSelectedConsolidatedIds, updateMissingPackages, toast]);
 
   // 🚨 SOLUCIÓN 3: useEffect de validación automática estabilizado 🚨
   useEffect(() => {
@@ -1455,6 +1586,9 @@ export default function UnloadingForm({
                 initialSelectedIds={selectedConsolidatedIds}
                 onSelectionChange={handleConsolidateSelectionChange}
                 subsidiaryId={parentSubsidiaryId ?? selectedSubsidiaryId ?? null}
+                onReload={reloadConsolidateds}
+                onSearchConsNumber={searchByConsNumber}
+                reloading={reloadingConsolidateds}
               />
             </div>
             <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
