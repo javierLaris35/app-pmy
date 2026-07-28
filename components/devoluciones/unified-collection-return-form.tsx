@@ -741,10 +741,10 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
               <Download className="mr-2 h-4 w-4" />
               Guardar todo y generar PDF
             </Button>
-            <Button onClick={generatePDF} disabled={totalItems === 0} variant="outline" className="flex-1 bg-transparent">
+            {/*<Button onClick={generatePDF} disabled={totalItems === 0} variant="outline" className="flex-1 bg-transparent">
               <FileText className="mr-2 h-4 w-4" />
               Solo generar PDF
-            </Button>
+            </Button>*/}
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
