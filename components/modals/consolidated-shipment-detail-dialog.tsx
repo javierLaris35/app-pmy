@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { ColumnDef, useReactTable } from "@tanstack/react-table";
 import { es } from "date-fns/locale";
 import { Shipment, Consolidated } from "@/lib/types";
+import { formatDate } from "@/utils/date.utils";
 import { Badge } from "../ui/badge";
 import { StatusHistoryTimeline } from "./status-history-timeline";
 import * as XLSX from "xlsx"
@@ -95,10 +96,10 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
         "No. Rastreo": s.trackingNumber,
         "Destinatario": s.recipientName,
         "Fecha Compromiso": s.commitDateTime
-          ? format(new Date(s.commitDateTime), "dd/MM/yyyy hh:mm a", { locale: es })
+          ? formatDate(String(s.commitDateTime))
           : "",
         "Fecha de Entrega": fechaEntrega
-          ? format(new Date(fechaEntrega), "dd/MM/yyyy hh:mm a", { locale: es })
+          ? formatDate(String(fechaEntrega))
           : "",
         "Días de Retraso": diasRetraso,
         "Estado": s.status,
@@ -130,7 +131,7 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
         historyData.push({
           "No. Rastreo": shipment.trackingNumber,
           "Estatus": entry.status.charAt(0).toUpperCase() + entry.status.slice(1).replace("_", " "),
-          "Fecha": format(new Date(entry.timestamp), "dd/MM/yyyy hh:mm a", { locale: es }),
+          "Fecha": formatDate(String(entry.timestamp)),
           "Notas": entry.notes ?? "",
           _rawDate: entry.timestamp,
         });
@@ -185,8 +186,8 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
       header: "Fecha Compromiso",
       cell: ({ row }) => {
         const dateValue = row.getValue("commitDateTime") as string;
-        return dateValue 
-          ? format(new Date(dateValue), "dd/MM/yyyy hh:mm a", { locale: es })
+        return dateValue
+          ? formatDate(String(dateValue))
           : "-";
       },
     },

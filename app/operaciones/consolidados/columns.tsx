@@ -99,7 +99,7 @@ export const columns: ColumnDef<Consolidated>[] = [
               <Tooltip><TooltipTrigger><Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200 font-bold">HV: {countHighValue}</Badge></TooltipTrigger><TooltipContent>Alto Valor (subconjunto de Normales)</TooltipContent></Tooltip>
             )}
             {countCobros > 0 && (
-              <Tooltip><TooltipTrigger><Badge className="text-[10px] px-1.5 py-0 bg-lime-100 text-lime-700 hover:bg-lime-100 border-lime-200 font-bold">$: {countCobros}</Badge></TooltipTrigger><TooltipContent>Cobros / COD (subconjunto de Normales)</TooltipContent></Tooltip>
+              <Tooltip><TooltipTrigger><Badge className="text-[10px] px-1.5 py-0 bg-lime-100 text-lime-700 hover:bg-lime-100 border-lime-200 font-bold">$: {countCobros}</Badge></TooltipTrigger><TooltipContent>Cobros: paquetes con pago (payment)</TooltipContent></Tooltip>
             )}
             {countF2 > 0 && (
               <Badge className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200 font-bold">F2: {countF2}</Badge>

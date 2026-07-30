@@ -338,9 +338,10 @@ export interface Consolidated {
   shipmentCounts?: {
     total: number;
     countNormal: number;    // Normales (tabla shipment)
-    countF2: number;        // F2 (charge_shipment)
+    countF2: number;        // Carga / F2 / 31.5 (tabla charge_shipment)
     countHighValue: number; // Alto Valor: subconjunto de Normales
-    countCobros: number;    // Cobros (COD): subconjunto de Normales
+    countCobros: number;    // Cobros: # de paquetes con pago (payment); shipment o charge/F2
+    montoCobros: number;    // Cobros: monto total $ (SUM payment.amount)
     totalCargas: number;    // TOTAL CARGA = Normales + F2
     en_ruta: number;
     en_bodega: number;      // Nuevo: Paquetes en sucursal

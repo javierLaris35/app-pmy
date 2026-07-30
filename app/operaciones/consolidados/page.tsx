@@ -13,6 +13,7 @@ import {
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useZones } from "@/hooks/services/zones/use-zones";
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { useConsolidated } from "@/hooks/services/consolidateds/use-consolidated";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { getFedexStatus } from "@/lib/services/consolidated";
 import { withAuth } from "@/hoc/withAuth";
 import { columns } from "./columns";
 import { useAuthStore } from "@/store/auth.store";
-import { formatShortDate } from "@/utils/date.utils";
+import { formatShortDate, formatDate } from "@/utils/date.utils";
 
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -44,6 +45,7 @@ function ConsolidatedWithKpis() {
   const [scopeMode, setScopeMode] = useState<"sucursal" | "zona" | "todas">("sucursal");
   const [selectedZoneId, setSelectedZoneId] = useState<string | undefined>(undefined);
   const { zones } = useZones();
+  const { subsidiaries } = useSubsidiaries();
 
   const effectiveSubsidiaryId = selectedSucursalId || user?.subsidiary?.id;
 
@@ -72,6 +74,7 @@ function ConsolidatedWithKpis() {
   let totalShipments = 0; let totalPOD = 0; let totalDEX03 = 0; let totalDEX07 = 0;
   let totalDEX08 = 0; let totalBodega = 0; let totalEnRuta = 0; let totalPendiente = 0; let totalDevueltos = 0;
   let totalHighValue = 0; let totalCobros = 0; let totalOcurre = 0; let totalPodPlusDexs = 0; let totalPendMov = 0;
+  let totalMontoCobros = 0;
 
   consolidateds.forEach(c => {
     const counts = c.shipmentCounts || {};
@@ -86,6 +89,7 @@ function ConsolidatedWithKpis() {
     totalDevueltos += counts.totalDevueltos || 0;
     totalHighValue += counts.countHighValue || 0;
     totalCobros += counts.countCobros || 0;
+    totalMontoCobros += counts.montoCobros || 0;
     totalOcurre += counts.ocurre || 0;
     totalPodPlusDexs += counts.podPlusDexs || 0;
     totalPendMov += counts.guiasPendientesDeMov || 0;
@@ -191,19 +195,45 @@ function ConsolidatedWithKpis() {
     wsPendientes.columns = [
       { header: "Consolidado", key: "cId", width: 24 },
       { header: "Tracking", key: "tracking", width: 20 },
-      { header: "Estatus Actual", key: "status", width: 20 },
-      { header: "Carrier", key: "carrier", width: 15 }
+      { header: "Estatus Actual", key: "status", width: 18 },
+      { header: "Destinatario", key: "recipientName", width: 26 },
+      { header: "Dirección", key: "recipientAddress", width: 40 },
+      { header: "CP", key: "recipientZip", width: 10 },
+      { header: "Fecha Compromiso", key: "commitDateTime", width: 18 },
+      { header: "Carrier", key: "carrier", width: 12 }
     ];
     consolidateds.forEach(c => {
-      c.pendingShipments?.forEach(p => {
-        wsPendientes.addRow({ cId: c.consNumber, tracking: p.tracking, status: p.status, carrier: p.carrier });
+      c.pendingShipments?.forEach((p: any) => {
+        wsPendientes.addRow({
+          cId: c.consNumber,
+          tracking: p.tracking,
+          status: p.status,
+          recipientName: p.recipientName || "",
+          recipientAddress: p.recipientAddress || "",
+          recipientZip: p.recipientZip || "",
+          commitDateTime: p.commitDateTime ? formatDate(String(p.commitDateTime)) : "",
+          carrier: p.carrier || c.carrier || "",
+        });
       });
     });
     wsPendientes.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
     wsPendientes.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `Cuadre_Operativo_${dateRange.from}_al_${dateRange.to}.xlsx`);
+    // Nombre dinámico: Reporte_Consolidados_<alcance>_<from>_al_<to>.xlsx
+    const sanitize = (s: string) =>
+      (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    let scopeLabel = "Todas_Las_Sucursales";
+    if (scopeMode === "zona") {
+      const zoneName = zones.find((z) => z.id === selectedZoneId)?.name;
+      scopeLabel = zoneName ? `Zona_${sanitize(zoneName)}` : "Zona";
+    } else if (scopeMode === "sucursal") {
+      const subName =
+        subsidiaries.find((s) => s.id === effectiveSubsidiaryId)?.name ||
+        consolidateds.find((c) => c.subsidiary?.id === effectiveSubsidiaryId)?.subsidiary?.name;
+      scopeLabel = subName ? sanitize(subName) : "Sucursal";
+    }
+    saveAs(new Blob([buffer]), `Reporte_Consolidados_${scopeLabel}_${dateRange.from}_al_${dateRange.to}.xlsx`);
   };
 
   return (
@@ -276,8 +306,9 @@ function ConsolidatedWithKpis() {
             <div className="text-3xl font-extrabold text-purple-900">{totalHighValue}</div>
           </div>
           <div className="bg-lime-50 p-4 rounded-xl border border-lime-200">
-            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-lime-800">Cobros</span><DollarSign className="h-5 w-5 text-lime-600" /></div>
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-lime-800">Cobros (paquetes)</span><DollarSign className="h-5 w-5 text-lime-600" /></div>
             <div className="text-3xl font-extrabold text-lime-900">{totalCobros}</div>
+            <div className="text-sm font-bold text-lime-700 mt-1">{totalMontoCobros.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}</div>
           </div>
           <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
             <div className="flex justify-between mb-2"><span className="text-xs uppercase text-emerald-800">Entregados (POD)</span><CheckCircle2 className="h-5 w-5 text-emerald-600" /></div>
@@ -290,10 +321,6 @@ function ConsolidatedWithKpis() {
           <div className="bg-green-50 p-4 rounded-xl border border-green-200">
             <div className="flex justify-between mb-2"><span className="text-xs uppercase text-green-800">POD + DEXs</span><PackageCheck className="h-5 w-5 text-green-600" /></div>
             <div className="text-3xl font-extrabold text-green-900">{totalPodPlusDexs}</div>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
-            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-orange-800">Ptes. de Mov.</span><Clock className="h-5 w-5 text-orange-600" /></div>
-            <div className="text-3xl font-extrabold text-orange-900">{totalPendMov}</div>
           </div>
           <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
             <div className="flex justify-between mb-2"><span className="text-xs uppercase text-amber-800">DEX 03</span><AlertTriangle className="h-5 w-5 text-amber-600" /></div>
@@ -316,8 +343,8 @@ function ConsolidatedWithKpis() {
             <div className="text-3xl font-extrabold text-violet-900">{totalEnRuta}</div>
           </div>
           <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-indigo-800">Pendientes</span><TrendingUp className="h-5 w-5 text-indigo-600" /></div>
-            <div className="text-3xl font-extrabold text-indigo-900">{totalPendiente}</div>
+            <div className="flex justify-between mb-2"><span className="text-xs uppercase text-indigo-800">Pendientes de Mov.</span><TrendingUp className="h-5 w-5 text-indigo-600" /></div>
+            <div className="text-3xl font-extrabold text-indigo-900">{totalPendMov}</div>
           </div>
           <div className="bg-red-50 p-4 rounded-xl border border-red-200">
             <div className="flex justify-between mb-2"><span className="text-xs uppercase text-red-800">Devueltos</span><CornerDownLeft className="h-5 w-5 text-red-600" /></div>
