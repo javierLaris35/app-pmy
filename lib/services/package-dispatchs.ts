@@ -22,7 +22,14 @@ const savePackageDispatch = async (packageDispatch: DispatchFormData) => {
 const validateTrackingNumber = async (trackingNumber: string, subsidiaryId: string) => {
     const response = await axiosConfig.get<PackageInfo>(`${url}/validate-tracking-number/${trackingNumber}/${subsidiaryId}`);
     return response.data;
-}   
+}
+
+// Valida toda la lista escaneada en UN solo request (modo batch por sucursal).
+// El backend devuelve los paquetes ya ordenados según la config de la sucursal.
+const validateTrackingsList = async (trackingNumbers: string[], subsidiaryId: string) => {
+    const response = await axiosConfig.post<PackageInfo[]>(`${url}/validate-trackings`, { trackingNumbers, subsidiaryId });
+    return response.data;
+}
 
 const getShipmensByDispatchId = async (dispatchId: string) => {
     const response = await axiosConfig.get<PackageDispatch>(`${url}/info/${dispatchId}`);
@@ -68,5 +75,6 @@ export {
     savePackageDispatch,
     getPackageDispatchById,
     validateTrackingNumber,
+    validateTrackingsList,
     getShipmensByDispatchId
 }

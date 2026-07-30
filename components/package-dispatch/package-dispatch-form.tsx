@@ -12,11 +12,11 @@ import { RepartidorSelector } from "../selectors/repartidor-selector";
 import { RutaSelector } from "../selectors/ruta-selector";
 import { UnidadSelector } from "../selectors/unidad-selector";
 import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, Vehicles } from "@/lib/types";
-import { savePackageDispatch, uploadPDFile, validateTrackingNumber } from "@/lib/services/package-dispatchs";
+import { savePackageDispatch, uploadPDFile, validateTrackingNumber, validateTrackingsList } from "@/lib/services/package-dispatchs";
 import { useAuthStore } from "@/store/auth.store";
 import { pdf } from '@react-pdf/renderer';
 import { Input } from "../ui/input";
-import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
+import { ScanInput, ScanInputHandle, ScanResolution } from "@/components/scanner/scan-input";
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -163,6 +163,11 @@ const PackageDispatchForm: React.FC<Props> = ({
   // Ref al escáner para poder limpiar su buffer persistido tras un éxito.
   const scanInputRef = useRef<ScanInputHandle>(null);
 
+  // Espejo síncrono del estado del form para dedupe dentro del loop perScan
+  // (setPackages es async respecto al callback onScan).
+  const packagesRef = useRef<PackageInfo[]>(packages);
+  useEffect(() => { packagesRef.current = packages; }, [packages]);
+
   // Traspaso inline (corregir paquete mal enrutado) — solo roles elevados.
   const canTransfer = ["subadmin", "admin", "superadmin"].includes((user?.role as string) || "");
   const [transferPkg, setTransferPkg] = useState<PackageInfo | null>(null);
@@ -184,6 +189,13 @@ const PackageDispatchForm: React.FC<Props> = ({
     return Boolean(sub?.sortDispatchByPostalCode);
   }, [subsidiaries, selectedSubsidiaryId]);
 
+  // ¿Esta sucursal valida los paquetes por LISTA (1 request batch) o uno-por-uno?
+  // Config en BD (validateDispatchByList). Default false = uno-por-uno histórico.
+  const validateByList = useMemo(() => {
+    const sub = (subsidiaries as any[] | undefined)?.find((s) => s.id === selectedSubsidiaryId);
+    return Boolean(sub?.validateDispatchByList);
+  }, [subsidiaries, selectedSubsidiaryId]);
+
   // Detectar estado de conexión
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -203,24 +215,48 @@ const PackageDispatchForm: React.FC<Props> = ({
     };
   }, []);
 
-  const validatePackageForDispatch = async (trackingNumber: string): Promise<PackageInfo> => {
-    console.log("🚀 ~ validatePackageForDispatch ~ trackingNumber:", trackingNumber)
+  // Modo uno-a-uno (perScan): valida cada guía al escanear (backend inmediato) y
+  // la agrega al estado del form, que es la fuente visible de verdad. El ScanInput
+  // queda solo como caja de escaneo. Dedupe contra el buffer del escáner (`current`,
+  // síncrono en el loop) y contra el estado del form.
+  const handleScan = useCallback(async (code: string, current: PackageInfo[]): Promise<ScanResolution> => {
+    if (!selectedSubsidiaryId) {
+      return { action: "reject", message: "Selecciona una sucursal primero" };
+    }
+
+    let info: PackageInfo;
     try {
-      const shipment = await validateTrackingNumber(trackingNumber, selectedSubsidiaryId);
-      console.log("🚀 ~ validatePackageForDispatch ~ shipment:", shipment)
-      return shipment;
+      info = await validateTrackingNumber(code, selectedSubsidiaryId);
     } catch (error) {
       console.warn("Error validando paquete, modo offline:", error);
-      return {
+      info = {
         id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        trackingNumber,
+        trackingNumber: code,
         isValid: false,
         reason: "Sin conexión - validar cuando se restablezca internet",
         isOffline: true,
         createdAt: new Date(),
       } as PackageInfo;
     }
-  };
+
+    const rId = (info as any).dhlUniqueId || info.trackingNumber;
+    const already = (arr: PackageInfo[]) => arr.some((p) => ((p as any).dhlUniqueId || p.trackingNumber) === rId);
+    if (already(current) || already(packagesRef.current)) {
+      return { action: "reject", message: `La guía ${rId} ya fue escaneada.` };
+    }
+
+    // Fuente visible de verdad: el estado del form.
+    setPackages((prev) => (already(prev) ? prev : [...prev, info]));
+
+    // Feedback sonoro por guía (mismo criterio que el flujo por lote).
+    if (!info.isOffline) {
+      if (!info.isValid) playNotFoundSound();
+      else if (daysUntilCommit(info.commitDateTime) === 0) playExpiresTodaySound();
+      else if (daysUntilCommit(info.commitDateTime) === 1) playExpiresTomorrowSound();
+    }
+
+    return { action: "add", package: info };
+  }, [selectedSubsidiaryId, setPackages]);
 
   const handleValidatePackages = async () => {
     // 1. Limpiar input inmediatamente
@@ -255,13 +291,29 @@ const PackageDispatchForm: React.FC<Props> = ({
     setIsLoading(true);
     setProgress(0);
 
-    const results: PackageInfo[] = [];
-    for (let i = 0; i < validNumbers.length; i++) {
-      // validatePackageForDispatch ya debe llamar a tu servicio con la lógica de variante
-      const info = await validatePackageForDispatch(validNumbers[i]);
-      results.push(info);
-      setProgress(Math.round(((i + 1) / validNumbers.length) * 100));
+    // Solo se llega aquí en modo lista (el botón "Validar" se oculta en perScan):
+    // validamos toda la lista en 1 request y el backend devuelve los paquetes
+    // ordenados según la config de la sucursal.
+    let results: PackageInfo[] = [];
+    try {
+      setProgress(50);
+      results = await validateTrackingsList(validNumbers, selectedSubsidiaryId);
+      setProgress(100);
+    } catch (error) {
+      // Fallback offline: marcamos todos como pendientes de revalidar.
+      console.warn("Error validando lista, modo offline:", error);
+      results = validNumbers.map((trackingNumber) => ({
+        id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        trackingNumber,
+        isValid: false,
+        reason: "Sin conexión - validar cuando se restablezca internet",
+        isOffline: true,
+        createdAt: new Date(),
+      } as PackageInfo));
     }
+
+    // Resolver el buffer del escáner (batch) para quitar el estado "Validando…".
+    scanInputRef.current?.updateValidatedPackages(results);
 
     // 2. FILTRADO ÚNICO Y CORRECTO
     setPackages((prev) => {
@@ -307,6 +359,9 @@ const PackageDispatchForm: React.FC<Props> = ({
   };
 
   const handleRemovePackage = useCallback((identifier: string) => {
+    // Mantener el buffer del escáner (perScan) en sync para permitir re-escanear.
+    const target = packagesRef.current.find((p) => ((p as any).dhlUniqueId || p.trackingNumber) === identifier);
+    if (target?.trackingNumber) scanInputRef.current?.removeByTracking(target.trackingNumber);
     setPackages((prev) => prev.filter((p) => {
       const pId = (p as any).dhlUniqueId || p.trackingNumber;
       return pId !== identifier;
@@ -782,6 +837,8 @@ const PackageDispatchForm: React.FC<Props> = ({
                   storageKey="scan:dispatch"
                   defaultView="simple"
                   label=""
+                  mode={validateByList ? "batch" : "perScan"}
+                  onScan={validateByList ? undefined : handleScan}
                   onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)}
                   disabled={isLoading || !selectedSubsidiaryId}
                   placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
@@ -798,19 +855,23 @@ const PackageDispatchForm: React.FC<Props> = ({
                 </div>
               )}
 
-              <Button 
-                onClick={handleValidatePackages} 
-                disabled={isLoading || !selectedSubsidiaryId || !trackingNumbersRaw} 
-                className="w-full gap-2"
-                variant="outline"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Scan className="h-4 w-4" />
-                )}
-                {isLoading ? "Validando..." : "Validar Paquetes"}
-              </Button>
+              {/* Modo lista (batch): validación explícita por botón. En modo uno-a-uno
+                  (perScan) cada guía se valida al escanear, así que el botón se oculta. */}
+              {validateByList && (
+                <Button
+                  onClick={handleValidatePackages}
+                  disabled={isLoading || !selectedSubsidiaryId || !trackingNumbersRaw}
+                  className="w-full gap-2"
+                  variant="outline"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Scan className="h-4 w-4" />
+                  )}
+                  {isLoading ? "Validando..." : "Validar Paquetes"}
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -31,6 +31,8 @@ export type Subsidiary = {
   forceFedexStatusOverride?: boolean
   /** Ordenar las salidas a ruta por código postal (escaneo/PDF/Excel). */
   sortDispatchByPostalCode?: boolean
+  /** Validar los paquetes de salida a ruta por lista (batch) en vez de uno-por-uno. */
+  validateDispatchByList?: boolean
   // Reglas de ingreso por sucursal.
   chargeDex03?: boolean
   chargeDex07?: boolean
@@ -681,6 +683,9 @@ export interface PackageInfo {
   isValid: boolean,
   reason?: string,
   isPendingValidation?: boolean,
+  /** Validado sin conexión: pendiente de revalidar cuando vuelva internet. */
+  isOffline?: boolean,
+  createdAt?: Date | string,
   payment?: {
     amount: string
     type: PaymentTypeEnum
