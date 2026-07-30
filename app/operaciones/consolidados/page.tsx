@@ -21,6 +21,7 @@ import { getFedexStatus } from "@/lib/services/consolidated";
 import { withAuth } from "@/hoc/withAuth";
 import { columns } from "./columns";
 import { useAuthStore } from "@/store/auth.store";
+import { formatShortDate } from "@/utils/date.utils";
 
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -160,7 +161,7 @@ function ConsolidatedWithKpis() {
 
       const added = ws.addRow({
         consolidado: c.consNumber || c.code || c.id,
-        fecha: c.date ? format(new Date(c.date), "yyyy-MM-dd") : "",
+        fecha: c.date ? formatShortDate(c.date as unknown as string) : "",
         ...row,
         estatus: isCerrado(c) ? "CERRADO" : "ABIERTO",
       });
