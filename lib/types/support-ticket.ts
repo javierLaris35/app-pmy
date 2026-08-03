@@ -1,6 +1,6 @@
 // lib/types/support-ticket.ts
 export type TicketType = 'mejora' | 'cambio' | 'eliminar' | 'error';
-export type TicketStatus = 'pendiente' | 'en_progreso' | 'completado' | 'rechazado';
+export type TicketStatus = 'pendiente' | 'por_hacer' | 'en_progreso' | 'en_revision' | 'completado' | 'rechazado';
 export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
 export type MenuPrincipal = 'operaciones' | 'finanzas' | 'catalogos' | 'configuracion' | 'nuevo';
 
@@ -17,6 +17,8 @@ export interface Ticket {
   usuario?: string;
   asignadoA?: string;
   asignadoAId?: number | string;
+  asignadoEmail?: string;
+  subsidiaryId?: string;
   seccion?: string;
   subseccion?: string;
   menuPrincipal?: string;
@@ -25,7 +27,24 @@ export interface Ticket {
   imagenes?: string[];
   comentarios?: TicketComment[];
   fechaCreacion: string;
+  resolvedAt?: string | null;
+  // Campos calculados por el backend (tablero):
+  slaDueAt?: string | null;
+  slaBreached?: boolean;
+  urgencyScore?: number;
+  ageHours?: number;
+  timeInColumnHours?: number;
 }
+
+/** Columnas del tablero kanban (label + estado). El orden define el flujo. */
+export const KANBAN_COLUMNS: { estado: TicketStatus; label: string }[] = [
+  { estado: 'pendiente', label: 'Backlog' },
+  { estado: 'por_hacer', label: 'Por hacer' },
+  { estado: 'en_progreso', label: 'En progreso' },
+  { estado: 'en_revision', label: 'En revisión' },
+  { estado: 'completado', label: 'Hecho' },
+  { estado: 'rechazado', label: 'Rechazado' },
+];
 
 export interface TicketFormData {
   tipo: TicketType | '';
@@ -76,7 +95,8 @@ export const getTicketTypeColor = (tipo: TicketType | string) => ({
 }[tipo] ?? 'bg-gray-500/10 text-gray-500');
 
 export const getTicketStatusColor = (estado: TicketStatus | string) => ({
-  pendiente: 'bg-gray-500/10 text-gray-600', en_progreso: 'bg-blue-500/10 text-blue-600',
+  pendiente: 'bg-gray-500/10 text-gray-600', por_hacer: 'bg-violet-500/10 text-violet-600',
+  en_progreso: 'bg-blue-500/10 text-blue-600', en_revision: 'bg-amber-500/10 text-amber-600',
   completado: 'bg-green-500/10 text-green-600', rechazado: 'bg-red-500/10 text-red-600',
 }[estado] ?? 'bg-gray-500/10 text-gray-600');
 
@@ -86,7 +106,19 @@ export const getTicketPriorityColor = (p?: TicketPriority) => ({
 }[p ?? 'media'] ?? 'bg-gray-500/10 text-gray-600 border-gray-500/20');
 
 export const getStatusLabel = (estado: TicketStatus) =>
-  ({ pendiente: 'Pendiente', en_progreso: 'En Progreso', completado: 'Completado', rechazado: 'Rechazado' }[estado]);
+  ({
+    pendiente: 'Backlog', por_hacer: 'Por hacer', en_progreso: 'En progreso',
+    en_revision: 'En revisión', completado: 'Hecho', rechazado: 'Rechazado',
+  }[estado] ?? estado);
 
 export const getPriorityLabel = (p: TicketPriority) =>
   ({ baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' }[p]);
+
+/** Antigüedad/tiempo legible a partir de horas (para tarjetas del tablero). */
+export const formatHours = (h?: number): string => {
+  if (h == null || !Number.isFinite(h)) return '—';
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))} min`;
+  if (h < 24) return `${Math.round(h)} h`;
+  const d = Math.floor(h / 24);
+  return `${d} d`;
+};

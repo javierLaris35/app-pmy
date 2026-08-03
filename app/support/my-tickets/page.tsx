@@ -23,6 +23,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Inbox } from "lucide-react"
 import Link from "next/link"
 import {
   type Ticket,
@@ -32,6 +33,8 @@ import {
   getStatusLabel,
 } from "@/lib/types/support-ticket"
 import { SupportTicketService } from "@/lib/services/support-ticket.service"
+import { AppLayout } from "@/components/app-layout"
+import { OperationHeader } from "@/components/shared/operation-header"
 
 export default function MyTicketsPage() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
@@ -141,38 +144,44 @@ export default function MyTicketsPage() {
     rechazado: tickets.filter((t) => t.estado === "rechazado").length,
   }
 
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={handleRefresh}>
+        <RefreshCw className="h-4 w-4 mr-2" />
+        Actualizar
+      </Button>
+      <Link href="/support/tickets">
+        <Button size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva Solicitud
+        </Button>
+      </Link>
+    </div>
+  )
+
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6 max-w-5xl flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-muted-foreground">Cargando tus solicitudes...</p>
+      <AppLayout>
+        <OperationHeader icon={Inbox} title="Mis Solicitudes" description="Estado y seguimiento de tus solicitudes de soporte" />
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-muted-foreground">Cargando tus solicitudes...</p>
+          </div>
         </div>
-      </div>
+      </AppLayout>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl">
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Mis Solicitudes de Soporte</h1>
-          <p className="text-muted-foreground">Revisa el estado y seguimiento de tus solicitudes</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Actualizar
-          </Button>
-          <Link href="/support/tickets">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Solicitud
-            </Button>
-          </Link>
-        </div>
-      </div>
-
+    <AppLayout>
+      <OperationHeader
+        icon={Inbox}
+        title="Mis Solicitudes"
+        description="Estado y seguimiento de tus solicitudes de soporte"
+        actions={headerActions}
+      />
+      <div className="w-full">
       {/* Filtros por Estado */}
       <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)} className="mb-6">
         <TabsList className="grid w-full grid-cols-5">
@@ -337,6 +346,7 @@ export default function MyTicketsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AppLayout>
   )
 }

@@ -15,11 +15,22 @@ import { CommandPalette } from "./search-packages/search-package"
 import { AddShipmentDialog } from "./add-shipment/add-shipment-dialog"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip"
 import { Button } from "./ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu"
 import { useUiStore } from "@/store/ui.store"
 import { ensureClientMeta } from "@/lib/client-meta"
 import { initOfflineSync } from "@/lib/offline/sync"
 import { useOfflineStore } from "@/lib/offline/offline-store"
-import { WifiOff, CloudUpload, MapPin, Search, Plus, Sparkles, LifeBuoy, HeadsetIcon } from "lucide-react"
+import { WifiOff, CloudUpload, MapPin, Search, Plus, Sparkles, LifeBuoy, HeadsetIcon, Inbox, KanbanSquare, PlusCircle } from "lucide-react"
+
+/** Roles que pueden ver el Tablero (gestión) de Soporte. */
+const SUPPORT_ADMIN_ROLES = ["admin", "superadmin", "superamin", "owner"]
 
 /** Solo en desarrollo se muestra el acceso a la bienvenida. */
 const IS_DEV = process.env.NODE_ENV === "development"
@@ -231,20 +242,44 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <TooltipContent>Agregar envío</TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 rounded-full hover:bg-muted text-red-600"
-                    onClick={() => router.push("/support/tickets")}
-                    aria-label="Soporte"
-                  >
-                    <HeadsetIcon className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Soporte</TooltipContent>
-              </Tooltip>
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-full hover:bg-muted text-red-600"
+                        aria-label="Soporte"
+                      >
+                        <HeadsetIcon className="h-5 w-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Soporte</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuLabel>Soporte</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => router.push("/support/tickets")}>
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Nueva solicitud
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/support/my-tickets")}>
+                    <Inbox className="h-4 w-4 mr-2" />
+                    Mis solicitudes
+                  </DropdownMenuItem>
+                  {SUPPORT_ADMIN_ROLES.includes((user?.role || "").toLowerCase()) && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => router.push("/support/admin")}>
+                        <KanbanSquare className="h-4 w-4 mr-2" />
+                        Tablero
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {IS_DEV && (
                 <Tooltip>

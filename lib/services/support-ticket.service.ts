@@ -3,6 +3,16 @@ import type { Ticket, TicketComment, TicketStatus, TicketPriority } from '../typ
 
 const url = '/support';
 
+/** Origen del backend (sin el sufijo `/api`) para construir URLs de archivos servidos. */
+const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/api\/?$/, '');
+
+/** Convierte una ruta relativa de adjunto (`/api/uploads/...`) en URL absoluta. */
+export function fileUrl(u?: string): string {
+  if (!u) return '';
+  if (/^https?:\/\//.test(u) || u.startsWith('data:')) return u;
+  return `${API_ORIGIN}${u.startsWith('/') ? '' : '/'}${u}`;
+}
+
 function mapComment(c: any): TicketComment {
   return {
     usuario: c?.usuario ?? c?.authorName ?? 'Sistema',
@@ -24,20 +34,31 @@ function mapTicket(raw: any): Ticket {
     usuario: raw?.usuario ?? raw?.requesterName,
     asignadoA: raw?.asignadoA ?? raw?.assigneeName ?? undefined,
     asignadoAId: raw?.asignadoAId ?? raw?.assigneeId ?? undefined,
+    asignadoEmail: raw?.assigneeEmail ?? undefined,
+    subsidiaryId: raw?.subsidiaryId ?? undefined,
     seccion: raw?.seccion,
     subseccion: raw?.subseccion,
     menuPrincipal: raw?.menuPrincipal,
     submenu: raw?.submenu,
     pasosReplicar: raw?.pasosReplicar,
     imagenes: Array.isArray(raw?.imagenes)
-      ? raw.imagenes.map((i: any) => (typeof i === 'string' ? i : i?.url)).filter(Boolean)
+      ? raw.imagenes.map((i: any) => fileUrl(typeof i === 'string' ? i : i?.url)).filter(Boolean)
       : [],
     comentarios: Array.isArray(raw?.comentarios) ? raw.comentarios.map(mapComment) : [],
     fechaCreacion: raw?.fechaCreacion ?? raw?.createdAt,
+    resolvedAt: raw?.resolvedAt ?? null,
+    // Campos calculados del tablero:
+    slaDueAt: raw?.slaDueAt ?? null,
+    slaBreached: raw?.slaBreached ?? false,
+    urgencyScore: raw?.urgencyScore,
+    ageHours: raw?.ageHours,
+    timeInColumnHours: raw?.timeInColumnHours,
   };
 }
 
-async function getAllTickets(filters: { estado?: string; tipo?: string; q?: string } = {}) {
+async function getAllTickets(
+  filters: { estado?: string; tipo?: string; prioridad?: string; q?: string; sucursal?: string; asignado?: string } = {},
+) {
   const res = await axiosConfig.get<{ tickets: any[] }>(`${url}/tickets`, { params: filters });
   return { tickets: (res.data.tickets ?? []).map(mapTicket) };
 }

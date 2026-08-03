@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertCircle,
@@ -38,9 +36,12 @@ import {
   getTicketTypeColor,
 } from "@/lib/types/support-ticket"
 import { SupportTicketService } from "@/lib/services/support-ticket.service"
+import { AppLayout } from "@/components/app-layout"
+import { OperationHeader } from "@/components/shared/operation-header"
+import { LifeBuoy } from "lucide-react"
+import Link from "next/link"
 
 export default function SupportTicketsPage() {
-  const [activeTab, setActiveTab] = useState<"crear" | "lista">("crear")
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -52,7 +53,14 @@ export default function SupportTicketsPage() {
     imagenes: [],
   })
   const [previewImages, setPreviewImages] = useState<string[]>([])
-  const [tickets, setTickets] = useState<any[]>([])
+
+  const resetForm = () => {
+    setFormData({ tipo: "", titulo: "", descripcion: "", imagenes: [] })
+    setPreviewImages([])
+    setCurrentStep(1)
+    setSubmitSuccess(false)
+    setSubmitError(null)
+  }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -97,27 +105,13 @@ export default function SupportTicketsPage() {
       }
 
       // Llamar al servicio
-      const newTicket = await SupportTicketService.createTicket(ticketData, formData.imagenes)
+      await SupportTicketService.createTicket(ticketData, formData.imagenes)
 
-      // Actualizar lista local
-      setTickets([newTicket, ...tickets])
-
-      // Limpiar formulario
-      setFormData({
-        tipo: "",
-        titulo: "",
-        descripcion: "",
-        imagenes: [],
-      })
+      // Limpiar formulario y mostrar pantalla de éxito.
+      setFormData({ tipo: "", titulo: "", descripcion: "", imagenes: [] })
       setPreviewImages([])
       setCurrentStep(1)
       setSubmitSuccess(true)
-
-      // Mostrar mensaje de éxito y cambiar a lista
-      setTimeout(() => {
-        setSubmitSuccess(false)
-        setActiveTab("lista")
-      }, 2000)
     } catch (error) {
       console.error("Error al crear ticket:", error)
       setSubmitError("Error al crear el ticket. Por favor intenta de nuevo.")
@@ -172,23 +166,44 @@ export default function SupportTicketsPage() {
   const completedSteps = getCompletedSteps()
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Centro de Ayuda del Sistema</h1>
-        <p className="text-muted-foreground">Solicita mejoras, reporta errores o pide cambios de forma sencilla</p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "crear" | "lista")}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="crear">
-            <Plus className="h-4 w-4 mr-2" />
-            Crear Solicitud
-          </TabsTrigger>
-          <TabsTrigger value="lista">Mis Solicitudes {tickets.length > 0 && `(${tickets.length})`}</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="crear" className="mt-6">
-          <Card className="mb-6">
+    <AppLayout>
+      <OperationHeader
+        icon={LifeBuoy}
+        title="Centro de Ayuda"
+        description="Solicita mejoras, reporta errores o pide cambios de forma sencilla"
+      />
+      <div className="w-full space-y-4">
+        {submitSuccess ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+              <div className="rounded-full bg-green-500/10 p-3">
+                <CheckCircle2 className="h-10 w-10 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">¡Solicitud enviada!</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                  La recibimos. Te avisaremos por correo y en la campana cuando avance.
+                </p>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <Button variant="outline" className="w-full sm:w-auto" onClick={resetForm}>
+                  <Plus className="h-4 w-4 mr-2" /> Crear otra
+                </Button>
+                <Link href="/support/my-tickets" className="w-full sm:w-auto">
+                  <Button className="w-full">Ver mis solicitudes</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+        <>
+          {submitError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
+          <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">Progreso</span>
@@ -252,7 +267,7 @@ export default function SupportTicketsPage() {
               {/* PASO 1: Selección de Tipo */}
               {currentStep === 1 && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     {(Object.keys(TIPO_TICKET_INFO) as TicketType[]).map((tipo) => {
                       const info = TIPO_TICKET_INFO[tipo]
                       const isSelected = formData.tipo === tipo
@@ -403,7 +418,7 @@ export default function SupportTicketsPage() {
                         </div>
 
                         {previewImages.length > 0 && (
-                          <div className="grid grid-cols-3 gap-2 mt-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                             {previewImages.map((img, index) => (
                               <div key={index} className="relative group">
                                 <img
@@ -469,7 +484,7 @@ export default function SupportTicketsPage() {
                             </Tooltip>
                           </TooltipProvider>
                         </Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           {(Object.keys(MENUS_INFO) as (keyof typeof MENUS_INFO)[]).map((menu) => {
                             const info = MENUS_INFO[menu]
                             const isSelected = formData.menuPrincipal === menu
@@ -565,7 +580,7 @@ export default function SupportTicketsPage() {
                     <>
                       <div className="space-y-2">
                         <Label>¿A qué área pertenece? *</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           {(Object.keys(SECCIONES_CONFIG) as (keyof typeof SECCIONES_CONFIG)[]).map((seccion) => {
                             const info = SECCIONES_CONFIG[seccion]
                             const isSelected = formData.seccion === seccion
@@ -625,7 +640,7 @@ export default function SupportTicketsPage() {
                     <>
                       <div className="space-y-2">
                         <Label>¿En qué menú ocurre el error? *</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           {(Object.keys(MENUS_INFO) as (keyof typeof MENUS_INFO)[]).map((menu) => {
                             const info = MENUS_INFO[menu]
                             const isSelected = formData.menuError === menu
@@ -699,58 +714,9 @@ export default function SupportTicketsPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="lista" className="mt-6">
-          {tickets.length === 0 ? (
-            <Card>
-              <CardContent className="pt-6 text-center py-12">
-                <div className="text-muted-foreground">
-                  <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Aún no has creado ninguna solicitud</p>
-                  <Button className="mt-4" onClick={() => setActiveTab("crear")}>
-                    Crear mi primera solicitud
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {tickets.map((ticket) => (
-                <Card key={ticket.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge className={getTipoColor(ticket.tipo)}>
-                            <div className="flex items-center gap-1">
-                              {getTipoIcon(ticket.tipo)}
-                              <span className="capitalize">{ticket.tipo}</span>
-                            </div>
-                          </Badge>
-                          <Badge variant="outline">{ticket.estado}</Badge>
-                        </div>
-                        <CardTitle className="text-lg">{ticket.titulo}</CardTitle>
-                        <CardDescription className="text-sm">
-                          Creado el {new Date(ticket.fechaCreacion).toLocaleDateString()}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-2">{ticket.descripcion}</p>
-                    {ticket.imagenes && ticket.imagenes.length > 0 && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {ticket.imagenes.length} imagen(es) adjunta(s)
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
+        </>
+        )}
+      </div>
+    </AppLayout>
   )
 }
