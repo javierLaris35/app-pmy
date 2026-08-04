@@ -191,10 +191,26 @@ const PackageDispatchForm: React.FC<Props> = ({
 
   // ¿Esta sucursal valida los paquetes por LISTA (1 request batch) o uno-por-uno?
   // Config en BD (validateDispatchByList). Default false = uno-por-uno histórico.
-  const validateByList = useMemo(() => {
+  const configListMode = useMemo(() => {
     const sub = (subsidiaries as any[] | undefined)?.find((s) => s.id === selectedSubsidiaryId);
     return Boolean(sub?.validateDispatchByList);
   }, [subsidiaries, selectedSubsidiaryId]);
+
+  // Override local (switch en el form): permite cambiar el modo en caliente sin
+  // tocar la config de BD. `null` = seguir la config de la sucursal.
+  const [listModeOverride, setListModeOverride] = useState<boolean | null>(null);
+  const isListMode = listModeOverride ?? configListMode;
+
+  // Al cambiar de sucursal, volvemos a respetar su config (descartamos el override).
+  useEffect(() => { setListModeOverride(null); }, [selectedSubsidiaryId]);
+
+  // Cambiar de modo limpia el escaneo en curso para no mezclar buffers batch/perScan.
+  // Los paquetes ya validados (estado del form) se conservan.
+  const handleToggleMode = useCallback((toList: boolean) => {
+    setListModeOverride(toList);
+    scanInputRef.current?.clear();
+    setTrackingNumbersRaw("");
+  }, [setTrackingNumbersRaw]);
 
   // Detectar estado de conexión
   useEffect(() => {
@@ -831,14 +847,46 @@ const PackageDispatchForm: React.FC<Props> = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Modo de validación: control segmentado (override local del default
+                  de la sucursal). Mismo estilo que los filtros para verse nativo. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                <Label className="text-sm">Modo de validación</Label>
+                <div className="inline-flex shrink-0 rounded-lg border bg-background p-0.5">
+                  {[
+                    { list: false, label: "Uno a uno" },
+                    { list: true, label: "Por lista" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => handleToggleMode(opt.list)}
+                      disabled={isLoading || !selectedSubsidiaryId}
+                      className={cn(
+                        "rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+                        isListMode === opt.list
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="-mt-2 text-xs text-muted-foreground leading-snug">
+                {isListMode
+                  ? "Escanea todo y valida con el botón."
+                  : "Valida cada guía al escanearla."}
+              </p>
+
               <div className="space-y-3">
                 <ScanInput
                   ref={scanInputRef}
                   storageKey="scan:dispatch"
                   defaultView="simple"
                   label=""
-                  mode={validateByList ? "batch" : "perScan"}
-                  onScan={validateByList ? undefined : handleScan}
+                  mode={isListMode ? "batch" : "perScan"}
+                  onScan={isListMode ? undefined : handleScan}
                   onTrackingNumbersChange={(rawString) => setTrackingNumbersRaw(rawString)}
                   disabled={isLoading || !selectedSubsidiaryId}
                   placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
@@ -857,7 +905,7 @@ const PackageDispatchForm: React.FC<Props> = ({
 
               {/* Modo lista (batch): validación explícita por botón. En modo uno-a-uno
                   (perScan) cada guía se valida al escanear, así que el botón se oculta. */}
-              {validateByList && (
+              {isListMode && (
                 <Button
                   onClick={handleValidatePackages}
                   disabled={isLoading || !selectedSubsidiaryId || !trackingNumbersRaw}
@@ -884,12 +932,14 @@ const PackageDispatchForm: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setOnlyToday((v) => !v)}
-                  className="w-full flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-800 hover:bg-red-100 transition-colors"
+                  className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-800 hover:bg-red-100 transition-colors"
                 >
                   <Clock className="h-4 w-4 shrink-0" />
-                  <span className="font-semibold">{packageStats.expiringToday}</span>
-                  paquete(s) vencen <strong>hoy</strong>.
-                  <span className="ml-auto text-xs underline">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold">{packageStats.expiringToday}</span>{" "}
+                    paquete(s) vencen <strong>hoy</strong>.
+                  </span>
+                  <span className="ml-auto shrink-0 text-xs underline">
                     {onlyToday ? "Quitar filtro" : "Ver solo estos"}
                   </span>
                 </button>

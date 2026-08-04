@@ -387,9 +387,11 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Encabezado: identidad + contador + switch de vista + copiar */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5">
+      {/* Encabezado: identidad + contador + switch de vista + copiar.
+          flex-wrap: en pantallas angostas los controles bajan a otra línea en
+          vez de encimarse con el contador. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground ring-1 ring-primary/20">
             <BarcodeIcon className="h-4 w-4" />
           </span>
