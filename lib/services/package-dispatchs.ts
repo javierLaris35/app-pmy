@@ -1,8 +1,21 @@
 import { axiosConfig } from "../axios-config"
-import { DispatchFormData, PackageDispatch, PackageInfo } from "../types"
+import { DispatchFormData, EmailLog, PackageDispatch, PackageInfo } from "../types"
 import { Paginated, ListParams } from "./pagination"
 
 const url = '/package-dispatchs'
+
+/** Resultado de un (re)envío de correo, para informar en el toast. */
+export interface ResendEmailResult {
+    status: 'sent' | 'error'
+    error?: string
+    to?: string
+}
+
+// Historial completo de envíos de correo de una salida a ruta.
+const getDispatchEmailHistory = async (id: string): Promise<EmailLog[]> => {
+    const response = await axiosConfig.get<EmailLog[]>(`${url}/${id}/email-history`)
+    return response.data
+}
 
 const getPackageDispatchs = async (subsidiaryId: string, params: ListParams = {}) => {
     const response = await axiosConfig.get<Paginated<PackageDispatch>>(`${url}/subsidiary/${subsidiaryId}`, { params });
@@ -41,13 +54,15 @@ export async function uploadPDFile(
     excelFile: File,
     subsidiaryName: string,
     packageDispatchId: string,
-    onProgress?: (progress: number) => void
-): Promise<any> { 
+    onProgress?: (progress: number) => void,
+    opts?: { isResend?: boolean }
+): Promise<any> {
     const formData = new FormData();
     formData.append('files', pdfFile);
     formData.append('files', excelFile);
     formData.append('subsidiaryName', subsidiaryName);
     formData.append('packageDispatchId', packageDispatchId);
+    if (opts?.isResend) formData.append('isResend', 'true');
 
     try {
         const response = await axiosConfig.post('/package-dispatchs/upload', formData, {
@@ -76,5 +91,6 @@ export {
     getPackageDispatchById,
     validateTrackingNumber,
     validateTrackingsList,
-    getShipmensByDispatchId
+    getShipmensByDispatchId,
+    getDispatchEmailHistory
 }

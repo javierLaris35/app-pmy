@@ -579,6 +579,52 @@ export interface PackageDispatchResponse {
   totalPackages: number;
   vehicle: Vehicles
   createdAt?: string
+  // Trazabilidad de envío de correo (denormalizado para pintar el botón/tooltip).
+  emailStatus?: EmailStatus
+  emailLastSentAt?: string | null
+  emailLastError?: string | null
+}
+
+/** Estado del envío de correo asociado a una entidad. */
+export enum EmailStatus {
+  NOT_SENT = 'not_sent',
+  SENT = 'sent',
+  ERROR = 'error',
+}
+
+/** Un renglón de la bitácora de envíos de correo. */
+export interface EmailLog {
+  id: string
+  module: string
+  emailType: string
+  entityId: string
+  referenceTracking?: string | null
+  subsidiaryId?: string | null
+  subsidiaryName?: string | null
+  to: string
+  cc?: string | null
+  subject: string
+  status: EmailStatus
+  error?: string | null
+  messageId?: string | null
+  rejected?: string | null
+  isResend: boolean
+  triggeredById?: string | null
+  triggeredByName?: string | null
+  attachmentsMeta?: { filename: string; size: number }[] | null
+  createdAt: string
+}
+
+/** Etiqueta legible del tipo/origen de correo. */
+export const EMAIL_TYPE_LABELS: Record<string, string> = {
+  route_dispatch: "Salida a ruta",
+  route_closure: "Cierre de ruta",
+  unloading: "Desembarque",
+  inventory: "Inventario",
+  devolutions: "Devoluciones",
+  dex03_report: "Reporte DEX03",
+  high_priority_shipments: "Envíos prioritarios",
+  unknown: "Desconocido",
 }
 
 export interface DispatchFormData {

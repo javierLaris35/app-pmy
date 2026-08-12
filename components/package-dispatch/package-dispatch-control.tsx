@@ -20,6 +20,7 @@ import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/pac
 import PackageDispatchDetails from "./package-dispatch-details"
 import ClosePackageDisptach from "./close-package-dispatch-form"
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
+import ResendEmailButton from "./resend-email-button"
 import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
@@ -184,6 +185,8 @@ const updatedColumns = columns.map((col) =>
                   </TooltipTrigger>
                   <TooltipContent>Generar Excel</TooltipContent>
                 </Tooltip>
+
+                <ResendEmailButton dispatch={row.original} onResent={() => mutate()} />
 
                 <Tooltip>
                   <TooltipTrigger asChild>

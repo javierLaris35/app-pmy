@@ -9,14 +9,16 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import classNames from "classnames"
-import { AlertCircle, Trash2, Package, RotateCcw, FileText, Download, Undo2Icon } from "lucide-react"
-import { saveCollections, validateCollection } from "@/lib/services/collections"
-import { saveDevolutions, validateDevolution, uploadFiles } from "@/lib/services/devolutions"
+import { AlertCircle, Trash2, Package, RotateCcw, Download, Undo2Icon, Users, Truck, Calendar } from "lucide-react"
+import { validateCollection } from "@/lib/services/collections"
+import { validateDevolution, uploadFiles } from "@/lib/services/devolutions"
+import { saveReturning } from "@/lib/services/returning"
 import { DevolutionCard } from "./devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { toast } from "@/lib/toast"
 import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input"
+import { clearScanBuffer } from "@/components/scanner/use-scan-buffer"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
 import { UnidadSelector } from "../selectors/unidad-selector"
 import { Input } from "../ui/input"
@@ -57,6 +59,11 @@ type Props = {
 }
 
 const VALIDATION_REGEX = /^\d{12}$/
+
+// Claves de persistencia de los dos escáneres. Se usan tanto en <ScanInput> como para
+// limpiar el buffer directamente tras un guardado exitoso (ver executeSave).
+const COLLECTIONS_SCAN_KEY = "scan:devoluciones-collections"
+const DEVOLUTIONS_SCAN_KEY = "scan:devoluciones-devolutions"
 
 const UnifiedCollectionReturnForm: React.FC<Props> = ({
   selectedSubsidiaryId,
@@ -253,18 +260,24 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       setProgress(Math.round(((i + 1) / validNumbers.length) * 100))
     }
 
-    const newDevolutions = results.filter((r) => !devolutions.some((d) => d.trackingNumber === r.trackingNumber))
-    
-    console.log("🚀 ~ handleValidateDevolutions ~ newDevolutions:", newDevolutions)
+    // Las guías no encontradas en backend vuelven con id vacío (checkDevolutionInfo captura el
+    // error y devuelve un objeto vacío). No deben agregarse a la lista para no intentar guardar
+    // una devolución de una guía inexistente; se reportan como inválidas.
+    const notFoundTns = results.filter((r) => !r.id).map((r) => r.trackingNumber)
+    const foundResults = results.filter((r) => r.id)
+
+    const newDevolutions = foundResults.filter((r) => !devolutions.some((d) => d.trackingNumber === r.trackingNumber))
+
+    const allInvalids = [...invalids, ...notFoundTns]
 
     setDevolutions((prev) => [...prev, ...newDevolutions])
-    setInvalidDevolutions(invalids)
+    setInvalidDevolutions(allInvalids)
     setHasValidatedDevolutions(true)
     setDevolutionTrackingRaw("")
     setProgress(0)
     setIsLoading(false)
 
-    toast(`Se agregaron ${newDevolutions.length} devoluciones. Números inválidos: ${invalids.length}`)
+    toast(`Se agregaron ${newDevolutions.length} devoluciones. Números inválidos: ${allInvalids.length}`)
   }
 
   // Remove handlers
@@ -378,25 +391,25 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     setIsLoading(true)
 
     try {
-      const promises = []
-
-      // Save collections if any
-      if (collections.length > 0) {
-        promises.push(saveCollections(collections))
-      }
-
-      // Save devolutions if any
-      if (devolutions.length > 0) {
-        const devolutionsToSave = devolutions.map((d) => ({
+      // Guardado unificado: una sola llamada crea la "Salida" (lote) con sus devoluciones y
+      // recolecciones en una transacción, enlazando chofer(es), unidad y fecha para el historial.
+      await saveReturning({
+        subsidiaryId: selectedSubsidiaryId,
+        date: selectedDate || undefined,
+        driverIds: selectedDrivers.map((d) => d.id),
+        vehicleId: selectedVehicle?.id,
+        devolutions: devolutions.map((d) => ({
           trackingNumber: d.trackingNumber,
-          subsidiary: { id: selectedSubsidiaryId },
           status: d.status || undefined,
           reason: d.lastStatus?.exceptionCode || undefined,
-        }))
-        promises.push(saveDevolutions(devolutionsToSave))
-      }
-
-      await Promise.all(promises)
+        })),
+        collections: collections.map((c) => ({
+          trackingNumber: c.trackingNumber,
+          status: c.status || undefined,
+          isPickUp: c.isPickUp,
+          date: c.date || undefined,
+        })),
+      })
 
       toast(`Se guardaron ${collections.length} recolecciones y ${devolutions.length} devoluciones.`)
 
@@ -418,8 +431,14 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       setHasValidatedCollections(false)
       setHasValidatedDevolutions(false)
       setShowWarningModal(false)
+      // Limpieza del estado en memoria del escáner activo (el de la pestaña visible).
       collectionsScanRef.current?.clear()
       devolutionsScanRef.current?.clear()
+      // Limpieza del buffer PERSISTIDO de AMBOS escáneres por su storageKey. Los refs solo
+      // alcanzan la pestaña montada; Radix Tabs desmonta la inactiva (ref = null), así que su
+      // localStorage nunca se limpiaba y los trackings reaparecían al iniciar un proceso nuevo.
+      clearScanBuffer(COLLECTIONS_SCAN_KEY)
+      clearScanBuffer(DEVOLUTIONS_SCAN_KEY)
 
       onSuccess()
     } catch (error) {
@@ -485,39 +504,67 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   });
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Undo2Icon className="h-5 w-5" />
-          Control Unificado de Paquetes para Devoluciones y Recolecciones.
+    <Card className="w-full border-0 shadow-none">
+      <CardHeader className="pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
+              <Undo2Icon className="h-5 w-5" />
+            </span>
+            <span>
+              Devoluciones y Recolecciones
+              <span className="block text-xs font-normal text-muted-foreground">
+                {subsidiaryName}
+              </span>
+            </span>
+          </CardTitle>
           {totalItems > 0 && (
-            <Badge variant="secondary" className="ml-2">
-              {totalItems} elementos
+            <Badge variant="secondary" className="tabular-nums">
+              {totalItems} {totalItems === 1 ? "elemento" : "elementos"}
             </Badge>
           )}
-        </CardTitle>
+        </div>
       </CardHeader>
+
       <CardContent className="space-y-6">
-        <div className="flex flex-row  justify-end space-x-2">
-          <div className="space-y-2">
-            <Label>Repartidores</Label>
-            <RepartidorSelector
-              selectedRepartidores={selectedDrivers}
-              onSelectionChange={setSelectedDrivers}
-              subsidiaryId={selectedSubsidiaryId}
-              disabled={isLoading}
-            />
+        {/* Panel de recursos de la salida: chofer, unidad y fecha */}
+        <div className="rounded-xl bg-muted/40 p-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Users className="h-3.5 w-3.5" /> Repartidores
+              </Label>
+              <RepartidorSelector
+                selectedRepartidores={selectedDrivers}
+                onSelectionChange={setSelectedDrivers}
+                subsidiaryId={selectedSubsidiaryId}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Truck className="h-3.5 w-3.5" /> Unidad de transporte
+              </Label>
+              <UnidadSelector
+                selectedUnidad={selectedVehicle}
+                onSelectionChange={setSelectedVehicle}
+                subsidiaryId={selectedSubsidiaryId}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" /> Fecha
+              </Label>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Unidad de Transporte</Label>
-            <UnidadSelector
-              selectedUnidad={selectedVehicle}
-              onSelectionChange={setSelectedVehicle}
-              subsidiaryId={selectedSubsidiaryId}
-              disabled={isLoading}
-            />
-          </div>
-        </div> 
+        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2">
@@ -535,7 +582,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
             <div className="space-y-2">
               <ScanInput
                 ref={collectionsScanRef}
-                storageKey="scan:devoluciones-collections"
+                storageKey={COLLECTIONS_SCAN_KEY}
                 defaultView="simple"
                 onTrackingNumbersChange={(rawString) => setCollectionTrackingRaw(rawString)}
               />
@@ -593,8 +640,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
                   </div>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-md">
-                  <ul className="divide-y divide-gray-300">
+                <div className="max-h-64 overflow-y-auto rounded-lg bg-muted/30">
+                  <ul className="divide-y divide-border/40">
                     {/* Iteramos sobre el arreglo ordenado (sortedCollections) en lugar del arreglo original */}
                     {sortedCollections.map(({ trackingNumber, status, isPickUp }) => (
                       <li 
@@ -612,7 +659,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
                                 "ml-2 text-sm font-semibold px-2 py-0.5 rounded",
                                 isPickUp
                                   ? "bg-green-100 text-green-800"
-                                  : "bg-orange-200 text-orange-900 border border-orange-300"
+                                  : "bg-orange-200 text-orange-900"
                               )}
                             >
                               {status}
@@ -643,7 +690,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
             <div className="space-y-2">
               <ScanInput
                 ref={devolutionsScanRef}
-                storageKey="scan:devoluciones-devolutions"
+                storageKey={DEVOLUTIONS_SCAN_KEY}
                 defaultView="simple"
                 onTrackingNumbersChange={(rawString) => setDevolutionTrackingRaw(rawString)}
               />
@@ -692,7 +739,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
         {/* Sección de Confirmación (Se muestra si hay paquetes sin Pick Up) */}
         {showWarningModal && (
-          <div className="bg-orange-50 border border-orange-300 p-4 rounded-lg mt-6 animate-in fade-in slide-in-from-bottom-2">
+          <div className="bg-orange-50 p-4 rounded-lg mt-6 animate-in fade-in slide-in-from-bottom-2">
             <h3 className="text-orange-900 font-bold flex items-center gap-2">
               <AlertCircle className="h-5 w-5" />
               Atención: Tienes paquetes sin Pick Up
@@ -701,7 +748,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
               Se detectaron <strong>{collections.filter(c => !c.isPickUp).length} recolecciones</strong> que no cuentan con estatus de "Pick Up". ¿Estás seguro de que deseas guardarlas de todos modos?
             </p>
             
-            <div className="mt-3 bg-white/60 rounded p-2 border border-orange-200 max-h-32 overflow-y-auto">
+            <div className="mt-3 bg-white/60 rounded p-2 max-h-32 overflow-y-auto">
               <ul className="text-sm text-orange-900 list-disc ml-5">
                 {collections.filter(c => !c.isPickUp).map(c => (
                   <li key={c.trackingNumber} className="py-0.5">
@@ -732,7 +779,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
         {/* Action buttons (Se ocultan si el modal de advertencia está activo) */}
         {!showWarningModal && (
-          <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
               onClick={handleUnifiedSave}
               disabled={isLoading || !hasValidatedItems || totalItems === 0}
@@ -753,24 +800,23 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
         {/* Summary */}
         {totalItems > 0 && (
-          <div className="bg-muted p-4 rounded-lg">
-            <h4 className="font-semibold mb-2">Resumen</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Recolecciones:</span>
-                <span className="ml-2 font-medium">{collections.length}</span>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "Recolecciones", value: collections.length, icon: Package },
+              { label: "Devoluciones", value: devolutions.length, icon: RotateCcw },
+              { label: "Total", value: totalItems, icon: Undo2Icon },
+            ].map(({ label, value, icon: Icon }) => (
+              <div key={label} className="rounded-lg bg-muted/40 p-3">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Icon className="h-3.5 w-3.5" /> {label}
+                </div>
+                <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</div>
               </div>
-              <div>
-                <span className="text-muted-foreground">Devoluciones:</span>
-                <span className="ml-2 font-medium">{devolutions.length}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Total:</span>
-                <span className="ml-2 font-medium">{totalItems}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Sucursal:</span>
-                <span className="ml-2 font-medium">{subsidiaryName}</span>
+            ))}
+            <div className="rounded-lg bg-muted/40 p-3">
+              <div className="text-xs text-muted-foreground">Sucursal</div>
+              <div className="mt-1 truncate text-sm font-semibold text-slate-900" title={subsidiaryName}>
+                {subsidiaryName}
               </div>
             </div>
           </div>

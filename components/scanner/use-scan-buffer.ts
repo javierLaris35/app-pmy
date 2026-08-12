@@ -14,6 +14,19 @@ export interface ScanBuffer {
 
 const keyFor = (storageKey: string) => `scanbuf:${storageKey}`;
 
+/**
+ * Borra el buffer persistido de un escáner por su `storageKey`, SIN necesitar que el
+ * componente esté montado. Útil cuando los escáneres viven en pestañas (Radix Tabs
+ * desmonta la inactiva → su `ref` es null y `ref.clear()` no lo alcanza).
+ */
+export function clearScanBuffer(storageKey: string) {
+  try {
+    if (typeof window !== "undefined") window.localStorage.removeItem(keyFor(storageKey));
+  } catch {
+    /* noop */
+  }
+}
+
 export function useScanBuffer(storageKey: string, defaultView: ScanView = "rich"): ScanBuffer {
   const [packages, setPackagesState] = useState<PackageInfo[]>([]);
   const [view, setViewState] = useState<ScanView>(defaultView);

@@ -4,269 +4,267 @@ import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { CheckIcon, XIcon, Package, AlertTriangle, FileText, ArrowRightLeft } from "lucide-react"
+import { ArrowRightLeft, FileText, Eye, Search, Loader2, RotateCcw, Package } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
-import { createSelectColumn, createSortableColumn } from "@/components/data-table/columns"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import type { Collection, Devolution, Subsidiary } from "@/lib/types"
-import { useCollections } from "@/hooks/services/collections/use-collections"
-import { useDevolutions } from "@/hooks/services/devolutions/use-devolutions"
+import { Input } from "@/components/ui/input"
+import type { Subsidiary } from "@/lib/types"
+import { useReturnings } from "@/hooks/services/returning/use-returnings"
+import { getReturningDetail, ReturningBatchDetail } from "@/lib/services/returning"
 import { useAuthStore } from "@/store/auth.store"
 import { OperationHeader } from "@/components/shared/operation-header"
+import { WeekRangePicker } from "@/components/shared/week-range-picker"
+import { getWeekRange, WeekRange } from "@/lib/week"
+import type { PaginationState } from "@tanstack/react-table"
+import { columns } from "./columns"
 import UnifiedCollectionReturnForm from "./unified-collection-return-form"
+
+function formatDate(value?: string) {
+  if (!value) return "—"
+  return new Date(value).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
 
 export default function UpdatedFedExControl() {
   const user = useAuthStore((s) => s.user)
 
-  const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(user?.subsidiary?.id ?? null);
+  const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(user?.subsidiary?.id ?? null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
-  const [activeTab, setActiveTab] = useState("recolecciones")
   const [isUnifiedDialogOpen, setIsUnifiedDialogOpen] = useState(false)
-  
-  const { collections, isLoading, isError, mutate } = useCollections(selectedSucursalId ?? "")
-  const {
-    devolutions,
-    isLoading: isLoadingDevolution,
-    isError: isErrorDevolution,
-    mutate: devolutionMutate,
-  } = useDevolutions(selectedSucursalId ?? "")
+
+  const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
+  const [searchInput, setSearchInput] = useState("")
+  const [search, setSearch] = useState("")
+
+  // Detalle de una salida
+  const [detail, setDetail] = useState<ReturningBatchDetail | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+
+  // Debounce de búsqueda por folio (server-side).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(searchInput.trim())
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [searchInput])
 
   useEffect(() => {
     if (user?.subsidiary?.id && !selectedSucursalId) {
-      setSelectedSucursalId(user.subsidiary.id);
-      setSelectedSucursalName(user.subsidiary.name || "");
+      setSelectedSucursalId(user.subsidiary.id)
+      setSelectedSucursalName(user.subsidiary.name || "")
     }
-  }, [user]);
+  }, [user, selectedSucursalId])
 
-  useEffect(() => {
-    if (selectedSucursalId) {
-      mutate()
-      devolutionMutate()
-    }
-  }, [selectedSucursalId, mutate, devolutionMutate])
-
-  const openUnifiedDialog = () => {
-    setIsUnifiedDialogOpen(true)
-  }
+  const { returnings, totalPages, isLoading, isError, mutate } = useReturnings(selectedSucursalId, {
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+    from: week.from,
+    to: week.to,
+    search: search || undefined,
+  })
 
   const handleSucursalChange = (sucursal: Subsidiary | null) => {
-    const newId = sucursal?.id ?? null;
-    setSelectedSucursalId(newId);
-    setSelectedSucursalName(sucursal?.name ?? "");
-    
-    // Forzamos una revalidación inmediata
-  };
+    setSelectedSucursalId(sucursal?.id ?? null)
+    setSelectedSucursalName(sucursal?.name ?? "")
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
-  const collectionColumns = [
-    createSelectColumn<Collection>(),
-    createSortableColumn<Collection>(
-      "trackingNumber",
-      "Número de Rastreo",
-      (row) => row.trackingNumber,
-      (value) => <span className="font-mono font-medium">{value}</span>,
-    ),
-    createSortableColumn<Collection>(
-      "createdAt",
-      "Fecha",
-      (row) => row.createdAt,
-      (value) => {
-        if (!value) return "Sin fecha"
-        const [year, month, day] = value.split("T")[0].split("-")
-        return <span className="text-muted-foreground">{`${day}/${month}/${year}`}</span>
-      },
-    ),
-    createSortableColumn<Collection>(
-      "status",
-      "Estado",
-      (row) => row.status,
-      (value) => <Badge variant="secondary">{value || "—"}</Badge>,
-    ),
-    createSortableColumn<Collection>(
-      "isPickUp",
-      "¿Tiene estatus Pick Up?",
-      (row) => row.isPickUp,
-      (value) => (
-        <div className="flex justify-center">
-          {value ? (
-            <CheckIcon className="w-4 h-4 text-primary" />
-          ) : (
-            <XIcon className="w-4 h-4 text-muted-foreground" />
-          )}
-        </div>
-      ),
-    ),
-  ]
+  const handleWeekChange = (range: WeekRange) => {
+    setWeek(range)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
-  const devolutionColumns = [
-    createSelectColumn<Devolution>(),
-    createSortableColumn<Devolution>(
-      "trackingNumber",
-      "Número de Rastreo",
-      (row) => row.trackingNumber,
-      (value) => <span className="font-mono font-medium">{value}</span>,
-    ),
-    createSortableColumn<Devolution>(
-      "createdAt",
-      "Fecha",
-      (row) => row.createdAt,
-      (value) => {
-        if (!value) return "Sin fecha"
-        const [year, month, day] = value.split("T")[0].split("-")
-        return <span className="text-muted-foreground">{`${day}/${month}/${year}`}</span>
-      },
-    ),
-    createSortableColumn<Devolution>(
-      "reason",
-      "Motivo",
-      (row) => row.reason,
-      (value) => <span className="text-sm">{value || "—"}</span>,
-    ),
-  ]
+  const openDetail = async (id: string) => {
+    setIsDetailOpen(true)
+    setDetail(null)
+    setIsDetailLoading(true)
+    try {
+      setDetail(await getReturningDetail(id))
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
+
+  const updatedColumns = columns.map((col) =>
+    col.id === "actions"
+      ? {
+          ...col,
+          cell: ({ row }: any) => (
+            <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={() => openDetail(row.original.id)}>
+              <Eye className="h-4 w-4" /> Ver
+            </Button>
+          ),
+        }
+      : col,
+  )
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Header estándar (OperationHeader) */}
+      <div className="space-y-4">
+        {/* Header único: selector de sucursal + iniciar proceso */}
         <OperationHeader
           icon={ArrowRightLeft}
           title="Devoluciones y Recolecciones"
-          description="Gestión centralizada de recolecciones y devoluciones"
+          description="Historial de salidas de devoluciones y recolecciones"
           subsidiaryName={selectedSucursalName}
           actions={
-            <div className="w-full sm:w-[300px]">
-              <SucursalSelector
-                value={selectedSucursalId ?? ""}
-                returnObject={true}
-                onValueChange={(s) => handleSucursalChange(s as Subsidiary)}
-              />
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <div className="w-full sm:w-[250px]">
+                <SucursalSelector
+                  value={selectedSucursalId ?? ""}
+                  returnObject={true}
+                  onValueChange={(s) => handleSucursalChange(s as Subsidiary)}
+                />
+              </div>
+              <Button onClick={() => setIsUnifiedDialogOpen(true)} disabled={!selectedSucursalId}>
+                <FileText className="mr-2 h-4 w-4" />
+                Iniciar proceso
+              </Button>
             </div>
           }
         />
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Total Recolecciones</p>
-                <div className="text-lg font-bold">{collections.length}</div>
+        {/* Historial (única vista) */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-lg font-semibold">Historial de Salidas</h3>
+                <p className="text-muted-foreground">Salidas de la semana seleccionada</p>
               </div>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Recolecciones sin Pick Up</p>
-                <div className="text-lg font-bold">
-                  {collections.filter(c => !c.isPickUp).length}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative w-full sm:w-[240px]">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por folio..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    className="pl-8"
+                  />
                 </div>
+                <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
               </div>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Total Devoluciones</p>
-                <div className="text-lg font-bold">{devolutions.length}</div>
+            </div>
+
+            {!selectedSucursalId ? (
+              <div className="flex h-[200px] items-center justify-center">
+                <p className="text-muted-foreground">Selecciona una sucursal para ver el historial</p>
               </div>
-              <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 flex flex-row items-center justify-between space-y-0">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Total General</p>
-                <div className="text-lg font-bold">
-                  {collections.length + devolutions.length}
-                </div>
+            ) : isLoading ? (
+              <div className="flex h-[200px] items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-              <CheckIcon className="h-4 w-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Action Area */}
-        <div className="flex items-center justify-between bg-muted/50 p-4 rounded-lg border">
-          <div className="space-y-1">
-            <h3 className="font-medium">Proceso Unificado</h3>
-            <p className="text-sm text-muted-foreground">
-              Inicie el proceso de recolección y devolución simultánea.
-            </p>
-          </div>
-          <Button
-            onClick={openUnifiedDialog}
-            disabled={!selectedSucursalId}
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Iniciar Proceso
-          </Button>
-        </div>
-
-        {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="recolecciones">
-              Recolecciones
-              <Badge variant="secondary" className="ml-2">{collections.length}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="devoluciones">
-              Devoluciones
-              <Badge variant="secondary" className="ml-2">{devolutions.length}</Badge>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="recolecciones" className="space-y-4">
-            {selectedSucursalId ? (
-              <DataTable columns={collectionColumns} data={collections} bordered={false} />
+            ) : isError ? (
+              <div className="flex h-[200px] flex-col items-center justify-center gap-3">
+                <p className="text-sm text-red-600">No se pudo cargar el historial.</p>
+                <Button variant="outline" size="sm" onClick={() => mutate()}>
+                  Reintentar
+                </Button>
+              </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-[200px] text-center p-8 border rounded-md bg-muted/10">
-                <p className="text-muted-foreground">
-                  Seleccione una sucursal para ver las recolecciones
-                </p>
-              </div>
+              <DataTable
+                columns={updatedColumns}
+                data={returnings}
+                manualPagination
+                pageCount={totalPages}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+              />
             )}
-          </TabsContent>
-
-          <TabsContent value="devoluciones" className="space-y-4">
-            {selectedSucursalId ? (
-              <DataTable columns={devolutionColumns} data={devolutions} bordered={false} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-[200px] text-center p-8 border rounded-md bg-muted/10">
-                <p className="text-muted-foreground">
-                  Seleccione una sucursal para ver las devoluciones
-                </p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Unified Dialog */}
+      {/* Proceso unificado */}
       <Dialog open={isUnifiedDialogOpen} onOpenChange={setIsUnifiedDialogOpen}>
-        <DialogContent className="max-w-[95vw] w-[1400px] max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogContent
+          showCloseButton={false}
+          className="flex max-h-[95vh] w-[1400px] max-w-[95vw] flex-col overflow-hidden p-0"
+        >
           <DialogHeader className="sr-only">
             <DialogTitle>Consola de Operación Logística</DialogTitle>
           </DialogHeader>
-
-          {/* Contenedor con scroll para el formulario */}
           <div className="flex-1 overflow-y-auto p-1">
             <UnifiedCollectionReturnForm
               key={selectedSucursalId}
-              selectedSubsidiaryId={selectedSucursalId}
+              selectedSubsidiaryId={selectedSucursalId ?? ""}
               subsidiaryName={selectedSucursalName}
               onClose={() => setIsUnifiedDialogOpen(false)}
               onSuccess={() => {
-                setIsUnifiedDialogOpen(false);
-                mutate();
-                devolutionMutate();
+                setIsUnifiedDialogOpen(false)
+                mutate()
               }}
             />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalle de una salida */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {isDetailLoading ? "Cargando salida…" : `Salida #${detail?.folio} — ${formatDate(detail?.date)}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          {isDetailLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : detail ? (
+            <div className="space-y-4">
+              <dl className="grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-3 text-sm">
+                <dt className="text-muted-foreground">Sucursal</dt>
+                <dd className="text-right font-medium">{detail.subsidiary?.name ?? "—"}</dd>
+                <dt className="text-muted-foreground">Chofer(es)</dt>
+                <dd className="text-right font-medium">{detail.drivers?.map((d) => d.name).join(", ") || "—"}</dd>
+                <dt className="text-muted-foreground">Unidad</dt>
+                <dd className="text-right font-medium">
+                  {detail.vehicle?.name || detail.vehicle?.code || detail.vehicle?.plateNumber || "—"}
+                </dd>
+              </dl>
+
+              <div>
+                <h4 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+                  <RotateCcw className="h-4 w-4" /> Devoluciones ({detail.devolutions.length})
+                </h4>
+                {detail.devolutions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sin devoluciones.</p>
+                ) : (
+                  <ul className="divide-y divide-border/40 rounded-md bg-muted/30 text-sm">
+                    {detail.devolutions.map((d) => (
+                      <li key={d.trackingNumber} className="flex justify-between px-3 py-1.5">
+                        <span className="font-mono">{d.trackingNumber}</span>
+                        <span className="text-muted-foreground">{d.reason || "—"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div>
+                <h4 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+                  <Package className="h-4 w-4" /> Recolecciones ({detail.collections.length})
+                </h4>
+                {detail.collections.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sin recolecciones.</p>
+                ) : (
+                  <ul className="divide-y divide-border/40 rounded-md bg-muted/30 text-sm">
+                    {detail.collections.map((c) => (
+                      <li key={c.trackingNumber} className="flex justify-between px-3 py-1.5">
+                        <span className="font-mono">{c.trackingNumber}</span>
+                        <span className="text-muted-foreground">{c.isPickUp ? "Pick Up" : c.status || "—"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </AppLayout>

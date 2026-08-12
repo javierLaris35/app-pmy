@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useState } from "react"
+import dynamic from "next/dynamic"
 import { useSearchParams } from "next/navigation"
 import { useTheme } from "next-themes"
 import { AppLayout } from "@/components/app-layout"
@@ -10,23 +11,33 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
-import { CompanyPanel } from "@/components/configuracion/company-panel"
-import { PermissionsPanel } from "@/components/configuracion/permissions-panel"
-import { UsersPanel } from "@/components/configuracion/users-panel"
-import { SubsidiaryConfigPanel } from "@/components/configuracion/subsidiary-config-panel"
-import { SeventeenTrackQuotaCard } from "@/components/configuracion/seventeen-track-quota-card"
-import { CatalogPanel } from "@/components/configuracion/catalog-panel"
-import { GeocodePanel } from "@/components/configuracion/geocode-panel"
-import { ServerStatsPanel } from "@/components/configuracion/server-stats-panel"
-import { ServerLogsPanel } from "@/components/configuracion/server-logs-panel"
-import { ServerBackupPanel } from "@/components/configuracion/server-backup-panel"
-import { WhatsappConfigPanel } from "@/components/configuracion/whatsapp-config-panel"
-import { PlantillasPanel } from "@/components/configuracion/plantillas/plantillas-panel"
-import { BrandingPanel } from "@/components/configuracion/branding-panel"
+// Paneles con carga perezosa: antes se importaban los ~15 de golpe, inflando el
+// grafo de módulos que el dev server compila y retiene en memoria (crítico en
+// máquinas de 8 GB). Con `dynamic` + `ssr: false` solo se trae el panel de la
+// sección activa, y nunca se evalúan en tiempo de export.
+const PanelFallback = () => (
+  <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+    <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+  </div>
+)
+
+const CompanyPanel = dynamic(() => import("@/components/configuracion/company-panel").then((m) => m.CompanyPanel), { ssr: false, loading: PanelFallback })
+const PermissionsPanel = dynamic(() => import("@/components/configuracion/permissions-panel").then((m) => m.PermissionsPanel), { ssr: false, loading: PanelFallback })
+const UsersPanel = dynamic(() => import("@/components/configuracion/users-panel").then((m) => m.UsersPanel), { ssr: false, loading: PanelFallback })
+const SubsidiaryConfigPanel = dynamic(() => import("@/components/configuracion/subsidiary-config-panel").then((m) => m.SubsidiaryConfigPanel), { ssr: false, loading: PanelFallback })
+const SeventeenTrackQuotaCard = dynamic(() => import("@/components/configuracion/seventeen-track-quota-card").then((m) => m.SeventeenTrackQuotaCard), { ssr: false, loading: PanelFallback })
+const CatalogPanel = dynamic(() => import("@/components/configuracion/catalog-panel").then((m) => m.CatalogPanel), { ssr: false, loading: PanelFallback })
+const GeocodePanel = dynamic(() => import("@/components/configuracion/geocode-panel").then((m) => m.GeocodePanel), { ssr: false, loading: PanelFallback })
+const ServerStatsPanel = dynamic(() => import("@/components/configuracion/server-stats-panel").then((m) => m.ServerStatsPanel), { ssr: false, loading: PanelFallback })
+const ServerLogsPanel = dynamic(() => import("@/components/configuracion/server-logs-panel").then((m) => m.ServerLogsPanel), { ssr: false, loading: PanelFallback })
+const ServerBackupPanel = dynamic(() => import("@/components/configuracion/server-backup-panel").then((m) => m.ServerBackupPanel), { ssr: false, loading: PanelFallback })
+const WhatsappConfigPanel = dynamic(() => import("@/components/configuracion/whatsapp-config-panel").then((m) => m.WhatsappConfigPanel), { ssr: false, loading: PanelFallback })
+const PlantillasPanel = dynamic(() => import("@/components/configuracion/plantillas/plantillas-panel").then((m) => m.PlantillasPanel), { ssr: false, loading: PanelFallback })
+const BrandingPanel = dynamic(() => import("@/components/configuracion/branding-panel").then((m) => m.BrandingPanel), { ssr: false, loading: PanelFallback })
 
 const SECTIONS = [
   { id: "empresa", label: "Empresa", icon: Building2, description: "Datos de la empresa" },
