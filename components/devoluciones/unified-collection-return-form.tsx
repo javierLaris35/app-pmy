@@ -11,8 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import classNames from "classnames"
 import { AlertCircle, Trash2, Package, RotateCcw, Download, Undo2Icon, Users, Truck, Calendar } from "lucide-react"
 import { validateCollection } from "@/lib/services/collections"
-import { validateDevolution, uploadFiles } from "@/lib/services/devolutions"
-import { saveReturning } from "@/lib/services/returning"
+import { validateDevolution } from "@/lib/services/devolutions"
+import { saveReturning, uploadReturningFiles } from "@/lib/services/returning"
 import { DevolutionCard } from "./devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { toast } from "@/lib/toast"
@@ -341,7 +341,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       
   }
 
-  const handleSendEmail = async () => {
+  const handleSendEmail = async (returningHistoryId: string) => {
     // CREAMOS el PDF
     const blob = await pdf(<EnhancedFedExPDF
       key={Date.now()}
@@ -382,7 +382,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    await uploadFiles(pdfFile, excelFile, subsidiaryName, selectedSubsidiaryId)
+    // Se sube a /returning/upload ligado a la salida (lote) para trazabilidad + reenvío.
+    await uploadReturningFiles(pdfFile, excelFile, subsidiaryName, returningHistoryId)
 
   }
 
@@ -393,7 +394,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     try {
       // Guardado unificado: una sola llamada crea la "Salida" (lote) con sus devoluciones y
       // recolecciones en una transacción, enlazando chofer(es), unidad y fecha para el historial.
-      await saveReturning({
+      const salida = await saveReturning({
         subsidiaryId: selectedSubsidiaryId,
         date: selectedDate || undefined,
         driverIds: selectedDrivers.map((d) => d.id),
@@ -417,7 +418,9 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       // y en su propio try/catch: si fallan, los datos ya quedaron a salvo, el spinner
       // se libera y mostramos un mensaje específico (no un falso "error al guardar").
       try {
-        await handleSendEmail()
+        if (salida?.id) {
+          await handleSendEmail(salida.id)
+        }
       } catch (genError) {
         console.error("Error generando/enviando archivos:", genError)
         toast("Los datos se guardaron, pero falló la generación o el envío de los archivos. Puedes reintentar el envío.")

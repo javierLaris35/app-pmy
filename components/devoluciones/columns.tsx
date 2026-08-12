@@ -12,10 +12,10 @@ function formatDate(value?: string) {
 /** Columnas del "Historial de Salidas". La celda de `actions` se inyecta en la página. */
 export const columns: ColumnDef<ReturningBatch, any>[] = [
   createSortableColumn<ReturningBatch>(
-    "folio",
-    "Folio",
-    (row) => row.folio,
-    (value) => <span className="font-mono font-semibold">#{value}</span>,
+    "trackingNumber",
+    "Número de rastreo",
+    (row) => row.trackingNumber,
+    (value) => <span className="font-mono font-semibold">{value}</span>,
   ),
   createSortableColumn<ReturningBatch>(
     "date",

@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { Subsidiary } from "@/lib/types"
 import { useReturnings } from "@/hooks/services/returning/use-returnings"
+import { useReturningKpis } from "@/hooks/services/returning/use-returning-kpis"
 import { getReturningDetail, ReturningBatchDetail } from "@/lib/services/returning"
 import { useAuthStore } from "@/store/auth.store"
 import { OperationHeader } from "@/components/shared/operation-header"
@@ -18,6 +19,7 @@ import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
 import type { PaginationState } from "@tanstack/react-table"
 import { columns } from "./columns"
+import ResendEmailButton from "./resend-email-button"
 import UnifiedCollectionReturnForm from "./unified-collection-return-form"
 
 function formatDate(value?: string) {
@@ -42,7 +44,7 @@ export default function UpdatedFedExControl() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
 
-  // Debounce de búsqueda por folio (server-side).
+  // Debounce de búsqueda por número de rastreo (server-side).
   useEffect(() => {
     const t = setTimeout(() => {
       setSearch(searchInput.trim())
@@ -65,6 +67,13 @@ export default function UpdatedFedExControl() {
     to: week.to,
     search: search || undefined,
   })
+
+  const { kpis, mutate: mutateKpis } = useReturningKpis(selectedSucursalId, { from: week.from, to: week.to })
+
+  const refreshAll = () => {
+    mutate()
+    mutateKpis()
+  }
 
   const handleSucursalChange = (sucursal: Subsidiary | null) => {
     setSelectedSucursalId(sucursal?.id ?? null)
@@ -93,9 +102,12 @@ export default function UpdatedFedExControl() {
       ? {
           ...col,
           cell: ({ row }: any) => (
-            <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={() => openDetail(row.original.id)}>
-              <Eye className="h-4 w-4" /> Ver
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={() => openDetail(row.original.id)}>
+                <Eye className="h-4 w-4" /> Ver
+              </Button>
+              <ResendEmailButton batch={row.original} onResent={refreshAll} />
+            </div>
           ),
         }
       : col,
@@ -127,6 +139,26 @@ export default function UpdatedFedExControl() {
           }
         />
 
+        {/* KPIs de la semana */}
+        {selectedSucursalId && (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            {[
+              { label: "Salidas", value: kpis?.salidas ?? 0 },
+              { label: "Devoluciones", value: kpis?.devoluciones ?? 0 },
+              { label: "Recolecciones", value: kpis?.recolecciones ?? 0 },
+              { label: "Correos enviados", value: kpis?.correosEnviados ?? 0 },
+              { label: "Correos pendientes", value: kpis?.correosPendientes ?? 0 },
+            ].map(({ label, value }) => (
+              <Card key={label}>
+                <CardContent className="p-3">
+                  <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                  <div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
         {/* Historial (única vista) */}
         <Card>
           <CardContent className="p-6">
@@ -139,7 +171,7 @@ export default function UpdatedFedExControl() {
                 <div className="relative w-full sm:w-[240px]">
                   <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Buscar por folio..."
+                    placeholder="Buscar por número de rastreo..."
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     className="pl-8"
@@ -195,7 +227,7 @@ export default function UpdatedFedExControl() {
               onClose={() => setIsUnifiedDialogOpen(false)}
               onSuccess={() => {
                 setIsUnifiedDialogOpen(false)
-                mutate()
+                refreshAll()
               }}
             />
           </div>
@@ -207,7 +239,7 @@ export default function UpdatedFedExControl() {
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isDetailLoading ? "Cargando salida…" : `Salida #${detail?.folio} — ${formatDate(detail?.date)}`}
+              {isDetailLoading ? "Cargando salida…" : `Salida ${detail?.trackingNumber} — ${formatDate(detail?.date)}`}
             </DialogTitle>
           </DialogHeader>
 
