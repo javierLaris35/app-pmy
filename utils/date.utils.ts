@@ -129,14 +129,14 @@ export function getLastWeekRange(): { fromDate: string; toDate: string } {
   lastMonday.setDate(today.getDate() - diffToLastMonday)
   lastMonday.setHours(0, 0, 0, 0)
 
-  // Calcular domingo siguiente
-  const lastSunday = new Date(lastMonday)
-  lastSunday.setDate(lastMonday.getDate() + 6)
-  lastSunday.setHours(23, 59, 59, 999)
+  // Calcular sábado de esa semana (lun + 5; semana operativa lun–sáb, sin domingo)
+  const lastSaturday = new Date(lastMonday)
+  lastSaturday.setDate(lastMonday.getDate() + 5)
+  lastSaturday.setHours(23, 59, 59, 999)
 
   return {
     fromDate: toDateInputValue(lastMonday),
-    toDate: toDateInputValue(lastSunday)
+    toDate: toDateInputValue(lastSaturday)
   }
 }
 

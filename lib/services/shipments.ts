@@ -158,10 +158,16 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     withTracking: number
     emptyTracking: number
     duplicatesInFile: number
+    /** Guías que ya están en ESTE mismo consolidado → se omiten. */
     alreadyImportedCount: number
-    alreadyImported: { trackingNumber: string; consNumber: string | null; date: string | null }[]
+    /** Guías 100% nuevas. */
     newCount: number
-    consNumberExists: { id: string; consNumber: string; type: string; date: string | null; numberOfPackages: number; subsidiary: string | null } | null
+    /** Guías de un consolidado anterior que reingresarán (devoluciones automáticas). */
+    recycledCount: number
+    consNumberExists: {
+      id: string; consNumber: string; type: string; date: string | null; numberOfPackages: number; subsidiary: string | null
+      isExactMatch?: boolean; isDateConflict?: boolean
+    } | null
   }
 
   /** Pre-valida un archivo SIN guardar: duplicados de guías + consNumber existente. */
@@ -169,12 +175,14 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     file: File,
     subsidiaryId: string,
     consNumber: string = "",
+    date: string = "",
     carrier: string = "fedex",
   ): Promise<UploadPreview> {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('subsidiaryId', subsidiaryId)
     formData.append('consNumber', consNumber)
+    formData.append('date', date)
     formData.append('carrier', carrier)
     try {
       const response = await axiosConfig.post<UploadPreview>('/shipments/upload/preview', formData, {
@@ -222,6 +230,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     consNumber: string = "",
     consDate?: string,
     notRemoveCharge: boolean = false,
+    isHalfTon: boolean = false,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData()
@@ -229,6 +238,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     formData.append("subsidiaryId", subsidiaryId)
     formData.append("consNumber", consNumber || "")
     formData.append("notRemoveCharge", notRemoveCharge ? "true" : "false")
+    formData.append("isHalfTon", isHalfTon ? "true" : "false")
 
     // Solo agrega consDate si existe
     if (consDate) {

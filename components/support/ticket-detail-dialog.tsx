@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -10,12 +10,25 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Lock, MessageSquare, RotateCcw, Tag, TimerReset, User, X } from "lucide-react"
+import { AlertTriangle, Calendar, Check, Copy, Loader2, Lock, MessageSquare, Network, RotateCcw, Sparkles, Tag, TimerReset, User, X } from "lucide-react"
 import {
   type Ticket, type TicketPriority, type TicketStatus,
   KANBAN_COLUMNS, getPriorityLabel, getTicketPriorityColor, formatHours,
 } from "@/lib/types/support-ticket"
 import { EstadoIcon, TipoIcon, getTipoColor, getTipoLabel } from "./support-ui"
+import { SupportTicketService } from "@/lib/services/support-ticket.service"
+import { useAuthStore } from "@/store/auth.store"
+import { useToast } from "@/hooks/use-toast"
+
+const SUPER_ROLES = ["superadmin", "superamin"]
+
+interface AiPromptResult {
+  prompt: string
+  context: { repo: string | null; files: string[]; components: string[]; confidence: "alta" | "media" | "ninguna" }
+  engine: "deterministico" | "ia"
+  aiAvailable: boolean
+  warning?: string
+}
 
 interface Agent { id: string | number; nombre: string; email?: string }
 
@@ -39,6 +52,41 @@ export function TicketDetailDialog({
   const [internal, setInternal] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
 
+  const { toast } = useToast()
+  const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase()
+  const isSuper = SUPER_ROLES.includes(role)
+  const [prompt, setPrompt] = useState<AiPromptResult | null>(null)
+  const [loadingEngine, setLoadingEngine] = useState<null | "deterministico" | "ia">(null)
+  const [copied, setCopied] = useState(false)
+
+  // Al cambiar de ticket, descartar el prompt del anterior.
+  useEffect(() => { setPrompt(null); setCopied(false) }, [ticket?.id])
+
+  const generatePrompt = async (engine: "deterministico" | "ia") => {
+    if (!ticket) return
+    setLoadingEngine(engine)
+    try {
+      const res = await SupportTicketService.getAiPrompt(ticket.id, engine)
+      setPrompt(res)
+      if (res.warning) toast({ title: res.warning })
+    } catch {
+      toast({ title: "No se pudo generar el prompt", variant: "destructive" })
+    } finally {
+      setLoadingEngine(null)
+    }
+  }
+
+  const copyPrompt = async () => {
+    if (!prompt) return
+    try {
+      await navigator.clipboard.writeText(prompt.prompt)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast({ title: "No se pudo copiar", variant: "destructive" })
+    }
+  }
+
   if (!ticket) return null
 
   const isResolved = ticket.estado === "completado" || ticket.estado === "rechazado"
@@ -54,8 +102,8 @@ export function TicketDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[90vh]">
-          <div className="dialog-scroll-content space-y-6">
+        <DialogContent className="max-w-4xl lg:max-w-5xl max-h-[92vh]">
+          <div className="dialog-scroll-content min-w-0 space-y-6 overflow-y-auto max-h-[calc(92vh-3rem)]">
             <DialogHeader>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
@@ -213,48 +261,168 @@ export function TicketDetailDialog({
 
               {/* Gestión */}
               <TabsContent value="gestion" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label>Estado</Label>
-                  <Select value={ticket.estado} onValueChange={(v) => onUpdateStatus(ticket.id, v as TicketStatus)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {KANBAN_COLUMNS.map((c) => <SelectItem key={c.estado} value={c.estado}>{c.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="space-y-2 min-w-0">
+                    <Label>Estado</Label>
+                    <Select value={ticket.estado} onValueChange={(v) => onUpdateStatus(ticket.id, v as TicketStatus)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {KANBAN_COLUMNS.map((c) => <SelectItem key={c.estado} value={c.estado}>{c.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label>Asignar a</Label>
-                  <Select
-                    value={ticket.asignadoAId != null ? String(ticket.asignadoAId) : ""}
-                    onValueChange={(v) => onAssign(ticket.id, v)}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Seleccionar responsable" /></SelectTrigger>
-                    <SelectContent>
-                      {agents.map((a) => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div className="space-y-2 min-w-0">
+                    <Label>Asignar a</Label>
+                    <Select
+                      value={ticket.asignadoAId != null ? String(ticket.asignadoAId) : ""}
+                      onValueChange={(v) => onAssign(ticket.id, v)}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Responsable" /></SelectTrigger>
+                      <SelectContent>
+                        {agents.map((a) => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label>Prioridad</Label>
-                  <Select value={ticket.prioridad ?? "media"} onValueChange={(v) => onUpdatePriority(ticket.id, v as TicketPriority)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="baja">Baja</SelectItem>
-                      <SelectItem value="media">Media</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">Cambiar la prioridad recalcula el SLA y el orden de urgencia.</p>
+                  <div className="space-y-2 min-w-0">
+                    <Label>Prioridad</Label>
+                    <Select value={ticket.prioridad ?? "media"} onValueChange={(v) => onUpdatePriority(ticket.id, v as TicketPriority)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baja">Baja</SelectItem>
+                        <SelectItem value="media">Media</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="urgente">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+                <p className="-mt-1 text-xs text-muted-foreground">Cambiar la prioridad recalcula el SLA y el orden de urgencia.</p>
 
                 {isResolved && (
                   <div className="pt-2 border-t">
                     <Button variant="outline" size="sm" onClick={() => onUpdateStatus(ticket.id, "en_progreso")} disabled={isSubmitting}>
                       <RotateCcw className="h-4 w-4 mr-2" /> Reabrir ticket
                     </Button>
+                  </div>
+                )}
+
+                {isSuper && (
+                  <div className="pt-4 border-t space-y-3 min-w-0">
+                    {/* Encabezado */}
+                    <div className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600">
+                        <Sparkles className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-none">Prompt para IA</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Convierte el ticket en instrucciones para un agente de IA, con archivos y componentes reales del código.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Motores */}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline" size="sm" className="gap-2"
+                        onClick={() => generatePrompt("deterministico")}
+                        disabled={loadingEngine !== null}
+                      >
+                        {loadingEngine === "deterministico"
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Network className="h-4 w-4" />}
+                        {prompt ? "Regenerar con grafo" : "Generar con grafo"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-2 bg-violet-600 text-white hover:bg-violet-700"
+                        onClick={() => generatePrompt("ia")}
+                        disabled={loadingEngine !== null}
+                        title="Mejora el prompt con DeepSeek, conservando los archivos reales"
+                      >
+                        {loadingEngine === "ia"
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Sparkles className="h-4 w-4" />}
+                        {loadingEngine === "ia" ? "Generando con IA…" : "Mejorar con IA"}
+                      </Button>
+                    </div>
+
+                    {/* Panel de resultado */}
+                    {(prompt || loadingEngine) && (
+                      <div className="overflow-hidden rounded-lg border">
+                        {/* Barra de herramientas */}
+                        <div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/60 px-3 py-2 text-xs min-w-0">
+                          {prompt ? (
+                            <>
+                              <Badge
+                                variant="outline"
+                                className={prompt.engine === "ia"
+                                  ? "bg-violet-500/10 text-violet-600 border-violet-500/30"
+                                  : "bg-blue-500/10 text-blue-600 border-blue-500/30"}
+                              >
+                                {prompt.engine === "ia" ? "IA · DeepSeek" : "Grafo"}
+                              </Badge>
+                              {prompt.context.repo && (
+                                <Badge variant="outline" className="font-mono">{prompt.context.repo}</Badge>
+                              )}
+                              <Badge
+                                variant="outline"
+                                className={
+                                  prompt.context.confidence === "alta"
+                                    ? "bg-green-500/10 text-green-600 border-green-500/30"
+                                    : prompt.context.confidence === "media"
+                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                    : "bg-muted text-muted-foreground"
+                                }
+                              >
+                                confianza: {prompt.context.confidence}
+                              </Badge>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">Generando prompt…</span>
+                          )}
+                          {prompt && (
+                            <Button variant="ghost" size="sm" className="ml-auto h-7 gap-1.5" onClick={copyPrompt}>
+                              {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                              {copied ? "Copiado" : "Copiar"}
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Cuerpo: prompt (envuelve, con scroll) o esqueleto de carga */}
+                        {loadingEngine ? (
+                          <div className="space-y-2 p-4">
+                            {["w-3/4", "w-full", "w-5/6", "w-2/3", "w-full", "w-1/2"].map((w, i) => (
+                              <div key={i} className={`h-3 animate-pulse rounded bg-muted ${w}`} />
+                            ))}
+                          </div>
+                        ) : (
+                          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words px-3 py-3 font-mono text-xs leading-relaxed text-foreground/90">
+                            {prompt?.prompt}
+                          </pre>
+                        )}
+
+                        {/* Pie: componentes candidatos */}
+                        {prompt && prompt.context.components.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 border-t bg-muted/30 px-3 py-2 text-xs min-w-0">
+                            <span className="shrink-0 text-muted-foreground">Componentes:</span>
+                            {prompt.context.components.map((c) => (
+                              <Badge key={c} variant="secondary" className="max-w-full break-all font-mono">{c}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Aviso de fallback (IA no disponible / falló) */}
+                    {prompt?.warning && (
+                      <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{prompt.warning}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </TabsContent>

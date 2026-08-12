@@ -37,6 +37,7 @@ import {
   type UploadPreview,
 } from "@/lib/services/shipments"
 import { useAuthStore } from "@/store/auth.store"
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { IconTruckLoading } from "@tabler/icons-react"
 import { Switch } from "../ui/switch"
 
@@ -93,6 +94,8 @@ export function ShipmentWizardModal({
   const [sucursalId, setSucursalId] = useState("")
   const [date, setDate] = useState("")
   const [notRemoveCharge, setNotRemoveCharge] = useState<boolean>(false)
+  // Carga 1.5 toneladas: cambia el ingreso a subsidiary.chargeCostHalfTon.
+  const [isHalfTon, setIsHalfTon] = useState<boolean>(false)
   const [consNumber, setConsNumber] = useState("")
   const [files, setFiles] = useState<(File | null)[]>(() => {
     if (typeof window !== "undefined") {
@@ -116,6 +119,15 @@ export function ShipmentWizardModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const user = useAuthStore((s) => s.user);
+
+  // Carga 1.5 ton (data-driven): el switch solo aplica si la sucursal seleccionada
+  // tiene chargeCostHalfTon > 0 (hoy solo Hermosillo, sembrado por migración).
+  const { subsidiaries } = useSubsidiaries()
+  const selectedSubsidiary = subsidiaries.find((s) => s.id === sucursalId)
+  const halfTonCost = Number(selectedSubsidiary?.chargeCostHalfTon ?? 0)
+  const halfTonAvailable = halfTonCost > 0
+  // Si la sucursal no aplica, no arrastres el flag activo.
+  useEffect(() => { if (!halfTonAvailable && isHalfTon) setIsHalfTon(false) }, [halfTonAvailable, isHalfTon])
 
   // --- CONFIGURACIÓN DEL TUTORIAL ACTUALIZADA ---
   const startTutorial = useCallback(() => {
@@ -171,7 +183,6 @@ export function ShipmentWizardModal({
     }
   }, [open, startTutorial]);
 
-  // ... Resto del código (lógica de handlers y renderizado se mantiene igual)
   useEffect(() => { if (user?.subsidiary) setSucursalId(user.subsidiary.id ?? ""); }, [user]);
   useEffect(() => { localStorage.setItem("shipmentWizardFiles", JSON.stringify(files)) }, [files])
 
@@ -190,7 +201,7 @@ export function ShipmentWizardModal({
 
   const reset = () => {
     setStep(0); setSucursalId(user?.subsidiary?.id || ""); setDate(""); setConsNumber("");
-    setNotRemoveCharge(false); setFiles(Array(steps.length - 1).fill(null)); setError(""); setInputErrors({}); setPreview(null); setUploadedSteps(new Set());
+    setNotRemoveCharge(false); setIsHalfTon(false); setFiles(Array(steps.length - 1).fill(null)); setError(""); setInputErrors({}); setPreview(null); setUploadedSteps(new Set());
     localStorage.removeItem("shipmentWizardFiles"); localStorage.removeItem("shipmentWizardSucursal");
     localStorage.removeItem("shipmentWizardDate"); localStorage.removeItem("shipmentWizardCons");
   }
@@ -211,7 +222,8 @@ export function ShipmentWizardModal({
   const runPreview = async (file: File) => {
     try {
       setPreviewing(true);
-      const p = await previewShipmentFile(file, sucursalId, consNumber, "fedex");
+      // Se agregó date como argumento
+      const p = await previewShipmentFile(file, sucursalId, consNumber, date, "fedex");
       setPreview(p);
     } catch {
       setPreview(null); // el preview es informativo; si falla, no bloquea la subida
@@ -227,7 +239,7 @@ export function ShipmentWizardModal({
     const t = setTimeout(() => runPreview(f as File), 500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, consNumber, sucursalId, files])
+  }, [step, consNumber, sucursalId, files, date])
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault(); e.stopPropagation();
@@ -250,11 +262,16 @@ export function ShipmentWizardModal({
     if (PREVIEW_STEPS.includes(step) && files[step] && preview) {
       if (preview.parseError) return setError(`Archivo inválido: ${preview.parseError}`);
       if (preview.withTracking === 0) return setError("El archivo no contiene guías válidas.");
-      if (preview.consNumberExists) {
-        return setError(`El consolidado "${preview.consNumberExists.consNumber}" YA existe en esta sucursal (${preview.consNumberExists.numberOfPackages} guías, ${preview.consNumberExists.date ? new Date(preview.consNumberExists.date).toLocaleDateString("es-MX") : "s/f"}). Usa otro Cons Number.`);
+      
+      // Bloqueo por fecha ocupada
+      if (preview.consNumberExists?.isDateConflict) {
+        return setError(`Ya existe otro consolidado (${preview.consNumberExists.consNumber}) en esta fecha. No se permite más de un consolidado por día.`);
       }
-      if (preview.newCount === 0) {
-        return setError("Todas las guías de este archivo ya fueron importadas en esta sucursal. No hay nada nuevo que subir.");
+      
+      // Bloqueo solo si no hay NADA procesable: ni guías nuevas ni reingresos
+      // (devoluciones de un consolidado anterior que reingresan limpias).
+      if (preview.newCount === 0 && (preview.recycledCount ?? 0) === 0) {
+        return setError("Todas las guías de este archivo ya fueron importadas en este consolidado. No hay guías nuevas ni reingresos para procesar.");
       }
     }
 
@@ -272,7 +289,7 @@ export function ShipmentWizardModal({
       if (step === 0 && files[0]) { res = await uploadShipmentFile(files[0], sucursalId, consNumber, date || ""); uploaded = true }
       else if (step === 1 && files[1]) { res = await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true); uploaded = true }
       else if (step === 2 && files[2]) { res = await uploadHighValueShipments(files[2], sucursalId, consNumber, date || ""); uploaded = true }
-      else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge); uploaded = true }
+      else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge, isHalfTon); uploaded = true }
       else if (step === 4 && files[4]) { res = await uploadShipmentPayments(files[4]); uploaded = true }
 
       if (res) toast.success(summarizeResult(step, res))
@@ -307,6 +324,11 @@ export function ShipmentWizardModal({
   }
 
   const completedCount = files.slice(0, steps.length - 1).filter(Boolean).length
+
+  // Condición calculada para deshabilitar el botón "Siguiente"
+  const isNextDisabled = loading || previewing ||
+    (step < 4 && !files[step] && step !== 1 && step !== 0) ||
+    (PREVIEW_STEPS.includes(step) && !!preview && (preview.consNumberExists?.isDateConflict || (preview.newCount === 0 && (preview.recycledCount ?? 0) === 0) || !!preview.parseError));
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -428,6 +450,21 @@ export function ShipmentWizardModal({
             </div>
           )}
 
+          {/* Switch carga 1.5 toneladas (paso 3). Solo si la sucursal tiene costo 1.5 ton configurado. */}
+          {step === 3 && halfTonAvailable && (
+            <div className="flex items-start gap-3 rounded-xl border bg-muted/40 p-3">
+              <Switch checked={isHalfTon} onCheckedChange={setIsHalfTon} className="mt-0.5" />
+              <div className="space-y-0.5">
+                <Label className="text-sm font-semibold">Carga de 1.5 toneladas</Label>
+                <p className="text-xs text-muted-foreground">
+                  {isHalfTon
+                    ? `ACTIVO: el ingreso de esta carga se generará por ${halfTonCost.toLocaleString("es-MX", { style: "currency", currency: "MXN" })} (costo 1.5 ton) en vez del costo de carga normal.`
+                    : "INACTIVO (normal): el ingreso usa el costo de carga estándar de la sucursal."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {step < steps.length - 1 ? (
             <>
               {/* Dropzone */}
@@ -491,29 +528,36 @@ export function ShipmentWizardModal({
                         <div className="flex items-center gap-2 font-medium text-destructive"><X className="h-4 w-4 shrink-0" /> {preview.parseError}</div>
                       ) : (
                         <>
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                             <div className="rounded-lg border bg-background p-2 text-center"><div className="text-base font-bold tabular-nums">{preview.withTracking}</div><div className="text-[10px] uppercase text-muted-foreground">Guías</div></div>
                             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-center"><div className="text-base font-bold tabular-nums text-emerald-700">{preview.newCount}</div><div className="text-[10px] uppercase text-emerald-700/70">Nuevas</div></div>
+                            <div className={cn("rounded-lg border p-2 text-center", preview.recycledCount ? "border-sky-200 bg-sky-50" : "bg-background")}><div className={cn("text-base font-bold tabular-nums", preview.recycledCount && "text-sky-700")}>{preview.recycledCount ?? 0}</div><div className="text-[10px] uppercase text-muted-foreground">Reingresos</div></div>
                             <div className={cn("rounded-lg border p-2 text-center", preview.alreadyImportedCount ? "border-amber-200 bg-amber-50" : "bg-background")}><div className={cn("text-base font-bold tabular-nums", preview.alreadyImportedCount && "text-amber-700")}>{preview.alreadyImportedCount}</div><div className="text-[10px] uppercase text-muted-foreground">Ya import.</div></div>
                             <div className={cn("rounded-lg border p-2 text-center", preview.duplicatesInFile ? "border-amber-200 bg-amber-50" : "bg-background")}><div className={cn("text-base font-bold tabular-nums", preview.duplicatesInFile && "text-amber-700")}>{preview.duplicatesInFile}</div><div className="text-[10px] uppercase text-muted-foreground">Dup. archivo</div></div>
                           </div>
 
-                          {preview.consNumberExists ? (
+                          {preview.consNumberExists?.isDateConflict ? (
                             <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 font-medium text-destructive">
                               <X className="mt-0.5 h-4 w-4 shrink-0" />
-                              <span>El Cons Number <b>{preview.consNumberExists.consNumber}</b> ya existe en esta sucursal ({preview.consNumberExists.numberOfPackages} guías, {preview.consNumberExists.date ? new Date(preview.consNumberExists.date).toLocaleDateString("es-MX") : "s/f"}). Usa otro número.</span>
+                              <span>Ya existe otro consolidado en esta fecha (<b>{preview.consNumberExists.consNumber}</b>). Usa otra fecha o el mismo número de consolidado.</span>
                             </div>
-                          ) : preview.newCount === 0 ? (
+                          ) : (preview.newCount === 0 && (preview.recycledCount ?? 0) === 0) ? (
                             <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 font-medium text-destructive">
-                              <X className="mt-0.5 h-4 w-4 shrink-0" /> Todas las guías ya fueron importadas en esta sucursal. No hay nada nuevo que subir.
+                              <X className="mt-0.5 h-4 w-4 shrink-0" /> Todas las guías ya fueron importadas en este consolidado. No hay guías nuevas ni reingresos que procesar.
                             </div>
-                          ) : preview.alreadyImportedCount > 0 ? (
-                            <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-amber-800">
-                              <HelpCircle className="mt-0.5 h-4 w-4 shrink-0" /> Se importarán <b>{preview.newCount}</b> guías nuevas; <b>{preview.alreadyImportedCount}</b> ya existen y se omitirán automáticamente.
+                          ) : preview.consNumberExists?.isExactMatch ? (
+                            <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-amber-800">
+                              <HelpCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span className="leading-tight">
+                                El consolidado <b>{preview.consNumberExists.consNumber}</b> ya existe. Se agregarán <b>{preview.newCount}</b> guías nuevas{(preview.recycledCount ?? 0) > 0 && <> y <b>{preview.recycledCount}</b> reingresos</>}.{preview.alreadyImportedCount > 0 && <> <b>{preview.alreadyImportedCount}</b> ya estaban y se omiten.</>}
+                              </span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-2.5 font-medium text-emerald-700">
-                              <CheckCircle className="h-4 w-4 shrink-0" /> {preview.newCount} guías listas para importar.
+                            <div className="flex items-start gap-2 rounded-lg bg-emerald-50 p-2.5 font-medium text-emerald-700">
+                              <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span className="leading-tight">
+                                <b>{preview.newCount}</b> guías nuevas{(preview.recycledCount ?? 0) > 0 && <> + <b>{preview.recycledCount}</b> reingresos</>} listas para importar.{preview.alreadyImportedCount > 0 && <span className="text-amber-700"> <b>{preview.alreadyImportedCount}</b> ya existen y se omiten.</span>}
+                              </span>
                             </div>
                           )}
                         </>
@@ -568,7 +612,7 @@ export function ShipmentWizardModal({
             <Button
               id="wizard-next-btn"
               onClick={handleNext}
-              disabled={loading || previewing || (step < 4 && !files[step] && step !== 1 && step !== 0) || (PREVIEW_STEPS.includes(step) && !!preview?.consNumberExists)}
+              disabled={isNextDisabled}
             >
               {loading ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando…</>

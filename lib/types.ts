@@ -10,6 +10,8 @@ export type Subsidiary = {
   fedexCostPackage: number
   dhlCostPackage: number
   chargeCost: number
+  /** Costo de carga de 1.5 toneladas. 0 = no aplica (switch oculto en el wizard). */
+  chargeCostHalfTon?: number
   active: boolean
   officeEmail?: string
   officeEmailToCopy?: string
@@ -149,6 +151,13 @@ export type NewIncome = {
   dhl: {
     ba: number;
     ne: number;
+    total: number;
+    totalIncome: string;
+  };
+  transfers?: {
+    tyco: number;
+    aeropuerto: number;
+    especial: number;
     total: number;
     totalIncome: string;
   };

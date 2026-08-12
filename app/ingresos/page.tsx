@@ -34,6 +34,7 @@ import {
 } from 'recharts';
 import { Subsidiary } from "@/lib/types"
 import { todayInputValue, addDaysInputValue } from "@/utils/date.utils"
+import { getWeekRange } from "@/lib/week"
 
 function IngresosPage() {
   // 1. ESTADOS DE FILTRO
@@ -47,7 +48,13 @@ function IngresosPage() {
   const applyPreset = (preset: "today" | "yesterday" | "week" | "month") => {
     if (preset === "today") setRange({ fromDate: todayInputValue(), toDate: todayInputValue() })
     else if (preset === "yesterday") setRange({ fromDate: addDaysInputValue(-1), toDate: addDaysInputValue(-1) })
-    else if (preset === "week") setRange({ fromDate: addDaysInputValue(-6), toDate: todayInputValue() })
+    else if (preset === "week") {
+      // Semana calendario LUNES–SÁBADO (misma regla que package-dispatch / lib/week),
+      // no un rolling de 7 días. Acotamos el fin al día de hoy para no mostrar días futuros.
+      const week = getWeekRange()
+      const today = todayInputValue()
+      setRange({ fromDate: week.from, toDate: week.to < today ? week.to : today })
+    }
     else setRange({ fromDate: addDaysInputValue(-29), toDate: todayInputValue() })
   }
 

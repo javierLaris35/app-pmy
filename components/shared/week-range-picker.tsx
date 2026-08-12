@@ -9,7 +9,7 @@ interface WeekRangePickerProps {
   disabled?: boolean;
 }
 
-/** Selector de semana (lun–dom) con navegación anterior/siguiente y "Esta semana". */
+/** Selector de semana (lun–sáb) con navegación anterior/siguiente y "Esta semana". */
 export function WeekRangePicker({ value, onChange, disabled }: WeekRangePickerProps) {
   const current = isCurrentWeek(value);
 

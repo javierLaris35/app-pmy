@@ -79,6 +79,35 @@ export const columns: ColumnDef<NewIncome>[] = [
     )
   },
   {
+    id: "transfers_metrics",
+    header: "Traslados (Tyco/Aero/Esp)",
+    cell: ({ row }) => {
+      const t = row.original.transfers;
+      return (
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-bold text-indigo-700">{t?.tyco ?? 0}</span>
+          <span className="text-slate-300">/</span>
+          <span className="text-xs font-bold text-purple-700">{t?.aeropuerto ?? 0}</span>
+          <span className="text-slate-300">/</span>
+          <span className="text-xs font-bold text-slate-600">{t?.especial ?? 0}</span>
+          <Badge variant="secondary" className="ml-2 bg-indigo-50 text-indigo-700 border-indigo-100">
+            Total: {t?.total ?? 0}
+          </Badge>
+        </div>
+      )
+    }
+  },
+  {
+    id: "transfers_income",
+    header: "Ingreso Traslados",
+    accessorFn: (r) => parseCurrency(r.transfers?.totalIncome ?? 0), // numérico para ordenar
+    cell: ({ row }) => (
+      <div className="text-sm font-medium">
+        {formatCurrency(parseCurrency(row.original.transfers?.totalIncome ?? 0))}
+      </div>
+    )
+  },
+  {
     accessorKey: "collections",
     header: "Recol.",
     cell: ({ row }) => (

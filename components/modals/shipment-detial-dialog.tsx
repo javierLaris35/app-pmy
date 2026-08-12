@@ -72,6 +72,19 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
         label: "Entregado",
         icon: <CheckCircle className="h-3 w-3 text-green-600" />
       },
+      // Traslados: el status llega como el tipo de traslado (tyco/aeropuerto/traslado_especial).
+      tyco: {
+        label: "Tyco",
+        icon: <Truck className="h-3 w-3 text-indigo-600" />
+      },
+      aeropuerto: {
+        label: "Aeropuerto",
+        icon: <Truck className="h-3 w-3 text-purple-600" />
+      },
+      traslado_especial: {
+        label: "Traslado especial",
+        icon: <Truck className="h-3 w-3 text-slate-600" />
+      },
       pendiente: {
         label: "Pendiente",
         icon: <Clock className="h-3 w-3 text-yellow-600" />

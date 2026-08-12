@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowRightLeft, FileText, Eye, Search, Loader2, RotateCcw, Package } from "lucide-react"
+import { ArrowRightLeft, FileText, Search, Loader2, RotateCcw, Package } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
@@ -19,7 +19,7 @@ import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
 import type { PaginationState } from "@tanstack/react-table"
 import { columns } from "./columns"
-import ResendEmailButton from "./resend-email-button"
+import ReturningRowActions from "./returning-row-actions"
 import UnifiedCollectionReturnForm from "./unified-collection-return-form"
 
 function formatDate(value?: string) {
@@ -102,12 +102,7 @@ export default function UpdatedFedExControl() {
       ? {
           ...col,
           cell: ({ row }: any) => (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={() => openDetail(row.original.id)}>
-                <Eye className="h-4 w-4" /> Ver
-              </Button>
-              <ResendEmailButton batch={row.original} onResent={refreshAll} />
-            </div>
+            <ReturningRowActions batch={row.original} onView={openDetail} onResent={refreshAll} />
           ),
         }
       : col,

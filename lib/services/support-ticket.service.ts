@@ -95,6 +95,21 @@ async function addComment({ ticketId, texto, internal }: { ticketId: string | nu
   return mapTicket(res.data);
 }
 
+/**
+ * Prompt de IA para el ticket (solo superadmin en el backend).
+ * `engine='ia'` lo mejora con DeepSeek; default `deterministico` (sin costo de API).
+ */
+async function getAiPrompt(id: string | number, engine: 'deterministico' | 'ia' = 'deterministico') {
+  const res = await axiosConfig.get<{
+    prompt: string;
+    context: { repo: string | null; files: string[]; components: string[]; confidence: 'alta' | 'media' | 'ninguna' };
+    engine: 'deterministico' | 'ia';
+    aiAvailable: boolean;
+    warning?: string;
+  }>(`${url}/tickets/${id}/prompt`, { params: { engine } });
+  return res.data;
+}
+
 async function getDevelopers() {
   const res = await axiosConfig.get<Array<{ id: string; nombre: string; email: string }>>(`${url}/agents`);
   // NOTE: admin page's local state still types id as number; cast preserved to avoid
@@ -104,5 +119,5 @@ async function getDevelopers() {
 
 export const SupportTicketService = {
   getAllTickets, getMyTickets, getTicket, createTicket, updateTicket, addComment,
-  getDevelopers, getSupportAgents: getDevelopers,
+  getDevelopers, getSupportAgents: getDevelopers, getAiPrompt,
 };
