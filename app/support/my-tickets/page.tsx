@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -45,6 +46,9 @@ export default function MyTicketsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [resolutionRejectMode, setResolutionRejectMode] = useState(false)
+  const [resolutionNote, setResolutionNote] = useState("")
+  const [confirming, setConfirming] = useState(false)
 
   // El dueño del ticket responde/comenta (sin notas internas).
   const onAddComment = async (texto: string, _internal: boolean, imagenes: File[]) => {
@@ -52,6 +56,26 @@ export default function MyTicketsPage() {
     const updated = await SupportTicketService.addComment({ ticketId: selectedTicket.id, texto, imagenes })
     setSelectedTicket(updated)
     setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+  }
+
+  // Al cambiar de ticket, descartar el modo "no resuelto".
+  useEffect(() => { setResolutionRejectMode(false); setResolutionNote("") }, [selectedTicket?.id])
+
+  // El creador confirma si su ticket quedó resuelto (cierra) o no (regresa a Por hacer).
+  const doConfirmResolution = async (resolved: boolean, note?: string) => {
+    if (!selectedTicket) return
+    setConfirming(true)
+    try {
+      const updated = await SupportTicketService.confirmResolution(selectedTicket.id, resolved, note)
+      setSelectedTicket(updated)
+      setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setResolutionRejectMode(false)
+      setResolutionNote("")
+    } catch (e) {
+      console.error("Error al confirmar resolución:", e)
+    } finally {
+      setConfirming(false)
+    }
   }
 
   // Cargar tickets del usuario al montar el componente
@@ -315,6 +339,52 @@ export default function MyTicketsPage() {
               {selectedTicket?.approvalStatus === "rechazado" && (
                 <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-400 break-words">
                   Tu solicitud fue rechazada{selectedTicket.approvalNote ? `: ${selectedTicket.approvalNote}` : "."}
+                </div>
+              )}
+
+              {/* Confirmación del creador cuando el ticket está en "Hecho" */}
+              {selectedTicket?.estado === "completado" && !selectedTicket?.confirmedAt && (
+                <div className="space-y-2 rounded-lg border border-green-500/30 bg-green-500/5 p-3">
+                  <p className="text-sm font-medium">Tu solicitud se marcó como resuelta. ¿Quedó bien?</p>
+                  {resolutionRejectMode ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        placeholder="¿Qué faltó o qué sigue fallando?"
+                        value={resolutionNote}
+                        onChange={(e) => setResolutionNote(e.target.value)}
+                        rows={2}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => { setResolutionRejectMode(false); setResolutionNote("") }}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="destructive" size="sm"
+                          onClick={() => doConfirmResolution(false, resolutionNote)}
+                          disabled={!resolutionNote.trim() || confirming}
+                        >
+                          Reabrir solicitud
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm" className="bg-green-600 text-white hover:bg-green-700"
+                        onClick={() => doConfirmResolution(true)} disabled={confirming}
+                      >
+                        Sí, quedó resuelto (cerrar)
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setResolutionRejectMode(true)} disabled={confirming}>
+                        No quedó resuelto
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {selectedTicket?.confirmedAt && (
+                <div className="rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700 dark:text-green-400">
+                  Confirmaste que quedó resuelto. Ticket cerrado. ✓
                 </div>
               )}
               <div>

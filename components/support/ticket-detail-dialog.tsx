@@ -176,6 +176,11 @@ export function TicketDetailDialog({
                         <Gavel className="h-3 w-3 mr-1" /> {getApprovalLabel(ticket.approvalStatus)}
                       </Badge>
                     )}
+                    {ticket.confirmedAt && (
+                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                        <Check className="h-3 w-3 mr-1" /> Cerrado
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>

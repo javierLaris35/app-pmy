@@ -52,6 +52,7 @@ function mapTicket(raw: any): Ticket {
     comentarios: Array.isArray(raw?.comentarios) ? raw.comentarios.map(mapComment) : [],
     fechaCreacion: raw?.fechaCreacion ?? raw?.createdAt,
     resolvedAt: raw?.resolvedAt ?? null,
+    confirmedAt: raw?.confirmedAt ?? null,
     // Campos calculados del tablero:
     slaDueAt: raw?.slaDueAt ?? null,
     slaBreached: raw?.slaBreached ?? false,
@@ -60,6 +61,8 @@ function mapTicket(raw: any): Ticket {
     timeInColumnHours: raw?.timeInColumnHours,
     startedAt: raw?.startedAt ?? null,
     workedHours: raw?.workedHours ?? null,
+    commentsCount: raw?.commentsCount ?? (Array.isArray(raw?.comentarios) ? raw.comentarios.length : 0),
+    unread: raw?.unread ?? false,
     approvalStatus: raw?.approvalStatus,
     approvalNote: raw?.approvalNote ?? null,
     approvedByName: raw?.approvedByName ?? null,
@@ -144,6 +147,17 @@ async function sendChannelTest() {
   return res.data
 }
 
+/** El creador confirma si su ticket (en "Hecho") quedó resuelto o no. */
+async function confirmResolution(id: string | number, resolved: boolean, note?: string) {
+  const res = await axiosConfig.post<any>(`${url}/tickets/${id}/confirm-resolution`, { resolved, note })
+  return mapTicket(res.data)
+}
+
+/** Marca el ticket como visto por el usuario actual (limpia el "nuevo"). */
+async function markSeen(id: string | number) {
+  await axiosConfig.post(`${url}/tickets/${id}/seen`, {})
+}
+
 /** Notifica el estatus del ticket a su creador (campana + WhatsApp). */
 async function notifyStatus(id: string | number) {
   const res = await axiosConfig.post<{ whatsapp: { sent: boolean; error?: string }; hasPhone: boolean }>(
@@ -192,5 +206,5 @@ export const SupportTicketService = {
   getDevelopers, getSupportAgents: getDevelopers, getAiPrompt,
   getChannelHealth, sendChannelTest,
   approveTicket, rejectTicket, getMyApprovalZones, listAuthorizers, addAuthorizer, removeAuthorizer,
-  notifyStatus,
+  notifyStatus, markSeen, confirmResolution,
 };

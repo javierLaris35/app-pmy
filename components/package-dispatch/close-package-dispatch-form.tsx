@@ -40,7 +40,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, mapToPackageInfoComplete } from "@/lib/utils";
-import { PackageDispatch, PackageInfo, RouteClosure, ShipmentStatusType } from "@/lib/types";
+import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
 import { useAuthStore } from "@/store/auth.store";
 import { save, uploadFiles, validateTrackinNumberNoVan } from "@/lib/services/route-closure";
 import { pdf } from "@react-pdf/renderer";
@@ -50,6 +50,7 @@ import { generateRouteClosureExcel } from "@/lib/services/route-closure/route-cl
 import { updateDataFromFedexByPackageDispatchId } from "@/lib/services/monitoring/monitoring";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCatalogOptions, CatalogItem } from "@/lib/services/catalog";
+import { classifyClosureBucket, isClosureBlockedByOtherStatus } from "@/lib/tracking/closure-status";
 
 interface ClosePackageDispatchProps {
   dispatchId: string;
@@ -86,6 +87,7 @@ export default function ClosePackageDispatchWizard({
 
   const [showDelivered, setShowDelivered] = useState(false);
   const [showNotDelivered, setShowNotDelivered] = useState(false);
+  const [showOcurre, setShowOcurre] = useState(false);
   const [showOther, setShowOther] = useState(false);
 
   const [addNoVan, setAddNoVan] = useState(false);
@@ -203,10 +205,12 @@ export default function ClosePackageDispatchWizard({
   totalPackages,
   deliveredPackages,
   notDeliveredPackages,
+  ocurrePackages,
   otherPackages,
   returnedPackages,
   deliveredCount,
   notDeliveredCount,
+  ocurreCount,
   otherCount,
   returnedCount,
   deliveryRate,
@@ -218,8 +222,8 @@ export default function ClosePackageDispatchWizard({
   if (!dispatch) {
     return {
       allShipments: [], dhlShipments: [], totalPackages: 0, deliveredPackages: [],
-      notDeliveredPackages: [], otherPackages: [], returnedPackages: [],
-      deliveredCount: 0, notDeliveredCount: 0, otherCount: 0, returnedCount: 0,
+      notDeliveredPackages: [], ocurrePackages: [], otherPackages: [], returnedPackages: [],
+      deliveredCount: 0, notDeliveredCount: 0, ocurreCount: 0, otherCount: 0, returnedCount: 0,
       deliveryRate: 0, notDeliveredRate: 0, otherRate: 0, returnRate: 0, routeNames: "Sin ruta asignada",
     };
   }
@@ -229,18 +233,31 @@ export default function ClosePackageDispatchWizard({
   
   const delivered: PackageInfo[] = [];
   const notDelivered: PackageInfo[] = [];
+  const ocurre: PackageInfo[] = [];
   const other: PackageInfo[] = [];
   const returned: PackageInfo[] = [];
   const dhlOnly: PackageInfo[] = [];
 
-  const notDeliveredStatuses = [
-    'no_entregado', 
-    'rechazado', 
-    'direccion_incorrecta', 
-    'cliente_no_disponible',
-    'cambio_fecha_solicitado', 
-    'devuelto_a_fedex'
-  ];
+  // Reparte un paquete en su bucket de cierre usando la clasificación pura y compartida
+  // (delivered / not_delivered / ocurre / other). Los `ocurre` (es_ocurre y
+  // entregado_en_bodega) son terminales resueltos en sucursal: se separan de "Otros
+  // Estatus" para que NO bloqueen el cierre (bug SUP-0008).
+  const bucketize = (pkg: PackageInfo) => {
+    switch (classifyClosureBucket(pkg.status)) {
+      case 'delivered':
+        delivered.push(pkg);
+        break;
+      case 'not_delivered':
+        notDelivered.push(pkg);
+        returned.push({ ...pkg, isValid: true });
+        break;
+      case 'ocurre':
+        ocurre.push(pkg);
+        break;
+      default:
+        other.push(pkg);
+    }
+  };
 
   // 2. Procesar paquetes originales
   shipments.forEach(pkg => {
@@ -248,19 +265,7 @@ export default function ClosePackageDispatchWizard({
     // DHL se clasifica por su CÓDIGO propio (OK/NH/BA/RD/CM) en la sección DHL, no por
     // el estatus canónico; se saca del bucketing FedEx para no mezclar ni bloquear el cierre.
     if (isDhl) { dhlOnly.push(pkg); return; }
-
-    const statusStr = pkg.status?.toLowerCase() || 'desconocido';
-    const isDelivered = statusStr === 'entregado' || pkg.status === (ShipmentStatusType as any).ENTREGADO;
-    const isNotDelivered = notDeliveredStatuses.includes(statusStr) || pkg.status === (ShipmentStatusType as any).NOT_DELIVERED;
-    
-    if (isDelivered) {
-      delivered.push(pkg);
-    } else if (isNotDelivered) {
-      notDelivered.push(pkg);
-      returned.push({ ...pkg, isValid: true });
-    } else {
-      other.push(pkg); 
-    }
+    bucketize(pkg);
   });
 
   // 3. PROCESAR E INTEGRAR PAQUETES NO VAN
@@ -274,25 +279,14 @@ export default function ClosePackageDispatchWizard({
       shipmentType: 'FEDEX', // Por defecto o según tu lógica
       recipientName: 'Paquete No VAN'
     };
-
-    const statusStr = extra.status?.toLowerCase() || 'desconocido';
-    const isDelivered = statusStr === 'entregado' || statusStr === 'delivered' || extra.status === (ShipmentStatusType as any).ENTREGADO;
-    const isNotDelivered = notDeliveredStatuses.includes(statusStr) || extra.status === (ShipmentStatusType as any).NOT_DELIVERED;
-
-    if (isDelivered) {
-      delivered.push(extraPkg);
-    } else if (isNotDelivered) {
-      notDelivered.push(extraPkg);
-      returned.push({ ...extraPkg, isValid: true });
-    } else {
-      other.push(extraPkg);
-    }
+    bucketize(extraPkg);
   });
 
   // 4. Calcular totales finales (Originales + No VAN)
   const total = shipments.length + noVanPackages.length;
   const delCount = delivered.length;
   const notDelCount = notDelivered.length;
+  const ocurreCount = ocurre.length;
   const othCount = other.length;
   const retCount = returned.length;
 
@@ -304,16 +298,18 @@ export default function ClosePackageDispatchWizard({
   const routes = dispatch.routes?.map((r) => r.name).join(", ") || "Sin ruta asignada";
 
   return {
-    allShipments: shipments, 
-    dhlShipments: dhlOnly, 
+    allShipments: shipments,
+    dhlShipments: dhlOnly,
     totalPackages: total,
-    deliveredPackages: delivered, 
+    deliveredPackages: delivered,
     notDeliveredPackages: notDelivered,
-    otherPackages: other, 
+    ocurrePackages: ocurre,
+    otherPackages: other,
     returnedPackages: returned,
-    deliveredCount: delCount, 
+    deliveredCount: delCount,
     notDeliveredCount: notDelCount,
-    otherCount: othCount, 
+    ocurreCount: ocurreCount,
+    otherCount: othCount,
     returnedCount: retCount,
     deliveryRate: delRate, 
     notDeliveredRate: notDelRate,
@@ -348,7 +344,9 @@ export default function ClosePackageDispatchWizard({
   const shownDeliveredCount = deliveredCount + dhlDeliveredPkgs.length;
   const shownNotDeliveredCount = notDeliveredCount + dhlExceptionPkgs.length;
   const shownOtherCount = otherCount; // los DHL sin confirmar NO cuentan aquí
-  const shownTotal = deliveredCount + notDeliveredCount + otherCount + dhlShipments.length;
+  // Los ocurres (terminales en sucursal) forman parte del universo de la ruta: se
+  // incluyen en el denominador para que las tasas no se inflen al haberlos separado de "Otros".
+  const shownTotal = deliveredCount + notDeliveredCount + ocurreCount + otherCount + dhlShipments.length;
   const shownReturnRate = shownTotal > 0 ? (shownNotDeliveredCount / shownTotal) * 100 : 0;
   const shownDeliveryRate = shownTotal > 0 ? (shownDeliveredCount / shownTotal) * 100 : 0;
   const shownNotDeliveredRate = shownTotal > 0 ? (shownNotDeliveredCount / shownTotal) * 100 : 0;
@@ -370,6 +368,13 @@ export default function ClosePackageDispatchWizard({
 
   const kmsTraveled = calculateKmsTraveled();
   const pendingDhlUpdates = otherPackages.some(pkg => pkg.shipmentType?.toLowerCase() === 'dhl');
+
+  // ¿El cierre queda bloqueado por paquetes en "Otros Estatus" venciendo hoy? La sucursal
+  // Hermosillo (flag allowRouteClosureWithOtherStatus) es la excepción: puede cerrar igual.
+  const closureBlockedByOtherStatus = isClosureBlockedByOtherStatus(
+    hasOtherPackagesDueToday(otherPackages),
+    dispatch?.subsidiary?.allowRouteClosureWithOtherStatus,
+  );
 
   const handlePdf = async () => { 
     const collectionsForPdf = collectionsRaw.split("\n")
@@ -730,6 +735,15 @@ export default function ClosePackageDispatchWizard({
 
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium uppercase tracking-wider">
+                <Box className="h-3.5 w-3.5 text-sky-600" /> Ocurre
+              </div>
+              <div className="text-sm font-bold text-sky-700">
+                {ocurreCount}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium uppercase tracking-wider">
                 <PackageSearch className="h-3.5 w-3.5 text-amber-600" /> Otros
               </div>
               <div className="text-sm font-bold text-amber-700">
@@ -757,14 +771,21 @@ export default function ClosePackageDispatchWizard({
             </Tooltip>
           </div>
 
-          {hasOtherPackagesDueToday(otherPackages) && (
+          {closureBlockedByOtherStatus && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-3 text-red-700 text-sm">
               <AlertTriangle className="h-5 w-5 shrink-0" />
               <p>Existen paquetes sin DEX (No entregados) con fecha compromiso para el día de hoy. <b>El cierre no podrá confirmarse.</b></p>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {hasOtherPackagesDueToday(otherPackages) && !closureBlockedByOtherStatus && (
+            <div className="p-3 bg-sky-50 border border-sky-200 rounded-md flex items-center gap-3 text-sky-700 text-sm">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <p>Hay paquetes en "Otros Estatus" con fecha compromiso de hoy. Por configuración de la sucursal, <b>el cierre sí puede confirmarse.</b></p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
             <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white shadow-sm hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between">
@@ -870,6 +891,54 @@ export default function ClosePackageDispatchWizard({
                                 </div>
                               );
                             })
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-sky-200 bg-gradient-to-br from-sky-50 to-white shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="text-sky-700 flex items-center gap-2">
+                    <Box className="h-5 w-5" /> Ocurre / En sucursal
+                  </span>
+                  <Badge variant="outline" className="bg-sky-100 text-sky-800 border-sky-300">
+                    {totalPackages > 0 ? ((ocurreCount / totalPackages) * 100).toFixed(1) : "0.0"}%
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-sky-700 mb-2">{ocurreCount}</div>
+                  <div className="text-sm text-gray-600 mb-4">de {totalPackages} paquetes</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-sky-300 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                    onClick={() => setShowOcurre(!showOcurre)}
+                  >
+                    {showOcurre ? "Ocultar detalles" : "Ver ocurres"}
+                  </Button>
+                  <Collapsible open={showOcurre}>
+                    <CollapsibleContent className="mt-4 pt-4 border-t border-sky-200">
+                      <ScrollArea className="h-64">
+                        <div className="space-y-2 pr-2">
+                          {ocurrePackages.length === 0 ? (
+                            <div className="text-center py-4 text-gray-500">No hay ocurres</div>
+                          ) : (
+                            ocurrePackages.map((pkg) => (
+                              <div key={pkg.id || pkg.trackingNumber} className="p-3 rounded border border-transparent hover:bg-sky-50 space-y-2 text-left">
+                                <div className="flex items-start justify-between gap-3">
+                                  <span className="font-semibold text-sm">{pkg.trackingNumber}</span>
+                                  <Badge className="bg-sky-100 text-sky-800 border-sky-300 shrink-0">{pkg.status || "es_ocurre"}</Badge>
+                                </div>
+                                <div className="text-xs text-gray-600 truncate">{pkg.recipientName || "Sin destinatario"}</div>
+                              </div>
+                            ))
                           )}
                         </div>
                       </ScrollArea>
@@ -1234,7 +1303,7 @@ export default function ClosePackageDispatchWizard({
               <CardTitle className="text-blue-800">Resumen del Cierre</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="bg-white p-3 rounded border text-center">
                   <div className="text-xs text-slate-500">Entregados</div>
                   <div className="text-xl font-bold text-green-600">{shownDeliveredCount}</div>
@@ -1242,6 +1311,10 @@ export default function ClosePackageDispatchWizard({
                 <div className="bg-white p-3 rounded border text-center">
                   <div className="text-xs text-slate-500">No Entregados</div>
                   <div className="text-xl font-bold text-red-600">{shownNotDeliveredCount}</div>
+                </div>
+                <div className="bg-white p-3 rounded border text-center">
+                  <div className="text-xs text-slate-500">Ocurre</div>
+                  <div className="text-xl font-bold text-sky-600">{ocurreCount}</div>
                 </div>
                 <div className="bg-white p-3 rounded border text-center">
                   <div className="text-xs text-slate-500">Otros</div>
@@ -1284,7 +1357,7 @@ export default function ClosePackageDispatchWizard({
           ) : (
             <Button 
               onClick={handleCloseRoute} 
-              disabled={isSubmitting || !actualKms.trim() || (parseInt(actualKms) < parseInt(dispatch.kms || "0")) || hasOtherPackagesDueToday(otherPackages)}
+              disabled={isSubmitting || !actualKms.trim() || (parseInt(actualKms) < parseInt(dispatch.kms || "0")) || closureBlockedByOtherStatus}
               className="bg-green-600 hover:bg-green-700 px-8"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : <><Send className="h-4 w-4 mr-2"/> Confirmar Cierre</>}

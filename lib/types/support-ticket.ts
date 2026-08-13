@@ -31,6 +31,7 @@ export interface Ticket {
   comentarios?: TicketComment[];
   fechaCreacion: string;
   resolvedAt?: string | null;
+  confirmedAt?: string | null;
   // Campos calculados por el backend (tablero):
   slaDueAt?: string | null;
   slaBreached?: boolean;
@@ -39,6 +40,9 @@ export interface Ticket {
   timeInColumnHours?: number;
   startedAt?: string | null;
   workedHours?: number | null;
+  // Comentarios (indicador de nuevos en el tablero)
+  commentsCount?: number;
+  unread?: boolean;
   // Aprobación (D)
   approvalStatus?: ApprovalStatus;
   approvalNote?: string | null;

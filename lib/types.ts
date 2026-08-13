@@ -42,6 +42,8 @@ export type Subsidiary = {
   chargeDelivered?: boolean
   generateDhlIncomeOnDelivery?: boolean
   countTransfersAsIncome?: boolean
+  /** Cierre de ruta: permitir cerrar aunque haya paquetes en "otros estatus" (hoy solo Hermosillo). */
+  allowRouteClosureWithOtherStatus?: boolean
 }
 
 export type Zone = {

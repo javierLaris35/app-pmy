@@ -66,6 +66,23 @@ export default function SupportBoardPage() {
     finally { setIsLoading(false) }
   }
 
+  // Refresco silencioso (sin spinner) para el auto-refresh.
+  const silentReload = async () => {
+    try {
+      const res = await SupportTicketService.getAllTickets()
+      setTickets(res.tickets)
+    } catch { /* silencioso */ }
+  }
+
+  // Auto-refresh ligero: cada 30s, solo si la pestaña está visible.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") silentReload()
+    }, 30000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const loadAgents = async () => {
     try { setAgents(await SupportTicketService.getSupportAgents()) }
     catch (e) { console.error("Error al cargar agentes:", e) }
@@ -108,6 +125,15 @@ export default function SupportBoardPage() {
   const patchLocal = (id: string | number, patch: Partial<Ticket>) => {
     setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
     setSelected((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev))
+  }
+
+  // Abre el ticket y lo marca como visto (limpia el "nuevo").
+  const openTicket = (t: Ticket) => {
+    setSelected(t)
+    if (t.unread) {
+      patchLocal(t.id, { unread: false })
+      SupportTicketService.markSeen(t.id).catch(() => {})
+    }
   }
 
   const onMove = async (id: string | number, estado: TicketStatus) => {
@@ -246,7 +272,7 @@ export default function SupportBoardPage() {
           groupBy={groupBy}
           sortBy={sortBy}
           onMove={onMove}
-          onOpen={setSelected}
+          onOpen={openTicket}
           subsidiaryName={subsidiaryName}
         />
       )}

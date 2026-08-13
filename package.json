@@ -13,6 +13,8 @@
     "dev-electron": "concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"next dev -H 0.0.0.0 -p 4000\" \"electron .\"",
     "dev:lean": "cross-env NODE_OPTIONS=--max-old-space-size=3072 next dev -H 0.0.0.0 -p 4000",
     "check:stubs": "node scripts/check-no-stubs.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "node scripts/check-no-stubs.mjs && next build",
     "build-electron": "next build && electron-builder",
     "start": "next start",
@@ -109,6 +111,8 @@
     "electron": "^41.5.0",
     "electron-builder": "^26.8.1",
     "postcss": "^8",
-    "typescript": "^6"
+    "typescript": "^6",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^2.1.9"
   }
 }

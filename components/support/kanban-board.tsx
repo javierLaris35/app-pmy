@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/core"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Tag, TimerReset, Clock, MapPin, Gavel, Timer } from "lucide-react"
+import { Tag, TimerReset, Clock, MapPin, Gavel, Timer, MessageSquare } from "lucide-react"
 import {
   type Ticket, type TicketStatus,
   KANBAN_COLUMNS, getTicketPriorityColor, getPriorityLabel, formatHours,
@@ -62,9 +62,16 @@ function TicketCard({ ticket, onOpen, subsidiaryName }: { ticket: Ticket; onOpen
       {...listeners}
       {...attributes}
       onClick={() => onOpen(ticket)}
-      className={`group cursor-grab active:cursor-grabbing rounded-lg border bg-card p-3 shadow-sm hover:border-primary/60 hover:shadow transition
-        ${isDragging ? "opacity-40" : ""} ${overdue ? "border-red-500/40 ring-1 ring-red-500/20" : ""}`}
+      className={`group relative cursor-grab active:cursor-grabbing rounded-lg border bg-card p-3 shadow-sm hover:border-primary/60 hover:shadow transition
+        ${isDragging ? "opacity-40" : ""}
+        ${overdue ? "border-red-500/40 ring-1 ring-red-500/20" : ticket.unread ? "border-blue-500/50 ring-1 ring-blue-500/25" : ""}`}
     >
+      {ticket.unread && (
+        <span className="absolute -right-1 -top-1 flex h-3 w-3">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-70" />
+          <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-600" />
+        </span>
+      )}
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <span className="text-[11px] font-mono text-muted-foreground">{ticket.folio}</span>
         {ticket.prioridad && (
@@ -89,6 +96,20 @@ function TicketCard({ ticket, onOpen, subsidiaryName }: { ticket: Ticket; onOpen
           <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-red-500/10 text-red-600 border-red-500/30">
             <TimerReset className="h-2.5 w-2.5 mr-0.5" />Vencido
           </Badge>
+        )}
+        {ticket.confirmedAt && (
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-green-500/10 text-green-600 border-green-500/30">Cerrado</Badge>
+        )}
+        {!!ticket.commentsCount && (
+          ticket.unread ? (
+            <Badge className="h-5 gap-0.5 border-transparent bg-blue-600 px-1.5 text-[10px] text-white">
+              <MessageSquare className="h-2.5 w-2.5" />{ticket.commentsCount} · nuevo
+            </Badge>
+          ) : (
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+              <MessageSquare className="h-2.5 w-2.5" />{ticket.commentsCount}
+            </span>
+          )
         )}
       </div>
 

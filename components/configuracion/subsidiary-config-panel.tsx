@@ -19,6 +19,7 @@ type FlagKey =
   | "forceFedexStatusOverride"
   | "sortDispatchByPostalCode"
   | "validateDispatchByList"
+  | "allowRouteClosureWithOtherStatus"
   | "chargeDex03"
   | "chargeDex07"
   | "chargeDex08"
@@ -33,6 +34,7 @@ const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "forceFedexStatusOverride", label: "Forzar estatus FedEx", hint: "Prioriza el estatus reportado por FedEx" },
   { key: "sortDispatchByPostalCode", label: "Salidas a ruta por CP", hint: "Ordena los paquetes por código postal (escaneo, PDF y Excel). Si está apagado, se conserva el orden de escaneo." },
   { key: "validateDispatchByList", label: "Validar por lista", hint: "Valida toda la lista escaneada en un solo envío (más rápido). Si está apagado, se validan uno por uno." },
+  { key: "allowRouteClosureWithOtherStatus", label: "Cerrar ruta con otros estatus", hint: "Permite cerrar la ruta aunque queden paquetes en \"Otros Estatus\" venciendo hoy. Apagado = comportamiento histórico (bloquea)." },
 ];
 
 // Reglas de INGRESO por sucursal (default = comportamiento histórico).
