@@ -4,7 +4,9 @@ export type TicketStatus = 'pendiente' | 'por_hacer' | 'en_progreso' | 'en_revis
 export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
 export type MenuPrincipal = 'operaciones' | 'finanzas' | 'catalogos' | 'configuracion' | 'nuevo';
 
-export interface TicketComment { usuario: string; texto: string; fecha: string; internal?: boolean }
+export type ApprovalStatus = 'no_requiere' | 'pendiente' | 'aprobado' | 'rechazado'
+
+export interface TicketComment { usuario: string; authorId?: string | number; texto: string; fecha: string; internal?: boolean; imagenes?: string[] }
 
 export interface Ticket {
   id: number | string;
@@ -15,6 +17,7 @@ export interface Ticket {
   estado: TicketStatus;
   prioridad?: TicketPriority;
   usuario?: string;
+  requesterId?: string | number;
   asignadoA?: string;
   asignadoAId?: number | string;
   asignadoEmail?: string;
@@ -34,6 +37,12 @@ export interface Ticket {
   urgencyScore?: number;
   ageHours?: number;
   timeInColumnHours?: number;
+  // Aprobación (D)
+  approvalStatus?: ApprovalStatus;
+  approvalNote?: string | null;
+  approvedByName?: string | null;
+  approvalAt?: string | null;
+  zoneId?: string | null;
 }
 
 /** Columnas del tablero kanban (label + estado). El orden define el flujo. */
@@ -113,6 +122,17 @@ export const getStatusLabel = (estado: TicketStatus) =>
 
 export const getPriorityLabel = (p: TicketPriority) =>
   ({ baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' }[p]);
+
+export const getApprovalLabel = (s?: ApprovalStatus) =>
+  ({ no_requiere: 'Sin aprobación', pendiente: 'Por aprobar', aprobado: 'Aprobado', rechazado: 'Rechazado' }[s ?? 'no_requiere'])
+
+export const getApprovalColor = (s?: ApprovalStatus) =>
+  ({
+    pendiente: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+    aprobado: 'bg-green-500/10 text-green-600 border-green-500/30',
+    rechazado: 'bg-red-500/10 text-red-600 border-red-500/30',
+    no_requiere: 'bg-muted text-muted-foreground',
+  }[s ?? 'no_requiere'])
 
 /** Antigüedad/tiempo legible a partir de horas (para tarjetas del tablero). */
 export const formatHours = (h?: number): string => {

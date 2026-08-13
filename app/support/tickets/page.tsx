@@ -275,8 +275,8 @@ export default function SupportTicketsPage() {
                       return (
                         <Card
                           key={tipo}
-                          className={`cursor-pointer transition-all hover:border-primary ${
-                            isSelected ? "border-primary bg-primary/5" : ""
+                          className={`group cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                            isSelected ? "border-primary ring-2 ring-primary/30 bg-primary/5" : "hover:border-primary/50"
                           }`}
                           onClick={() => {
                             setFormData({ ...formData, tipo })
@@ -285,7 +285,7 @@ export default function SupportTicketsPage() {
                           <CardHeader>
                             <div className="flex items-start justify-between">
                               <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${getTipoColor(tipo)}`}>{getTipoIcon(tipo)}</div>
+                                <div className={`rounded-lg p-2.5 transition-transform group-hover:scale-110 ${getTipoColor(tipo)}`}>{getTipoIcon(tipo)}</div>
                                 <div>
                                   <CardTitle className="text-base">{info.titulo}</CardTitle>
                                 </div>

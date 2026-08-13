@@ -4,18 +4,21 @@ import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, Calendar, Check, Copy, Loader2, Lock, MessageSquare, Network, RotateCcw, Sparkles, Tag, TimerReset, User, X } from "lucide-react"
+import { AlertTriangle, Calendar, Check, Copy, Gavel, Loader2, Network, RotateCcw, Sparkles, Tag, ThumbsDown, ThumbsUp, TimerReset, User, X } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
 import {
   type Ticket, type TicketPriority, type TicketStatus,
   KANBAN_COLUMNS, getPriorityLabel, getTicketPriorityColor, formatHours,
+  getApprovalColor, getApprovalLabel,
 } from "@/lib/types/support-ticket"
 import { EstadoIcon, TipoIcon, getTipoColor, getTipoLabel } from "./support-ui"
+import { CommentComposer } from "./comment-composer"
+import { CommentThread } from "./comment-thread"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { avatarStyle, initialsFrom } from "@/lib/support/avatar"
 import { SupportTicketService } from "@/lib/services/support-ticket.service"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/hooks/use-toast"
@@ -41,26 +44,48 @@ interface Props {
   onUpdateStatus: (id: string | number, estado: TicketStatus) => void
   onUpdatePriority: (id: string | number, prioridad: TicketPriority) => void
   onAssign: (id: string | number, agentId: string | number) => void
-  onAddComment: (id: string | number, texto: string, internal: boolean) => void
+  onAddComment: (id: string | number, texto: string, internal: boolean, imagenes: File[]) => Promise<void> | void
+  onApprove?: (id: string | number) => Promise<void> | void
+  onReject?: (id: string | number, note: string) => Promise<void> | void
 }
 
 export function TicketDetailDialog({
   ticket, open, onOpenChange, agents, isSubmitting,
-  onUpdateStatus, onUpdatePriority, onAssign, onAddComment,
+  onUpdateStatus, onUpdatePriority, onAssign, onAddComment, onApprove, onReject,
 }: Props) {
-  const [newComment, setNewComment] = useState("")
-  const [internal, setInternal] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
 
   const { toast } = useToast()
   const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase()
   const isSuper = SUPER_ROLES.includes(role)
+
+  const [myZones, setMyZones] = useState<string[]>([])
+  const [rejectMode, setRejectMode] = useState(false)
+  const [rejectNote, setRejectNote] = useState("")
+  const [approving, setApproving] = useState(false)
+
+  useEffect(() => {
+    SupportTicketService.getMyApprovalZones().then(setMyZones).catch(() => setMyZones([]))
+  }, [])
+
+  const canApprove = isSuper || (ticket?.zoneId ? myZones.includes(ticket.zoneId) : false)
+
+  const doApprove = async () => {
+    if (!ticket || !onApprove) return
+    setApproving(true)
+    try { await onApprove(ticket.id) } finally { setApproving(false) }
+  }
+  const doReject = async () => {
+    if (!ticket || !onReject || !rejectNote.trim()) return
+    setApproving(true)
+    try { await onReject(ticket.id, rejectNote.trim()); setRejectMode(false); setRejectNote("") } finally { setApproving(false) }
+  }
   const [prompt, setPrompt] = useState<AiPromptResult | null>(null)
   const [loadingEngine, setLoadingEngine] = useState<null | "deterministico" | "ia">(null)
   const [copied, setCopied] = useState(false)
 
-  // Al cambiar de ticket, descartar el prompt del anterior.
-  useEffect(() => { setPrompt(null); setCopied(false) }, [ticket?.id])
+  // Al cambiar de ticket, descartar el prompt y el modo rechazo del anterior.
+  useEffect(() => { setPrompt(null); setCopied(false); setRejectMode(false); setRejectNote("") }, [ticket?.id])
 
   const generatePrompt = async (engine: "deterministico" | "ia") => {
     if (!ticket) return
@@ -92,23 +117,24 @@ export function TicketDetailDialog({
   const isResolved = ticket.estado === "completado" || ticket.estado === "rechazado"
   const slaDue = ticket.slaDueAt ? new Date(ticket.slaDueAt) : null
 
-  const submitComment = () => {
-    if (!newComment.trim()) return
-    onAddComment(ticket.id, newComment.trim(), internal)
-    setNewComment("")
-    setInternal(false)
-  }
-
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl lg:max-w-5xl max-h-[92vh]">
           <div className="dialog-scroll-content min-w-0 space-y-6 overflow-y-auto max-h-[calc(92vh-3rem)]">
             <DialogHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1 text-xs text-muted-foreground font-mono">{ticket.folio}</div>
-                  <DialogTitle className="text-xl mb-2">{ticket.titulo}</DialogTitle>
+              <div className="flex items-start gap-3">
+                <Avatar className="h-11 w-11 shrink-0 ring-2 ring-background">
+                  <AvatarFallback style={avatarStyle(ticket.usuario)} className="text-sm font-semibold">
+                    {initialsFrom(ticket.usuario)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{ticket.folio}</span>
+                    <span className="truncate">{ticket.usuario ?? "—"}</span>
+                  </div>
+                  <DialogTitle className="mb-2 break-words text-xl leading-snug">{ticket.titulo}</DialogTitle>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className={getTipoColor(ticket.tipo)}>
                       <TipoIcon tipo={ticket.tipo} className="h-3.5 w-3.5" />
@@ -127,6 +153,11 @@ export function TicketDetailDialog({
                     {ticket.slaBreached && !isResolved && (
                       <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/30">
                         <TimerReset className="h-3 w-3 mr-1" /> SLA vencido
+                      </Badge>
+                    )}
+                    {ticket.approvalStatus && ticket.approvalStatus !== "no_requiere" && (
+                      <Badge variant="outline" className={getApprovalColor(ticket.approvalStatus)}>
+                        <Gavel className="h-3 w-3 mr-1" /> {getApprovalLabel(ticket.approvalStatus)}
                       </Badge>
                     )}
                   </div>
@@ -149,62 +180,74 @@ export function TicketDetailDialog({
               {/* Detalles */}
               <TabsContent value="detalles" className="space-y-4 mt-4">
                 <div>
-                  <Label className="text-sm font-medium">Descripción</Label>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{ticket.descripcion}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Solicitante</Label>
-                    <p className="text-sm mt-1 flex items-center gap-1"><User className="h-3.5 w-3.5" />{ticket.usuario ?? "—"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Creado</Label>
-                    <p className="text-sm mt-1 flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {ticket.fechaCreacion ? new Date(ticket.fechaCreacion).toLocaleString("es-MX") : ""}
-                      <span className="text-muted-foreground">({formatHours(ticket.ageHours)})</span>
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Asignado a</Label>
-                    <p className="text-sm mt-1">{ticket.asignadoA ?? "Sin asignar"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">SLA objetivo</Label>
-                    <p className={`text-sm mt-1 ${ticket.slaBreached && !isResolved ? "text-red-600 font-medium" : ""}`}>
-                      {slaDue ? slaDue.toLocaleString("es-MX") : "—"}
-                    </p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</p>
+                  <div className="mt-1.5 rounded-lg border bg-muted/40 p-3">
+                    <p className="whitespace-pre-wrap break-words text-sm">{ticket.descripcion}</p>
                   </div>
                 </div>
 
-                {ticket.seccion && (
-                  <div>
-                    <Label className="text-sm font-medium">Sección</Label>
-                    <p className="text-sm mt-1 capitalize">
-                      {ticket.seccion}{ticket.subseccion && ` › ${ticket.subseccion}`}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg border p-3 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><User className="h-3.5 w-3.5" /> Solicitante</div>
+                    <div className="mt-1.5 flex items-center gap-1.5 min-w-0">
+                      <Avatar className="h-5 w-5 shrink-0">
+                        <AvatarFallback style={avatarStyle(ticket.usuario)} className="text-[10px] font-semibold">{initialsFrom(ticket.usuario)}</AvatarFallback>
+                      </Avatar>
+                      <span className="truncate text-sm font-medium">{ticket.usuario ?? "—"}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><User className="h-3.5 w-3.5" /> Asignado a</div>
+                    <div className="mt-1.5 flex items-center gap-1.5 min-w-0">
+                      {ticket.asignadoA ? (
+                        <>
+                          <Avatar className="h-5 w-5 shrink-0">
+                            <AvatarFallback style={avatarStyle(ticket.asignadoA)} className="text-[10px] font-semibold">{initialsFrom(ticket.asignadoA)}</AvatarFallback>
+                          </Avatar>
+                          <span className="truncate text-sm font-medium">{ticket.asignadoA}</span>
+                        </>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Sin asignar</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Calendar className="h-3.5 w-3.5" /> Creado</div>
+                    <p className="mt-1.5 truncate text-sm font-medium">
+                      {ticket.fechaCreacion ? new Date(ticket.fechaCreacion).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : "—"}
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">({formatHours(ticket.ageHours)})</span>
                     </p>
                   </div>
-                )}
-                {ticket.menuPrincipal && (
-                  <div>
-                    <Label className="text-sm font-medium">Ubicación en menú</Label>
-                    <p className="text-sm mt-1 capitalize">
-                      {ticket.menuPrincipal}{ticket.submenu && ` › ${ticket.submenu}`}
+                  <div className="rounded-lg border p-3 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><TimerReset className="h-3.5 w-3.5" /> SLA objetivo</div>
+                    <p className={`mt-1.5 truncate text-sm font-medium ${ticket.slaBreached && !isResolved ? "text-red-600" : ""}`}>
+                      {slaDue ? slaDue.toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                     </p>
+                  </div>
+                </div>
+
+                {(ticket.seccion || ticket.menuPrincipal) && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Ubicación:</span>
+                    {ticket.seccion && (
+                      <Badge variant="secondary" className="capitalize">{ticket.seccion}{ticket.subseccion && ` › ${ticket.subseccion}`}</Badge>
+                    )}
+                    {ticket.menuPrincipal && (
+                      <Badge variant="secondary" className="capitalize">{ticket.menuPrincipal}{ticket.submenu && ` › ${ticket.submenu}`}</Badge>
+                    )}
                   </div>
                 )}
                 {ticket.pasosReplicar && (
                   <div>
-                    <Label className="text-sm font-medium">Pasos para replicar</Label>
-                    <pre className="text-sm mt-1 whitespace-pre-wrap bg-muted p-3 rounded">{ticket.pasosReplicar}</pre>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pasos para replicar</p>
+                    <pre className="mt-1.5 whitespace-pre-wrap break-words rounded-lg border bg-muted/40 p-3 font-mono text-xs">{ticket.pasosReplicar}</pre>
                   </div>
                 )}
 
                 {ticket.imagenes && ticket.imagenes.length > 0 && (
                   <div>
-                    <Label className="text-sm font-medium">Imágenes adjuntas ({ticket.imagenes.length})</Label>
-                    <div className="grid grid-cols-3 gap-2 mt-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Imágenes adjuntas ({ticket.imagenes.length})</p>
+                    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
                       {ticket.imagenes.map((img, i) => (
                         <button
                           key={i}
@@ -222,45 +265,74 @@ export function TicketDetailDialog({
 
               {/* Comentarios */}
               <TabsContent value="comentarios" className="space-y-4 mt-4">
-                <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                  {ticket.comentarios && ticket.comentarios.length > 0 ? (
-                    ticket.comentarios.map((c, i) => (
-                      <div key={i} className={`flex gap-3 p-3 rounded-lg ${c.internal ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted"}`}>
-                        <Avatar className="h-8 w-8"><AvatarFallback>{(c.usuario ?? "?").charAt(0)}</AvatarFallback></Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1 gap-2">
-                            <span className="text-sm font-medium flex items-center gap-1">
-                              {c.usuario}
-                              {c.internal && <Lock className="h-3 w-3 text-amber-600" aria-label="Nota interna" />}
-                            </span>
-                            <span className="text-xs text-muted-foreground shrink-0">{new Date(c.fecha).toLocaleString("es-MX")}</span>
-                          </div>
-                          <p className="text-sm whitespace-pre-wrap">{c.texto}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No hay comentarios aún.</p>
-                  )}
+                <div className="max-h-[360px] overflow-y-auto pr-1">
+                  <CommentThread
+                    comments={ticket.comentarios}
+                    requesterId={ticket.requesterId}
+                    requesterName={ticket.usuario}
+                    onImageClick={setLightbox}
+                  />
                 </div>
 
-                <div className="space-y-2 pt-4 border-t">
-                  <Label>Agregar comentario</Label>
-                  <Textarea placeholder="Escribe tu comentario..." value={newComment} onChange={(e) => setNewComment(e.target.value)} rows={3} />
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-                      <Switch checked={internal} onCheckedChange={setInternal} />
-                      Nota interna (no visible al solicitante)
-                    </label>
-                    <Button onClick={submitComment} disabled={!newComment.trim() || isSubmitting} size="sm">
-                      <MessageSquare className="h-4 w-4 mr-2" /> Publicar
-                    </Button>
-                  </div>
-                </div>
+                <CommentComposer
+                  showInternal
+                  onSubmit={(texto, isInternal, imgs) => onAddComment(ticket.id, texto, isInternal, imgs)}
+                />
               </TabsContent>
 
               {/* Gestión */}
               <TabsContent value="gestion" className="space-y-4 mt-4">
+                {ticket.approvalStatus && ticket.approvalStatus !== "no_requiere" && (
+                  <div className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-sm font-medium"><Gavel className="h-4 w-4" /> Aprobación</span>
+                      <Badge variant="outline" className={getApprovalColor(ticket.approvalStatus)}>
+                        {getApprovalLabel(ticket.approvalStatus)}
+                      </Badge>
+                    </div>
+
+                    {ticket.approvalStatus === "pendiente" && (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Esta mejora requiere aprobación de la zona antes de pasar a desarrollo.
+                        </p>
+                        {canApprove ? (
+                          rejectMode ? (
+                            <div className="space-y-2">
+                              <Textarea placeholder="Motivo del rechazo…" value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} rows={2} />
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => { setRejectMode(false); setRejectNote("") }}>Cancelar</Button>
+                                <Button variant="destructive" size="sm" onClick={doReject} disabled={!rejectNote.trim() || approving}>
+                                  <ThumbsDown className="h-4 w-4 mr-2" /> Confirmar rechazo
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" className="bg-green-600 text-white hover:bg-green-700" onClick={doApprove} disabled={approving}>
+                                {approving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ThumbsUp className="h-4 w-4 mr-2" />} Aprobar
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => setRejectMode(true)} disabled={approving}>
+                                <ThumbsDown className="h-4 w-4 mr-2" /> Rechazar
+                              </Button>
+                            </div>
+                          )
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Esperando la aprobación de un autorizador de la zona.</p>
+                        )}
+                      </>
+                    )}
+                    {ticket.approvalStatus === "aprobado" && ticket.approvedByName && (
+                      <p className="text-xs text-muted-foreground">Aprobado por {ticket.approvedByName}.</p>
+                    )}
+                    {ticket.approvalStatus === "rechazado" && (
+                      <p className="text-xs text-red-600 break-words">
+                        Rechazado{ticket.approvedByName ? ` por ${ticket.approvedByName}` : ""}{ticket.approvalNote ? `: ${ticket.approvalNote}` : ""}.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-2 min-w-0">
                     <Label>Estado</Label>

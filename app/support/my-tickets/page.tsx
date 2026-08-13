@@ -22,7 +22,6 @@ import {
   Plus,
   Loader2,
 } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Inbox } from "lucide-react"
 import Link from "next/link"
 import {
@@ -31,16 +30,29 @@ import {
   getTicketTypeColor,
   getTicketStatusColor,
   getStatusLabel,
+  getApprovalColor,
+  getApprovalLabel,
 } from "@/lib/types/support-ticket"
 import { SupportTicketService } from "@/lib/services/support-ticket.service"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
+import { CommentComposer } from "@/components/support/comment-composer"
+import { CommentThread } from "@/components/support/comment-thread"
 
 export default function MyTicketsPage() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [filter, setFilter] = useState<"todos" | TicketStatus>("todos")
   const [isLoading, setIsLoading] = useState(true)
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const [lightbox, setLightbox] = useState<string | null>(null)
+
+  // El dueño del ticket responde/comenta (sin notas internas).
+  const onAddComment = async (texto: string, _internal: boolean, imagenes: File[]) => {
+    if (!selectedTicket) return
+    const updated = await SupportTicketService.addComment({ ticketId: selectedTicket.id, texto, imagenes })
+    setSelectedTicket(updated)
+    setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+  }
 
   // Cargar tickets del usuario al montar el componente
   useEffect(() => {
@@ -284,12 +296,27 @@ export default function MyTicketsPage() {
                       {getEstadoIcon(selectedTicket?.estado || "pendiente")}
                       <span className="ml-1">{getEstadoLabel(selectedTicket?.estado || "pendiente")}</span>
                     </Badge>
+                    {selectedTicket?.approvalStatus && selectedTicket.approvalStatus !== "no_requiere" && (
+                      <Badge variant="outline" className={getApprovalColor(selectedTicket.approvalStatus)}>
+                        {getApprovalLabel(selectedTicket.approvalStatus)}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
             </DialogHeader>
 
             <div className="space-y-4">
+              {selectedTicket?.approvalStatus === "pendiente" && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                  Tu solicitud está esperando la aprobación de la zona antes de pasar a desarrollo.
+                </div>
+              )}
+              {selectedTicket?.approvalStatus === "rechazado" && (
+                <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-400 break-words">
+                  Tu solicitud fue rechazada{selectedTicket.approvalNote ? `: ${selectedTicket.approvalNote}` : "."}
+                </div>
+              )}
               <div>
                 <h4 className="text-sm font-medium mb-2">Descripción</h4>
                 <p className="text-sm text-muted-foreground">{selectedTicket?.descripcion}</p>
@@ -312,40 +339,43 @@ export default function MyTicketsPage() {
                 )}
               </div>
 
-              {/* Timeline de Comentarios */}
-              {selectedTicket?.comentarios && selectedTicket.comentarios.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Actualizaciones y Comentarios
-                  </h4>
-                  <div className="space-y-3">
-                    {selectedTicket.comentarios.map((comment, index) => (
-                      <div key={index} className="flex gap-3 p-3 bg-muted rounded-lg">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback>{comment.usuario.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">{comment.usuario}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(comment.fecha).toLocaleString("es-MX", {
-                                dateStyle: "short",
-                                timeStyle: "short",
-                              })}
-                            </span>
-                          </div>
-                          <p className="text-sm">{comment.texto}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Timeline de Comentarios + responder */}
+              <div>
+                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Actualizaciones y Comentarios
+                </h4>
+                <CommentThread
+                  comments={selectedTicket?.comentarios}
+                  requesterId={selectedTicket?.requesterId}
+                  requesterName={selectedTicket?.usuario}
+                  onImageClick={setLightbox}
+                  emptyText="Aún no hay comentarios. Escribe abajo para dar seguimiento."
+                />
+
+                {selectedTicket && (
+                  <CommentComposer
+                    onSubmit={onAddComment}
+                    label="Responder"
+                    placeholder="Escribe una respuesta o agrega imágenes…"
+                  />
+                )}
+              </div>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-label="Vista de imagen"
+        >
+          <img src={lightbox} alt="Adjunto" className="max-h-[90vh] max-w-[90vw] rounded object-contain" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
       </div>
     </AppLayout>
   )

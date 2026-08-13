@@ -21,6 +21,8 @@ import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { KanbanBoard, type GroupBy, type SortBy } from "@/components/support/kanban-board"
 import { TicketDetailDialog } from "@/components/support/ticket-detail-dialog"
+import { SupportChannelsCard } from "@/components/support/support-channels-card"
+import { SupportAuthorizersCard } from "@/components/support/support-authorizers-card"
 import { getSubsidiaries } from "@/lib/services/subsidiaries"
 
 const OPEN_STATES: TicketStatus[] = ["pendiente", "por_hacer", "en_progreso", "en_revision"]
@@ -135,9 +137,21 @@ export default function SupportBoardPage() {
     try { patchLocal(id, await SupportTicketService.updateTicket(id, { asignadoAId: agentId })) }
     catch (e) { console.error(e) } finally { setIsSubmitting(false) }
   }
-  const onAddComment = async (id: string | number, texto: string, internal: boolean) => {
+  const onAddComment = async (id: string | number, texto: string, internal: boolean, imagenes: File[] = []) => {
     setIsSubmitting(true)
-    try { patchLocal(id, await SupportTicketService.addComment({ ticketId: id, texto, internal })) }
+    try { patchLocal(id, await SupportTicketService.addComment({ ticketId: id, texto, internal, imagenes })) }
+    catch (e) { console.error(e) } finally { setIsSubmitting(false) }
+  }
+
+  const onApprove = async (id: string | number) => {
+    setIsSubmitting(true)
+    try { patchLocal(id, await SupportTicketService.approveTicket(id)) }
+    catch (e) { console.error(e) } finally { setIsSubmitting(false) }
+  }
+
+  const onReject = async (id: string | number, note: string) => {
+    setIsSubmitting(true)
+    try { patchLocal(id, await SupportTicketService.rejectTicket(id, note)) }
     catch (e) { console.error(e) } finally { setIsSubmitting(false) }
   }
 
@@ -162,6 +176,12 @@ export default function SupportBoardPage() {
         <MetricCard icon={<TimerReset className="h-4 w-4 text-red-600" />} label="SLA vencido" value={metrics.vencidos} accent={metrics.vencidos > 0 ? "text-red-600" : ""} />
         <MetricCard icon={<CheckCircle2 className="h-4 w-4 text-green-600" />} label="Resueltos" value={metrics.resueltos} />
         <MetricCard icon={<Timer className="h-4 w-4 text-violet-600" />} label="Tiempo prom. resolución" value={formatHours(metrics.avgHours)} />
+      </div>
+
+      {/* Canales + autorizadores (solo superadmin) */}
+      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <SupportChannelsCard />
+        <SupportAuthorizersCard />
       </div>
 
       {/* Toolbar: filtros + agrupar/ordenar */}
@@ -241,6 +261,8 @@ export default function SupportBoardPage() {
         onUpdatePriority={onUpdatePriority}
         onAssign={onAssign}
         onAddComment={onAddComment}
+        onApprove={onApprove}
+        onReject={onReject}
       />
     </AppLayout>
   )
