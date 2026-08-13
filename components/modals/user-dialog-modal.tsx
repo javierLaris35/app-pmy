@@ -25,6 +25,7 @@ export interface UserFormData {
   name: string
   lastName: string
   email: string
+  phone?: string
   password?: string
   role: string
   subsidiary: { id: string } | null
@@ -72,6 +73,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
         name: user.name || "",
         lastName: user.lastName || "",
         email: user.email,
+        phone: (user as any).phone || "",
         role: (user.role as string) || "user",
         subsidiary: user.subsidiary ? { id: (user.subsidiary as any).id } : null,
         additionalSubsidiaries: (user.additionalSubsidiaries || []).map((s: any) => s.id),
@@ -126,6 +128,11 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
           <div className="space-y-2">
             <Label htmlFor="email">Correo</Label>
             <Input id="email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">Teléfono / WhatsApp</Label>
+            <Input id="phone" type="tel" placeholder="Ej. 526441234567" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
           </div>
 
           <div className="space-y-2">

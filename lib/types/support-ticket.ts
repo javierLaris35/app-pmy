@@ -37,6 +37,8 @@ export interface Ticket {
   urgencyScore?: number;
   ageHours?: number;
   timeInColumnHours?: number;
+  startedAt?: string | null;
+  workedHours?: number | null;
   // Aprobación (D)
   approvalStatus?: ApprovalStatus;
   approvalNote?: string | null;

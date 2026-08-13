@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, Calendar, Check, Copy, Gavel, Loader2, Network, RotateCcw, Sparkles, Tag, ThumbsDown, ThumbsUp, TimerReset, User, X } from "lucide-react"
+import { AlertTriangle, Calendar, Check, Copy, Gavel, Loader2, MessageCircle, Network, Play, RotateCcw, Sparkles, Tag, ThumbsDown, ThumbsUp, Timer, TimerReset, User, X } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import {
   type Ticket, type TicketPriority, type TicketStatus,
@@ -69,6 +69,22 @@ export function TicketDetailDialog({
   }, [])
 
   const canApprove = isSuper || (ticket?.zoneId ? myZones.includes(ticket.zoneId) : false)
+
+  const [notifying, setNotifying] = useState(false)
+  const notifyStatus = async () => {
+    if (!ticket) return
+    setNotifying(true)
+    try {
+      const r = await SupportTicketService.notifyStatus(ticket.id)
+      if (r.whatsapp.sent) toast({ title: "Estatus notificado al usuario (WhatsApp + campana)" })
+      else if (!r.hasPhone) toast({ title: "El usuario no tiene teléfono registrado", variant: "destructive" })
+      else toast({ title: `WhatsApp no enviado: ${r.whatsapp.error ?? "error"}`, variant: "destructive" })
+    } catch {
+      toast({ title: "No se pudo notificar el estatus", variant: "destructive" })
+    } finally {
+      setNotifying(false)
+    }
+  }
 
   const doApprove = async () => {
     if (!ticket || !onApprove) return
@@ -186,7 +202,7 @@ export function TicketDetailDialog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div className="rounded-lg border p-3 min-w-0">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><User className="h-3.5 w-3.5" /> Solicitante</div>
                     <div className="mt-1.5 flex items-center gap-1.5 min-w-0">
@@ -217,6 +233,16 @@ export function TicketDetailDialog({
                       {ticket.fechaCreacion ? new Date(ticket.fechaCreacion).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : "—"}
                       <span className="ml-1 text-xs font-normal text-muted-foreground">({formatHours(ticket.ageHours)})</span>
                     </p>
+                  </div>
+                  <div className="rounded-lg border p-3 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Play className="h-3.5 w-3.5" /> Inicio</div>
+                    <p className="mt-1.5 truncate text-sm font-medium">
+                      {ticket.startedAt ? new Date(ticket.startedAt).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Sin iniciar"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border p-3 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Timer className="h-3.5 w-3.5" /> Tiempo trabajado</div>
+                    <p className="mt-1.5 truncate text-sm font-medium">{ticket.workedHours != null ? formatHours(ticket.workedHours) : "—"}</p>
                   </div>
                   <div className="rounded-lg border p-3 min-w-0">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><TimerReset className="h-3.5 w-3.5" /> SLA objetivo</div>
@@ -371,6 +397,19 @@ export function TicketDetailDialog({
                   </div>
                 </div>
                 <p className="-mt-1 text-xs text-muted-foreground">Cambiar la prioridad recalcula el SLA y el orden de urgencia.</p>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <MessageCircle className="h-4 w-4 text-green-600" /> Notificar al usuario
+                    </p>
+                    <p className="text-xs text-muted-foreground">Envía el estatus actual al creador por WhatsApp y campana.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={notifyStatus} disabled={notifying}>
+                    {notifying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
+                    Notificar estatus
+                  </Button>
+                </div>
 
                 {isResolved && (
                   <div className="pt-2 border-t">

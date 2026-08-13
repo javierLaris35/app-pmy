@@ -58,6 +58,8 @@ function mapTicket(raw: any): Ticket {
     urgencyScore: raw?.urgencyScore,
     ageHours: raw?.ageHours,
     timeInColumnHours: raw?.timeInColumnHours,
+    startedAt: raw?.startedAt ?? null,
+    workedHours: raw?.workedHours ?? null,
     approvalStatus: raw?.approvalStatus,
     approvalNote: raw?.approvalNote ?? null,
     approvedByName: raw?.approvedByName ?? null,
@@ -142,6 +144,14 @@ async function sendChannelTest() {
   return res.data
 }
 
+/** Notifica el estatus del ticket a su creador (campana + WhatsApp). */
+async function notifyStatus(id: string | number) {
+  const res = await axiosConfig.post<{ whatsapp: { sent: boolean; error?: string }; hasPhone: boolean }>(
+    `${url}/tickets/${id}/notify-status`, {},
+  )
+  return res.data
+}
+
 // ---- Aprobación (D) ----
 async function approveTicket(id: string | number) {
   const res = await axiosConfig.post<any>(`${url}/tickets/${id}/approve`, {})
@@ -182,4 +192,5 @@ export const SupportTicketService = {
   getDevelopers, getSupportAgents: getDevelopers, getAiPrompt,
   getChannelHealth, sendChannelTest,
   approveTicket, rejectTicket, getMyApprovalZones, listAuthorizers, addAuthorizer, removeAuthorizer,
+  notifyStatus,
 };

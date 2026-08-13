@@ -7,12 +7,15 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from "@dnd-kit/core"
 import { Badge } from "@/components/ui/badge"
-import { Tag, TimerReset, User, Clock, MapPin } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Tag, TimerReset, Clock, MapPin, Gavel, Timer } from "lucide-react"
 import {
   type Ticket, type TicketStatus,
   KANBAN_COLUMNS, getTicketPriorityColor, getPriorityLabel, formatHours,
+  getApprovalColor, getApprovalLabel,
 } from "@/lib/types/support-ticket"
 import { EstadoIcon, TipoIcon, getTipoColor, getColumnAccent } from "./support-ui"
+import { avatarStyle, initialsFrom } from "@/lib/support/avatar"
 
 export type GroupBy = "ninguno" | "prioridad" | "tipo" | "sucursal"
 export type SortBy = "urgencia" | "antiguedad" | "prioridad"
@@ -77,6 +80,11 @@ function TicketCard({ ticket, onOpen, subsidiaryName }: { ticket: Ticket; onOpen
         <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${getTipoColor(ticket.tipo)}`}>
           <TipoIcon tipo={ticket.tipo} className="h-2.5 w-2.5" /><span className="ml-0.5 capitalize">{ticket.tipo}</span>
         </Badge>
+        {(ticket.approvalStatus === "pendiente" || ticket.approvalStatus === "rechazado") && (
+          <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${getApprovalColor(ticket.approvalStatus)}`}>
+            <Gavel className="h-2.5 w-2.5 mr-0.5" />{getApprovalLabel(ticket.approvalStatus)}
+          </Badge>
+        )}
         {overdue && (
           <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-red-500/10 text-red-600 border-red-500/30">
             <TimerReset className="h-2.5 w-2.5 mr-0.5" />Vencido
@@ -84,9 +92,21 @@ function TicketCard({ ticket, onOpen, subsidiaryName }: { ticket: Ticket; onOpen
         )}
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1 truncate max-w-[55%]"><User className="h-3 w-3 shrink-0" />{ticket.usuario ?? "—"}</span>
-        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatHours(ticket.ageHours)}</span>
+      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 truncate">
+          <Avatar className="h-5 w-5 shrink-0">
+            <AvatarFallback style={avatarStyle(ticket.asignadoA ?? ticket.usuario)} className="text-[9px] font-semibold">
+              {initialsFrom(ticket.asignadoA ?? ticket.usuario)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate">{ticket.asignadoA ?? ticket.usuario ?? "Sin asignar"}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {ticket.workedHours != null && (
+            <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{formatHours(ticket.workedHours)}</span>
+          )}
+          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatHours(ticket.ageHours)}</span>
+        </span>
       </div>
       {subsidiaryName && ticket.subsidiaryId && (
         <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
