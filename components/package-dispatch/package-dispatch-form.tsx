@@ -19,6 +19,7 @@ import { Input } from "../ui/input";
 import { ScanInput, ScanInputHandle, ScanResolution } from "@/components/scanner/scan-input";
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -130,8 +131,16 @@ const PackageDispatchForm: React.FC<Props> = ({
     undefined
   );
   const [selectedKms, setSelectedKms] = useLocalStorage<string>(
-    'dispatch_kms', 
+    'dispatch_kms',
     ""
+  );
+  const [routeDate, setRouteDate] = useLocalStorage<string>(
+    'dispatch_route_date',
+    new Date().toLocaleDateString('en-CA'), // 'YYYY-MM-DD' local
+  );
+  const [is315, setIs315] = useLocalStorage<boolean>(
+    'dispatch_is315',
+    false,
   );
   const [packages, setPackages] = useLocalStorage<PackageInfo[]>(
     'dispatch_packages', 
@@ -393,7 +402,9 @@ const PackageDispatchForm: React.FC<Props> = ({
       'dispatch_kms',
       'dispatch_packages',
       'dispatch_invalid_numbers',
-      'dispatch_tracking_raw'
+      'dispatch_tracking_raw',
+      'dispatch_route_date',
+      'dispatch_is315'
     ];
 
     // Usar Promise.all para limpiar de forma más robusta
@@ -415,6 +426,8 @@ const PackageDispatchForm: React.FC<Props> = ({
       setSelectedRutas([]);
       setSelectedUnidad(undefined);
       setSelectedKms("");
+      setRouteDate(new Date().toLocaleDateString('en-CA'));
+      setIs315(false);
       setPackages([]);
       setInvalidNumbers([]);
       setTrackingNumbersRaw("");
@@ -430,6 +443,8 @@ const PackageDispatchForm: React.FC<Props> = ({
     setSelectedRutas,
     setSelectedUnidad,
     setSelectedKms,
+    setRouteDate,
+    setIs315,
     setPackages,
     setInvalidNumbers,
     setTrackingNumbersRaw
@@ -501,11 +516,13 @@ const PackageDispatchForm: React.FC<Props> = ({
         routes: selectedRutas,
         vehicle: selectedUnidad,
         shipments: validPackages.map((p) => p.id).filter(Boolean),
-        subsidiary: { 
-          id: selectedSubsidiaryId, 
-          name: selectedSubsidiaryName || "Unknown" 
+        subsidiary: {
+          id: selectedSubsidiaryId,
+          name: selectedSubsidiaryName || "Unknown"
         },
-        kms: selectedKms
+        kms: selectedKms,
+        routeDate: routeDate,
+        is315: is315,
       };
 
       const dispatchResponse = await savePackageDispatch(dispatchData);
@@ -826,13 +843,38 @@ const PackageDispatchForm: React.FC<Props> = ({
               
               <div className="space-y-3">
                 <Label>Kilometraje Actual</Label>
-                <Input 
-                  type="text" 
+                <Input
+                  type="text"
                   value={selectedKms}
                   onChange={(e) => setSelectedKms(e.target.value)}
                   placeholder="Ingresa el kilometraje"
                   disabled={isLoading}
                   className="w-full"
+                />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <Label>Fecha de ruta</Label>
+                <Input
+                  type="date"
+                  value={routeDate}
+                  onChange={(e) => setRouteDate(e.target.value)}
+                  disabled={isLoading}
+                  className="w-full"
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="is315-switch">¿Ruta 31.5?</Label>
+                <Switch
+                  id="is315-switch"
+                  checked={is315}
+                  onCheckedChange={setIs315}
+                  disabled={isLoading}
                 />
               </div>
             </CardContent>

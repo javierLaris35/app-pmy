@@ -645,6 +645,8 @@ export interface DispatchFormData {
   shipments: string[]
   subsidiary: Subsidiary
   kms?: string
+  routeDate?: string   // 'YYYY-MM-DD' — fecha operativa de la ruta (default hoy)
+  is315?: boolean      // ruta 31.5: los No VAN no generan ingreso
 }
 
 /*** Administration */
