@@ -91,10 +91,18 @@ Vía `tailwindcss-animate` (ya en `tailwind.config.ts`, plugin activo):
 
 ## Migración de referencia + rollout
 
-- **Referencia (esta entrega):** convertir el filtro "Sucursal" de
-  `app/ingresos/page.tsx` (hoy `SucursalSelector` detrás de un ícono `Filter`)
-  a `FilterChip`, como ejemplo canónico de uso fuera de tabla. Bajo riesgo,
-  una sola página.
+**Hallazgo (2026-08-14):** el destino de referencia propuesto
+(`app/ingresos` → `SucursalSelector`) NO es un simple `Select` de filtro: es un
+selector con lógica (hook `useSubsidiaries()`, scoping por rol espejo del
+backend, selección por defecto, badge "Principal"). Lo mismo aplica a
+`ConsolidadoSelect`/`UnloadingSelect` en `pagos-fedex`. Reemplazarlos por un
+`FilterChip` pelón perdería funcionalidad. Por eso NO se migra ninguno en esta
+entrega.
+
+- **Esta entrega NO incluye migración de páginas.** El valor de
+  estandarización queda entregado por el primitivo (`FilterChip`, reusable en
+  cualquier lugar) + el adapter (`DataTableFacetedFilter`), con lo que TODAS las
+  tablas existentes ya muestran el chip desde una sola fuente de estilo.
 - **Rollout gradual (fuera de esta entrega):** las demás vistas
   (gastos, dashboard, monitoreo-rutas, reportes, support…) adoptan `FilterChip`
   reemplazando sus `Select`/`Dropdown` de filtrado, una por una, con esta receta:
