@@ -290,7 +290,7 @@ export function ShipmentWizardModal({
       else if (step === 1 && files[1]) { res = await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true); uploaded = true }
       else if (step === 2 && files[2]) { res = await uploadHighValueShipments(files[2], sucursalId, consNumber, date || ""); uploaded = true }
       else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge, isHalfTon); uploaded = true }
-      else if (step === 4 && files[4]) { res = await uploadShipmentPayments(files[4]); uploaded = true }
+      else if (step === 4 && files[4]) { res = await uploadShipmentPayments(files[4], consNumber); uploaded = true }
 
       if (res) toast.success(summarizeResult(step, res))
       if (uploaded) setUploadedSteps((prev) => new Set(prev).add(step))
@@ -319,6 +319,14 @@ export function ShipmentWizardModal({
       if (res?.summary) return `F2: ${res.summary.migrated ?? 0} migradas, ${res.summary.insertedNew ?? 0} nuevas${res.summary.failed ? `, ${res.summary.failed} con error` : ""}.`
       const n = res?.savedChargeShipments?.length ?? 0
       return `Cargos: ${n} guardados.`
+    }
+    if (st === 4) {
+      // Sin archivo el backend devuelve string informativo; con archivo, conteos.
+      if (typeof res === "string") return res
+      const toShip = res?.applied ?? 0
+      const toCharges = res?.appliedToCharges ?? 0
+      const unmatched = res?.unmatched ?? 0
+      return `Cobros: ${toShip + toCharges} aplicados${toCharges ? ` (${toCharges} a cargas)` : ""}${unmatched ? `, ${unmatched} sin match` : ""}.`
     }
     return `${steps[st].label}: procesado correctamente.`
   }

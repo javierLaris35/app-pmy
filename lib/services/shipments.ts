@@ -261,10 +261,14 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
 
   export async function uploadShipmentPayments(
     file?: File,
+    consNumber?: string,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData()
     if (file) formData.append("file", file)
+    // consNumber acota el match del cobro al consolidado capturado en el wizard
+    // (shipment o charge_shipment). Ver processFileCharges en el backend.
+    if (consNumber) formData.append("consNumber", consNumber)
 
     try {
       const response = await axiosConfig.post("/shipments/upload-payment", formData, {
