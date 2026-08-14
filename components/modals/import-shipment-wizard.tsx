@@ -316,9 +316,16 @@ export function ShipmentWizardModal({
       return `${steps[st].label}: ${s} guardadas${d ? `, ${d} duplicadas` : ""}${f ? `, ${f} con error` : ""}.`
     }
     if (st === 3) {
-      if (res?.summary) return `F2: ${res.summary.migrated ?? 0} migradas, ${res.summary.insertedNew ?? 0} nuevas${res.summary.failed ? `, ${res.summary.failed} con error` : ""}.`
+      // Migrar (processFileF2): summary con migradas/nuevas/duplicadas.
+      if (res?.summary) {
+        const dup = res.summary.duplicated ? `, ${res.summary.duplicated} duplicadas` : ""
+        return `F2: ${res.summary.migrated ?? 0} migradas, ${res.summary.insertedNew ?? 0} nuevas${dup}${res.summary.failed ? `, ${res.summary.failed} con error` : ""}.`
+      }
+      // Sin migrar (addChargeShipments): re-subida completa devuelve message.
+      if (res?.message) return res.message
       const n = res?.savedChargeShipments?.length ?? 0
-      return `Cargos: ${n} guardados.`
+      const dup = res?.duplicated ? ` (${res.duplicated} duplicadas omitidas)` : ""
+      return `Cargos: ${n} guardados${dup}.`
     }
     if (st === 4) {
       // Sin archivo el backend devuelve string informativo; con archivo, conteos.
