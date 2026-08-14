@@ -100,6 +100,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "@types/leaflet": "^1.9.21",
     "@types/lodash": "^4.17.24",
     "@types/node": "^25",

@@ -27,13 +27,12 @@ import { useUiStore } from "@/store/ui.store"
 import { ensureClientMeta } from "@/lib/client-meta"
 import { initOfflineSync } from "@/lib/offline/sync"
 import { useOfflineStore } from "@/lib/offline/offline-store"
-import { WifiOff, CloudUpload, MapPin, Search, Plus, Sparkles, LifeBuoy, HeadsetIcon, Inbox, KanbanSquare, PlusCircle } from "lucide-react"
+import { WifiOff, CloudUpload, MapPin, Search, Plus, Gauge, LifeBuoy, HeadsetIcon, Inbox, KanbanSquare, PlusCircle } from "lucide-react"
 
 /** Roles que pueden ver el Tablero (gestión) de Soporte. */
 const SUPPORT_ADMIN_ROLES = ["admin", "superadmin", "superamin", "owner"]
 
 /** Solo en desarrollo se muestra el acceso a la bienvenida. */
-const IS_DEV = process.env.NODE_ENV === "development"
 
 /** Títulos por ruta para el header unificado cuando la pantalla no define OperationHeader. */
 const ROUTE_TITLES: Record<string, string> = {
@@ -281,22 +280,20 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {IS_DEV && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 rounded-full text-purple-600 hover:bg-purple-100 hover:text-purple-700"
-                      onClick={() => setWelcomeOpen(true)}
-                      aria-label="Ver bienvenida"
-                    >
-                      <Sparkles className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Ver bienvenida (solo dev)</TooltipContent>
-                </Tooltip>
-              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full text-amber-600 hover:bg-amber-100 hover:text-amber-700 ring-1 ring-amber-200 animate-pulse hover:animate-none"
+                    onClick={() => setWelcomeOpen(true)}
+                    aria-label="Ver resumen operativo del día"
+                  >
+                    <Gauge className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Resumen del día · pendientes y sin escaneo</TooltipContent>
+              </Tooltip>
 
               <NotificationBell />
             </div>

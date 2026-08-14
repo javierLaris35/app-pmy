@@ -6,8 +6,8 @@ import DashboardWelcomeWrapper from "./DashboardWelcomeWrapper";
 
 export default function DashboardWelcomeClient() {
   const user = useAuthStore((s) => s.user);
-  
-  if (!user) return null;
-  
+
+  if (!user?.id) return null;
+
   return <DashboardWelcomeWrapper userId={user.id} />;
 }

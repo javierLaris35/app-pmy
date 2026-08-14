@@ -150,15 +150,14 @@ export const fetchInventario67Excel = async (subsidiaryId: string, nombre?: stri
   return res.data as Blob;
 };
 
-// ----- Reporte "Sin código 44" (como Inventarios/Visibilidad 67, pero MULTI-sucursal/zona) -----
-export const fetchInventoryCodeReportMultiJson = async (
-  subsidiaryIds: string[],
-  from?: string,
-  to?: string,
-  code: "67" | "44" = "44",
-) => {
-  const res = await axiosConfig.post(`inventories/visibility-report-multi`, { subsidiaryIds, from, to, code });
-  // { summary, details: [{ trackingNumber, status, subsidiaryId, subsidiaryName, lastCodeDate, daysSinceLastCode, category, inventories[], ... }] }
+// ----- Reporte "Sin código de escaneo" (front: "Sin código 44"), MULTI-sucursal/zona -----
+// Lista los paquetes ACTIVOS (pendiente/en_bodega) y usa el código que monitorea CADA sucursal
+// (44 si monitorFedexCode44, si no 67). Ya NO se ancla a inventarios ni recibe rango de fechas.
+export const fetchInventoryCodeReportMultiJson = async (subsidiaryIds: string[]) => {
+  const res = await axiosConfig.post(`inventories/visibility-report-multi`, { subsidiaryIds });
+  // { summary:{ paquetes, conCodigoHoy, sinCodigo, nunca },
+  //   details: [{ trackingNumber, status, subsidiaryId, subsidiaryName, scanCode, lastCodeDate,
+  //               daysSinceLastCode, hasCodeToday, category, ... }] }
   return res.data as { summary?: Record<string, any>; details: any[] };
 };
 

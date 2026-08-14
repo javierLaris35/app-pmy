@@ -228,7 +228,7 @@ export default function DashboardWelcome({ open, onOpenChange, userId }: Dashboa
 
   const distribution = [
     { key: "expiring" as FilterKey, label: "Vencen hoy", value: stats.expiringToday, bar: "bg-red-500", dot: "bg-red-500" },
-    { key: "dex" as FilterKey, label: "Sin 67", value: stats.withoutDEX, bar: "bg-amber-500", dot: "bg-amber-500" },
+    { key: "dex" as FilterKey, label: "Sin escaneo", value: stats.withoutDEX, bar: "bg-amber-500", dot: "bg-amber-500" },
     { key: "pending" as FilterKey, label: "Pendientes", value: stats.pendingYesterday, bar: "bg-slate-400", dot: "bg-slate-400" },
   ];
 
@@ -236,7 +236,7 @@ export default function DashboardWelcome({ open, onOpenChange, userId }: Dashboa
     { key: "all", label: "Todos", count: feed.length },
     { key: "critical", label: "Críticos", count: criticalCount },
     { key: "expiring", label: "Vencen hoy", count: stats.expiringToday },
-    { key: "dex", label: "Sin 67", count: stats.withoutDEX },
+    { key: "dex", label: "Sin escaneo", count: stats.withoutDEX },
     { key: "pending", label: "Pendientes", count: stats.pendingYesterday },
   ];
 
@@ -342,9 +342,9 @@ export default function DashboardWelcome({ open, onOpenChange, userId }: Dashboa
                   active={filter === "dex"}
                   onClick={() => setFilter("dex")}
                   icon={FileWarning}
-                  label="Sin DEX / 67"
+                  label="Sin escaneo local"
                   value={stats.withoutDEX}
-                  hint="Bloquean procesamiento"
+                  hint="Sin código 67/44 según la sucursal"
                   tone={stats.withoutDEX > 0 ? "warn" : "ok"}
                 />
                 <KpiCard

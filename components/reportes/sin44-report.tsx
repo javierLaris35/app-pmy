@@ -8,7 +8,6 @@ import {
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -18,9 +17,8 @@ import { StatBar, type StatItem } from "@/components/shared/stat-bar";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { useZones } from "@/hooks/services/zones/use-zones";
-import { todayInputValue, addDaysInputValue } from "@/utils/date.utils";
 import {
-  fetchInventoryCodeReportMultiJson, fetchVisibility44FedexCheck, updatePendingOne,
+  fetchInventoryCodeReportMultiJson, fetchVisibility44FedexCheck, fetchVisibility67FedexCheck, updatePendingOne,
 } from "@/lib/services/reportes/reportes";
 import { buildVisibility44Excel } from "@/lib/services/reportes/visibilidad44-excel";
 
@@ -44,8 +42,6 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
   const [mode, setMode] = useState<"sucursal" | "zona">("sucursal");
   const [subsidiaryIds, setSubsidiaryIds] = useState<string[]>([]);
   const [zoneId, setZoneId] = useState<string>("");
-  const [start, setStart] = useState<string>(addDaysInputValue(-10));
-  const [end, setEnd] = useState<string>(todayInputValue());
 
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<Record<string, any> | undefined>(undefined);
@@ -56,13 +52,6 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
   const [includeSundays, setIncludeSundays] = useState(true);
   const [fedexConfirmed, setFedexConfirmed] = useState(false);
   const [updating, setUpdating] = useState<Set<string>>(new Set());
-
-  const presetRange = (preset: "today" | "yesterday" | "week" | "month") => {
-    if (preset === "today") return { start: todayInputValue(), end: todayInputValue() };
-    if (preset === "yesterday") return { start: addDaysInputValue(-1), end: addDaysInputValue(-1) };
-    if (preset === "week") return { start: addDaysInputValue(-6), end: todayInputValue() };
-    return { start: addDaysInputValue(-29), end: todayInputValue() };
-  };
 
   // Sucursales que efectivamente están seleccionadas en modo "zona" (para mostrarlas y exportarlas).
   const zoneSubsidiaryIds = useMemo(
@@ -81,13 +70,12 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     }
     setIsLoading(true);
     try {
-      const { summary, details } = await fetchInventoryCodeReportMultiJson(effectiveSubsidiaryIds, start, end, "44");
+      const { summary, details } = await fetchInventoryCodeReportMultiJson(effectiveSubsidiaryIds);
       setRows(details || []);
       setSummary({
-        Inventarios: summary?.inventarios ?? 0,
         Paquetes: summary?.paquetes ?? (details?.length || 0),
-        "Con 44 hoy": summary?.conCodigoHoy ?? 0,
-        "Sin 44 hoy": summary?.sinCodigo ?? 0,
+        "Con código hoy": summary?.conCodigoHoy ?? 0,
+        "Sin código hoy": summary?.sinCodigo ?? 0,
         Nunca: summary?.nunca ?? 0,
       });
       setHasRun(true);
@@ -98,36 +86,42 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     } finally { setIsLoading(false); }
   };
 
-  const handleFedex44Check = async () => {
+  // Confirma con FedEx usando el código que monitorea CADA sucursal: las guías de sucursales de
+  // código 44 van al check de 44, las de 67 al check de 67. Se normaliza a los mismos campos `__`
+  // (días sin código / faltantes) para la tabla y el Excel.
+  const handleFedexCheck = async () => {
     setFedexLoading(true);
     try {
       const targets = rows.filter(isFedexRow);
-      const res = await fetchVisibility44FedexCheck(
-        targets.map((r) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId })),
-        includeSundays,
-      );
+      const toItem = (r: any) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId });
+      const items44 = targets.filter((r) => String(r.scanCode) === "44").map(toItem);
+      const items67 = targets.filter((r) => String(r.scanCode) !== "44").map(toItem);
+      const [res44, res67] = await Promise.all([
+        items44.length ? fetchVisibility44FedexCheck(items44, includeSundays) : Promise.resolve({} as Record<string, any>),
+        items67.length ? fetchVisibility67FedexCheck(items67, includeSundays) : Promise.resolve({} as Record<string, any>),
+      ]);
       setRows((prev) =>
         prev.map((r) => {
-          const f = res[r.trackingNumber];
-          return f
-            ? {
-                ...r,
-                __diasSin44: f.daysWithout44,
-                __dias44: f.daysWith44,
-                __missing44: f.missingDates,
-                __win44: `${f.windowStart ?? "?"} → ${f.windowEnd ?? "?"}`,
-                __events: f.events,
-                __lastMovement: f.lastMovement,
-                __fedexStatus: f.fedexStatus,
-                __fedexRaw: f.fedexRaw,
-                __fedexCode: f.derivedCode,
-                __fedexExc: f.exceptionCode,
-              }
-            : r;
+          const is44 = String(r.scanCode) === "44";
+          const f: any = (is44 ? res44 : res67)[r.trackingNumber];
+          if (!f) return r;
+          return {
+            ...r,
+            __diasSin44: is44 ? f.daysWithout44 : f.daysWithout67,
+            __dias44: is44 ? f.daysWith44 : f.daysWith67,
+            __missing44: f.missingDates,
+            __win44: `${f.windowStart ?? "?"} → ${f.windowEnd ?? "?"}`,
+            __events: f.events,
+            __lastMovement: f.lastMovement,
+            __fedexStatus: f.fedexStatus,
+            __fedexRaw: f.fedexRaw,
+            __fedexCode: f.derivedCode,
+            __fedexExc: f.exceptionCode,
+          };
         }),
       );
       setFedexConfirmed(true);
-      toast.success("Código 44 confirmado con FedEx.");
+      toast.success("Visibilidad confirmada con FedEx.");
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo consultar FedEx.");
     } finally { setFedexLoading(false); }
@@ -184,21 +178,22 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     { id: "trackingNumber", accessorFn: (r) => r.trackingNumber, header: "Guía", cell: ({ getValue }) => <span className="font-mono text-xs">{String(getValue())}</span> },
     { id: "subsidiaryName", accessorFn: (r) => r.subsidiaryName || "—", header: "Sucursal", filterFn: inArray },
     { id: "tipo", accessorFn: (r) => tipoLabel(r.shipmentType), header: "Tipo", filterFn: inArray },
+    { id: "scanCode", accessorFn: (r) => String(r.scanCode ?? "67"), header: "Código", cell: ({ getValue }) => <span className="font-mono text-xs">{String(getValue())}</span>, filterFn: inArray },
     { id: "status", accessorFn: (r) => prettyStatus(r.status), header: "Estatus", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span>, filterFn: inArray },
     {
-      id: "diasSin44",
-      header: "Días sin 44",
+      id: "diasSinCodigo",
+      header: "Días sin código",
       accessorFn: (r) => (r.daysSinceLastCode == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLastCode)),
       cell: ({ row }) => {
         const r = row.original;
         return r.daysSinceLastCode == null ? "Nunca" : r.daysSinceLastCode === 0 ? "Hoy (0)" : String(r.daysSinceLastCode);
       },
     },
-    { id: "lastCodeDate", accessorFn: (r) => r.lastCodeDate, header: "Último 44", cell: ({ row }) => row.original.lastCodeDate ? new Date(row.original.lastCodeDate).toLocaleDateString("es-MX") : "—" },
+    { id: "lastCodeDate", accessorFn: (r) => r.lastCodeDate, header: "Último escaneo", cell: ({ row }) => row.original.lastCodeDate ? new Date(row.original.lastCodeDate).toLocaleDateString("es-MX") : "—" },
     {
       id: "categoria",
       header: "Visibilidad",
-      accessorFn: (r) => (r.category === "hoy" ? "Con 44 hoy" : r.category === "nunca" ? "Nunca" : "Sin 44 hoy"),
+      accessorFn: (r) => (r.category === "hoy" ? "Con código hoy" : r.category === "nunca" ? "Nunca" : "Sin código hoy"),
       filterFn: inArray,
     },
     { id: "recipientName", accessorFn: (r) => r.recipientName, header: "Destinatario" },
@@ -250,7 +245,8 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
         .sort()
         .map((v) => ({ label: String(v), value: String(v) }));
     return [
-      { columnId: "categoria", title: "Visibilidad", options: opts((r) => (r.category === "hoy" ? "Con 44 hoy" : r.category === "nunca" ? "Nunca" : "Sin 44 hoy")) },
+      { columnId: "categoria", title: "Visibilidad", options: opts((r) => (r.category === "hoy" ? "Con código hoy" : r.category === "nunca" ? "Nunca" : "Sin código hoy")) },
+      { columnId: "scanCode", title: "Código", options: opts((r) => String(r.scanCode ?? "67")) },
       { columnId: "tipo", title: "Tipo", options: opts((r) => tipoLabel(r.shipmentType)) },
       { columnId: "status", title: "Estatus", options: opts((r) => prettyStatus(r.status)) },
       { columnId: "subsidiaryName", title: "Sucursal", options: opts((r) => r.subsidiaryName || "—") },
@@ -309,20 +305,6 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
                 )}
               </div>
             )}
-            <div>
-              <label className="text-[11px] font-medium text-muted-foreground block">Desde</label>
-              <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="h-9 w-[150px]" />
-            </div>
-            <div>
-              <label className="text-[11px] font-medium text-muted-foreground block">Hasta</label>
-              <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="h-9 w-[150px]" />
-            </div>
-            <div className="flex items-end gap-1">
-              {([["today", "Hoy"], ["yesterday", "Ayer"], ["week", "Semana"], ["month", "Mes"]] as const).map(([key, label]) => (
-                <Button key={key} type="button" variant="outline" size="sm" className="h-9"
-                  onClick={() => { const r = presetRange(key); setStart(r.start); setEnd(r.end); }}>{label}</Button>
-              ))}
-            </div>
             <Button onClick={load} disabled={isLoading || effectiveSubsidiaryIds.length === 0}>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Generar
             </Button>
@@ -335,8 +317,8 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
                   <Switch id="inc-sundays-44" checked={includeSundays} onCheckedChange={setIncludeSundays} />
                   <Label htmlFor="inc-sundays-44" className="text-xs cursor-pointer">Incluir domingos</Label>
                 </div>
-                <Button variant="outline" onClick={handleFedex44Check} disabled={fedexLoading}>
-                  {fedexLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar 44 con FedEx
+                <Button variant="outline" onClick={handleFedexCheck} disabled={fedexLoading}>
+                  {fedexLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar con FedEx
                 </Button>
               </>
             )}
@@ -349,12 +331,12 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
       {!hasRun ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">
           <EyeOff className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          Elige sucursales (o una zona) y el rango, y presiona <b className="mx-1">Generar</b>.
+          Elige sucursales (o una zona) y presiona <b className="mx-1">Generar</b>.
         </CardContent></Card>
       ) : rows.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">
           <EyeOff className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          No hay paquetes en inventario para esa selección y rango.
+          No hay paquetes activos (pendiente / en bodega) para esa selección.
         </CardContent></Card>
       ) : (
         <Card>
