@@ -6,11 +6,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { FilterChip } from "@/components/ui/filter-chip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   KanbanSquare, Search, RefreshCw, Loader2, Filter, Layers, ArrowDownWideNarrow,
-  Inbox, TimerReset, CheckCircle2, Timer,
+  Inbox, TimerReset, CheckCircle2, Timer, Settings, MessageSquare, ShieldCheck,
 } from "lucide-react"
 import {
   type Ticket, type TicketStatus, type TicketPriority,
@@ -24,8 +27,24 @@ import { TicketDetailDialog } from "@/components/support/ticket-detail-dialog"
 import { SupportChannelsCard } from "@/components/support/support-channels-card"
 import { SupportAuthorizersCard } from "@/components/support/support-authorizers-card"
 import { getSubsidiaries } from "@/lib/services/subsidiaries"
+import { useAuthStore } from "@/store/auth.store"
+import { matchesTicketFilters, NONE_KEY, type TicketFilterState } from "@/lib/support/ticket-filters"
 
 const OPEN_STATES: TicketStatus[] = ["pendiente", "por_hacer", "en_progreso", "en_revision"]
+const SUPER_ROLES = ["superadmin", "superamin"]
+
+const TIPO_OPTIONS = [
+  { label: "Errores", value: "error" },
+  { label: "Mejoras", value: "mejora" },
+  { label: "Cambios", value: "cambio" },
+  { label: "Eliminaciones", value: "eliminar" },
+]
+const PRIORIDAD_OPTIONS = [
+  { label: "Urgente", value: "urgente" },
+  { label: "Alta", value: "alta" },
+  { label: "Media", value: "media" },
+  { label: "Baja", value: "baja" },
+]
 
 export default function SupportBoardPage() {
   const params = useSearchParams()
@@ -39,12 +58,17 @@ export default function SupportBoardPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("ninguno")
   const [sortBy, setSortBy] = useState<SortBy>("urgencia")
 
-  // Filtros
+  // Filtros (multi-select: arreglo vacío = sin filtro)
   const [search, setSearch] = useState("")
-  const [fTipo, setFTipo] = useState("todos")
-  const [fPrioridad, setFPrioridad] = useState("todos")
-  const [fSucursal, setFSucursal] = useState("todos")
-  const [fAsignado, setFAsignado] = useState("todos")
+  const [fTipos, setFTipos] = useState<string[]>([])
+  const [fPrioridades, setFPrioridades] = useState<string[]>([])
+  const [fSucursales, setFSucursales] = useState<string[]>([])
+  const [fAsignados, setFAsignados] = useState<string[]>([])
+
+  // Rol + modal de configuración (canales + autorización, solo superadmin)
+  const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase()
+  const isSuper = SUPER_ROLES.includes(role)
+  const [configOpen, setConfigOpen] = useState(false)
 
   useEffect(() => { loadTickets(); loadAgents(); loadSubsidiaries() }, [])
 
@@ -99,16 +123,31 @@ export default function SupportBoardPage() {
 
   // Aplica filtros en cliente (el tablero necesita el set completo para las columnas).
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return tickets.filter((t) => {
-      if (fTipo !== "todos" && t.tipo !== fTipo) return false
-      if (fPrioridad !== "todos" && t.prioridad !== fPrioridad) return false
-      if (fSucursal !== "todos" && (t.subsidiaryId ?? "__none__") !== fSucursal) return false
-      if (fAsignado !== "todos" && String(t.asignadoAId ?? "") !== fAsignado) return false
-      if (q && !(`${t.titulo} ${t.descripcion} ${t.usuario ?? ""} ${t.folio ?? ""}`.toLowerCase().includes(q))) return false
-      return true
-    })
-  }, [tickets, search, fTipo, fPrioridad, fSucursal, fAsignado])
+    const f: TicketFilterState = {
+      search,
+      tipos: fTipos,
+      prioridades: fPrioridades,
+      asignados: fAsignados,
+      sucursales: fSucursales,
+    }
+    return tickets.filter((t) => matchesTicketFilters(t, f))
+  }, [tickets, search, fTipos, fPrioridades, fSucursales, fAsignados])
+
+  // Opciones dinámicas de los chips derivadas de datos cargados.
+  const asignadoOptions = useMemo(
+    () => [
+      ...agents.map((a) => ({ label: a.nombre, value: String(a.id) })),
+      { label: "Sin asignar", value: NONE_KEY },
+    ],
+    [agents],
+  )
+  const sucursalOptions = useMemo(
+    () => [
+      ...Object.entries(subsidiaries).map(([id, name]) => ({ label: name, value: id })),
+      { label: "Sin sucursal", value: NONE_KEY },
+    ],
+    [subsidiaries],
+  )
 
   const metrics = useMemo(() => {
     const abiertos = tickets.filter((t) => OPEN_STATES.includes(t.estado)).length
@@ -182,9 +221,16 @@ export default function SupportBoardPage() {
   }
 
   const headerActions = (
-    <Button variant="outline" size="sm" onClick={loadTickets} disabled={isLoading}>
-      <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />Actualizar
-    </Button>
+    <div className="flex items-center gap-2">
+      {isSuper && (
+        <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
+          <Settings className="h-4 w-4 mr-2" />Configuración
+        </Button>
+      )}
+      <Button variant="outline" size="sm" onClick={loadTickets} disabled={isLoading}>
+        <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />Actualizar
+      </Button>
+    </div>
   )
 
   return (
@@ -204,32 +250,18 @@ export default function SupportBoardPage() {
         <MetricCard icon={<Timer className="h-4 w-4 text-violet-600" />} label="Tiempo prom. resolución" value={formatHours(metrics.avgHours)} />
       </div>
 
-      {/* Canales + autorizadores (solo superadmin) */}
-      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <SupportChannelsCard />
-        <SupportAuthorizersCard />
-      </div>
-
-      {/* Toolbar: filtros + agrupar/ordenar */}
+      {/* Toolbar: filtros (estilo chip) + agrupar/ordenar */}
       <Card className="mb-4">
         <CardContent className="p-3 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-            <div className="relative md:col-span-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-[260px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Buscar folio, título, usuario…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+              <Input placeholder="Buscar folio, título, usuario…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8" />
             </div>
-            <FilterSelect value={fTipo} onChange={setFTipo} placeholder="Tipo" options={[
-              { v: "todos", l: "Todos los tipos" }, { v: "error", l: "Errores" }, { v: "mejora", l: "Mejoras" },
-              { v: "cambio", l: "Cambios" }, { v: "eliminar", l: "Eliminaciones" },
-            ]} />
-            <FilterSelect value={fPrioridad} onChange={setFPrioridad} placeholder="Prioridad" options={[
-              { v: "todos", l: "Toda prioridad" }, { v: "urgente", l: "Urgente" }, { v: "alta", l: "Alta" },
-              { v: "media", l: "Media" }, { v: "baja", l: "Baja" },
-            ]} />
-            <FilterSelect value={fAsignado} onChange={setFAsignado} placeholder="Asignado" options={[
-              { v: "todos", l: "Todos los agentes" },
-              ...agents.map((a) => ({ v: String(a.id), l: a.nombre })),
-            ]} />
+            <FilterChip title="Tipo" options={TIPO_OPTIONS} selected={fTipos} onChange={setFTipos} />
+            <FilterChip title="Prioridad" options={PRIORIDAD_OPTIONS} selected={fPrioridades} onChange={setFPrioridades} />
+            <FilterChip title="Asignado" options={asignadoOptions} selected={fAsignados} onChange={setFAsignados} />
+            <FilterChip title="Sucursal" options={sucursalOptions} selected={fSucursales} onChange={setFSucursales} />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -290,6 +322,35 @@ export default function SupportBoardPage() {
         onApprove={onApprove}
         onReject={onReject}
       />
+
+      {/* Configuración: canales de comunicación + autorización (solo superadmin) */}
+      <Dialog open={configOpen} onOpenChange={setConfigOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-4 w-4" /> Configuración de soporte
+            </DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="canales">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="canales" className="gap-1.5">
+                <MessageSquare className="h-4 w-4" /> Canales
+              </TabsTrigger>
+              <TabsTrigger value="autorizacion" className="gap-1.5">
+                <ShieldCheck className="h-4 w-4" /> Autorización
+              </TabsTrigger>
+            </TabsList>
+            <ScrollArea className="max-h-[70vh] mt-3 pr-3">
+              <TabsContent value="canales" className="mt-0">
+                <SupportChannelsCard />
+              </TabsContent>
+              <TabsContent value="autorizacion" className="mt-0">
+                <SupportAuthorizersCard />
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }
@@ -305,13 +366,3 @@ function MetricCard({ icon, label, value, accent = "" }: { icon: ReactNode; labe
   )
 }
 
-function FilterSelect({ value, onChange, placeholder, options }: {
-  value: string; onChange: (v: string) => void; placeholder: string; options: { v: string; l: string }[]
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-9"><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>{options.map((o) => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}</SelectContent>
-    </Select>
-  )
-}
