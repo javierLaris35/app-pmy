@@ -285,7 +285,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 rounded-full text-amber-600 hover:bg-amber-100 hover:text-amber-700 ring-1 ring-amber-200 animate-pulse hover:animate-none"
+                    className="h-9 w-9 rounded-full text-amber-600 hover:bg-amber-100 hover:text-amber-700 ring-1 ring-amber-200"
                     onClick={() => setWelcomeOpen(true)}
                     aria-label="Ver resumen operativo del día"
                   >
