@@ -3,7 +3,7 @@ import { summarizeCompare, rowFlag } from "./compare-summary";
 import type { CompareResult } from "../services/tracking-sync";
 
 const base: CompareResult = {
-  shipmentId: "s", trackingNumber: "t", ourStatus: "en_ruta", ourLastEventAt: null,
+  shipmentId: "s", kind: "shipment", trackingNumber: "t", ourStatus: "en_ruta", ourLastEventAt: null,
   fedexStatus: "en_ruta", fedexLastEventAt: null, diverges: false, isStale: false,
   missingEvents: [], fedexEvents: [], issues: [],
 };

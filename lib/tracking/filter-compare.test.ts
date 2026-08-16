@@ -3,7 +3,7 @@ import { filterCompareRows, type CompareFilter } from "./filter-compare";
 import type { CompareResult } from "../services/tracking-sync";
 
 const r = (over: Partial<CompareResult>): CompareResult => ({
-  shipmentId: "s", trackingNumber: "TN", ourStatus: "en_ruta", ourLastEventAt: null,
+  shipmentId: "s", kind: "shipment", trackingNumber: "TN", ourStatus: "en_ruta", ourLastEventAt: null,
   fedexStatus: "en_ruta", fedexLastEventAt: null, diverges: false, isStale: false,
   missingEvents: [], fedexEvents: [], issues: [], ...over,
 });

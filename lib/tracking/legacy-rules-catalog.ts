@@ -208,4 +208,13 @@ export const LEGACY_RULES: LegacyRule[] = [
     engineStatus: "parcial",
     engineNote: "Motor nuevo hoy solo escribe status",
   },
+  {
+    id: 21,
+    name: "F2 nunca genera ingresos",
+    category: "financiera",
+    description: "Los cargos/F2 (charge_shipment) llevan la MISMA lógica de estatus que los normales, pero NUNCA generan Income.",
+    trigger: "kind = charge",
+    engineStatus: "migrada",
+    engineNote: "Hoy garantizado (motor status-only). Al activar IncomeRule debe saltar kind=charge.",
+  },
 ];

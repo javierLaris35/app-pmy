@@ -149,7 +149,16 @@ export function CompareTable({
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-mono">{r.trackingNumber}</TableCell>
+                  <TableCell className="font-mono">
+                    <span className="inline-flex items-center gap-1.5">
+                      {r.trackingNumber}
+                      {r.kind === "charge" && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          F2
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell>{r.ourStatus}</TableCell>
                   <TableCell>{fmt(r.ourLastEventAt)}</TableCell>
                   <TableCell><StatusCell r={r} /></TableCell>

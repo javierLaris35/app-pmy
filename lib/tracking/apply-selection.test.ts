@@ -3,7 +3,7 @@ import { correctableShipmentIds } from "./apply-selection";
 import type { CompareResult } from "../services/tracking-sync";
 
 const r = (over: Partial<CompareResult>): CompareResult => ({
-  shipmentId: "s", trackingNumber: "t", ourStatus: "en_ruta", ourLastEventAt: null,
+  shipmentId: "s", kind: "shipment", trackingNumber: "t", ourStatus: "en_ruta", ourLastEventAt: null,
   fedexStatus: "entregado", fedexLastEventAt: null, diverges: true, isStale: true,
   missingEvents: [], fedexEvents: [], issues: [], ...over,
 });
