@@ -61,7 +61,7 @@ export const applyCorrections = async (shipmentIds: string[]) => {
 /** Rutas (salidas a ruta) de una sucursal en un día, como opciones para el desplegable. */
 export const listRoutesBySubsidiaryDay = async (subsidiaryId: string, day: string): Promise<PickerOption[]> => {
   const { from, to } = toDayRange(day);
-  const res = await axiosConfig.get<any>(`package-dispatch/subsidiary/${subsidiaryId}`, { params: { from, to, limit: 200 } });
+  const res = await axiosConfig.get<any>(`package-dispatchs/subsidiary/${subsidiaryId}`, { params: { from, to, limit: 200 } });
   const items: any[] = Array.isArray(res.data) ? res.data : res.data?.data ?? res.data?.items ?? [];
   return items.map(buildRouteOption);
 };
