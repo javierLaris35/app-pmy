@@ -3,10 +3,13 @@ import { Fragment, useMemo, useState } from "react";
 import type { CompareResult } from "@/lib/services/tracking-sync";
 import { rowFlag, summarizeCompare } from "@/lib/tracking/compare-summary";
 import { correctableShipmentIds } from "@/lib/tracking/apply-selection";
+import { filterCompareRows, type CompareFilter } from "@/lib/tracking/filter-compare";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +44,16 @@ export function CompareTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [flag, setFlag] = useState<CompareFilter["flag"]>("all");
+  const [query, setQuery] = useState("");
   const summary = summarizeCompare(rows);
+  const visible = useMemo(() => filterCompareRows(rows, { flag, query }), [rows, flag, query]);
+
+  const FLAG_LABELS: Record<CompareFilter["flag"], string> = {
+    all: `Todas (${summary.total})`,
+    diverges: `Divergentes (${summary.diverging})`,
+    stale: `Desactualizadas (${summary.stale})`,
+  };
 
   const toggleSel = (tn: string) =>
     setSelected((s) => {
@@ -82,6 +94,25 @@ export function CompareTable({
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1">
+          {(["all", "diverges", "stale"] as CompareFilter["flag"][]).map((f) => (
+            <Button key={f} size="sm" variant={flag === f ? "default" : "outline"} onClick={() => setFlag(f)}>
+              {FLAG_LABELS[f]}
+            </Button>
+          ))}
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="w-56 pl-8"
+            placeholder="Buscar guía…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="rounded-lg border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -96,7 +127,14 @@ export function CompareTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
+            {visible.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={onApply ? 7 : 6} className="text-center text-sm text-muted-foreground py-6">
+                  Sin guías que coincidan con el filtro.
+                </TableCell>
+              </TableRow>
+            )}
+            {visible.map((r) => (
               <Fragment key={r.shipmentId || r.trackingNumber}>
                 <TableRow
                   className={`cursor-pointer ${ROW_CLASS[rowFlag(r)]}`}
