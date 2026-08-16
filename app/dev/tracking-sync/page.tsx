@@ -39,6 +39,7 @@ function TrackingSyncContent() {
   const [mode, setMode] = useState<Mode>("tracking");
   const [rows, setRows] = useState<CompareResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Por guía
@@ -55,12 +56,14 @@ function TrackingSyncContent() {
     if (!tracking.trim()) return;
     setLoading(true);
     setError(null);
+    setRows([]);
     try {
       setRows([await compareByTracking(tracking.trim())]);
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e?.message ?? "Error");
       setRows([]);
     } finally {
+      setAttempted(true);
       setLoading(false);
     }
   };
@@ -75,6 +78,7 @@ function TrackingSyncContent() {
     setOptions([]);
     setSelectedId("");
     setRows([]);
+    setAttempted(false);
     try {
       const opts =
         mode === "route"
@@ -97,12 +101,14 @@ function TrackingSyncContent() {
     }
     setLoading(true);
     setError(null);
+    setRows([]);
     try {
       setRows(mode === "route" ? await compareByRoute(id) : await compareByConsolidated(id));
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e?.message ?? "Error");
       setRows([]);
     } finally {
+      setAttempted(true);
       setLoading(false);
     }
   };
@@ -120,6 +126,7 @@ function TrackingSyncContent() {
     setOptions([]);
     setSelectedId("");
     setError(null);
+    setAttempted(false);
   };
 
   return (
@@ -208,15 +215,21 @@ function TrackingSyncContent() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        {loading && rows.length === 0 && (
+        {loading && (
           <div className="space-y-2" aria-busy="true">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Consultando FedEx…
+            </div>
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-2/3" />
           </div>
         )}
-        {rows.length > 0 && <CompareTable rows={rows} onApply={onApply} />}
+        {!loading && rows.length > 0 && <CompareTable rows={rows} onApply={onApply} />}
+        {!loading && !error && attempted && rows.length === 0 && (
+          <p className="text-sm text-muted-foreground">Sin guías FedEx para comparar en esta selección.</p>
+        )}
       </div>
     </AppLayout>
   );
