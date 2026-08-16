@@ -1,17 +1,19 @@
 "use client";
 import { useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { CompareTable } from "@/components/tracking-sync/compare-table";
+import { LegacyRulesModal } from "@/components/tracking-sync/legacy-rules-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -129,13 +131,16 @@ function TrackingSyncContent() {
       />
 
       <div className="p-4 space-y-4">
-        <Tabs value={mode} onValueChange={(v) => switchMode(v as Mode)}>
-          <TabsList>
-            <TabsTrigger value="tracking">Por guía</TabsTrigger>
-            <TabsTrigger value="route">Por salida a ruta</TabsTrigger>
-            <TabsTrigger value="consolidated">Por consolidado</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Tabs value={mode} onValueChange={(v) => switchMode(v as Mode)}>
+            <TabsList>
+              <TabsTrigger value="tracking">Por guía</TabsTrigger>
+              <TabsTrigger value="route">Por salida a ruta</TabsTrigger>
+              <TabsTrigger value="consolidated">Por consolidado</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <LegacyRulesModal />
+        </div>
 
         <Card>
           <CardContent className="pt-4">
@@ -153,6 +158,7 @@ function TrackingSyncContent() {
                   />
                 </div>
                 <Button onClick={runTracking} disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {loading ? "Consultando…" : "Consultar FedEx ahora"}
                 </Button>
               </div>
@@ -170,6 +176,7 @@ function TrackingSyncContent() {
                     <Input id="day" type="date" className="w-44" value={day} onChange={(e) => setDay(e.target.value)} />
                   </div>
                   <Button onClick={search} disabled={searching}>
+                    {searching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {searching ? "Buscando…" : "Buscar"}
                   </Button>
                 </div>
@@ -201,7 +208,14 @@ function TrackingSyncContent() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        {loading && rows.length === 0 && <p className="text-sm text-muted-foreground">Consultando FedEx…</p>}
+        {loading && rows.length === 0 && (
+          <div className="space-y-2" aria-busy="true">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-2/3" />
+          </div>
+        )}
         {rows.length > 0 && <CompareTable rows={rows} onApply={onApply} />}
       </div>
     </AppLayout>
