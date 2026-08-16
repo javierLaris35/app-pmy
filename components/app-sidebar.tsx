@@ -19,7 +19,7 @@ import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
 import { User } from "@/lib/types"
 import { useFilteredMenu } from "@/hooks/use-filtered-menu"
-import { Route as RouteIcon, Radio } from "lucide-react"
+import { Route as RouteIcon, Radio, RefreshCw } from "lucide-react"
 import { hasPermission } from "@/lib/access/permissions"
 
 /** Versión de la app (sube con cambios menores/medianos/mayores). */
@@ -36,10 +36,16 @@ export function AppSidebar({ user, ...props }: { user: User }) {
   const monitoreoRutasItem = hasPermission(user, "monitoreoRutas")
     ? [{ title: "Monitoreo de Rutas", url: "/monitoreo-rutas", icon: Radio }]
     : []
+  // Sincronización FedEx (experimental): comparación/corrección de estatus, solo superadmin.
+  // Visible en producción (a diferencia de DEV_ITEMS que solo aparecen en desarrollo).
+  const trackingSyncItem = ["superadmin", "superamin"].includes((user?.role ?? "").toLowerCase())
+    ? [{ title: "Sincronización FedEx", url: "/dev/tracking-sync", icon: RefreshCw }]
+    : []
   const secondaryItems = [
     ...(sidebarMenu.secondary ?? []),
     ...(IS_DEV ? DEV_ITEMS : []),
     ...monitoreoRutasItem,
+    ...trackingSyncItem,
   ]
 
   return (
