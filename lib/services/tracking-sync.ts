@@ -1,4 +1,7 @@
 import { axiosConfig } from "../axios-config";
+import { toDayRange, buildRouteOption, buildConsolidatedOption, type PickerOption } from "../tracking/picker-options";
+
+export type { PickerOption };
 
 export interface NormalizedEventDto {
   occurredAt: string;
@@ -53,4 +56,20 @@ export const compareByConsolidated = async (consolidatedId: string) => {
 export const applyCorrections = async (shipmentIds: string[]) => {
   const res = await axiosConfig.post<ApplyOutcome[]>(`tracking-sync/apply`, { shipmentIds });
   return res.data;
+};
+
+/** Rutas (salidas a ruta) de una sucursal en un día, como opciones para el desplegable. */
+export const listRoutesBySubsidiaryDay = async (subsidiaryId: string, day: string): Promise<PickerOption[]> => {
+  const { from, to } = toDayRange(day);
+  const res = await axiosConfig.get<any>(`package-dispatch/subsidiary/${subsidiaryId}`, { params: { from, to, limit: 200 } });
+  const items: any[] = Array.isArray(res.data) ? res.data : res.data?.data ?? res.data?.items ?? [];
+  return items.map(buildRouteOption);
+};
+
+/** Consolidados de una sucursal en un día, como opciones para el desplegable. */
+export const listConsolidatedsBySubsidiaryDay = async (subsidiaryId: string, day: string): Promise<PickerOption[]> => {
+  const { from, to } = toDayRange(day);
+  const res = await axiosConfig.get<any>(`consolidated`, { params: { subsidiaryId, fromDate: from, toDate: to } });
+  const items: any[] = Array.isArray(res.data) ? res.data : res.data?.data ?? res.data?.items ?? [];
+  return items.map(buildConsolidatedOption);
 };
