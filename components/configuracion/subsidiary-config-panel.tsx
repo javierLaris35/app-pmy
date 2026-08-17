@@ -17,6 +17,7 @@ type FlagKey =
   | "monitorFedexCode44"
   | "trackFedexExternalDelivery"
   | "forceFedexStatusOverride"
+  | "allowSameDayPreRegistrationFedexEvents"
   | "sortDispatchByPostalCode"
   | "validateDispatchByList"
   | "allowRouteClosureWithOtherStatus"
@@ -32,6 +33,7 @@ const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "monitorFedexCode44", label: "Monitorear 44", hint: "Alerta si falta el código 44" },
   { key: "trackFedexExternalDelivery", label: "Rastrear entrega FedEx", hint: "Sigue la entrega que hace FedEx por su cuenta (OD)" },
   { key: "forceFedexStatusOverride", label: "Forzar estatus FedEx", hint: "Prioriza el estatus reportado por FedEx" },
+  { key: "allowSameDayPreRegistrationFedexEvents", label: "Eventos FedEx pre-registro (mismo día)", hint: "Para sucursales que operan desde la bodega de FedEx: procesa eventos (DEX 07/08, cambio de fecha) anteriores al registro del paquete si son del mismo día. No cambia el estatus operativo." },
   { key: "sortDispatchByPostalCode", label: "Salidas a ruta por CP", hint: "Ordena los paquetes por código postal (escaneo, PDF y Excel). Si está apagado, se conserva el orden de escaneo." },
   { key: "validateDispatchByList", label: "Validar por lista", hint: "Valida toda la lista escaneada en un solo envío (más rápido). Si está apagado, se validan uno por uno." },
   { key: "allowRouteClosureWithOtherStatus", label: "Cerrar ruta con otros estatus", hint: "Permite cerrar la ruta aunque queden paquetes en \"Otros Estatus\" venciendo hoy. Apagado = comportamiento histórico (bloquea)." },

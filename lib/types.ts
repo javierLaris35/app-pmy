@@ -31,6 +31,8 @@ export type Subsidiary = {
   monitorFedexCode44?: boolean
   trackFedexExternalDelivery?: boolean
   forceFedexStatusOverride?: boolean
+  /** Procesar eventos FedEx pre-registro del mismo día (sucursales que operan desde bodega FedEx: Hermosillo/Cabos). */
+  allowSameDayPreRegistrationFedexEvents?: boolean
   /** Ordenar las salidas a ruta por código postal (escaneo/PDF/Excel). */
   sortDispatchByPostalCode?: boolean
   /** Validar los paquetes de salida a ruta por lista (batch) en vez de uno-por-uno. */
