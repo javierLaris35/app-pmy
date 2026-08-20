@@ -25,6 +25,23 @@ const validateTrackinNumberNoVan = async (noVanTrackingNumbers: string[]) => {
     return response.data;
 }
 
+/**
+ * Se llama AL ABRIR el cierre a ruta: el backend reconcilia y PERSISTE el último estatus
+ * FedEx de todas las guías del despacho (shipments + F2), para que los buckets del cierre
+ * reflejen la realidad y el `en_ruta` interno no le gane al estatus real del mismo día.
+ * En rutas 31.5 (is315) el backend solo toca los F2. Read-heavy: puede tardar un poco.
+ */
+const reconcile = async (packageDispatchId: string) => {
+    const response = await axiosConfig.post<{
+        packageDispatchId: string;
+        is315: boolean;
+        total: number;
+        updated: number;
+        outcomes: unknown[];
+    }>(`${url}/reconcile/${packageDispatchId}`);
+    return response.data;
+}
+
 export async function uploadFiles(
     pdfFile: File,
     excelFile: File,
@@ -62,5 +79,6 @@ export async function uploadFiles(
 export {
     save,
     validateTrackingNumbers,
-    validateTrackinNumberNoVan
+    validateTrackinNumberNoVan,
+    reconcile
 }

@@ -42,7 +42,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, mapToPackageInfoComplete } from "@/lib/utils";
 import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
 import { useAuthStore } from "@/store/auth.store";
-import { save, uploadFiles, validateTrackinNumberNoVan } from "@/lib/services/route-closure";
+import { save, uploadFiles, validateTrackinNumberNoVan, reconcile } from "@/lib/services/route-closure";
 import { pdf } from "@react-pdf/renderer";
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs";
 import { RouteClosurePDF } from "@/lib/services/route-closure/route-closure-pdf-generator";
@@ -107,10 +107,30 @@ export default function ClosePackageDispatchWizard({
   const collectionsScanRef = useRef<ScanInputHandle>(null);
   const noVanScanRef = useRef<ScanInputHandle>(null);
 
+  const [isReconciling, setIsReconciling] = useState(false);
+
   useEffect(() => {
     const fetchDispatchData = async () => {
       setIsLoading(true);
       try {
+        // AL ABRIR el cierre: reconciliar contra FedEx (persiste el último estatus real de
+        // shipments + F2, en 31.5 solo F2) ANTES de traer los paquetes, para que los buckets
+        // no muestren un `en_ruta` interno viejo cuando FedEx ya tiene un estatus más reciente.
+        // Si la reconciliación falla (FedEx caído/lento), NO bloqueamos el cierre: seguimos con
+        // el estatus almacenado y avisamos.
+        setIsReconciling(true);
+        try {
+          await reconcile(dispatchId);
+        } catch (reconcileError) {
+          console.warn("Reconciliación FedEx al abrir el cierre falló; se usa el estatus almacenado.", reconcileError);
+          toast({
+            title: "Sincronización FedEx incompleta",
+            description: "No se pudo reconciliar con FedEx al abrir. Se muestran los últimos estatus almacenados.",
+          });
+        } finally {
+          setIsReconciling(false);
+        }
+
         const dispatchData = await getShipmensByDispatchId(dispatchId);
         setDispatch(dispatchData);
       } catch (error) {
@@ -610,7 +630,9 @@ export default function ClosePackageDispatchWizard({
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Cargando datos de la ruta...</span>
+        <span className="ml-2">
+          {isReconciling ? "Reconciliando estatus con FedEx..." : "Cargando datos de la ruta..."}
+        </span>
       </div>
     );
   }
