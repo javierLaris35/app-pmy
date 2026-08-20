@@ -862,6 +862,10 @@ export default function UnloadingForm({
       expiringTomorrow.forEach(p => newShown.add(p.trackingNumber));
       setShownExpiringPackages(newShown);
     }
+
+    // ¿Se anunció por voz algo (vence hoy/mañana)? Lo usa el handler para no
+    // encimar el "Registrado" con el aviso de vencimiento.
+    return expiringToday.length > 0 || expiringTomorrow.length > 0;
   }, [getDaysUntilExpiration, shownExpiringPackages, setShownExpiringPackages, speakMessage]);
 
   const handleNextExpiring = useCallback(() => {
@@ -1027,7 +1031,14 @@ export default function UnloadingForm({
       }
 
       setShipments(updatedShipments);
-      handleExpirationCheck(newShipments);
+      const announcedExpiration = handleExpirationCheck(newShipments);
+
+      // Feedback sonoro "Registrado" al agregar guías válidas, igual que en
+      // Bodega → Entrada (warehouse-scan.ts). Se omite si el aviso de vencimiento
+      // ya habló ("Vence hoy/mañana") para no encimar audios.
+      if (newShipments.length > 0 && !announcedExpiration) {
+        speakMessage("Registrado");
+      }
 
       // Casa una guía (resultado) contra un item por su IDENTIDAD DE PIEZA
       // (dhlUniqueId/JD si existe; si no, trackingNumber). Antes casaba por

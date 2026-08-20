@@ -64,6 +64,9 @@ const initialFormState = {
   fedexCostPackage: 0,
   dhlCostPackage: 0,
   chargeCost: 0,
+  chargeCostHalfTon: 0,
+  chargeCostSundayHoliday: 0,
+  chargeCostHalfTonSundayHoliday: 0,
   tycoAmount: 0,
   airportAmount: 0,
   secondAbordAmount: 0,
@@ -117,6 +120,9 @@ function SucursalesPage() {
       fedexCostPackage: sucursal.fedexCostPackage || 0,
       dhlCostPackage: sucursal.dhlCostPackage || 0,
       chargeCost: sucursal.chargeCost || 0,
+      chargeCostHalfTon: sucursal.chargeCostHalfTon || 0,
+      chargeCostSundayHoliday: sucursal.chargeCostSundayHoliday || 0,
+      chargeCostHalfTonSundayHoliday: sucursal.chargeCostHalfTonSundayHoliday || 0,
       tycoAmount: sucursal.tycoAmount || 0,
       airportAmount: sucursal.airportAmount || 0,
       secondAbordAmount: sucursal.secondAbordAmount || 0,
@@ -524,6 +530,39 @@ function SucursalesPage() {
                       min="0"
                       value={formData.chargeCost}
                       onChange={(e) => handleFormChange("chargeCost", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="chargeCostHalfTon">Costo Carga 1.5 ton</Label>
+                    <Input
+                      id="chargeCostHalfTon"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.chargeCostHalfTon}
+                      onChange={(e) => handleFormChange("chargeCostHalfTon", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="chargeCostSundayHoliday">Carga F2 (domingo/festivo)</Label>
+                    <Input
+                      id="chargeCostSundayHoliday"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.chargeCostSundayHoliday}
+                      onChange={(e) => handleFormChange("chargeCostSundayHoliday", +e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="chargeCostHalfTonSundayHoliday">Carga 1.5 ton (domingo/festivo)</Label>
+                    <Input
+                      id="chargeCostHalfTonSundayHoliday"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.chargeCostHalfTonSundayHoliday}
+                      onChange={(e) => handleFormChange("chargeCostHalfTonSundayHoliday", +e.target.value)}
                     />
                   </div>
                   <div className="grid gap-2">

@@ -1,3 +1,7 @@
+import type { ColumnDef } from "@tanstack/react-table"
+import type { Transfer } from "@/lib/types"
+import { TransferDetailDialog } from "./transfer-detail-dialog"
+
 export const columns: ColumnDef<Transfer>[] = [
   {
     accessorKey: "createdAt",
@@ -52,5 +56,14 @@ export const columns: ColumnDef<Transfer>[] = [
         </span>
       )
     },
+  },
+  {
+    id: "actions",
+    header: "",
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <TransferDetailDialog transfer={row.original} />
+      </div>
+    ),
   },
 ]

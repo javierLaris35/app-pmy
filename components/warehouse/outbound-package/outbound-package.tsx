@@ -34,6 +34,7 @@ import { OutboundTypeEnum, type Route as RouteType, type PackageInfo } from "@/l
 
 // Escáner unificado (Task 1) + helpers puros de bodega (Task 2)
 import { ScanInput, type ScanInputHandle } from "@/components/scanner/scan-input"
+import { WarehouseSortToggle, type WarehouseSortMode } from "@/components/warehouse/shared/warehouse-sort-toggle"
 import {
   makeResolveWarehouseScan,
   computeWarehouseStats,
@@ -92,6 +93,8 @@ export default function OutboundPackage() {
   // ---- Escáner unificado + estado local de paquetes (alimentado por onPackagesChange) ----
   const scanRef = useRef<ScanInputHandle>(null)
   const [packages, setPackages] = useState<PackageInfo[]>([])
+  // Orden de la lista: "cp" (sucursal→CP→carrier) o "scan" (como se escanearon).
+  const [sortMode, setSortMode] = useState<WarehouseSortMode>("cp")
 
   // Resolvedor per-scan: validación instantánea + defensa de duplicados + remesa DHL.
   const resolveScan = useMemo(
@@ -220,8 +223,7 @@ export default function OutboundPackage() {
 
   const buildOutboundPayload = (): OutboundWarehouseDto => ({
     warehouse: s.effectiveWarehouseId,
-    shipments: [...packages]
-      .sort(sortWarehousePackages)
+    shipments: (sortMode === "cp" ? [...packages].sort(sortWarehousePackages) : [...packages])
       .map((p) => {
         const wp = p as WarehousePackageInfo
         return {
@@ -366,7 +368,10 @@ export default function OutboundPackage() {
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-slate-800">Inventario de Salida</h2>
               </div>
-              <RemittanceGroupToggle grouped={s.groupRemesas} onToggle={() => s.setGroupRemesas((v) => !v)} />
+              <div className="flex items-center gap-2">
+                <WarehouseSortToggle value={sortMode} onChange={setSortMode} />
+                <RemittanceGroupToggle grouped={s.groupRemesas} onToggle={() => s.setGroupRemesas((v) => !v)} />
+              </div>
             </div>
 
             <CardContent className="p-0 overflow-hidden">
@@ -379,7 +384,7 @@ export default function OutboundPackage() {
                 onScan={resolveScan}
                 onRemittance={onRemittance}
                 onPackagesChange={setPackages}
-                sortComparator={sortWarehousePackages}
+                sortComparator={sortMode === "cp" ? sortWarehousePackages : undefined}
                 renderRichList={(pkgs, { onRemove }) => (
                   <PackagesList
                     packages={s.groupRemesas ? groupRemittances(pkgs as WarehousePackageInfo[]) : pkgs}

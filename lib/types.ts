@@ -12,6 +12,10 @@ export type Subsidiary = {
   chargeCost: number
   /** Costo de carga de 1.5 toneladas. 0 = no aplica (switch oculto en el wizard). */
   chargeCostHalfTon?: number
+  /** Sobreprecio de carga F2 normal en domingo/festivo. 0 = no aplica (usa chargeCost). */
+  chargeCostSundayHoliday?: number
+  /** Sobreprecio de carga 1.5 ton en domingo/festivo. 0 = no aplica (usa chargeCostHalfTon). */
+  chargeCostHalfTonSundayHoliday?: number
   active: boolean
   officeEmail?: string
   officeEmailToCopy?: string
@@ -1048,7 +1052,11 @@ export interface Transfer {
   otherDestination?: string; // Cuando seleccionan "Otro"
   
   // Detalles del traslado
-  amount: number;
+  amount: number; // Monto base (0 en traslados viejos). El cobro real vive en totalAmount.
+  extraAmount?: number;
+  secondAbord?: boolean;
+  secondAboardAmount?: number;
+  totalAmount?: number; // Monto total cobrado (base + extra + segundo abordaje).
   transferType: 'TYCO' | 'AEROPUERTO' | 'OTRO'; // Ej: 'Tyco', 'Aeropuerto', 'Otro'
   otherTransferType?: string; // Descripción cuando el tipo es "Otro"
   

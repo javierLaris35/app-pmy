@@ -20,6 +20,7 @@ import type { Driver, Vehicles, PackageInfo } from "@/lib/types"
 
 // Escáner unificado (Task 1) + helpers puros de bodega (Task 2)
 import { ScanInput, type ScanInputHandle } from "@/components/scanner/scan-input"
+import { WarehouseSortToggle, type WarehouseSortMode } from "@/components/warehouse/shared/warehouse-sort-toggle"
 import {
   makeResolveWarehouseScan,
   computeWarehouseStats,
@@ -108,6 +109,8 @@ export default function InboundPackage() {
   // ---- Escáner unificado + estado local de paquetes (alimentado por onPackagesChange) ----
   const scanRef = useRef<ScanInputHandle>(null)
   const [packages, setPackages] = useState<PackageInfo[]>([])
+  // Orden de la lista: "cp" (sucursal→CP→carrier) o "scan" (como se escanearon).
+  const [sortMode, setSortMode] = useState<WarehouseSortMode>("cp")
 
   // Resolvedor per-scan: validación instantánea + defensa de duplicados + remesa DHL.
   const resolveScan = useMemo(
@@ -199,10 +202,13 @@ export default function InboundPackage() {
   // ---- Stats derivadas de los paquetes locales (modelo PackageInfo con `payment`) ----
   const stats = useMemo(() => computeWarehouseStats(packages), [packages])
 
-  // ---- Orden canónico para payload / PDF / Excel ----
+  // ---- Orden para payload / PDF / Excel: sigue el modo elegido en la UI. ----
   const sessionPackages = useMemo(
-    () => [...packages].sort(sortWarehousePackages).map((p) => toSessionShipment(p as WarehousePackageInfo)),
-    [packages],
+    () =>
+      (sortMode === "cp" ? [...packages].sort(sortWarehousePackages) : [...packages]).map((p) =>
+        toSessionShipment(p as WarehousePackageInfo),
+      ),
+    [packages, sortMode],
   )
 
   // Regla local de habilitación del cierre.
@@ -355,7 +361,10 @@ export default function InboundPackage() {
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-slate-800">Guías Escaneadas</h2>
               </div>
-              <RemittanceGroupToggle grouped={s.groupRemesas} onToggle={() => s.setGroupRemesas((v) => !v)} />
+              <div className="flex items-center gap-2">
+                <WarehouseSortToggle value={sortMode} onChange={setSortMode} />
+                <RemittanceGroupToggle grouped={s.groupRemesas} onToggle={() => s.setGroupRemesas((v) => !v)} />
+              </div>
             </div>
 
             <CardContent className="p-0 overflow-hidden">
@@ -368,7 +377,7 @@ export default function InboundPackage() {
                 onScan={resolveScan}
                 onRemittance={onRemittance}
                 onPackagesChange={setPackages}
-                sortComparator={sortWarehousePackages}
+                sortComparator={sortMode === "cp" ? sortWarehousePackages : undefined}
                 renderRichList={(pkgs, { onRemove }) => (
                   <PackagesList
                     packages={s.groupRemesas ? groupRemittances(pkgs as WarehousePackageInfo[]) : pkgs}
