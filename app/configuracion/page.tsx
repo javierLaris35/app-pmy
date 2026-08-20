@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2 } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
@@ -38,12 +38,14 @@ const ServerBackupPanel = dynamic(() => import("@/components/configuracion/serve
 const WhatsappConfigPanel = dynamic(() => import("@/components/configuracion/whatsapp-config-panel").then((m) => m.WhatsappConfigPanel), { ssr: false, loading: PanelFallback })
 const PlantillasPanel = dynamic(() => import("@/components/configuracion/plantillas/plantillas-panel").then((m) => m.PlantillasPanel), { ssr: false, loading: PanelFallback })
 const BrandingPanel = dynamic(() => import("@/components/configuracion/branding-panel").then((m) => m.BrandingPanel), { ssr: false, loading: PanelFallback })
+const HolidaysPanel = dynamic(() => import("@/components/configuracion/holidays-panel").then((m) => m.HolidaysPanel), { ssr: false, loading: PanelFallback })
 
 const SECTIONS = [
   { id: "empresa", label: "Empresa", icon: Building2, description: "Datos de la empresa" },
   { id: "usuarios", label: "Usuarios", icon: Users, description: "Cuentas y accesos" },
   { id: "permisos", label: "Roles y Permisos", icon: Shield, description: "Control de acceso (RBAC)" },
   { id: "sucursales", label: "Sucursales", icon: Building2, description: "Config. operativa (FedEx)" },
+  { id: "festivos", label: "Días festivos", icon: CalendarDays, description: "Sobreprecio domingo/festivo" },
   { id: "catalogos", label: "Catálogos", icon: Tags, description: "Valores de los enums" },
   { id: "geocode", label: "Geolocalización", icon: MapPin, description: "Direcciones aprendidas" },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, description: "Avisos al chofer" },
@@ -119,6 +121,8 @@ function ConfiguracionPage() {
             {section === "usuarios" && <UsersPanel />}
 
             {section === "sucursales" && <SubsidiaryConfigPanel />}
+
+            {section === "festivos" && <HolidaysPanel />}
 
             {section === "catalogos" && <CatalogPanel />}
 

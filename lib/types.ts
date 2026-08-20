@@ -1125,3 +1125,20 @@ export interface ValidatedUnloadingOne {
   payment?: { type: string; amount: number };
   commitDateTime?: string;
 }
+
+// Día festivo adicional (global) que complementa la lista fija del Art. 74 LFT
+// para el sobreprecio de cargas en domingo/festivo.
+export interface Holiday {
+  id: string;
+  name: string;
+  date: string; // 'YYYY-MM-DD'
+  recurring: boolean; // true = cada año (mes-día); false = fecha exacta
+  createdById?: string | null;
+  createdAt?: string;
+}
+
+export interface CreateHolidayPayload {
+  name: string;
+  date: string; // 'YYYY-MM-DD'
+  recurring?: boolean;
+}
