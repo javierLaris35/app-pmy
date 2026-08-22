@@ -74,6 +74,13 @@ describe("enriquecimiento de pagos", () => {
     expect(parsed[0].type).toBe("COD");
     expect(parsed[0].amount).toBe(1250);
   });
+
+  it("el monto no se contamina con la guía aunque el importe venga antes", () => {
+    const parsed = parsePaymentsPaste("COD $980.50 guia 383011751254");
+    expect(parsed[0].tracking).toBe("383011751254");
+    expect(parsed[0].amount).toBe(980.5);
+    expect(parsed[0].type).toBe("COD");
+  });
 });
 
 describe("enriquecimiento de high value", () => {

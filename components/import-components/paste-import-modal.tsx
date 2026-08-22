@@ -14,7 +14,11 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/data-table/data-table";
 import { SucursalSelector } from "@/components/sucursal-selector";
-import { ClipboardPaste, FlaskConical, Info, Check, X, AlertTriangle, DollarSign, Gem, Plus } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ClipboardPaste, FlaskConical, Info, Check, X, AlertTriangle, DollarSign, Diamond, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import {
@@ -82,6 +86,8 @@ export function PasteImportModal({
   const [hvRaw, setHvRaw] = useState("");
   const [appliedPayments, setAppliedPayments] = useState<ParsedPayment[]>([]);
   const [appliedHv, setAppliedHv] = useState<ParsedHv[]>([]);
+  // Pagos sin tipo pendientes de confirmar (¿usar COD por defecto?).
+  const [pendingPayments, setPendingPayments] = useState<ParsedPayment[] | null>(null);
 
   // Preview del backend (solo master/aéreo).
   const [preview, setPreview] = useState<UploadPreview | null>(null);
@@ -135,12 +141,29 @@ export function PasteImportModal({
   };
   const close = () => { reset(); onOpenChange(false); };
 
-  const addPayments = () => {
-    const parsed = parsePaymentsPaste(paymentsRaw);
-    if (!parsed.length) { toast.error("No se detectaron pagos en lo pegado."); return; }
+  const commitPayments = (parsed: ParsedPayment[]) => {
     setAppliedPayments((prev) => [...prev, ...parsed]);
     setPaymentsRaw("");
     toast.success(`${parsed.length} pago(s) agregado(s) a la tabla.`);
+  };
+  const addPayments = () => {
+    const parsed = parsePaymentsPaste(paymentsRaw);
+    if (!parsed.length) { toast.error("No se detectaron pagos en lo pegado."); return; }
+    const typeless = parsed.filter((p) => p.amount !== null && !p.type);
+    if (typeless.length > 0) {
+      setPendingPayments(parsed); // pregunta si usar COD por defecto
+      return;
+    }
+    commitPayments(parsed);
+  };
+  // Resuelve el diálogo de "¿usar COD por defecto?".
+  const resolvePending = (useCod: boolean) => {
+    if (!pendingPayments) return;
+    const resolved = pendingPayments.map((p) =>
+      p.amount !== null && !p.type && useCod ? { ...p, type: "COD" } : p,
+    );
+    commitPayments(resolved);
+    setPendingPayments(null);
   };
   const addHv = () => {
     const parsed = parseHvPaste(hvRaw);
@@ -200,6 +223,28 @@ export function PasteImportModal({
   // Columnas de la tabla de "lo que se guardará".
   const columns: ColumnDef<MappedRow>[] = useMemo(() => {
     if (!table) return [];
+    // Columna de marcas (íconos $ / diamante) al inicio.
+    const marks: ColumnDef<MappedRow> = {
+      id: "marks",
+      header: "",
+      cell: ({ row }) => {
+        const r = row.original;
+        return (
+          <div className="flex items-center gap-1">
+            {r.hasPayment && (
+              <span title={r.paymentNoType ? "Cobro (sin tipo)" : "Cobro"} className={`grid h-6 w-6 place-items-center rounded-full ${r.paymentNoType ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                <DollarSign className="h-3.5 w-3.5" />
+              </span>
+            )}
+            {r.isHighValue && (
+              <span title="Alto Valor" className="grid h-6 w-6 place-items-center rounded-full bg-purple-100 text-purple-700">
+                <Diamond className="h-3.5 w-3.5" />
+              </span>
+            )}
+          </div>
+        );
+      },
+    };
     const cols: ColumnDef<MappedRow>[] = table.fields.map((f) => ({
       accessorFn: (r) => r.values[f.field] ?? "",
       id: f.field,
@@ -221,26 +266,32 @@ export function PasteImportModal({
         if (f.field === "cod") {
           return val ? (
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${r.paymentNoType ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-              <DollarSign className="h-3 w-3" /> {val}{r.paymentNoType ? " · sin type" : ""}
+              <DollarSign className="h-3 w-3" /> {val}{r.paymentNoType ? " · sin tipo" : ""}
             </span>
           ) : <span className="text-gray-300">—</span>;
         }
         return <span className="text-gray-700">{val || "-"}</span>;
       },
     }));
-    // Columna HV (marca visual).
+    // Columna HV (marca visual con diamante).
     cols.push({
       id: "hv",
-      header: "HV",
+      header: "Alto Valor",
       cell: ({ row }) => row.original.isHighValue
-        ? <Badge className="gap-1 bg-purple-100 text-purple-700 hover:bg-purple-100"><Gem className="h-3 w-3" /> HV</Badge>
+        ? <Badge className="gap-1 bg-purple-100 text-purple-700 hover:bg-purple-100"><Diamond className="h-3 w-3" /> HV</Badge>
         : <span className="text-gray-300">—</span>,
     });
-    return cols;
+    return [marks, ...cols];
   }, [table]);
 
-  const rowClassName = (r: MappedRow) =>
-    r.missingTracking ? "bg-rose-50" : (r.duplicateTracking || r.badDate || r.paymentNoType) ? "bg-amber-50" : undefined;
+  // Prioridad: problemas (rojo/ámbar) → HV (morado) → cobro (verde) → normal.
+  const rowClassName = (r: MappedRow) => {
+    if (r.missingTracking) return "bg-rose-50 hover:bg-rose-100/70";
+    if (r.duplicateTracking || r.badDate || r.paymentNoType) return "bg-amber-50 hover:bg-amber-100/70";
+    if (r.isHighValue) return "bg-purple-50/70 hover:bg-purple-100/60";
+    if (r.hasPayment) return "bg-emerald-50/60 hover:bg-emerald-100/50";
+    return undefined;
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
@@ -371,19 +422,43 @@ export function PasteImportModal({
           {/* Enriquecimiento (solo master) */}
           {kind === "master" && table && (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900"><DollarSign className="h-4 w-4 text-emerald-600" /> Agregar pagos (manual)</div>
+              <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-100 text-emerald-700"><DollarSign className="h-3.5 w-3.5" /></span>
+                    Agregar pagos (manual)
+                  </div>
+                  {(c?.withPayment ?? 0) > 0 && (
+                    <Badge className="gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><DollarSign className="h-3 w-3" /> {c?.withPayment} con pago{(c?.paymentsNoType ?? 0) > 0 ? ` · ${c?.paymentsNoType} s/tipo` : ""}</Badge>
+                  )}
+                </div>
                 <p className="mb-2 text-[12px] text-muted-foreground">Pega del correo o Excel: guía + monto (y COD/FTC/ROD si aplica). Se cruzan por guía y se marcan.</p>
                 <Textarea value={paymentsRaw} onChange={(e) => setPaymentsRaw(e.target.value)} placeholder={"383012036065\tCOD 1250.00\n383011751254\t980"} className="min-h-[90px] resize-none font-mono text-xs" />
-                <Button size="sm" variant="outline" className="mt-2" onClick={addPayments} disabled={!paymentsRaw.trim()}><Plus className="mr-1 h-4 w-4" /> Agregar a la tabla</Button>
-                {appliedPayments.length > 0 && <span className="ml-2 text-[12px] text-muted-foreground">{c?.withPayment ?? 0} con pago{(c?.paymentsNoType ?? 0) > 0 ? ` · ${c?.paymentsNoType} sin type` : ""}</span>}
+                <div className="mt-2 flex items-center gap-2">
+                  <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={addPayments} disabled={!paymentsRaw.trim()}><Plus className="mr-1 h-4 w-4" /> Agregar a la tabla</Button>
+                  {appliedPayments.length > 0 && (
+                    <Button size="sm" variant="ghost" className="text-gray-500" onClick={() => setAppliedPayments([])}><Trash2 className="mr-1 h-4 w-4" /> Limpiar</Button>
+                  )}
+                </div>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900"><Gem className="h-4 w-4 text-purple-600" /> Agregar Alto Valor (manual)</div>
+              <div className="rounded-xl border border-purple-200 bg-white p-4 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-purple-100 text-purple-700"><Diamond className="h-3.5 w-3.5" /></span>
+                    Agregar Alto Valor (manual)
+                  </div>
+                  {(c?.highValue ?? 0) > 0 && (
+                    <Badge className="gap-1 bg-purple-100 text-purple-700 hover:bg-purple-100"><Diamond className="h-3 w-3" /> {c?.highValue} HV</Badge>
+                  )}
+                </div>
                 <p className="mb-2 text-[12px] text-muted-foreground">Pega las guías de alto valor (con dirección si viene). Se marcan; si no están en la tabla, se agregan.</p>
                 <Textarea value={hvRaw} onChange={(e) => setHvRaw(e.target.value)} placeholder={"383012036065\n383011751254"} className="min-h-[90px] resize-none font-mono text-xs" />
-                <Button size="sm" variant="outline" className="mt-2" onClick={addHv} disabled={!hvRaw.trim()}><Plus className="mr-1 h-4 w-4" /> Marcar Alto Valor</Button>
-                {appliedHv.length > 0 && <span className="ml-2 text-[12px] text-muted-foreground">{c?.highValue ?? 0} marcadas HV</span>}
+                <div className="mt-2 flex items-center gap-2">
+                  <Button size="sm" className="bg-purple-600 text-white hover:bg-purple-700" onClick={addHv} disabled={!hvRaw.trim()}><Plus className="mr-1 h-4 w-4" /> Marcar Alto Valor</Button>
+                  {appliedHv.length > 0 && (
+                    <Button size="sm" variant="ghost" className="text-gray-500" onClick={() => setAppliedHv([])}><Trash2 className="mr-1 h-4 w-4" /> Limpiar</Button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -391,10 +466,12 @@ export function PasteImportModal({
           {/* Tabla de lo que se guardará */}
           {table && table.rows.length > 0 && (
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
                 <p className="text-sm font-semibold text-gray-900">Lo que se guardará ({table.rows.length})</p>
-                <span className="h-3 w-3 rounded-sm bg-rose-100 ring-1 ring-rose-300" /><span className="text-[11px] text-muted-foreground">sin guía</span>
-                <span className="ml-2 h-3 w-3 rounded-sm bg-amber-100 ring-1 ring-amber-300" /><span className="text-[11px] text-muted-foreground">duplicada / fecha / pago sin type</span>
+                <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-sm bg-rose-100 ring-1 ring-rose-300" /><span className="text-[11px] text-muted-foreground">sin guía</span></span>
+                <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-sm bg-amber-100 ring-1 ring-amber-300" /><span className="text-[11px] text-muted-foreground">duplicada / fecha / pago sin tipo</span></span>
+                <span className="flex items-center gap-1"><DollarSign className="h-3.5 w-3.5 text-emerald-600" /><span className="text-[11px] text-muted-foreground">cobro</span></span>
+                <span className="flex items-center gap-1"><Diamond className="h-3.5 w-3.5 text-purple-600" /><span className="text-[11px] text-muted-foreground">alto valor</span></span>
               </div>
               <div className="max-w-full overflow-x-auto">
                 <DataTable columns={columns} data={table.rows} searchKey="trackingNumber" rowClassName={rowClassName} autoResetPageIndex={false} />
@@ -417,6 +494,22 @@ export function PasteImportModal({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* ¿Usar COD por defecto cuando el pago no trae tipo? */}
+      <AlertDialog open={!!pendingPayments} onOpenChange={(o) => { if (!o) setPendingPayments(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pagos sin tipo</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingPayments?.filter((p) => p.amount !== null && !p.type).length} pago(s) no traen tipo (COD/FTC/ROD). ¿Usar <strong>COD</strong> como tipo por defecto para esos pagos?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => resolvePending(false)}>Dejar sin tipo</AlertDialogCancel>
+            <AlertDialogAction onClick={() => resolvePending(true)}>Usar COD por defecto</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

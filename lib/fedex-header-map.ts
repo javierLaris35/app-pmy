@@ -177,7 +177,7 @@ function analyzeRow(values: Record<string, string>, manual: boolean): MappedRow 
   };
 }
 
-function recompute(table: Omit<MappedTable, "counts" | "hasPayment">): MappedTable {
+function recompute(table: { fields: FieldDef[]; rows: MappedRow[] }): MappedTable {
   // duplicados por guía (entre filas con guía)
   const seen = new Map<string, number>();
   for (const r of table.rows) {
@@ -265,14 +265,16 @@ export function parsePaymentsPaste(raw: string): ParsedPayment[] {
     return out;
   }
 
-  // Heurística (texto libre del correo).
+  // Heurística (texto libre del correo). Se quita la guía de la línea ANTES de
+  // leer el monto, para que el número de guía no se confunda con el importe.
   for (const cells of rows) {
     const line = cells.join(" ").trim();
     if (!line) continue;
     const trackMatch = line.match(/\b\d{9,}\b/);
     if (!trackMatch) continue;
-    const { type, amount } = parsePaymentCell(line);
-    out.push({ tracking: trackMatch[0], amount, type, raw: line });
+    const rest = line.replace(trackMatch[0], " ");
+    const { type, amount } = parsePaymentCell(rest);
+    out.push({ tracking: trackMatch[0], amount, type, raw: rest.trim() });
   }
   return out;
 }
