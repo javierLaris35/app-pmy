@@ -1,12 +1,15 @@
 /**
  * Espejo (frontend) del mapeo de encabezados FedEx del backend
- * (`src/utils/header-detector.util.ts`). Se usa en el flujo de "pegar" para
- * construir la tabla IGUAL que el import por archivo: detecta la fila de
- * encabezados, mapea columnas FedEx → campos del shipment e IGNORA todo lo que
- * no aplica. Si cambian los alias del backend, actualizar aquí también.
+ * (`src/utils/header-detector.util.ts`) + motor de validación/enriquecimiento
+ * para el flujo de "pegar desde Excel". Construye la tabla IGUAL que el import
+ * por archivo (mapea por encabezado, ignora columnas irrelevantes) y además:
+ *  - detecta problemas por fila/celda (guía faltante, duplicada, fecha inválida),
+ *  - permite enriquecer con Pagos (COD) y High Value pegados/manuales,
+ *  - lleva conteos rápidos.
+ * Si cambian los alias del backend, actualizar aquí también.
  */
 
-/** Normaliza un encabezado igual que el backend (minúsculas, sin símbolos ni espacios). */
+/** Normaliza un encabezado igual que el backend. */
 export function normalizeHeader(header: string): string {
   if (!header || typeof header !== "string") return "";
   return header
@@ -18,91 +21,39 @@ export function normalizeHeader(header: string): string {
     .replace(/\s/g, "");
 }
 
-/** Alias normalizados → campo canónico (subconjunto usado para pegar FedEx). */
+/** Alias normalizados → campo canónico. */
 export const HEADER_ALIASES: Record<string, string> = {
-  // Tracking
-  trackingnumber: "trackingNumber",
-  tracking: "trackingNumber",
-  trackingno: "trackingNumber",
-  numeroguia: "trackingNumber",
-  hwbno: "trackingNumber",
-  guia: "trackingNumber",
-  awbmaster: "trackingNumber",
-  awbmaestro: "trackingNumber",
-  // Nombre
-  recipname: "recipientName",
-  recipientname: "recipientName",
-  nombredest: "recipientName",
-  nombre: "recipientName",
-  destinatario: "recipientName",
-  receptor: "recipientName",
-  // Dirección
-  recipaddr: "recipientAddress",
-  recipientaddress: "recipientAddress",
-  rcvraddr1: "recipientAddress",
-  calledest: "recipientAddress",
-  address: "recipientAddress",
-  direccion: "recipientAddress",
-  domicilio: "recipientAddress",
-  direccin: "recipientAddress",
-  // Dirección 2
-  rcvraddr2: "recipientAddress2",
-  address2: "recipientAddress2",
-  direccion2: "recipientAddress2",
-  // Ciudad
-  recipientcity: "recipientCity",
-  recipcity: "recipientCity",
-  ciudad: "recipientCity",
-  city: "recipientCity",
-  // CP
-  recipientzip: "recipientZip",
-  recipostal: "recipientZip",
-  rcvrpostcode: "recipientZip",
-  codigopostaldest: "recipientZip",
-  zip: "recipientZip",
-  postal: "recipientZip",
-  codigopostal: "recipientZip",
-  recippostal: "recipientZip",
-  cp: "recipientZip",
-  // Fecha compromiso
-  commitdate: "commitDate",
-  edd: "commitDate",
-  date: "commitDate",
-  fecha: "commitDate",
-  fechacompromiso: "commitDate",
-  fechaentrega: "commitDate",
-  vencimiento: "commitDate",
-  // Hora compromiso
-  committime: "commitTime",
-  time: "commitTime",
-  hora: "commitTime",
-  horacompromiso: "commitTime",
-  // Teléfono
-  recipphone: "recipientPhone",
-  phone: "recipientPhone",
-  telefono: "recipientPhone",
-  celular: "recipientPhone",
-  phonenumber: "recipientPhone",
-  cel: "recipientPhone",
-  tel: "recipientPhone",
-  telfono: "recipientPhone",
-  // Pago / COD
-  cod: "cod",
-  payment: "cod",
-  cashondelivery: "cod",
-  contraentrega: "cod",
-  pagocontraentrega: "cod",
-  pago: "cod",
-  lastcommscanupdate: "cod",
-  commcommentcommentcontainall: "cod",
+  trackingnumber: "trackingNumber", tracking: "trackingNumber", trackingno: "trackingNumber",
+  numeroguia: "trackingNumber", hwbno: "trackingNumber", guia: "trackingNumber",
+  awbmaster: "trackingNumber", awbmaestro: "trackingNumber",
+  recipname: "recipientName", recipientname: "recipientName", nombredest: "recipientName",
+  nombre: "recipientName", destinatario: "recipientName", receptor: "recipientName",
+  recipaddr: "recipientAddress", recipientaddress: "recipientAddress", rcvraddr1: "recipientAddress",
+  calledest: "recipientAddress", address: "recipientAddress", direccion: "recipientAddress",
+  domicilio: "recipientAddress", direccin: "recipientAddress",
+  rcvraddr2: "recipientAddress2", address2: "recipientAddress2", direccion2: "recipientAddress2",
+  recipientcity: "recipientCity", recipcity: "recipientCity", ciudad: "recipientCity", city: "recipientCity",
+  recipientzip: "recipientZip", recipostal: "recipientZip", rcvrpostcode: "recipientZip",
+  codigopostaldest: "recipientZip", zip: "recipientZip", postal: "recipientZip",
+  codigopostal: "recipientZip", recippostal: "recipientZip", cp: "recipientZip",
+  commitdate: "commitDate", edd: "commitDate", date: "commitDate", fecha: "commitDate",
+  fechacompromiso: "commitDate", fechaentrega: "commitDate", vencimiento: "commitDate",
+  committime: "commitTime", time: "commitTime", hora: "commitTime", horacompromiso: "commitTime",
+  recipphone: "recipientPhone", phone: "recipientPhone", telefono: "recipientPhone",
+  celular: "recipientPhone", phonenumber: "recipientPhone", cel: "recipientPhone",
+  tel: "recipientPhone", telfono: "recipientPhone",
+  cod: "cod", payment: "cod", cashondelivery: "cod", contraentrega: "cod",
+  pagocontraentrega: "cod", pago: "cod", monto: "cod", importe: "cod", amount: "cod",
+  lastcommscanupdate: "cod", commcommentcommentcontainall: "cod",
 };
 
+export interface FieldDef { field: string; header: string; label: string; }
+
 /**
- * Campos canónicos que exportamos en el .xlsx generado. El encabezado emitido
- * DEBE normalizar a una key de HEADER_ALIASES para que el backend lo reconozca.
- * (p.ej. "phone" → "phone" ✓; "cod" → "cod" ✓)
+ * Campos canónicos que exportamos en el .xlsx. El `header` emitido DEBE
+ * normalizar a una key de HEADER_ALIASES para que el backend lo reconozca.
  */
-export const CANONICAL_FIELDS = [
+export const CANONICAL_FIELDS: FieldDef[] = [
   { field: "trackingNumber", header: "trackingNumber", label: "Guía" },
   { field: "recipientName", header: "recipientName", label: "Destinatario" },
   { field: "recipientAddress", header: "recipientAddress", label: "Dirección" },
@@ -112,15 +63,40 @@ export const CANONICAL_FIELDS = [
   { field: "commitTime", header: "commitTime", label: "Hora" },
   { field: "recipientPhone", header: "phone", label: "Teléfono" },
   { field: "cod", header: "cod", label: "Pago" },
-] as const;
+];
 
-export type CanonicalField = (typeof CANONICAL_FIELDS)[number]["field"];
+const COD_FIELD = CANONICAL_FIELDS.find((f) => f.field === "cod")!;
 
-export interface HeaderMapResult {
-  headerRowIndex: number;
-  /** campo canónico → índice de columna en la fila cruda */
-  map: Record<string, number>;
+export interface MappedRow {
+  values: Record<string, string>; // campo canónico → valor (incluye 'cod')
+  missingTracking: boolean;
+  duplicateTracking: boolean;
+  badDate: boolean;
+  hasPayment: boolean;
+  paymentNoType: boolean;
+  isHighValue: boolean;
+  manual: boolean; // agregada por enriquecimiento (no venía en el pegado principal)
 }
+
+export interface MappedCounts {
+  total: number;
+  withTracking: number;
+  missingTracking: number;
+  duplicates: number;
+  withPayment: number;
+  paymentsNoType: number;
+  highValue: number;
+}
+
+export interface MappedTable {
+  fields: FieldDef[];
+  rows: MappedRow[];
+  hasTracking: boolean;
+  hasPayment: boolean;
+  counts: MappedCounts;
+}
+
+interface HeaderMapResult { headerRowIndex: number; map: Record<string, number>; }
 
 /** Escanea las primeras filas y detecta la fila de encabezados FedEx. */
 export function detectHeaderMap(rows: string[][], maxScanRows = 15): HeaderMapResult | null {
@@ -144,18 +120,95 @@ export function detectHeaderMap(rows: string[][], maxScanRows = 15): HeaderMapRe
   return null;
 }
 
-export interface MappedTable {
-  /** Campos canónicos presentes (en orden de CANONICAL_FIELDS). */
-  fields: typeof CANONICAL_FIELDS[number][];
-  /** Filas de datos ya mapeadas: cada fila es un objeto campo→valor. */
-  rows: Record<string, string>[];
-  hasTracking: boolean;
-  hasPayment: boolean;
+// ---------------------------------------------------------------------------
+// Validación de celdas
+// ---------------------------------------------------------------------------
+
+/** Fecha vacía = ok (backend aplica default). No vacía e ininterpretable = mala. */
+export function isBadDate(value: string): boolean {
+  const v = String(value ?? "").trim();
+  if (!v) return false;
+  if (/^\d+(\.\d+)?$/.test(v)) return false; // serial de Excel
+  // M/D/Y, D/M/Y o Y-M-D con separadores / - .
+  const m = v.match(/^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})/);
+  if (m) {
+    const a = Number(m[1]), b = Number(m[2]), c = Number(m[3]);
+    const parts = [a, b, c];
+    const hasDay = parts.some((p) => p >= 1 && p <= 31);
+    const hasMonthOk = b >= 1 && b <= 12;
+    return !(hasDay && (hasMonthOk || a <= 12));
+  }
+  return isNaN(Date.parse(v));
+}
+
+const PAY_TYPE_RE = /\b(COD|FTC|ROD)\b/i;
+/** Extrae {type, amount} de una celda de pago (espejo de parsePaymentCell). */
+export function parsePaymentCell(value: string): { type: string | null; amount: number | null } {
+  const raw = String(value ?? "").trim();
+  if (!raw) return { type: null, amount: null };
+  const typeMatch = raw.match(PAY_TYPE_RE);
+  const type = typeMatch ? typeMatch[1].toUpperCase() : null;
+  const numbers = raw.match(/[\d][\d.,]*/g);
+  let amount: number | null = null;
+  if (numbers && numbers.length) {
+    const last = numbers[numbers.length - 1];
+    // normaliza miles/decimales: quita separadores de miles, deja punto decimal
+    const cleaned = last.replace(/,(?=\d{3}\b)/g, "").replace(/,(\d{1,2})$/, ".$1").replace(/,/g, "");
+    const n = parseFloat(cleaned);
+    amount = isFinite(n) && n > 0 ? n : null;
+  }
+  return { type, amount };
+}
+
+function analyzeRow(values: Record<string, string>, manual: boolean): MappedRow {
+  const tracking = String(values["trackingNumber"] ?? "").trim();
+  const codCell = String(values["cod"] ?? "").trim();
+  const pay = parsePaymentCell(codCell);
+  const hasPayment = pay.amount !== null;
+  return {
+    values,
+    missingTracking: tracking === "",
+    duplicateTracking: false, // se calcula al final (necesita el set completo)
+    badDate: isBadDate(values["commitDate"] ?? ""),
+    hasPayment,
+    paymentNoType: hasPayment && !pay.type,
+    isHighValue: false,
+    manual,
+  };
+}
+
+function recompute(table: Omit<MappedTable, "counts" | "hasPayment">): MappedTable {
+  // duplicados por guía (entre filas con guía)
+  const seen = new Map<string, number>();
+  for (const r of table.rows) {
+    const t = String(r.values["trackingNumber"] ?? "").trim();
+    if (t) seen.set(t, (seen.get(t) ?? 0) + 1);
+  }
+  for (const r of table.rows) {
+    const t = String(r.values["trackingNumber"] ?? "").trim();
+    r.duplicateTracking = !!t && (seen.get(t) ?? 0) > 1;
+  }
+  const hasPayment = table.rows.some((r) => r.hasPayment);
+  // Asegura la columna Pago visible si hay pagos.
+  let fields = table.fields;
+  if (hasPayment && !fields.some((f) => f.field === "cod")) fields = [...fields, COD_FIELD];
+
+  const counts: MappedCounts = {
+    total: table.rows.length,
+    withTracking: table.rows.filter((r) => !r.missingTracking).length,
+    missingTracking: table.rows.filter((r) => r.missingTracking).length,
+    duplicates: table.rows.filter((r) => r.duplicateTracking).length,
+    withPayment: table.rows.filter((r) => r.hasPayment).length,
+    paymentsNoType: table.rows.filter((r) => r.paymentNoType).length,
+    highValue: table.rows.filter((r) => r.isHighValue).length,
+  };
+  return { fields, rows: table.rows, hasTracking: fields.some((f) => f.field === "trackingNumber"), hasPayment, counts };
 }
 
 /**
- * Construye la tabla limpia (igual que el import de FedEx): combina dirección +
- * dirección2, conserva solo columnas reconocidas y agrega Pago si viene.
+ * Construye la tabla limpia desde el pegado principal (Master/Aéreo/F2).
+ * Combina dirección + dirección2, conserva solo columnas reconocidas, marca
+ * problemas por fila y calcula conteos. `null` si no hay encabezados FedEx.
  */
 export function buildMappedTable(rawRows: string[][]): MappedTable | null {
   const detected = detectHeaderMap(rawRows);
@@ -166,21 +219,157 @@ export function buildMappedTable(rawRows: string[][]): MappedTable | null {
   const dataRows = rawRows.slice(headerRowIndex + 1).filter((r) => r.some((c) => String(c ?? "").trim() !== ""));
 
   const fields = CANONICAL_FIELDS.filter((f) => map[f.field] !== undefined);
-  const hasPayment = map["cod"] !== undefined;
-  const hasTracking = map["trackingNumber"] !== undefined;
 
-  const rows = dataRows.map((raw) => {
-    const out: Record<string, string> = {};
+  const rows: MappedRow[] = dataRows.map((raw) => {
+    const values: Record<string, string> = {};
     for (const f of fields) {
       let value = String(raw[map[f.field]] ?? "").trim();
       if (f.field === "recipientAddress" && addr2Index !== undefined) {
         const a2 = String(raw[addr2Index] ?? "").trim();
         if (a2) value = [value, a2].filter(Boolean).join(", ");
       }
-      out[f.field] = value;
+      values[f.field] = value;
+    }
+    return analyzeRow(values, false);
+  });
+
+  return recompute({ fields, rows });
+}
+
+// ---------------------------------------------------------------------------
+// Enriquecimiento: Pagos (COD) y High Value
+// ---------------------------------------------------------------------------
+
+export interface ParsedPayment { tracking: string; amount: number | null; type: string | null; raw: string; }
+
+/**
+ * Parsea un pegado de pagos: primero intenta por encabezados (tracking + cod);
+ * si no hay encabezados (vienen del cuerpo del correo), usa heurística por línea:
+ * token largo de dígitos = guía; tipo COD/FTC/ROD si aparece; último número = monto.
+ */
+export function parsePaymentsPaste(raw: string): ParsedPayment[] {
+  const rows = toMatrix(raw);
+  if (!rows.length) return [];
+  const detected = detectHeaderMap(rows);
+  const out: ParsedPayment[] = [];
+
+  if (detected && detected.map["trackingNumber"] !== undefined) {
+    const { headerRowIndex, map } = detected;
+    for (const r of rows.slice(headerRowIndex + 1)) {
+      const tracking = String(r[map["trackingNumber"]] ?? "").trim();
+      if (!tracking) continue;
+      const codCell = map["cod"] !== undefined ? String(r[map["cod"]] ?? "") : r.join(" ");
+      const { type, amount } = parsePaymentCell(codCell);
+      out.push({ tracking, amount, type, raw: codCell.trim() });
     }
     return out;
-  }).filter((r) => String(r["trackingNumber"] ?? "").trim() !== "");
+  }
 
-  return { fields: fields as any, rows, hasTracking, hasPayment };
+  // Heurística (texto libre del correo).
+  for (const cells of rows) {
+    const line = cells.join(" ").trim();
+    if (!line) continue;
+    const trackMatch = line.match(/\b\d{9,}\b/);
+    if (!trackMatch) continue;
+    const { type, amount } = parsePaymentCell(line);
+    out.push({ tracking: trackMatch[0], amount, type, raw: line });
+  }
+  return out;
+}
+
+export interface ParsedHv { tracking: string; address: string; }
+
+/** Parsea un pegado de High Value: guía (+ dirección si viene). */
+export function parseHvPaste(raw: string): ParsedHv[] {
+  const rows = toMatrix(raw);
+  if (!rows.length) return [];
+  const detected = detectHeaderMap(rows);
+  const out: ParsedHv[] = [];
+
+  if (detected && detected.map["trackingNumber"] !== undefined) {
+    const { headerRowIndex, map } = detected;
+    const addrIdx = map["recipientAddress"];
+    for (const r of rows.slice(headerRowIndex + 1)) {
+      const tracking = String(r[map["trackingNumber"]] ?? "").trim();
+      if (!tracking) continue;
+      out.push({ tracking, address: addrIdx !== undefined ? String(r[addrIdx] ?? "").trim() : "" });
+    }
+    return out;
+  }
+  // Heurística: primer token largo de dígitos por línea.
+  for (const cells of rows) {
+    const line = cells.join(" ").trim();
+    const m = line.match(/\b\d{9,}\b/);
+    if (m) out.push({ tracking: m[0], address: "" });
+  }
+  return out;
+}
+
+/** Aplica pagos a la tabla: marca filas existentes y agrega las que falten. */
+export function mergePayments(table: MappedTable, payments: ParsedPayment[]): MappedTable {
+  const rows = table.rows.map((r) => ({ ...r, values: { ...r.values } }));
+  const byTracking = new Map<string, MappedRow>();
+  for (const r of rows) {
+    const t = String(r.values["trackingNumber"] ?? "").trim();
+    if (t) byTracking.set(t, r);
+  }
+  let fields = table.fields.some((f) => f.field === "cod") ? table.fields : [...table.fields, COD_FIELD];
+
+  for (const p of payments) {
+    if (!p.tracking) continue;
+    const codText = `${p.type ? p.type + " " : ""}${p.amount ?? p.raw}`.trim();
+    const existing = byTracking.get(p.tracking);
+    if (existing) {
+      existing.values["cod"] = codText;
+      const pay = parsePaymentCell(codText);
+      existing.hasPayment = pay.amount !== null;
+      existing.paymentNoType = existing.hasPayment && !pay.type;
+    } else {
+      const values: Record<string, string> = { trackingNumber: p.tracking, cod: codText };
+      const nr = analyzeRow(values, true);
+      rows.push(nr);
+      byTracking.set(p.tracking, nr);
+    }
+  }
+  return recompute({ fields, rows });
+}
+
+/** Marca filas como High Value y agrega las que falten. */
+export function mergeHighValue(table: MappedTable, hv: ParsedHv[]): MappedTable {
+  const rows = table.rows.map((r) => ({ ...r, values: { ...r.values } }));
+  const byTracking = new Map<string, MappedRow>();
+  for (const r of rows) {
+    const t = String(r.values["trackingNumber"] ?? "").trim();
+    if (t) byTracking.set(t, r);
+  }
+  for (const h of hv) {
+    if (!h.tracking) continue;
+    const existing = byTracking.get(h.tracking);
+    if (existing) {
+      existing.isHighValue = true;
+      if (h.address && !existing.values["recipientAddress"]) existing.values["recipientAddress"] = h.address;
+    } else {
+      const values: Record<string, string> = { trackingNumber: h.tracking };
+      if (h.address) values["recipientAddress"] = h.address;
+      const nr = analyzeRow(values, true);
+      nr.isHighValue = true;
+      rows.push(nr);
+      byTracking.set(h.tracking, nr);
+    }
+  }
+  return recompute({ fields: table.fields, rows });
+}
+
+/**
+ * Pegado → matriz de celdas. Divide por TAB (pegado de Excel) o por 2+ espacios
+ * (columnas alineadas). NO divide por coma: rompería montos ("1,250.00") y
+ * direcciones ("Calle 1, Int 2"). El texto libre del correo queda como 1 celda
+ * y lo resuelve la heurística por regex.
+ */
+export function toMatrix(raw: string): string[][] {
+  return String(raw ?? "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => (line.includes("\t") ? line.split("\t") : line.split(/ {2,}/)));
 }
