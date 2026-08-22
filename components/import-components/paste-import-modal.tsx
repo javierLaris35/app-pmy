@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ClipboardPaste, FlaskConical } from "lucide-react";
+import { Loader2, ClipboardPaste, FlaskConical, AlertTriangle } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
   uploadShipmentFile,
@@ -18,6 +18,7 @@ import {
   uploadF2ChargeShipments,
   uploadShipmentPayments,
 } from "@/lib/services/shipments";
+import { buildMappedTable, MappedTable } from "@/lib/fedex-header-map";
 
 type PasteKind = "master" | "payment" | "high_value" | "f2";
 
@@ -28,7 +29,7 @@ const KIND_LABEL: Record<PasteKind, string> = {
   f2: "F2 / Cargas",
 };
 
-/** Convierte el pegado de Excel (TSV) en una matriz de celdas. */
+/** Pegado de Excel (TSV) → matriz de celdas. */
 function parseTsv(raw: string): string[][] {
   return raw
     .replace(/\r\n/g, "\n")
@@ -37,8 +38,11 @@ function parseTsv(raw: string): string[][] {
     .map((line) => line.split("\t"));
 }
 
-function buildXlsxFile(rows: string[][], name: string): File {
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+/** Genera el .xlsx (en memoria) a partir de la tabla YA mapeada (columnas canónicas). */
+function buildXlsxFile(mapped: MappedTable, name: string): File {
+  const headers = mapped.fields.map((f) => f.header);
+  const rows = mapped.rows.map((r) => mapped.fields.map((f) => r[f.field] ?? ""));
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pegado");
   const out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -49,8 +53,10 @@ function buildXlsxFile(rows: string[][], name: string): File {
 
 /**
  * Modal EXPERIMENTAL: pega datos copiados desde Excel (en vez de subir archivo).
- * El pegado se convierte a un .xlsx en memoria y se envía al MISMO endpoint que
- * el flujo por archivo (misma preview/validación/enriquecimiento FedEx).
+ * La tabla se construye IGUAL que el import de FedEx: mapea las columnas por
+ * encabezado (mismo header-map del backend), ignora las columnas irrelevantes y
+ * conserva el Pago (COD) si viene. El .xlsx resultante se envía al MISMO endpoint
+ * que el flujo por archivo (misma preview/validación/enriquecimiento FedEx).
  */
 export function PasteImportModal({
   open,
@@ -68,23 +74,28 @@ export function PasteImportModal({
   const [isAereo, setIsAereo] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const rows = useMemo(() => parseTsv(raw), [raw]);
-  const preview = rows.slice(0, 10);
-  const dataRowCount = Math.max(0, rows.length - 1); // primera fila = encabezados
+  const rawRows = useMemo(() => parseTsv(raw), [raw]);
+  const mapped = useMemo(() => buildMappedTable(rawRows), [rawRows]);
+  const hasContent = raw.trim().length > 0;
+  const previewRows = mapped?.rows.slice(0, 10) ?? [];
 
   const needsSubsidiary = kind === "master" || kind === "high_value" || kind === "f2";
 
   const reset = () => { setRaw(""); setConsNumber(""); setConsDate(""); };
 
   const submit = async () => {
-    if (rows.length < 2) { toast.error("Pega al menos una fila de encabezados y una de datos."); return; }
+    if (!mapped || !mapped.hasTracking) {
+      toast.error("No se detectó la columna de Guía/Tracking en lo que pegaste. Incluye la fila de encabezados de FedEx.");
+      return;
+    }
+    if (mapped.rows.length === 0) { toast.error("No hay filas con guía para importar."); return; }
     if (needsSubsidiary && !subsidiaryId) { toast.error("Selecciona una sucursal primero."); return; }
+
     setSending(true);
     try {
-      const file = buildXlsxFile(rows, `pegado_${kind}_${Date.now()}.xlsx`);
+      const file = buildXlsxFile(mapped, `pegado_${kind}_${Date.now()}.xlsx`);
       let result: any;
       if (kind === "master") {
-        // Misma preview que el flujo por archivo antes de guardar.
         const pv = await previewShipmentFile(file, subsidiaryId!, consNumber, consDate, "fedex");
         if (pv.consNumberExists?.isDateConflict) {
           toast.error(`El consolidado ${pv.consNumberExists.consNumber} ya existe con otra fecha.`);
@@ -121,7 +132,7 @@ export function PasteImportModal({
             </Badge>
           </DialogTitle>
           <DialogDescription>
-            Copia las filas desde Excel (con su encabezado) y pégalas aquí. El sistema arma el archivo y lo procesa igual que una carga normal.
+            Copia las filas desde Excel (con su encabezado) y pégalas aquí. Se mapean las columnas igual que en el import de FedEx (se ignoran las que no aplican y se conserva el Pago si viene).
           </DialogDescription>
         </DialogHeader>
 
@@ -159,25 +170,42 @@ export function PasteImportModal({
           </div>
 
           <div>
-            <Label className="text-xs">Pega aquí (TSV desde Excel)</Label>
+            <Label className="text-xs">Pega aquí (con la fila de encabezados de FedEx)</Label>
             <Textarea
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
-              placeholder="Tracking\tDestinatario\tDirección\t…&#10;123456789\tJuan Pérez\tCalle 1\t…"
-              className="min-h-[160px] font-mono text-xs"
+              placeholder={"Tracking No\tRecip Name\tRecip Addr\tRecip City\t…\n123456789\tJuan Pérez\tCalle 1\tHermosillo\t…"}
+              className="min-h-[140px] font-mono text-xs"
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {rows.length > 0 ? `${dataRowCount} fila(s) de datos detectada(s) (1 de encabezados).` : "Sin datos pegados."}
-            </p>
+            {hasContent && !mapped && (
+              <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
+                <AlertTriangle className="h-3 w-3" /> No se detectaron encabezados FedEx. Incluye la fila de títulos (Tracking, Recip Name, …).
+              </p>
+            )}
+            {mapped && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {mapped.rows.length} fila(s) con guía · columnas detectadas: {mapped.fields.map((f) => f.label).join(", ")}
+                {mapped.hasPayment ? " · incluye Pago" : ""}
+              </p>
+            )}
           </div>
 
-          {preview.length > 0 && (
-            <div className="max-h-52 overflow-auto rounded-lg border">
+          {mapped && previewRows.length > 0 && (
+            <div className="max-h-60 overflow-auto rounded-lg border">
               <table className="w-full text-[11px]">
+                <thead className="sticky top-0 bg-muted">
+                  <tr>
+                    {mapped.fields.map((f) => (
+                      <th key={f.field} className="whitespace-nowrap px-2 py-1.5 text-left font-semibold">{f.label}</th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
-                  {preview.map((r, i) => (
-                    <tr key={i} className={i === 0 ? "bg-muted font-semibold" : "border-t"}>
-                      {r.map((c, j) => <td key={j} className="whitespace-nowrap px-2 py-1">{c}</td>)}
+                  {previewRows.map((r, i) => (
+                    <tr key={i} className="border-t">
+                      {mapped.fields.map((f) => (
+                        <td key={f.field} className="whitespace-nowrap px-2 py-1">{r[f.field]}</td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -188,7 +216,7 @@ export function PasteImportModal({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={sending}>Cancelar</Button>
-          <Button onClick={submit} disabled={sending || rows.length < 2}>
+          <Button onClick={submit} disabled={sending || !mapped || !mapped.hasTracking || mapped.rows.length === 0}>
             {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Procesar e importar
           </Button>
         </DialogFooter>
