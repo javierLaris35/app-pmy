@@ -111,6 +111,7 @@ export function PasteImportModal({
 
   const hasContent = raw.trim().length > 0;
   const c = table?.counts;
+  const problems = table?.problems ?? [];
 
   // Autollenado desde la fila meta del pegado (consNumber / aéreo / fecha).
   const detConsNumber = table?.meta.consNumber;
@@ -424,6 +425,36 @@ export function PasteImportModal({
               </div>
             )}
           </div>
+
+          {/* Problemas de estructura/columna en tiempo real */}
+          {(problems.length > 0 || (hasContent && !table)) && (
+            <div className="space-y-1.5">
+              {hasContent && !table && (
+                <div className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
+                  <AlertTriangle className="h-4 w-4 shrink-0" /> No se encontró la columna de Guía/Tracking. Revisa que hayas pegado los encabezados (Tracking, Recip Name, …).
+                </div>
+              )}
+              {problems.map((p, i) => (
+                <div key={i} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] ${p.level === "error" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>
+                  <AlertTriangle className="h-4 w-4 shrink-0" /> {p.message}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Explicabilidad del mapeo (cómo se interpretó cada columna) */}
+          {table && Object.keys(table.sources).length > 0 && (
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <p className="mb-1.5 text-[12px] font-semibold text-gray-700">Mapeo detectado</p>
+              <div className="flex flex-wrap gap-1.5">
+                {table.fields.map((f) => (
+                  <span key={f.field} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                    <strong>{f.label}</strong> ← {table.sources[f.field] ?? "—"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Preview del backend (master) */}
           {kind === "master" && preview && (

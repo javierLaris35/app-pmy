@@ -97,6 +97,11 @@ export interface DetectedMeta {
   aereo?: boolean;
 }
 
+export interface ColumnProblem {
+  level: "error" | "warn";
+  message: string;
+}
+
 export interface MappedTable {
   fields: FieldDef[];
   rows: MappedRow[];
@@ -104,6 +109,10 @@ export interface MappedTable {
   hasPayment: boolean;
   counts: MappedCounts;
   meta: DetectedMeta;
+  /** Problemas de columna/estructura para mostrar en tiempo real. */
+  problems: ColumnProblem[];
+  /** Explicabilidad: campo canónico → de qué encabezado/origen salió. */
+  sources: Record<string, string>;
 }
 
 interface HeaderMapResult { headerRowIndex: number; map: Record<string, number>; }
@@ -128,6 +137,193 @@ export function detectHeaderMap(rows: string[][], maxScanRows = 15): HeaderMapRe
     return { headerRowIndex: i, map };
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Resolutor INTELIGENTE de columnas (puntaje por encabezado + inferencia por
+// contenido). Prioriza destinatario sobre remitente y nunca lanza excepción.
+// ---------------------------------------------------------------------------
+
+type Field =
+  | "trackingNumber" | "recipientName" | "recipientAddress" | "recipientAddress2"
+  | "recipientCity" | "recipientZip" | "commitDate" | "commitTime" | "recipientPhone" | "cod";
+
+const RECIP_FIELDS: Field[] = ["recipientName", "recipientAddress", "recipientAddress2", "recipientCity", "recipientZip", "recipientPhone"];
+
+const RECIP_CTX = ["dest", "destino", "destinatario", "recip", "recipient", "consignee", "cliente", "receptor", "recibe", "entrega", "deliver", "shipto", "to"];
+const SENDER_CTX = ["rem", "remitente", "remit", "shipper", "shpr", "orig", "origen", "sender", "from"];
+
+const FIELD_PRIMARY: Record<Field, string[]> = {
+  trackingNumber: ["tracking", "guia", "awb", "hwb", "waybill", "seguimiento", "rastreo", "guias"],
+  recipientName: ["nombre", "name", "consignee"],
+  recipientAddress: ["direccion", "address", "addr", "calle", "domicilio", "street"],
+  recipientAddress2: ["interior", "depto", "suite"],
+  recipientCity: ["ciudad", "city", "municipio", "localidad", "poblacion", "town"],
+  recipientZip: ["cp", "postal", "zip", "postcode"],
+  commitDate: ["commit", "vencimiento", "edd", "fecha", "date"],
+  commitTime: ["hora", "time"],
+  recipientPhone: ["telefono", "phone", "celular", "tel", "cel", "movil", "contacto"],
+  cod: ["cod", "cobro", "pago", "payment", "collect", "importe", "monto", "amount"],
+};
+
+const FIELD_LABEL: Record<Field, string> = {
+  trackingNumber: "Guía", recipientName: "Destinatario", recipientAddress: "Dirección",
+  recipientAddress2: "Dirección 2", recipientCity: "Ciudad", recipientZip: "CP",
+  commitDate: "Fecha", commitTime: "Hora", recipientPhone: "Teléfono", cod: "Pago",
+};
+
+function tokenize(header: string): string[] {
+  return String(header ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "") // sin acentos
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/** Puntaje de un encabezado (ya tokenizado) para un campo. 0 = no aplica. */
+function scoreHeaderForField(tokens: string[], field: Field): number {
+  if (tokens.length === 0) return 0;
+  const has = (t: string) => tokens.includes(t);
+  const hasAny = (arr: string[]) => arr.some((t) => tokens.includes(t));
+  const recip = hasAny(RECIP_CTX);
+  const sender = hasAny(SENDER_CTX);
+
+  // Campos del destinatario: descarta si es claramente del remitente.
+  if (RECIP_FIELDS.includes(field) && sender && !recip) return 0;
+
+  if (field === "commitDate") {
+    // Excluye fechas que NO son de compromiso (salida/escaneo/registro).
+    if (hasAny(["salida", "scan", "escaneo", "captura", "registro", "creacion"])) return 0;
+    if (hasAny(["commit", "vencimiento", "edd"])) return 5;
+    if (hasAny(["fecha", "date"])) return 3;
+    return 0;
+  }
+  if (field === "commitTime") {
+    if (hasAny(["salida", "scan"])) return 0;
+    if (hasAny(["hora", "time"])) return has("commit") ? 5 : 3;
+    return 0;
+  }
+  if (field === "cod") {
+    if (hasAny(FIELD_PRIMARY.cod)) return 4;
+    if (has("comm") && (has("update") || has("comment"))) return 4; // FedEx "Last COMM Scan Update"
+    return 0;
+  }
+
+  const primary = hasAny(FIELD_PRIMARY[field]);
+  if (!primary) return 0;
+  let score = 3;
+  if (RECIP_FIELDS.includes(field) && recip) score += 2; // refuerzo destinatario
+  return score;
+}
+
+/** Muestra de valores no vacíos de una columna (filas de datos). */
+function sampleColumn(rows: string[][], colIdx: number, fromRow: number, limit = 25): string[] {
+  const out: string[] = [];
+  for (let i = fromRow; i < rows.length && out.length < limit; i++) {
+    const v = String(rows[i]?.[colIdx] ?? "").trim();
+    if (v) out.push(v);
+  }
+  return out;
+}
+
+const frac = (vals: string[], re: RegExp) => (vals.length ? vals.filter((v) => re.test(v)).length / vals.length : 0);
+
+/** Infiere el campo de una columna por el patrón de sus valores. */
+function inferFieldByContent(vals: string[]): Field | null {
+  if (vals.length < 3) return null;
+  if (frac(vals, /^\d{10,18}$/) >= 0.6) return "trackingNumber";
+  if (frac(vals, /^\d{4,5}$/) >= 0.6) return "recipientZip";
+  if (frac(vals, /^\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}$/) >= 0.6) return "commitDate";
+  if (frac(vals, /^([01]?\d|2[0-3]):[0-5]\d/) >= 0.6) return "commitTime";
+  if (frac(vals, /^\+?\d[\d\s()-]{6,14}$/) >= 0.6) return "recipientPhone";
+  return null;
+}
+
+/**
+ * Resuelve columnas de forma robusta: elige la fila de encabezados (la que más
+ * columnas reconoce), puntúa cada columna contra cada campo (destinatario >
+ * remitente) y, para campos sin encabezado, infiere por contenido. Devuelve el
+ * mapa, el origen por campo (explicabilidad) y problemas para mostrar.
+ */
+export function resolveColumns(rows: string[][], maxScanRows = 20): {
+  headerRowIndex: number;
+  map: Record<string, number>;
+  sources: Record<string, string>;
+  problems: ColumnProblem[];
+} {
+  const problems: ColumnProblem[] = [];
+  const map: Record<string, number> = {};
+  const sources: Record<string, string> = {};
+  if (!rows.length) {
+    problems.push({ level: "error", message: "No hay datos pegados." });
+    return { headerRowIndex: -1, map, sources, problems };
+  }
+
+  // 1) Elegir fila de encabezados: la que maximiza columnas reconocidas.
+  const limit = Math.min(rows.length, maxScanRows);
+  let headerRowIndex = -1;
+  let bestScore = 0;
+  const fields = Object.keys(FIELD_PRIMARY) as Field[];
+  for (let i = 0; i < limit; i++) {
+    const row = rows[i] ?? [];
+    let recognized = 0;
+    for (const cell of row) {
+      const tk = tokenize(String(cell ?? ""));
+      if (fields.some((f) => scoreHeaderForField(tk, f) > 0)) recognized++;
+    }
+    if (recognized > bestScore) { bestScore = recognized; headerRowIndex = i; }
+  }
+  // Umbral: si ninguna fila reconoce >=2 columnas, no hay encabezado → contenido.
+  if (bestScore < 2) headerRowIndex = -1;
+
+  // 2) Puntuar columnas del encabezado elegido y asignar de forma greedy.
+  const usedCols = new Set<number>();
+  if (headerRowIndex >= 0) {
+    const header = rows[headerRowIndex];
+    const cands: { col: number; field: Field; score: number; text: string }[] = [];
+    header.forEach((cell, col) => {
+      const text = String(cell ?? "").trim();
+      const tk = tokenize(text);
+      for (const f of fields) {
+        const s = scoreHeaderForField(tk, f);
+        if (s > 0) cands.push({ col, field: f, score: s, text });
+      }
+    });
+    cands.sort((a, b) => b.score - a.score);
+    for (const cnd of cands) {
+      if (map[cnd.field] !== undefined || usedCols.has(cnd.col)) continue;
+      map[cnd.field] = cnd.col;
+      usedCols.add(cnd.col);
+      sources[cnd.field] = cnd.text || `columna ${cnd.col + 1}`;
+    }
+  } else {
+    problems.push({ level: "warn", message: "No se reconoció una fila de encabezados; se intentará inferir por contenido." });
+  }
+
+  // 3) Inferencia por contenido para campos clave sin resolver.
+  const dataFrom = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+  const inferable: Field[] = ["trackingNumber", "recipientZip", "commitDate", "commitTime", "recipientPhone"];
+  for (const field of inferable) {
+    if (map[field] !== undefined) continue;
+    const ncols = Math.max(...rows.slice(dataFrom, dataFrom + 25).map((r) => r.length), 0);
+    for (let col = 0; col < ncols; col++) {
+      if (usedCols.has(col)) continue;
+      const guess = inferFieldByContent(sampleColumn(rows, col, dataFrom));
+      if (guess === field) {
+        map[field] = col;
+        usedCols.add(col);
+        sources[field] = "inferido por contenido";
+        break;
+      }
+    }
+  }
+
+  if (map["trackingNumber"] === undefined) {
+    problems.push({ level: "error", message: "No se encontró la columna de Guía/Tracking. Verifica que pegaste los encabezados." });
+  }
+  return { headerRowIndex, map, sources, problems };
 }
 
 // ---------------------------------------------------------------------------
@@ -187,16 +383,22 @@ function analyzeRow(values: Record<string, string>, manual: boolean): MappedRow 
   };
 }
 
-/** Convierte "dd/mm/yyyy" (convención MX) a "yyyy-MM-dd" para inputs date. */
+/**
+ * Convierte una fecha a "yyyy-MM-dd". Los archivos FedEx usan MM/DD/YYYY, así
+ * que se asume ese orden; si el primer número > 12 se interpreta como DD/MM.
+ */
 function toIsoDate(value: string): string | undefined {
   const m = String(value ?? "").trim().match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
   if (!m) return undefined;
-  let [, d, mo, y] = m;
+  let [, a, b, y] = m;
   if (y.length === 2) y = "20" + y;
-  const dd = d.padStart(2, "0");
-  const mm = mo.padStart(2, "0");
-  if (Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31) return undefined;
-  return `${y}-${mm}-${dd}`;
+  let mm: number, dd: number;
+  const na = Number(a), nb = Number(b);
+  if (na > 12) { dd = na; mm = nb; }        // DD/MM
+  else if (nb > 12) { mm = na; dd = nb; }   // MM/DD
+  else { mm = na; dd = nb; }                // ambiguo → MM/DD (FedEx)
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return undefined;
+  return `${y}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 
 /**
@@ -228,7 +430,13 @@ export function detectMeta(rawRows: string[][], headerRowIndex: number): Detecte
   return meta;
 }
 
-function recompute(table: { fields: FieldDef[]; rows: MappedRow[]; meta?: DetectedMeta }): MappedTable {
+function recompute(table: {
+  fields: FieldDef[];
+  rows: MappedRow[];
+  meta?: DetectedMeta;
+  problems?: ColumnProblem[];
+  sources?: Record<string, string>;
+}): MappedTable {
   // duplicados por guía (entre filas con guía)
   const seen = new Map<string, number>();
   for (const r of table.rows) {
@@ -260,21 +468,25 @@ function recompute(table: { fields: FieldDef[]; rows: MappedRow[]; meta?: Detect
     hasPayment,
     counts,
     meta: table.meta ?? {},
+    problems: table.problems ?? [],
+    sources: table.sources ?? {},
   };
 }
 
 /**
- * Construye la tabla limpia desde el pegado principal (Master/Aéreo/F2).
- * Combina dirección + dirección2, conserva solo columnas reconocidas, marca
- * problemas por fila y calcula conteos. `null` si no hay encabezados FedEx.
+ * Construye la tabla limpia desde el pegado principal (Master/Aéreo/F2) con el
+ * resolutor inteligente (puntaje por encabezado + inferencia por contenido).
+ * Combina dirección + dirección2, marca problemas por fila y calcula conteos.
+ * Devuelve `null` solo si no hay NINGUNA columna de guía (ni por encabezado ni
+ * por contenido) — todo lo demás se reporta en `problems`, nunca lanza.
  */
 export function buildMappedTable(rawRows: string[][]): MappedTable | null {
-  const detected = detectHeaderMap(rawRows);
-  if (!detected) return null;
+  const { headerRowIndex, map, sources, problems } = resolveColumns(rawRows);
+  if (map["trackingNumber"] === undefined) return null;
 
-  const { headerRowIndex, map } = detected;
   const addr2Index = map["recipientAddress2"];
-  const dataRows = rawRows.slice(headerRowIndex + 1).filter((r) => r.some((c) => String(c ?? "").trim() !== ""));
+  const dataFrom = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+  const dataRows = rawRows.slice(dataFrom).filter((r) => r.some((c) => String(c ?? "").trim() !== ""));
 
   const fields = CANONICAL_FIELDS.filter((f) => map[f.field] !== undefined);
 
@@ -291,8 +503,8 @@ export function buildMappedTable(rawRows: string[][]): MappedTable | null {
     return analyzeRow(values, false);
   });
 
-  const meta = detectMeta(rawRows, headerRowIndex);
-  return recompute({ fields, rows, meta });
+  const meta = detectMeta(rawRows, headerRowIndex >= 0 ? headerRowIndex : 0);
+  return recompute({ fields, rows, meta, problems, sources });
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +604,7 @@ export function mergePayments(table: MappedTable, payments: ParsedPayment[]): Ma
       byTracking.set(p.tracking, nr);
     }
   }
-  return recompute({ fields, rows, meta: table.meta });
+  return recompute({ fields, rows, meta: table.meta, problems: table.problems, sources: table.sources });
 }
 
 /** Marca filas como High Value y agrega las que falten. */
@@ -418,7 +630,7 @@ export function mergeHighValue(table: MappedTable, hv: ParsedHv[]): MappedTable 
       byTracking.set(h.tracking, nr);
     }
   }
-  return recompute({ fields: table.fields, rows, meta: table.meta });
+  return recompute({ fields: table.fields, rows, meta: table.meta, problems: table.problems, sources: table.sources });
 }
 
 /**

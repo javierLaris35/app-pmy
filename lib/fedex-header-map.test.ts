@@ -45,7 +45,7 @@ describe("buildMappedTable (pegar FedEx)", () => {
     const t = buildMappedTable(rows)!;
     expect(t.meta.consNumber).toBe("305794238300");
     expect(t.meta.aereo).toBe(true);
-    expect(t.meta.date).toBe("2026-06-05");
+    expect(t.meta.date).toBe("2026-05-06"); // 05/06 → MM/DD (FedEx)
     expect(t.counts.total).toBe(2);
     expect(t.rows[0].values.trackingNumber).toBe("381432222844"); // ignoró la columna #
     expect(t.rows[0].values.recipientName).toBe("LAITA OLIMON");
@@ -61,7 +61,60 @@ describe("buildMappedTable (pegar FedEx)", () => {
     const t = buildMappedTable(rows)!;
     expect(t.meta.consNumber).toBe("305794238300");
     expect(t.meta.aereo).toBe(true);
-    expect(t.meta.date).toBe("2026-06-05");
+    expect(t.meta.date).toBe("2026-05-06"); // MM/DD (FedEx)
+  });
+});
+
+describe("resolutor inteligente contra formatos reales", () => {
+  it("CartaPorte (CCP GUIAS): mapea DEST y NUNCA el remitente", () => {
+    const rows = [
+      ["NUMERO_GUIA", "RFC_REMITENTE", "NOMBRE_REMITENTE", "CALLE_REM", "CODIGO_POSTAL_REM", "RFC_DESTINATARIO", "NOMBRE_DEST", "CALLE_DEST", "MUNICIPIO_DEST", "ESTADO_DEST", "CODIGO_POSTAL_DEST"],
+      ["381767587441", "XAXX010101000", "BLANCA ESTELA SANCHEZ", "AND LIBRA 3", "40040", "XAXX010101000", "JUAN CARLOS CRUZ", "MZA 15 LOTE 21", "", "BS", "23477"],
+    ];
+    const t = buildMappedTable(rows)!;
+    expect(t.rows[0].values.trackingNumber).toBe("381767587441");
+    expect(t.rows[0].values.recipientName).toBe("JUAN CARLOS CRUZ"); // DEST, no REM
+    expect(t.rows[0].values.recipientAddress).toBe("MZA 15 LOTE 21");
+    expect(t.rows[0].values.recipientZip).toBe("23477"); // CP DEST, no 40040 del REM
+    expect(t.problems.find((p) => p.level === "error")).toBeUndefined();
+  });
+
+  it("PREALERTA con Recip Co. extra y COD; fecha MM/DD", () => {
+    const rows = [
+      ["Tracking Number", "Recip Co.", "Recip Name", "Recip Addr", "Commit Date", "Recip Phone", "", "COD"],
+      ["383106795314", "", "MARIA INES ZEPEDA", "AVENIDA FLORENCIA 7", "08/17/2026", "6624135396", "", ""],
+    ];
+    const t = buildMappedTable(rows)!;
+    expect(t.rows[0].values.trackingNumber).toBe("383106795314");
+    expect(t.rows[0].values.recipientName).toBe("MARIA INES ZEPEDA"); // no Recip Co.
+    expect(t.rows[0].values.recipientPhone).toBe("6624135396");
+    expect(t.rows[0].badDate).toBe(false); // 08/17/2026 válida (MM/DD)
+    expect(t.sources.recipientName?.toLowerCase()).toContain("name");
+  });
+
+  it("COBROS LASTCOMM: tracking + Last COMM Scan Update como cod, ignora filas vacías", () => {
+    const rows = [
+      ["Tracking Number", "Last COMM Scan Date", "Last COMM Scan Update"],
+      ["", "", ""],
+      ["875288390033", "", "ROD-COLLECT CASH 3,102.00"],
+    ];
+    const t = buildMappedTable(rows)!;
+    expect(t.rows).toHaveLength(1);
+    expect(t.rows[0].values.trackingNumber).toBe("875288390033");
+    expect(t.rows[0].hasPayment).toBe(true);
+    expect(t.rows[0].values.cod).toContain("3,102.00");
+  });
+
+  it("infiere la columna de guía por contenido cuando no hay encabezado", () => {
+    const rows = [
+      ["JUAN PEREZ", "381432222844", "CALLE 1", "23454"],
+      ["MARIA LOPEZ", "381634876530", "CALLE 2", "23473"],
+      ["PEDRO GOMEZ", "381695180557", "CALLE 3", "23405"],
+    ];
+    const t = buildMappedTable(rows);
+    expect(t).not.toBeNull();
+    expect(t!.rows[0].values.trackingNumber).toBe("381432222844");
+    expect(t!.rows.length).toBe(3); // sin encabezado, todas son datos
   });
 });
 
