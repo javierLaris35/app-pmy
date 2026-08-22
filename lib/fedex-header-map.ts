@@ -206,19 +206,20 @@ function toIsoDate(value: string): string | undefined {
  */
 export function detectMeta(rawRows: string[][], headerRowIndex: number): DetectedMeta {
   const meta: DetectedMeta = {};
+  // Se busca sobre el TEXTO COMPLETO de cada fila meta (no celda por celda),
+  // para funcionar aunque la fila venga como una sola celda o con espacios.
   for (let i = 0; i < headerRowIndex; i++) {
-    const row = rawRows[i] ?? [];
-    const joined = row.join(" ");
+    const joined = (rawRows[i] ?? []).join(" ").trim();
+    if (!joined) continue;
     if (!meta.consNumber) {
-      for (const cell of row) {
-        const v = String(cell ?? "").trim();
-        if (/^\d{6,}$/.test(v)) { meta.consNumber = v; break; }
-      }
+      const m = joined.match(/\b\d{6,}\b/); // primer token largo de dígitos = consolidado
+      if (m) meta.consNumber = m[0];
     }
     if (!meta.date) {
-      for (const cell of row) {
-        const iso = toIsoDate(String(cell ?? ""));
-        if (iso) { meta.date = iso; break; }
+      const m = joined.match(/\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b/);
+      if (m) {
+        const iso = toIsoDate(m[0]);
+        if (iso) meta.date = iso;
       }
     }
     if (meta.aereo === undefined && /\bAERE/i.test(joined)) meta.aereo = true;

@@ -51,6 +51,18 @@ describe("buildMappedTable (pegar FedEx)", () => {
     expect(t.rows[0].values.recipientName).toBe("LAITA OLIMON");
     expect(t.rows[0].values.recipientZip).toBe("23454");
   });
+
+  it("detecta meta aunque la fila meta venga como una sola celda (sin tabs)", () => {
+    const rows = [
+      ["305794238300 ALBERTO GUTIERREZ SALIDA AEREA 05/06/2026"], // 1 sola celda
+      ["", "Tracking No", "Recip Name", "Recip Addr", "Recip Postal", "Commit Date"],
+      ["1", "381432222844", "LAITA OLIMON", "SALOMON 512", "23454", "06/08/2026"],
+    ];
+    const t = buildMappedTable(rows)!;
+    expect(t.meta.consNumber).toBe("305794238300");
+    expect(t.meta.aereo).toBe(true);
+    expect(t.meta.date).toBe("2026-06-05");
+  });
 });
 
 describe("parsePaymentCell / isBadDate", () => {
