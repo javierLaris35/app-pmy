@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Consolidated } from "@/lib/types"; 
 import { ConsolidatedDetailDialog } from "@/components/modals/consolidated-shipment-detail-dialog";
+import { RequestDeleteButton } from "@/components/approvals/request-delete-button";
 import { formatShortDate } from "@/utils/date.utils";
 
 export const columns: ColumnDef<Consolidated>[] = [
@@ -292,8 +293,9 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     id: "actions",
     cell: ({ row }) => (
-      <div className="flex justify-end pr-2">
+      <div className="flex justify-end items-center gap-1 pr-2">
         <ConsolidatedDetailDialog consolidated={row.original} date={row.original.date} />
+        <RequestDeleteButton type="delete_consolidado" targetId={row.original.id} />
       </div>
     )
   }

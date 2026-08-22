@@ -21,6 +21,7 @@ import PackageDispatchDetails from "./package-dispatch-details"
 import ClosePackageDisptach from "./close-package-dispatch-form"
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
 import ResendEmailButton from "./resend-email-button"
+import { RequestDeleteButton } from "@/components/approvals/request-delete-button"
 import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
@@ -213,6 +214,8 @@ const updatedColumns = columns.map((col) =>
                       : "Cierre de Ruta"}
                   </TooltipContent>
                 </Tooltip>
+
+                <RequestDeleteButton type="delete_route_dispatch" targetId={row.original.id} />
               </div>
             )
           },

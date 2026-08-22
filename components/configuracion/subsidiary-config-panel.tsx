@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search, Building2, Warehouse } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
+import { useUsers } from "@/hooks/services/users/use-users";
 import { updateSubsidiary } from "@/lib/services/subsidiaries";
 import type { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
@@ -52,10 +54,27 @@ const INCOME_FLAGS: { key: FlagKey; label: string; hint: string }[] = [
 const toBool = (v: any): boolean =>
   v && typeof v === "object" && "data" in v ? v.data?.[0] === 1 : Boolean(v);
 
+const NO_SUPERVISOR = "__none__";
+
 export function SubsidiaryConfigPanel() {
   const { subsidiaries, isLoading, mutate } = useSubsidiaries();
+  const { users } = useUsers();
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const setSupervisor = async (sub: Subsidiary, userId: string) => {
+    setSavingId(sub.id!);
+    try {
+      await updateSubsidiary(sub.id!, { supervisorUserId: userId === NO_SUPERVISOR ? null : userId } as any);
+      await mutate();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo guardar el supervisor.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const userLabel = (u: any) => [u?.name, u?.lastName].filter(Boolean).join(" ") || u?.email || u?.id;
 
   const filtered = (subsidiaries as Subsidiary[]).filter((s) =>
     s.name?.toLowerCase().includes(search.toLowerCase()),
@@ -115,6 +134,27 @@ export function SubsidiaryConfigPanel() {
                       />
                     </div>
                   ))}
+                </div>
+
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-4 mb-2">Encargado / Supervisor</p>
+                <div className="rounded-md bg-amber-50/60 px-3 py-2">
+                  <Label className="text-sm">Autoriza los borrados de esta sucursal</Label>
+                  <p className="text-[11px] text-muted-foreground leading-tight mb-2">
+                    Si no se configura, autoriza el Admin Principal (superadmin).
+                  </p>
+                  <Select
+                    value={(sub as any).supervisorUserId || NO_SUPERVISOR}
+                    disabled={savingId === sub.id}
+                    onValueChange={(v) => setSupervisor(sub, v)}
+                  >
+                    <SelectTrigger className="h-9 w-full sm:w-[320px]"><SelectValue placeholder="Seleccionar encargado…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_SUPERVISOR}>— Admin Principal (default) —</SelectItem>
+                      {users.map((u: any) => (
+                        <SelectItem key={u.id} value={u.id}>{userLabel(u)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-4 mb-2">Reglas de ingreso</p>
