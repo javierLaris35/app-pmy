@@ -88,12 +88,22 @@ export interface MappedCounts {
   highValue: number;
 }
 
+export interface DetectedMeta {
+  /** No. de consolidado tomado de la fila meta (antes del encabezado). */
+  consNumber?: string;
+  /** Fecha (yyyy-MM-dd) tomada de la fila meta, si venía. */
+  date?: string;
+  /** true si la fila meta menciona "AEREA/AEREO". undefined si no hay señal. */
+  aereo?: boolean;
+}
+
 export interface MappedTable {
   fields: FieldDef[];
   rows: MappedRow[];
   hasTracking: boolean;
   hasPayment: boolean;
   counts: MappedCounts;
+  meta: DetectedMeta;
 }
 
 interface HeaderMapResult { headerRowIndex: number; map: Record<string, number>; }
@@ -177,7 +187,47 @@ function analyzeRow(values: Record<string, string>, manual: boolean): MappedRow 
   };
 }
 
-function recompute(table: { fields: FieldDef[]; rows: MappedRow[] }): MappedTable {
+/** Convierte "dd/mm/yyyy" (convención MX) a "yyyy-MM-dd" para inputs date. */
+function toIsoDate(value: string): string | undefined {
+  const m = String(value ?? "").trim().match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (!m) return undefined;
+  let [, d, mo, y] = m;
+  if (y.length === 2) y = "20" + y;
+  const dd = d.padStart(2, "0");
+  const mm = mo.padStart(2, "0");
+  if (Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31) return undefined;
+  return `${y}-${mm}-${dd}`;
+}
+
+/**
+ * Lee la(s) fila(s) meta que van ANTES del encabezado (p.ej.
+ * "305794238300  ALBERTO GUTIERREZ  SALIDA AEREA … 05/06/2026") y extrae el
+ * consNumber (primer token de dígitos), la fecha y si es aérea.
+ */
+export function detectMeta(rawRows: string[][], headerRowIndex: number): DetectedMeta {
+  const meta: DetectedMeta = {};
+  for (let i = 0; i < headerRowIndex; i++) {
+    const row = rawRows[i] ?? [];
+    const joined = row.join(" ");
+    if (!meta.consNumber) {
+      for (const cell of row) {
+        const v = String(cell ?? "").trim();
+        if (/^\d{6,}$/.test(v)) { meta.consNumber = v; break; }
+      }
+    }
+    if (!meta.date) {
+      for (const cell of row) {
+        const iso = toIsoDate(String(cell ?? ""));
+        if (iso) { meta.date = iso; break; }
+      }
+    }
+    if (meta.aereo === undefined && /\bAERE/i.test(joined)) meta.aereo = true;
+    else if (meta.aereo === undefined && /\b(TERRESTRE|ORDINARIA)\b/i.test(joined)) meta.aereo = false;
+  }
+  return meta;
+}
+
+function recompute(table: { fields: FieldDef[]; rows: MappedRow[]; meta?: DetectedMeta }): MappedTable {
   // duplicados por guía (entre filas con guía)
   const seen = new Map<string, number>();
   for (const r of table.rows) {
@@ -202,7 +252,14 @@ function recompute(table: { fields: FieldDef[]; rows: MappedRow[] }): MappedTabl
     paymentsNoType: table.rows.filter((r) => r.paymentNoType).length,
     highValue: table.rows.filter((r) => r.isHighValue).length,
   };
-  return { fields, rows: table.rows, hasTracking: fields.some((f) => f.field === "trackingNumber"), hasPayment, counts };
+  return {
+    fields,
+    rows: table.rows,
+    hasTracking: fields.some((f) => f.field === "trackingNumber"),
+    hasPayment,
+    counts,
+    meta: table.meta ?? {},
+  };
 }
 
 /**
@@ -233,7 +290,8 @@ export function buildMappedTable(rawRows: string[][]): MappedTable | null {
     return analyzeRow(values, false);
   });
 
-  return recompute({ fields, rows });
+  const meta = detectMeta(rawRows, headerRowIndex);
+  return recompute({ fields, rows, meta });
 }
 
 // ---------------------------------------------------------------------------
@@ -333,7 +391,7 @@ export function mergePayments(table: MappedTable, payments: ParsedPayment[]): Ma
       byTracking.set(p.tracking, nr);
     }
   }
-  return recompute({ fields, rows });
+  return recompute({ fields, rows, meta: table.meta });
 }
 
 /** Marca filas como High Value y agrega las que falten. */
@@ -359,7 +417,7 @@ export function mergeHighValue(table: MappedTable, hv: ParsedHv[]): MappedTable 
       byTracking.set(h.tracking, nr);
     }
   }
-  return recompute({ fields: table.fields, rows });
+  return recompute({ fields: table.fields, rows, meta: table.meta });
 }
 
 /**

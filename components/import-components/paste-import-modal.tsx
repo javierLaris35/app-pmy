@@ -112,6 +112,23 @@ export function PasteImportModal({
   const hasContent = raw.trim().length > 0;
   const c = table?.counts;
 
+  // Autollenado desde la fila meta del pegado (consNumber / aéreo / fecha).
+  const detConsNumber = table?.meta.consNumber;
+  const detDate = table?.meta.date;
+  const detAereo = table?.meta.aereo;
+  useEffect(() => {
+    if (detConsNumber && !consNumber.trim()) setConsNumber(detConsNumber);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detConsNumber]);
+  useEffect(() => {
+    if (detDate && !consDate) setConsDate(detDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detDate]);
+  useEffect(() => {
+    if (detAereo !== undefined) setIsAereo(detAereo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detAereo]);
+
   // --- Preview del backend (master) con debounce ---
   useEffect(() => {
     if (kind !== "master" || !table || !table.hasTracking || !localSubsidiaryId || !consNumber || table.rows.length === 0) {
@@ -396,6 +413,15 @@ export function PasteImportModal({
               <p className="flex items-center gap-1 text-[12px] text-amber-600">
                 <AlertTriangle className="h-3.5 w-3.5" /> No se detectaron encabezados FedEx. Incluye la fila de títulos (Tracking, Recip Name, …).
               </p>
+            )}
+            {table && (detConsNumber || detDate || detAereo !== undefined) && (
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-emerald-700">
+                <Check className="h-3.5 w-3.5" /> Detectado del pegado:
+                {detConsNumber && <Badge variant="secondary" className="text-[11px]">Consolidado {detConsNumber}</Badge>}
+                {detAereo !== undefined && <Badge variant="secondary" className="text-[11px]">{detAereo ? "Aéreo" : "Terrestre"}</Badge>}
+                {detDate && <Badge variant="secondary" className="text-[11px]">Fecha {detDate}</Badge>}
+                <span className="text-muted-foreground">(puedes editarlos arriba)</span>
+              </div>
             )}
           </div>
 

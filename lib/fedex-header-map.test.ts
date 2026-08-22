@@ -34,6 +34,23 @@ describe("buildMappedTable (pegar FedEx)", () => {
   it("null si no hay encabezados reconocibles", () => {
     expect(buildMappedTable([["875824020332", "CUAH"], ["875827166531", "CUAH"]])).toBeNull();
   });
+
+  it("detecta meta (consNumber, aéreo, fecha) y respeta columna # inicial", () => {
+    const rows = [
+      ["305794238300", "ALBERTO GUTIERREZ", "SALIDA AEREA", "", "", "05/06/2026"],
+      ["", "Tracking No", "Recip Name", "Recip Addr", "Recip Postal", "Commit Date", "Commit Time", "Recip Phone"],
+      ["1", "381432222844", "LAITA OLIMON", "SALOMON 512", "23454", "06/08/2026", "21:00:00", "9848060497"],
+      ["2", "381634876530", "JORGE ARANA", "AV LOS CABOS", "23473", "06/09/2026", "22:00:00", "526241719517"],
+    ];
+    const t = buildMappedTable(rows)!;
+    expect(t.meta.consNumber).toBe("305794238300");
+    expect(t.meta.aereo).toBe(true);
+    expect(t.meta.date).toBe("2026-06-05");
+    expect(t.counts.total).toBe(2);
+    expect(t.rows[0].values.trackingNumber).toBe("381432222844"); // ignoró la columna #
+    expect(t.rows[0].values.recipientName).toBe("LAITA OLIMON");
+    expect(t.rows[0].values.recipientZip).toBe("23454");
+  });
 });
 
 describe("parsePaymentCell / isBadDate", () => {
