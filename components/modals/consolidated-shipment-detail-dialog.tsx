@@ -22,6 +22,7 @@ import * as XLSX from "xlsx"
 import { getShipmentsByConsolidatedId } from "@/lib/services/consolidated";
 import { Loader, LoaderWithOverlay } from "../loader";
 import { ShipmentHistoryModal } from "../operaciones/envios/shipment-history-modal";
+import { ConsolidatedSourceFiles } from "../import-components/consolidated-source-files";
 
 interface Props {
   consolidated: Consolidated;
@@ -295,6 +296,9 @@ export function ConsolidatedDetailDialog({ consolidated, date }: Props) {
 
           {!isLoading && !error && (
             <div className="flex-1 flex flex-col min-h-0">
+              {/* Archivo de origen (evidencia de lo que se subió) */}
+              <ConsolidatedSourceFiles consolidatedId={consolidated.id} />
+
               {/* Botón de exportación */}
               <div className="flex justify-between items-center px-6 py-3 border-b bg-muted/30 flex-shrink-0">
                 <div className="text-sm text-muted-foreground">
