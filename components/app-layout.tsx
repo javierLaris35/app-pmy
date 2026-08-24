@@ -6,6 +6,7 @@ import type * as React from "react"
 import { AppSidebar } from "./app-sidebar"
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "./ui/sidebar"
 import { NotificationBell } from "./notifications/notification-bell"
+import { ApprovalTray } from "./approvals/approval-tray"
 import { NotificationPush } from "./notifications/notification-push"
 import { useAuthStore } from "@/store/auth.store"
 import { usePageHeaderStore } from "@/store/page-header.store"
@@ -295,6 +296,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <TooltipContent>Resumen del día · pendientes y sin escaneo</TooltipContent>
               </Tooltip>
 
+              <ApprovalTray />
               <NotificationBell />
             </div>
           </div>

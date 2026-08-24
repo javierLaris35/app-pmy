@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Eye, FileText, Upload, Send } from "lucide-react"
+import { Eye, FileText, Upload, Send, ClipboardPaste } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { columns } from "./columns"
@@ -27,18 +27,34 @@ import { toast } from "@/lib/toast"
 import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
 import { withAuth } from "@/hoc/withAuth";
 import { useAuthStore } from "@/store/auth.store"
+import { useRouter } from "next/navigation"
+
+/**
+ * ROLLBACK: pon esto en `false` y el botón "Pegar" vuelve a abrir el modal en vez de
+ * navegar a la página dedicada (/operaciones/importar-pegar). Nada más que cambiar.
+ */
+const PASTE_AS_PAGE = true
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { updateFromDHL, uploadShipmentFileDhl } from "@/lib/services/shipments"
 import { ImportDhlTextModal, ParsedDhlShipment, FinalDhlSubmission } from "@/components/import-components/import-dhl-text-modal" // <-- Importamos FinalDhlSubmission
+import { PasteImportModal } from "@/components/import-components/paste-import-modal"
 
 function ShipmentsPage() {
   const user = useAuthStore((s) => s.user)
+  const router = useRouter()
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null)
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | null>(null)
 
   // DHL MODALS (Limpiamos los estados viejos que ya no se usan)
   const [isDhlTextModalOpen, setIsDhlTextModalOpen] = useState(false)
+
+  // EXPERIMENTAL: pegar datos FedEx (solo superadmin + flag).
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false)
+  const pasteRole = String(user?.role || "").toLowerCase()
+  const showPaste =
+    (pasteRole === "superadmin" || pasteRole === "superamin") &&
+    process.env.NEXT_PUBLIC_EXPERIMENTAL_PASTE === "1"
 
   // ✅ Determinamos la sucursal actual
   const effectiveSubsidiaryId = selectedSubsidiaryId || user?.subsidiary?.id
@@ -151,6 +167,17 @@ function ShipmentsPage() {
                 </TooltipTrigger>
                 <TooltipContent>Importar DHL</TooltipContent>
               </Tooltip>
+
+              {showPaste && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" className="gap-1 border-amber-300 text-amber-600" onClick={() => (PASTE_AS_PAGE ? router.push("/operaciones/importar-pegar") : setIsPasteModalOpen(true))}>
+                      <ClipboardPaste className="h-4 w-4" /> Pegar
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Pegar datos FedEx (experimental)</TooltipContent>
+                </Tooltip>
+              )}
             </div>
           }
         />
@@ -168,6 +195,13 @@ function ShipmentsPage() {
           onFinalSave={handleFinalSaveDhl}
           defaultSubsidiaryId={effectiveSubsidiaryId || ""}
         />
+        {showPaste && !PASTE_AS_PAGE && (
+          <PasteImportModal
+            open={isPasteModalOpen}
+            onOpenChange={setIsPasteModalOpen}
+            subsidiaryId={effectiveSubsidiaryId || undefined}
+          />
+        )}
 
         {/* KPI's */}
         {isLoading ? (

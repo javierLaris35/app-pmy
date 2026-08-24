@@ -4,10 +4,13 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { SwitchRow } from "@/components/shared/switch-row";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search, Building2, Warehouse } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
+import { useUsers } from "@/hooks/services/users/use-users";
 import { updateSubsidiary } from "@/lib/services/subsidiaries";
 import type { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
@@ -26,7 +29,8 @@ type FlagKey =
   | "chargeDex08"
   | "chargeDelivered"
   | "generateDhlIncomeOnDelivery"
-  | "countTransfersAsIncome";
+  | "countTransfersAsIncome"
+  | "chargeSecondAbord";
 
 const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "monitorFedexCode67", label: "Monitorear 67", hint: "Alerta si falta el código 67 (recepción FedEx)" },
@@ -47,15 +51,33 @@ const INCOME_FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "chargeDex03", label: "Cobrar DEX03", hint: "Dirección incorrecta (03). Apagado = no cuenta, pero el registro se conserva para cobrarlo después." },
   { key: "generateDhlIncomeOnDelivery", label: "Ingreso DHL al entregar", hint: "Genera el ingreso DHL al detectar la entrega (WhereParcel), no solo en cierre de ruta." },
   { key: "countTransfersAsIncome", label: "Traslados cuentan", hint: "Tyco / aeropuerto / traslado especial cuentan como ingreso en finanzas." },
+  { key: "chargeSecondAbord", label: "Cobrar 2do abordo (F2/31.5)", hint: "Suma el Monto 2do Abordo de la sucursal al costo de las cargas F2/31.5 normales (no aplica a 1.5 ton ni al sobreprecio de domingo/festivo)." },
 ];
 
 const toBool = (v: any): boolean =>
   v && typeof v === "object" && "data" in v ? v.data?.[0] === 1 : Boolean(v);
 
+const NO_SUPERVISOR = "__none__";
+
 export function SubsidiaryConfigPanel() {
   const { subsidiaries, isLoading, mutate } = useSubsidiaries();
+  const { users } = useUsers();
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const setSupervisor = async (sub: Subsidiary, userId: string) => {
+    setSavingId(sub.id!);
+    try {
+      await updateSubsidiary(sub.id!, { supervisorUserId: userId === NO_SUPERVISOR ? null : userId } as any);
+      await mutate();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "No se pudo guardar el supervisor.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const userLabel = (u: any) => [u?.name, u?.lastName].filter(Boolean).join(" ") || u?.email || u?.id;
 
   const filtered = (subsidiaries as Subsidiary[]).filter((s) =>
     s.name?.toLowerCase().includes(search.toLowerCase()),
@@ -103,18 +125,36 @@ export function SubsidiaryConfigPanel() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {FLAGS.map((f) => (
-                    <div key={f.key} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
-                      <div className="min-w-0">
-                        <Label className="text-sm">{f.label}</Label>
-                        <p className="text-[11px] text-muted-foreground leading-tight">{f.hint}</p>
-                      </div>
-                      <Switch
-                        checked={Boolean(sub[f.key])}
-                        disabled={savingId === sub.id}
-                        onCheckedChange={(v) => toggle(sub, f.key, v)}
-                      />
-                    </div>
+                    <SwitchRow
+                      key={f.key}
+                      label={f.label}
+                      hint={f.hint}
+                      checked={Boolean(sub[f.key])}
+                      disabled={savingId === sub.id}
+                      onCheckedChange={(v) => toggle(sub, f.key, v)}
+                    />
                   ))}
+                </div>
+
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-4 mb-2">Encargado / Supervisor</p>
+                <div className="rounded-md bg-amber-50/60 px-3 py-2">
+                  <Label className="text-sm">Autoriza los borrados de esta sucursal</Label>
+                  <p className="text-[11px] text-muted-foreground leading-tight mb-2">
+                    Si no se configura, autoriza el Admin Principal (superadmin).
+                  </p>
+                  <Select
+                    value={(sub as any).supervisorUserId || NO_SUPERVISOR}
+                    disabled={savingId === sub.id}
+                    onValueChange={(v) => setSupervisor(sub, v)}
+                  >
+                    <SelectTrigger className="h-9 w-full sm:w-[320px]"><SelectValue placeholder="Seleccionar encargado…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_SUPERVISOR}>— Admin Principal (default) —</SelectItem>
+                      {users.map((u: any) => (
+                        <SelectItem key={u.id} value={u.id}>{userLabel(u)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-4 mb-2">Reglas de ingreso</p>

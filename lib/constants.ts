@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet } from "lucide-react"
 import { ElementType } from "react";
 import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
@@ -72,6 +72,13 @@ export const sidebarMenu = {
           name: "Consolidados",
           url: "/operaciones/consolidados",
           icon: IconTruckLoading,
+          roles: allowedPageRoles.bodega.consolidados,
+          isActive: false
+        },
+        {
+          name: "Importaciones",
+          url: "/operaciones/importaciones",
+          icon: FileSpreadsheet,
           roles: allowedPageRoles.bodega.consolidados,
           isActive: false
         },
