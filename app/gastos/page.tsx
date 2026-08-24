@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Expense, Vehicles } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import { proratedAmountInRange, consultedRangeLabel } from "@/lib/expense-proration";
 import { AppLayout } from "@/components/app-layout";
 import {
   Popover,
@@ -630,27 +631,53 @@ function GastosPage() {
   };
 
   const handleExportExcel = async () => {
-    const dataFiltrada = expenses.filter((gasto) => {
-      const fechaGasto = new Date(String(gasto.date).slice(0, 10) + "T00:00:00");
-      const pasaFiltroCategoria =
-        exportCategory === "todas" || gasto.category?.name === exportCategory;
-      const pasaFiltroFecha =
-        (!exportStartDate || fechaGasto >= startOfDay(exportStartDate)) &&
-        (!exportEndDate || fechaGasto <= endOfDay(exportEndDate));
-      return pasaFiltroCategoria && pasaFiltroFecha;
-    });
+    // Cuando hay rango completo (desde/hasta) prorrateamos: cada gasto recurrente
+    // (Nómina/Renta/mensuales/semanales) aporta solo la porción de su período que cae
+    // dentro del rango, aunque se haya registrado fuera de él. Sin rango completo se
+    // conserva el comportamiento previo (monto total, filtro por fecha de registro).
+    const rangoProrrateo =
+      exportStartDate && exportEndDate
+        ? { start: format(exportStartDate, "yyyy-MM-dd"), end: format(exportEndDate, "yyyy-MM-dd") }
+        : null;
+
+    const dataFiltrada = expenses
+      .map((gasto) => {
+        const pasaFiltroCategoria =
+          exportCategory === "todas" || gasto.category?.name === exportCategory;
+        if (!pasaFiltroCategoria) return null;
+
+        if (rangoProrrateo) {
+          const monto = proratedAmountInRange(gasto, rangoProrrateo.start, rangoProrrateo.end);
+          return monto > 0 ? { gasto, monto } : null;
+        }
+
+        // Sin rango: comportamiento previo (monto total, filtro por fecha de registro).
+        const fechaGasto = new Date(String(gasto.date).slice(0, 10) + "T00:00:00");
+        const pasaFiltroFecha =
+          (!exportStartDate || fechaGasto >= startOfDay(exportStartDate)) &&
+          (!exportEndDate || fechaGasto <= endOfDay(exportEndDate));
+        return pasaFiltroFecha ? { gasto, monto: gasto.amount } : null;
+      })
+      .filter((row): row is { gasto: Expense; monto: number } => row !== null);
 
     if (dataFiltrada.length === 0) {
       toast.warning("No hay datos que coincidan con estos filtros");
       return;
     }
 
+    // "Día consultado": el día/rango que el usuario eligió para revisar. Aclara por qué
+    // un gasto recurrente creado el 17 aparece al consultar el 20 (su período lo cubre).
+    const diaConsultadoLabel = rangoProrrateo
+      ? consultedRangeLabel(rangoProrrateo.start, rangoProrrateo.end)
+      : "Todos";
+
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Tu Sistema de Finanzas";
     const worksheet = workbook.addWorksheet("Reporte de Gastos");
 
     worksheet.columns = [
-      { header: "Fecha", key: "fecha", width: 15 },
+      { header: "Fecha de creación", key: "fecha", width: 18 },
+      { header: "Día consultado", key: "diaConsultado", width: 18 },
       { header: "Categoría", key: "categoria", width: 20 },
       { header: "Descripción", key: "descripcion", width: 45 },
       {
@@ -676,14 +703,15 @@ function GastosPage() {
     headerRow.height = 25;
 
     worksheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
-    worksheet.autoFilter = "A1:H1"; 
+    worksheet.autoFilter = "A1:I1";
 
-    dataFiltrada.forEach((gasto, index) => {
+    dataFiltrada.forEach(({ gasto, monto }, index) => {
       const row = worksheet.addRow({
         fecha: format(new Date(String(gasto.date).slice(0, 10) + "T00:00:00"), "dd/MM/yyyy"),
+        diaConsultado: diaConsultadoLabel,
         categoria: gasto.category?.name,
         descripcion: gasto.description,
-        monto: gasto.amount,
+        monto,
         metodoPago: gasto.paymentMethod || "No especificado",
         periodoPago: gasto.frequency || "Único",
         responsable: gasto.responsible || "No especificado",
