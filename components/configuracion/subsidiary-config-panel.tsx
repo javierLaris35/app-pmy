@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { SwitchRow } from "@/components/shared/switch-row";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search, Building2, Warehouse } from "lucide-react";
@@ -28,7 +29,8 @@ type FlagKey =
   | "chargeDex08"
   | "chargeDelivered"
   | "generateDhlIncomeOnDelivery"
-  | "countTransfersAsIncome";
+  | "countTransfersAsIncome"
+  | "chargeSecondAbord";
 
 const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "monitorFedexCode67", label: "Monitorear 67", hint: "Alerta si falta el código 67 (recepción FedEx)" },
@@ -49,6 +51,7 @@ const INCOME_FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "chargeDex03", label: "Cobrar DEX03", hint: "Dirección incorrecta (03). Apagado = no cuenta, pero el registro se conserva para cobrarlo después." },
   { key: "generateDhlIncomeOnDelivery", label: "Ingreso DHL al entregar", hint: "Genera el ingreso DHL al detectar la entrega (WhereParcel), no solo en cierre de ruta." },
   { key: "countTransfersAsIncome", label: "Traslados cuentan", hint: "Tyco / aeropuerto / traslado especial cuentan como ingreso en finanzas." },
+  { key: "chargeSecondAbord", label: "Cobrar 2do abordo (F2/31.5)", hint: "Suma el Monto 2do Abordo de la sucursal al costo de las cargas F2/31.5 normales (no aplica a 1.5 ton ni al sobreprecio de domingo/festivo)." },
 ];
 
 const toBool = (v: any): boolean =>
@@ -122,17 +125,14 @@ export function SubsidiaryConfigPanel() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {FLAGS.map((f) => (
-                    <div key={f.key} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
-                      <div className="min-w-0">
-                        <Label className="text-sm">{f.label}</Label>
-                        <p className="text-[11px] text-muted-foreground leading-tight">{f.hint}</p>
-                      </div>
-                      <Switch
-                        checked={Boolean(sub[f.key])}
-                        disabled={savingId === sub.id}
-                        onCheckedChange={(v) => toggle(sub, f.key, v)}
-                      />
-                    </div>
+                    <SwitchRow
+                      key={f.key}
+                      label={f.label}
+                      hint={f.hint}
+                      checked={Boolean(sub[f.key])}
+                      disabled={savingId === sub.id}
+                      onCheckedChange={(v) => toggle(sub, f.key, v)}
+                    />
                   ))}
                 </div>
 
