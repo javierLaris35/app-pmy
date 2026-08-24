@@ -50,6 +50,8 @@ export type Subsidiary = {
   countTransfersAsIncome?: boolean
   /** Cierre de ruta: permitir cerrar aunque haya paquetes en "otros estatus" (hoy solo Hermosillo). */
   allowRouteClosureWithOtherStatus?: boolean
+  /** Cobros: sumar el segundo abordo (secondAbordAmount) al costo de cargas F2/31.5 normales. */
+  chargeSecondAbord?: boolean
 }
 
 export type Zone = {

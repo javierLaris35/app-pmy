@@ -9,16 +9,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DataTable } from "@/components/data-table/data-table";
 import { SucursalSelector } from "@/components/sucursal-selector";
+import { SwitchRow } from "@/components/shared/switch-row";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ClipboardPaste, FlaskConical, Info, Check, X, AlertTriangle, DollarSign, Diamond, Plus, Trash2 } from "lucide-react";
+import { ClipboardPaste, FlaskConical, Info, Check, X, AlertTriangle, DollarSign, Diamond, Plus, Trash2, HelpCircle, CheckCircle2, Sparkles, Plane, Package } from "lucide-react";
+import { PasteTutorial, PASTE_SPOTLIGHT, PasteEmptyHint } from "./paste-tutorial";
+import { runSpotlight, useTutorialFirstView } from "@/components/shared/tutorial";
 import { toast } from "@/lib/toast";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import {
@@ -26,6 +27,7 @@ import {
   previewShipmentFile,
   uploadHighValueShipments,
   uploadF2ChargeShipments,
+  uploadShipmentPayments,
   UploadPreview,
 } from "@/lib/services/shipments";
 import {
@@ -35,6 +37,27 @@ import {
 
 const FEDEX = "#4D148C";
 type PasteKind = "master" | "f2";
+
+/** Resumen normalizado que se muestra al terminar de importar. */
+type SubmitResult = {
+  kind: PasteKind;
+  saved: number;
+  recycled?: number;        // reingresos (master)
+  alreadyImported?: number; // ya estaban (master)
+  duplicated?: number;
+  cobrosApplied?: number;
+  cobrosUnmatched?: number;
+  hvMarked?: number;
+  hvFailed?: boolean;
+};
+
+/** Datos de muestra para "Pegar ejemplo" (incluye encabezados + un cobro). */
+const SAMPLE_PASTE = [
+  "Tracking No\tRecip Name\tRecip Addr\tRecip City\tRecip Postal\tCommit Date\tPago",
+  "383012036065\tJuan Pérez\tCalle 1\tHermosillo\t83000\t8/20/2026\tCOD 1250.00",
+  "383011751254\tAna López\tAv. Reforma 22\tHermosillo\t83100\t8/20/2026\t",
+  "794000112233\tLuis Díaz\tBlvd. Kino 100\tHermosillo\t83200\t8/20/2026\t",
+].join("\n");
 
 function parseTsv(raw: string): string[][] {
   return raw.replace(/\r\n/g, "\n").split("\n").filter((l) => l.trim().length > 0).map((l) => l.split("\t"));
@@ -68,8 +91,16 @@ function CountChip({ label, value, tone = "neutral" }: { label: string; value: n
 }
 
 export function PasteImportModal({
-  open, onOpenChange, subsidiaryId,
-}: { open: boolean; onOpenChange: (o: boolean) => void; subsidiaryId?: string }) {
+  open = true, onOpenChange, subsidiaryId, asPage = false, onClose,
+}: {
+  open?: boolean;
+  onOpenChange?: (o: boolean) => void;
+  subsidiaryId?: string;
+  /** Renderiza el flujo como contenido de página (sin Dialog). */
+  asPage?: boolean;
+  /** En modo página: qué hacer al cancelar / terminar (p.ej. router.back()). */
+  onClose?: () => void;
+}) {
   const { subsidiaries } = useSubsidiaries();
   const [kind, setKind] = useState<PasteKind>("master");
   const [raw, setRaw] = useState("");
@@ -80,6 +111,10 @@ export function PasteImportModal({
   const [notRemoveCharge, setNotRemoveCharge] = useState(false);
   const [isHalfTon, setIsHalfTon] = useState(false);
   const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<SubmitResult | null>(null);
+  // Tutorial ilustrado: se abre una sola vez en el primer uso (motor genérico).
+  const [tutorialOpen, setTutorialOpen] = useTutorialFirstView("hasSeenPasteTutorial", open);
+  const startSpotlight = () => runSpotlight(PASTE_SPOTLIGHT);
 
   // Enriquecimiento acumulado.
   const [paymentsRaw, setPaymentsRaw] = useState("");
@@ -97,7 +132,8 @@ export function PasteImportModal({
   useEffect(() => { setLocalSubsidiaryId(subsidiaryId ?? ""); }, [subsidiaryId]);
 
   const selectedSub = subsidiaries.find((s: any) => s.id === localSubsidiaryId) as any;
-  const halfTonAvailable = Number(selectedSub?.chargeCostHalfTon ?? 0) > 0;
+  const halfTonCost = Number(selectedSub?.chargeCostHalfTon ?? 0);
+  const halfTonAvailable = halfTonCost > 0;
   useEffect(() => { if (!halfTonAvailable && isHalfTon) setIsHalfTon(false); }, [halfTonAvailable, isHalfTon]);
 
   const baseTable = useMemo(() => buildMappedTable(parseTsv(raw)), [raw]);
@@ -155,9 +191,9 @@ export function PasteImportModal({
 
   const reset = () => {
     setRaw(""); setConsNumber(""); setConsDate(""); setPaymentsRaw(""); setHvRaw("");
-    setAppliedPayments([]); setAppliedHv([]); setPreview(null);
+    setAppliedPayments([]); setAppliedHv([]); setPreview(null); setResult(null);
   };
-  const close = () => { reset(); onOpenChange(false); };
+  const close = () => { reset(); if (onClose) onClose(); else onOpenChange?.(false); };
 
   const commitPayments = (parsed: ParsedPayment[]) => {
     setAppliedPayments((prev) => [...prev, ...parsed]);
@@ -211,9 +247,13 @@ export function PasteImportModal({
     try {
       const good = table.rows.filter((r) => !r.missingTracking);
       const file = buildXlsx(table.fields, good.map((r) => r.values), `pegado_${kind}_${Date.now()}.xlsx`);
-      let result: any;
+      const summary: SubmitResult = { kind, saved: good.length };
       if (kind === "master") {
-        result = await uploadShipmentFile(file, localSubsidiaryId, consNumber, consDate || undefined, isAereo);
+        const res: any = await uploadShipmentFile(file, localSubsidiaryId, consNumber, consDate || undefined, isAereo);
+        // El preview (mismo cálculo del backend) trae el desglose nuevas/reingresos/ya importadas.
+        summary.saved = Number(preview?.newCount ?? res?.saved ?? res?.summary?.migrated ?? res?.count ?? good.length) || good.length;
+        summary.recycled = Number(preview?.recycledCount ?? 0) || undefined;
+        summary.alreadyImported = Number(preview?.alreadyImportedCount ?? 0) || undefined;
         // Alto Valor: marca las guías HV tras crear los shipments (match por guía+dirección).
         const hvRows = good.filter((r) => r.isHighValue);
         if (hvRows.length) {
@@ -222,15 +262,35 @@ export function PasteImportModal({
             hvRows.map((r) => r.values),
             `hv_${Date.now()}.xlsx`,
           );
-          try { await uploadHighValueShipments(hvFile, localSubsidiaryId, consNumber, consDate || undefined); }
-          catch (e: any) { toast.error(`Se importaron los envíos, pero falló marcar Alto Valor: ${e?.message ?? ""}`); }
+          try { await uploadHighValueShipments(hvFile, localSubsidiaryId, consNumber, consDate || undefined); summary.hvMarked = hvRows.length; }
+          catch (e: any) { summary.hvFailed = true; toast.error(`Se importaron los envíos, pero falló marcar Alto Valor: ${e?.message ?? ""}`); }
         }
       } else {
-        result = await uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon);
+        const res: any = await uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon);
+        const insertedNew = Number(res?.summary?.insertedNew ?? 0);
+        const migrated = Number(res?.summary?.migrated ?? 0);
+        const savedF2 = insertedNew + migrated;
+        summary.saved = savedF2 || (Array.isArray(res?.savedChargeShipments) ? res.savedChargeShipments.length : good.length);
+        summary.duplicated = Number(res?.summary?.duplicated ?? res?.duplicated ?? 0) || undefined;
+        // Cobros: aplica los pagos pegados a las cargas recién creadas (endpoint separado;
+        // el backend resuelve la carga por consNumber+guía con resolveCobroTarget y hace upsert).
+        const payRows = good.filter((r) => String(r.values["cod"] ?? "").trim().length > 0);
+        if (payRows.length) {
+          const payFile = buildXlsx(
+            [{ field: "trackingNumber", header: "trackingNumber" }, { field: "cod", header: "cod" }],
+            payRows.map((r) => r.values),
+            `cobros_f2_${Date.now()}.xlsx`,
+          );
+          try {
+            const payRes: any = await uploadShipmentPayments(payFile, consNumber || undefined);
+            summary.cobrosApplied = (payRes?.applied ?? 0) + (payRes?.appliedToCharges ?? 0);
+            summary.cobrosUnmatched = payRes?.unmatched ?? 0;
+          } catch (e: any) {
+            toast.error(`Se importaron las cargas, pero falló aplicar cobros: ${e?.message ?? ""}`);
+          }
+        }
       }
-      const saved = result?.saved ?? result?.summary?.migrated ?? result?.savedChargeShipments ?? result?.count ?? "?";
-      toast.success(`Importado (${kind === "master" ? "Aéreo/Master" : "F2"}): ${saved} registro(s).`);
-      close();
+      setResult(summary);
     } catch (e: any) {
       toast.error(e?.message || e?.response?.data?.message || "No se pudo importar el pegado.");
     } finally {
@@ -311,22 +371,33 @@ export function PasteImportModal({
     return undefined;
   };
 
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="sm:max-w-[1120px] bg-white max-h-[92vh] flex flex-col overflow-hidden p-0 border-0 shadow-2xl">
+  // Contenido principal (header + body + footer). Se monta dentro de un Dialog
+  // (modal) o de un contenedor de página (asPage) — mismo layout flex-col con scroll.
+  const main = (
+    <>
         {/* HEADER */}
         <DialogHeader className="flex flex-col gap-3 border-b border-gray-100 p-6 pb-5">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border" style={{ background: "#f5f0fb", color: FEDEX, borderColor: "#e6dcf5" }}>
-              <ClipboardPaste className="h-6 w-6" />
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border" style={{ background: "#f5f0fb", color: FEDEX, borderColor: "#e6dcf5" }}>
+                <ClipboardPaste className="h-6 w-6" />
+              </div>
+              <div className="text-left">
+                <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900">
+                  Pegar datos FedEx
+                  <Badge variant="outline" className="gap-1 border-amber-300 text-amber-600"><FlaskConical className="h-3 w-3" /> Experimental</Badge>
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">Copia desde Excel (con encabezados). Se mapea igual que el import de FedEx.</p>
+              </div>
             </div>
-            <div className="text-left">
-              <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900">
-                Pegar datos FedEx
-                <Badge variant="outline" className="gap-1 border-amber-300 text-amber-600"><FlaskConical className="h-3 w-3" /> Experimental</Badge>
-              </DialogTitle>
-              <p className="mt-1 text-sm text-muted-foreground">Copia desde Excel (con encabezados). Se mapea igual que el import de FedEx.</p>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTutorialOpen(true)}
+              className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <HelpCircle className="h-4 w-4" /> Cómo funciona
+            </Button>
           </div>
           {c && (
             <div className="flex flex-wrap gap-2">
@@ -344,55 +415,90 @@ export function PasteImportModal({
         {/* BODY */}
         <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/40 p-6 space-y-5">
           {/* Config */}
-          <div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-semibold text-gray-700">Tipo</Label>
-              <Select value={kind} onValueChange={(v) => setKind(v as PasteKind)}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="master">Aéreo / Master</SelectItem>
-                  <SelectItem value="f2">F2 / Cargas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-semibold text-gray-700">Sucursal (*)</Label>
-              <SucursalSelector
-                value={localSubsidiaryId}
-                onValueChange={(val) => setLocalSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
-                insideAModal
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-semibold text-gray-700">No. de consolidado {kind === "master" && "(*)"}</Label>
-              <Input className="h-9" value={consNumber} onChange={(e) => setConsNumber(e.target.value)} placeholder="Ej. CONS-123" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-semibold text-gray-700">Fecha del consolidado</Label>
-              <Input type="date" className="h-9" value={consDate} onChange={(e) => setConsDate(e.target.value)} />
+          <div id="paste-fields" className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            {/* Grupo A — qué se importa y sus modificadores */}
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qué vas a importar</p>
+              <ToggleGroup
+                id="paste-type"
+                type="single"
+                value={kind}
+                onValueChange={(v) => { if (v) setKind(v as PasteKind); }}
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+              >
+                <ToggleGroupItem
+                  value="master"
+                  className="h-auto flex-col items-start gap-0.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50 data-[state=on]:border-[#4D148C] data-[state=on]:bg-[#f5f0fb] data-[state=on]:text-[#4D148C]"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-semibold"><Plane className="h-4 w-4" /> Aéreo / Master</span>
+                  <span className="text-[11px] font-normal text-slate-500">Crea envíos (guías normales)</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="f2"
+                  className="h-auto flex-col items-start gap-0.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50 data-[state=on]:border-[#4D148C] data-[state=on]:bg-[#f5f0fb] data-[state=on]:text-[#4D148C]"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-semibold"><Package className="h-4 w-4" /> F2 / Cargas</span>
+                  <span className="text-[11px] font-normal text-slate-500">Crea cargas en un consolidado</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+
+              {/* Modificadores según el tipo */}
+              <div className="mt-3 space-y-2">
+                {kind === "master" && (
+                  <SwitchRow
+                    label="Aéreo"
+                    hint={isAereo ? "Las guías viajaron por avión." : "Terrestre: entrega por ruta."}
+                    checked={isAereo}
+                    onCheckedChange={setIsAereo}
+                  />
+                )}
+                {kind === "f2" && (
+                  <>
+                    <SwitchRow
+                      label="Migrar de envíos a cargas"
+                      hint="Encendido = migra guías ya existentes. Apagado = las guarda directo como carga."
+                      checked={!notRemoveCharge}
+                      onCheckedChange={(v) => setNotRemoveCharge(!v)}
+                    />
+                    {halfTonAvailable && (
+                      <SwitchRow
+                        label="Carga de 1.5 toneladas"
+                        hint={
+                          isHalfTon
+                            ? `ACTIVO: el ingreso de esta carga se generará por ${halfTonCost.toLocaleString("es-MX", { style: "currency", currency: "MXN" })} (costo 1.5 ton) en vez del costo de carga normal.`
+                            : "INACTIVO (normal): el ingreso usa el costo de carga estándar de la sucursal."
+                        }
+                        checked={isHalfTon}
+                        onCheckedChange={setIsHalfTon}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
-            {kind === "master" && (
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <Checkbox checked={isAereo} onCheckedChange={(v) => setIsAereo(Boolean(v))} /> Aéreo
-              </label>
-            )}
-            {kind === "f2" && (
-              <>
-                <div className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-3 py-2 sm:col-span-2">
-                  <div>
-                    <Label className="text-sm">Migrar de envíos a cargas</Label>
-                    <p className="text-[11px] text-muted-foreground">Encendido = migra guías ya existentes. Apagado = las guarda directo como carga.</p>
-                  </div>
-                  <Switch checked={!notRemoveCharge} onCheckedChange={(v) => setNotRemoveCharge(!v)} />
+            {/* Grupo B — a dónde entra */}
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Datos del consolidado</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Sucursal (*)</Label>
+                  <SucursalSelector
+                    value={localSubsidiaryId}
+                    onValueChange={(val) => setLocalSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
+                    insideAModal
+                  />
                 </div>
-                {halfTonAvailable && (
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <Checkbox checked={isHalfTon} onCheckedChange={(v) => setIsHalfTon(Boolean(v))} /> Carga 1.5 ton
-                  </label>
-                )}
-              </>
-            )}
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">No. de consolidado {kind === "master" && "(*)"}</Label>
+                  <Input className="h-9" value={consNumber} onChange={(e) => setConsNumber(e.target.value)} placeholder="Ej. CONS-123" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Fecha del consolidado</Label>
+                  <Input type="date" className="h-9" value={consDate} onChange={(e) => setConsDate(e.target.value)} />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Info + textarea principal */}
@@ -402,8 +508,26 @@ export function PasteImportModal({
               Pega las filas <strong>incluyendo el encabezado</strong> (Tracking, Recip Name, Recip Addr…). Se ignoran columnas que no aplican y se conserva el <strong>Pago</strong> si viene. Las filas con problema se resaltan abajo.
             </p>
           </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-semibold text-gray-700">Pega aquí (TSV desde Excel)</Label>
+          <div id="paste-textarea" className="grid gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs font-semibold text-gray-700">Pega aquí (TSV desde Excel)</Label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRaw(SAMPLE_PASTE)}
+                  className="inline-flex items-center gap-1 rounded text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4D148C]/40 focus-visible:ring-offset-1"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Pegar ejemplo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTutorialOpen(true)}
+                  className="inline-flex items-center gap-1 rounded text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4D148C]/40 focus-visible:ring-offset-1"
+                >
+                  <HelpCircle className="h-3.5 w-3.5" /> Ver tutorial
+                </button>
+              </div>
+            </div>
             <Textarea
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
@@ -425,6 +549,11 @@ export function PasteImportModal({
               </div>
             )}
           </div>
+
+          {/* Estado vacío: guía ilustrada mientras no se pega nada. */}
+          {!hasContent && (
+            <PasteEmptyHint onOpenTutorial={() => setTutorialOpen(true)} onPasteExample={() => setRaw(SAMPLE_PASTE)} />
+          )}
 
           {/* Problemas de estructura/columna en tiempo real */}
           {(problems.length > 0 || (hasContent && !table)) && (
@@ -465,6 +594,8 @@ export function PasteImportModal({
                 {preview.recycledCount > 0 && <CountChip label="Reingresos" value={preview.recycledCount} tone="blue" />}
                 {preview.alreadyImportedCount > 0 && <CountChip label="Ya import." value={preview.alreadyImportedCount} tone="amber" />}
                 {preview.duplicatesInFile > 0 && <CountChip label="Dup. pegado" value={preview.duplicatesInFile} tone="amber" />}
+                {(c?.withPayment ?? 0) > 0 && <CountChip label="Con pago" value={c?.withPayment ?? 0} tone="green" />}
+                {(c?.highValue ?? 0) > 0 && <CountChip label="Alto Valor" value={c?.highValue ?? 0} tone="purple" />}
               </div>
               {preview.newCount === 0 && preview.recycledCount === 0 ? (
                 <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Todas las guías ya fueron importadas en este consolidado; no hay nuevas ni reingresos.</p>
@@ -476,9 +607,9 @@ export function PasteImportModal({
             </div>
           )}
 
-          {/* Enriquecimiento (solo master) */}
-          {kind === "master" && table && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Enriquecimiento: pagos (master + F2) y Alto Valor (solo master) */}
+          {table && (
+            <div id="paste-enrich" className={`grid grid-cols-1 gap-4 ${kind === "master" ? "lg:grid-cols-2" : ""}`}>
               <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -498,6 +629,7 @@ export function PasteImportModal({
                   )}
                 </div>
               </div>
+              {kind === "master" && (
               <div className="rounded-xl border border-purple-200 bg-white p-4 shadow-sm">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -517,12 +649,13 @@ export function PasteImportModal({
                   )}
                 </div>
               </div>
+              )}
             </div>
           )}
 
           {/* Tabla de lo que se guardará */}
           {table && table.rows.length > 0 && (
-            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+            <div id="paste-table" className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
               <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
                 <p className="text-sm font-semibold text-gray-900">Lo que se guardará ({table.rows.length})</p>
                 <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-sm bg-rose-100 ring-1 ring-rose-300" /><span className="text-[11px] text-muted-foreground">sin guía</span></span>
@@ -545,13 +678,18 @@ export function PasteImportModal({
           </div>
           <div className="flex gap-3">
             <Button variant="ghost" onClick={close} disabled={sending} className="text-gray-500 hover:bg-gray-100 hover:text-gray-800"><X className="mr-2 h-4 w-4" /> Cancelar</Button>
-            <Button onClick={submit} disabled={sending || !!blockReason} style={{ background: FEDEX }} className="text-white hover:opacity-90">
+            <Button id="paste-submit" onClick={submit} disabled={sending || !!blockReason} style={{ background: FEDEX }} className="text-white hover:opacity-90">
               {sending ? "Importando…" : "Procesar e importar"}{!sending && <Check className="ml-2 h-4 w-4" />}
             </Button>
           </div>
         </DialogFooter>
-      </DialogContent>
+    </>
+  );
 
+  // Overlays (portales): diálogos de confirmación/resumen + tutorial. Funcionan igual
+  // en modal o en página.
+  const overlays = (
+    <>
       {/* ¿Usar COD por defecto cuando el pago no trae tipo? */}
       <AlertDialog open={!!pendingPayments} onOpenChange={(o) => { if (!o) setPendingPayments(null); }}>
         <AlertDialogContent>
@@ -567,6 +705,102 @@ export function PasteImportModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Resumen al terminar la importación */}
+      <AlertDialog open={!!result} onOpenChange={(o) => { if (!o) { setResult(null); close(); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Importación completa
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-1">
+                <p className="text-sm text-muted-foreground">
+                  {result?.kind === "master" ? "Aéreo / Master" : "F2 / Cargas"} procesado correctamente.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex flex-col rounded-lg bg-emerald-100 px-3 py-1.5 text-emerald-700">
+                    <span className="text-lg font-bold leading-none">{result?.saved ?? 0}</span>
+                    <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-80">{result?.kind === "master" ? "Guías" : "Cargas"}</span>
+                  </span>
+                  {typeof result?.recycled === "number" && result.recycled > 0 && (
+                    <span className="inline-flex flex-col rounded-lg bg-sky-100 px-3 py-1.5 text-sky-700">
+                      <span className="text-lg font-bold leading-none">{result.recycled}</span>
+                      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-80">Reingresos</span>
+                    </span>
+                  )}
+                  {typeof result?.alreadyImported === "number" && result.alreadyImported > 0 && (
+                    <span className="inline-flex flex-col rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">
+                      <span className="text-lg font-bold leading-none">{result.alreadyImported}</span>
+                      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-80">Ya estaban</span>
+                    </span>
+                  )}
+                  {typeof result?.cobrosApplied === "number" && result.cobrosApplied > 0 && (
+                    <span className="inline-flex flex-col rounded-lg bg-emerald-100 px-3 py-1.5 text-emerald-700">
+                      <span className="text-lg font-bold leading-none">{result.cobrosApplied}</span>
+                      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-80">Cobros</span>
+                    </span>
+                  )}
+                  {typeof result?.hvMarked === "number" && result.hvMarked > 0 && (
+                    <span className="inline-flex flex-col rounded-lg bg-purple-100 px-3 py-1.5 text-purple-700">
+                      <span className="text-lg font-bold leading-none">{result.hvMarked}</span>
+                      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-80">Alto Valor</span>
+                    </span>
+                  )}
+                  {typeof result?.duplicated === "number" && result.duplicated > 0 && (
+                    <span className="inline-flex flex-col rounded-lg bg-amber-100 px-3 py-1.5 text-amber-700">
+                      <span className="text-lg font-bold leading-none">{result.duplicated}</span>
+                      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-80">Duplicadas</span>
+                    </span>
+                  )}
+                </div>
+                {typeof result?.cobrosUnmatched === "number" && result.cobrosUnmatched > 0 && (
+                  <p className="flex items-center gap-1.5 text-[12px] text-amber-600">
+                    <AlertTriangle className="h-3.5 w-3.5" /> {result.cobrosUnmatched} cobro(s) sin coincidencia de guía.
+                  </p>
+                )}
+                {result?.hvFailed && (
+                  <p className="flex items-center gap-1.5 text-[12px] text-rose-600">
+                    <AlertTriangle className="h-3.5 w-3.5" /> No se pudieron marcar las guías de Alto Valor.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => { setResult(null); close(); }} style={{ background: FEDEX }} className="text-white hover:opacity-90">Listo</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Tutorial ilustrado (primer uso + botón "Cómo funciona") */}
+      <PasteTutorial open={tutorialOpen} onOpenChange={setTutorialOpen} onStartSpotlight={startSpotlight} />
+    </>
+  );
+
+  // --- Modo PÁGINA: mismo flujo sin Dialog (contenido embebido en la página). ---
+  if (asPage) {
+    return (
+      <div className="flex max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        {main}
+        {overlays}
+      </div>
+    );
+  }
+
+  // --- Modo MODAL (por defecto). ---
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
+      <DialogContent
+        showCloseButton={false}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="sm:max-w-[1120px] bg-white max-h-[92vh] flex flex-col overflow-hidden p-0 border-0 shadow-2xl"
+      >
+        <DialogTitle className="sr-only">Pegar datos FedEx</DialogTitle>
+        {main}
+      </DialogContent>
+      {overlays}
     </Dialog>
   );
 }

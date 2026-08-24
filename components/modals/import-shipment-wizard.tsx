@@ -39,7 +39,7 @@ import {
 import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { IconTruckLoading } from "@tabler/icons-react"
-import { Switch } from "../ui/switch"
+import { SwitchRow } from "@/components/shared/switch-row"
 
 // Importación de Driver.js para el tutorial
 import { driver } from "driver.js"
@@ -452,32 +452,30 @@ export function ShipmentWizardModal({
 
           {/* Switch F2 (paso 3) */}
           {step === 3 && (
-            <div className="flex items-start gap-3 rounded-xl border bg-muted/40 p-3">
-              <Switch checked={notRemoveCharge} onCheckedChange={setNotRemoveCharge} className="mt-0.5" />
-              <div className="space-y-0.5">
-                <Label className="text-sm font-semibold">Guardar F2 directo en cargos (no migrar)</Label>
-                <p className="text-xs text-muted-foreground">
-                  {notRemoveCharge
-                    ? "ACTIVO: las guías se guardan DIRECTO en cargos. No se elimina nada de shipments."
-                    : "INACTIVO (normal): las guías que ya estén en shipments se MIGRAN a cargos (se eliminan de shipments)."}
-                </p>
-              </div>
-            </div>
+            <SwitchRow
+              label="Guardar F2 directo en cargos (no migrar)"
+              hint={
+                notRemoveCharge
+                  ? "ACTIVO: las guías se guardan DIRECTO en cargos. No se elimina nada de shipments."
+                  : "INACTIVO (normal): las guías que ya estén en shipments se MIGRAN a cargos (se eliminan de shipments)."
+              }
+              checked={notRemoveCharge}
+              onCheckedChange={setNotRemoveCharge}
+            />
           )}
 
           {/* Switch carga 1.5 toneladas (paso 3). Solo si la sucursal tiene costo 1.5 ton configurado. */}
           {step === 3 && halfTonAvailable && (
-            <div className="flex items-start gap-3 rounded-xl border bg-muted/40 p-3">
-              <Switch checked={isHalfTon} onCheckedChange={setIsHalfTon} className="mt-0.5" />
-              <div className="space-y-0.5">
-                <Label className="text-sm font-semibold">Carga de 1.5 toneladas</Label>
-                <p className="text-xs text-muted-foreground">
-                  {isHalfTon
-                    ? `ACTIVO: el ingreso de esta carga se generará por ${halfTonCost.toLocaleString("es-MX", { style: "currency", currency: "MXN" })} (costo 1.5 ton) en vez del costo de carga normal.`
-                    : "INACTIVO (normal): el ingreso usa el costo de carga estándar de la sucursal."}
-                </p>
-              </div>
-            </div>
+            <SwitchRow
+              label="Carga de 1.5 toneladas"
+              hint={
+                isHalfTon
+                  ? `ACTIVO: el ingreso de esta carga se generará por ${halfTonCost.toLocaleString("es-MX", { style: "currency", currency: "MXN" })} (costo 1.5 ton) en vez del costo de carga normal.`
+                  : "INACTIVO (normal): el ingreso usa el costo de carga estándar de la sucursal."
+              }
+              checked={isHalfTon}
+              onCheckedChange={setIsHalfTon}
+            />
           )}
 
           {step < steps.length - 1 ? (
