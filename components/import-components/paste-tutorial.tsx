@@ -270,19 +270,13 @@ const PASTE_STEPS: TutorialStep[] = [
     art: (
       <div className="flex w-full max-w-md flex-col gap-2">
         <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-slate-100">
-          <span className="font-mono text-[10px] text-slate-500">383012036065&nbsp;&nbsp;COD 1250.00</span>
+          <span className="font-mono text-[10px] text-slate-500">383264471120&nbsp;&nbsp;COD-COLLECT CASH 2500.0 MXP</span>
           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300" />
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-            <DollarSign className="h-3 w-3" /> Cobro $1,250 · COD
+            <DollarSign className="h-3 w-3" /> Cobro $2,500 · COD
           </span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-slate-100">
-          <span className="font-mono text-[10px] text-slate-500">383011751254&nbsp;&nbsp;980</span>
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300" />
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-            <DollarSign className="h-3 w-3" /> $980 · sin tipo → ¿COD?
-          </span>
-        </div>
+        <p className="text-[11px] text-slate-500">Funciona aunque lo copies del cuerpo del correo (guía, fecha y cobro en renglones separados). Si un pago no trae tipo, te preguntamos si usar COD.</p>
       </div>
     ),
   },

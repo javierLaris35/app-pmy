@@ -621,7 +621,7 @@ export function PasteImportModal({
                   )}
                 </div>
                 <p className="mb-2 text-[12px] text-muted-foreground">Pega del correo o Excel: guía + monto (y COD/FTC/ROD si aplica). Se cruzan por guía y se marcan.</p>
-                <Textarea value={paymentsRaw} onChange={(e) => setPaymentsRaw(e.target.value)} placeholder={"383012036065\tCOD 1250.00\n383011751254\t980"} className="min-h-[90px] resize-none font-mono text-xs" />
+                <Textarea value={paymentsRaw} onChange={(e) => setPaymentsRaw(e.target.value)} placeholder={"Pega del correo o Excel (aunque venga en renglones):\n383264471120  COD-COLLECT CASH 2500.0 MXP\n383011751254  FTC 980 MXP"} className="min-h-[90px] resize-none font-mono text-xs" />
                 <div className="mt-2 flex items-center gap-2">
                   <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={addPayments} disabled={!paymentsRaw.trim()}><Plus className="mr-1 h-4 w-4" /> Agregar a la tabla</Button>
                   {appliedPayments.length > 0 && (

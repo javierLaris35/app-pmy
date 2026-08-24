@@ -163,6 +163,85 @@ describe("enriquecimiento de pagos", () => {
     expect(parsed[0].amount).toBe(980.5);
     expect(parsed[0].type).toBe("COD");
   });
+
+  it("formato VERTICAL del cuerpo del correo (guía, fecha y cobro en líneas separadas)", () => {
+    // Tal cual se pega desde el cuerpo del correo (no es tabla ni viene de Excel).
+    const raw = [
+      "Tracking Number",
+      "Last COMM Scan Date",
+      "Last COMM Scan Update",
+      "383264471120",
+      "08/20/2026",
+      "COD-COLLECT CASH 2500.0 MXP",
+    ].join("\n");
+    const parsed = parsePaymentsPaste(raw);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].tracking).toBe("383264471120");
+    expect(parsed[0].type).toBe("COD");
+    expect(parsed[0].amount).toBe(2500);
+  });
+
+  it("formato vertical con VARIOS cobros seguidos", () => {
+    const raw = [
+      "383264471120",
+      "08/20/2026",
+      "COD-COLLECT CASH 2500.0 MXP",
+      "383011751254",
+      "08/21/2026",
+      "FTC 980 MXP",
+    ].join("\n");
+    const parsed = parsePaymentsPaste(raw);
+    expect(parsed).toHaveLength(2);
+    expect(parsed.find((p) => p.tracking === "383264471120")).toMatchObject({ type: "COD", amount: 2500 });
+    expect(parsed.find((p) => p.tracking === "383011751254")).toMatchObject({ type: "FTC", amount: 980 });
+  });
+
+  it("tabla del correo copiada como TSV (guía + cobro alineados) sigue funcionando", () => {
+    const raw = "Tracking Number\tLast COMM Scan Date\tLast COMM Scan Update\n383264471120\t08/20/2026\tCOD-COLLECT CASH 2500.0 MXP";
+    const parsed = parsePaymentsPaste(raw);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]).toMatchObject({ tracking: "383264471120", type: "COD", amount: 2500 });
+  });
+
+  // --- Robustez: el mismo algoritmo tolera CUALQUIER formato de pegado ---
+
+  it("Excel con muchas columnas + encabezados (usa la columna de cobro exacta)", () => {
+    const raw =
+      "Tracking No\tRecip Name\tRecip Addr\tRecip Postal\tLast COMM Scan Update\n" +
+      "383264471120\tJUAN\tCALLE 1\t83000\tCOD-COLLECT CASH 2500.0 MXP\n" +
+      "383011751254\tANA\tAV 22\t83100\tFTC 980 MXP";
+    const parsed = parsePaymentsPaste(raw);
+    expect(parsed).toHaveLength(2);
+    expect(parsed.find((p) => p.tracking === "383264471120")).toMatchObject({ type: "COD", amount: 2500 });
+    expect(parsed.find((p) => p.tracking === "383011751254")).toMatchObject({ type: "FTC", amount: 980 });
+  });
+
+  it("Excel SIN encabezados, varias columnas alineadas (segmenta por guía)", () => {
+    const raw = "383264471120\tJUAN\tCALLE 1\t83000\tCOD-COLLECT CASH 2500.0 MXP";
+    const parsed = parsePaymentsPaste(raw);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]).toMatchObject({ tracking: "383264471120", type: "COD", amount: 2500 });
+  });
+
+  it("varias líneas, una por registro (space-separated)", () => {
+    const raw =
+      "383264471120 08/20/2026 COD-COLLECT CASH 2500.0 MXP\n" +
+      "383011751254 08/21/2026 FTC 980 MXP";
+    const parsed = parsePaymentsPaste(raw);
+    expect(parsed).toHaveLength(2);
+    expect(parsed.find((p) => p.tracking === "383264471120")).toMatchObject({ type: "COD", amount: 2500 });
+    expect(parsed.find((p) => p.tracking === "383011751254")).toMatchObject({ type: "FTC", amount: 980 });
+  });
+
+  it("montos con separador de miles ($1,250.00)", () => {
+    const parsed = parsePaymentsPaste("383264471120\tCOD $1,250.00");
+    expect(parsed[0]).toMatchObject({ tracking: "383264471120", type: "COD", amount: 1250 });
+  });
+
+  it("la fecha nunca se confunde con el monto (aunque el año sea un número grande)", () => {
+    const parsed = parsePaymentsPaste("383264471120\t2026-08-20\tCOD 2500");
+    expect(parsed[0]).toMatchObject({ tracking: "383264471120", type: "COD", amount: 2500 });
+  });
 });
 
 describe("enriquecimiento de high value", () => {

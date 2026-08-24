@@ -348,20 +348,31 @@ export function isBadDate(value: string): boolean {
 }
 
 const PAY_TYPE_RE = /\b(COD|FTC|ROD)\b/i;
-/** Extrae {type, amount} de una celda de pago (espejo de parsePaymentCell). */
+/**
+ * Interpreta una celda de cobro (COD/FTC/ROD + monto). Mismo criterio EXACTO que el
+ * backend (`parsePaymentCell` en file-upload.utils.ts): tipo no anclado, montos con
+ * separador de miles (`.`, `,` o espacio) y decimales, toma el último monto, exige > 0.
+ * Es el único método de interpretación de cobro en el front (paste, merge, análisis).
+ */
 export function parsePaymentCell(value: string): { type: string | null; amount: number | null } {
   const raw = String(value ?? "").trim();
   if (!raw) return { type: null, amount: null };
   const typeMatch = raw.match(PAY_TYPE_RE);
   const type = typeMatch ? typeMatch[1].toUpperCase() : null;
-  const numbers = raw.match(/[\d][\d.,]*/g);
+
+  const matches = raw.match(/([0-9]+(?:[.,\s][0-9]{3})*(?:[.,][0-9]{1,2})?)/g);
   let amount: number | null = null;
-  if (numbers && numbers.length) {
-    const last = numbers[numbers.length - 1];
-    // normaliza miles/decimales: quita separadores de miles, deja punto decimal
-    const cleaned = last.replace(/,(?=\d{3}\b)/g, "").replace(/,(\d{1,2})$/, ".$1").replace(/,/g, "");
-    const n = parseFloat(cleaned);
-    amount = isFinite(n) && n > 0 ? n : null;
+  if (matches && matches.length) {
+    let n = matches[matches.length - 1].trim();
+    if (n.includes(".") && n.includes(",") && n.indexOf(",") > n.indexOf(".")) {
+      n = n.replace(/\./g, "").replace(",", ".");                         // 1.234,56 → 1234.56
+    } else if (n.includes(",") && !n.includes(".")) {
+      n = /,[0-9]{1,2}$/.test(n) ? n.replace(",", ".") : n.replace(/,/g, ""); // 1,50 → 1.50 / 1,234 → 1234
+    } else {
+      n = n.replace(/[\s,]/g, "");
+    }
+    const parsed = parseFloat(n);
+    amount = !isNaN(parsed) && parsed > 0 ? parsed : null;
   }
   return { type, amount };
 }
@@ -514,9 +525,19 @@ export function buildMappedTable(rawRows: string[][]): MappedTable | null {
 export interface ParsedPayment { tracking: string; amount: number | null; type: string | null; raw: string; }
 
 /**
- * Parsea un pegado de pagos: primero intenta por encabezados (tracking + cod);
- * si no hay encabezados (vienen del cuerpo del correo), usa heurística por línea:
- * token largo de dígitos = guía; tipo COD/FTC/ROD si aparece; último número = monto.
+ * Parsea un pegado de pagos desde CUALQUIER formato, sin pedirle al usuario que lo
+ * acomode: tabla de Excel (con o sin encabezados), cuerpo de correo (vertical, una
+ * celda por renglón), una sola línea por registro, o texto libre.
+ *
+ * Estrategia:
+ *  1) Si hay encabezados que alinean guía + cobro en la MISMA fila → lectura tabular
+ *     exacta (usa la columna de cobro; ideal para tablas con muchas columnas).
+ *  2) Si no → se APLANA todo a una secuencia de celdas y se SEGMENTA por guía: cada
+ *     guía (token de 9+ dígitos) "posee" las celdas que le siguen hasta la próxima
+ *     guía. De ese segmento se extrae tipo (COD/FTC/ROD) y monto — quitando fechas
+ *     antes para no confundir el año/día con el importe. La extracción fina de
+ *     tipo/monto vive en {@link parsePaymentCell} (espejo de parseDynamicSheetCharge
+ *     del backend).
  */
 export function parsePaymentsPaste(raw: string): ParsedPayment[] {
   const rows = toMatrix(raw);
@@ -524,30 +545,60 @@ export function parsePaymentsPaste(raw: string): ParsedPayment[] {
   const detected = detectHeaderMap(rows);
   const out: ParsedPayment[] = [];
 
-  if (detected && detected.map["trackingNumber"] !== undefined) {
+  // (1) Tabular REAL: encabezado que alinea guía Y cobro en la misma fila.
+  if (detected && detected.map["trackingNumber"] !== undefined && detected.map["cod"] !== undefined) {
     const { headerRowIndex, map } = detected;
     for (const r of rows.slice(headerRowIndex + 1)) {
       const tracking = String(r[map["trackingNumber"]] ?? "").trim();
       if (!tracking) continue;
-      const codCell = map["cod"] !== undefined ? String(r[map["cod"]] ?? "") : r.join(" ");
+      const codCell = String(r[map["cod"]] ?? "");
       const { type, amount } = parsePaymentCell(codCell);
       out.push({ tracking, amount, type, raw: codCell.trim() });
     }
-    return out;
+    if (out.length) return out;
   }
 
-  // Heurística (texto libre del correo). Se quita la guía de la línea ANTES de
-  // leer el monto, para que el número de guía no se confunda con el importe.
-  for (const cells of rows) {
-    const line = cells.join(" ").trim();
-    if (!line) continue;
-    const trackMatch = line.match(/\b\d{9,}\b/);
-    if (!trackMatch) continue;
-    const rest = line.replace(trackMatch[0], " ");
-    const { type, amount } = parsePaymentCell(rest);
-    out.push({ tracking: trackMatch[0], amount, type, raw: rest.trim() });
+  // (2) Universal: aplanar a celdas y segmentar por guía.
+  const flat: string[] = [];
+  for (const r of rows) for (const cell of r) { const t = String(cell ?? "").trim(); if (t) flat.push(t); }
+
+  const TRACK_RE = /\b\d{9,}\b/;
+  const segments: { tracking: string; parts: string[] }[] = [];
+  let current: { tracking: string; parts: string[] } | null = null;
+
+  for (const cell of flat) {
+    const track = (cell.match(TRACK_RE) || [])[0];
+    if (track) {
+      // Nueva guía. Lo que quede de ESTA celda (antes o después de la guía) ya es
+      // parte de su cobro (cubre "COD $980 guia 383…" y "383… COD $2500").
+      current = { tracking: track, parts: [cell.replace(track, " ")] };
+      segments.push(current);
+    } else if (current) {
+      current.parts.push(cell); // fecha / celda de cobro en renglón aparte
+    }
+    // celdas previas a la primera guía (encabezados) se ignoran
   }
-  return out;
+
+  // De cada segmento: quita fechas y saca tipo + monto. Dedup por guía.
+  const byTracking = new Map<string, ParsedPayment>();
+  for (const seg of segments) {
+    const joined = seg.parts
+      .join(" ")
+      .replace(/\b\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}\b/g, " ") // dd/mm/aaaa, dd-mm-aa
+      .replace(/\b\d{4}-\d{2}-\d{2}\b/g, " ")                   // aaaa-mm-dd
+      .trim();
+    const { type, amount } = parsePaymentCell(joined);
+    const prev = byTracking.get(seg.tracking);
+    byTracking.set(seg.tracking, {
+      tracking: seg.tracking,
+      type: type ?? prev?.type ?? null,
+      amount: amount ?? prev?.amount ?? null,
+      raw: joined || prev?.raw || "",
+    });
+  }
+
+  // Descarta guías que quedaron sin cobro (ni tipo ni monto).
+  return Array.from(byTracking.values()).filter((p) => p.amount !== null || p.type !== null);
 }
 
 export interface ParsedHv { tracking: string; address: string; }
