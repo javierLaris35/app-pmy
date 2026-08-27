@@ -233,9 +233,13 @@ export function PasteImportModal({
     if ((c?.withTracking ?? 0) === 0) return "No hay guías válidas para importar.";
     const needsSub = true;
     if (needsSub && !localSubsidiaryId) return "Selecciona una sucursal.";
-    if (kind === "master" && !consNumber.trim()) return "Captura el número de consolidado.";
+    // Paridad con el wizard: consNumber obligatorio también en F2 (agrupa las cargas
+    // y ancla el 2º request de cobros).
+    if (!consNumber.trim()) return "Captura el número de consolidado.";
     if (kind === "master" && preview) {
       if (preview.parseError) return `Archivo inválido: ${preview.parseError}`;
+      // Regla del wizard: no se permite más de un consolidado por día.
+      if (preview.consNumberExists?.isDateConflict) return `Ya existe otro consolidado (${preview.consNumberExists.consNumber}) en esta fecha. No se permite más de un consolidado por día.`;
       if (preview.newCount === 0 && preview.recycledCount === 0) return "Todas las guías ya fueron importadas (sin nuevas ni reingresos).";
     }
     return null;
@@ -371,25 +375,45 @@ export function PasteImportModal({
     return undefined;
   };
 
+  // Chips de conteo (reutilizados en el header del modal y en la barra ligera de página).
+  const countChips = c ? (
+    <div className="flex flex-wrap gap-2">
+      <CountChip label="Guías" value={c.withTracking} />
+      <CountChip label="A importar" value={Math.max(0, c.withTracking - c.duplicates)} tone="green" />
+      {c.duplicates > 0 && <CountChip label="Duplicadas" value={c.duplicates} tone="amber" />}
+      {c.missingTracking > 0 && <CountChip label="Sin guía" value={c.missingTracking} tone="red" />}
+      {c.withPayment > 0 && <CountChip label="Con pago" value={c.withPayment} tone="green" />}
+      {c.paymentsNoType > 0 && <CountChip label="Pago s/type" value={c.paymentsNoType} tone="amber" />}
+      {c.highValue > 0 && <CountChip label="Alto Valor" value={c.highValue} tone="purple" />}
+    </div>
+  ) : null;
+
+  // Contenido del pie (estado de validación + acciones). Igual en modal y página.
+  const footerInner = (
+    <>
+      <div className="flex items-center gap-2 text-[12px]">
+        {previewing && <span className="text-muted-foreground">Validando…</span>}
+        {blockReason && !previewing && <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> {blockReason}</span>}
+      </div>
+      <div className="flex gap-3">
+        <Button variant="ghost" onClick={close} disabled={sending} className="text-gray-500 hover:bg-gray-100 hover:text-gray-800"><X className="mr-2 h-4 w-4" /> Cancelar</Button>
+        <Button id="paste-submit" onClick={submit} disabled={sending || !!blockReason} style={{ background: FEDEX }} className="text-white hover:opacity-90">
+          {sending ? "Importando…" : "Procesar e importar"}{!sending && <Check className="ml-2 h-4 w-4" />}
+        </Button>
+      </div>
+    </>
+  );
+
   // Contenido principal (header + body + footer). Se monta dentro de un Dialog
-  // (modal) o de un contenedor de página (asPage) — mismo layout flex-col con scroll.
+  // (modal) o de un contenedor de página (asPage) — mismo body, distinto chrome.
   const main = (
     <>
-        {/* HEADER */}
-        <DialogHeader className="flex flex-col gap-3 border-b border-gray-100 p-6 pb-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border" style={{ background: "#f5f0fb", color: FEDEX, borderColor: "#e6dcf5" }}>
-                <ClipboardPaste className="h-6 w-6" />
-              </div>
-              <div className="text-left">
-                <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900">
-                  Pegar datos FedEx
-                  <Badge variant="outline" className="gap-1 border-amber-300 text-amber-600"><FlaskConical className="h-3 w-3" /> Experimental</Badge>
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">Copia desde Excel (con encabezados). Se mapea igual que el import de FedEx.</p>
-              </div>
-            </div>
+        {/* HEADER — en página el ícono/título/descripción los pone OperationHeader,
+            así que aquí solo va una barra ligera (chips + "Cómo funciona"). En modal
+            se conserva el header completo. */}
+        {asPage ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+            {countChips ?? <span />}
             <Button
               variant="ghost"
               size="sm"
@@ -399,21 +423,37 @@ export function PasteImportModal({
               <HelpCircle className="h-4 w-4" /> Cómo funciona
             </Button>
           </div>
-          {c && (
-            <div className="flex flex-wrap gap-2">
-              <CountChip label="Guías" value={c.withTracking} />
-              <CountChip label="A importar" value={Math.max(0, c.withTracking - c.duplicates)} tone="green" />
-              {c.duplicates > 0 && <CountChip label="Duplicadas" value={c.duplicates} tone="amber" />}
-              {c.missingTracking > 0 && <CountChip label="Sin guía" value={c.missingTracking} tone="red" />}
-              {c.withPayment > 0 && <CountChip label="Con pago" value={c.withPayment} tone="green" />}
-              {c.paymentsNoType > 0 && <CountChip label="Pago s/type" value={c.paymentsNoType} tone="amber" />}
-              {c.highValue > 0 && <CountChip label="Alto Valor" value={c.highValue} tone="purple" />}
+        ) : (
+          <DialogHeader className="flex flex-col gap-3 border-b border-gray-100 p-6 pb-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border" style={{ background: "#f5f0fb", color: FEDEX, borderColor: "#e6dcf5" }}>
+                  <ClipboardPaste className="h-6 w-6" />
+                </div>
+                <div className="text-left">
+                  <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900">
+                    Pegar datos FedEx
+                    <Badge variant="outline" className="gap-1 border-amber-300 text-amber-600"><FlaskConical className="h-3 w-3" /> Experimental</Badge>
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Copia desde Excel (con encabezados). Se mapea igual que el import de FedEx.</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTutorialOpen(true)}
+                className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <HelpCircle className="h-4 w-4" /> Cómo funciona
+              </Button>
             </div>
-          )}
-        </DialogHeader>
+            {countChips}
+          </DialogHeader>
+        )}
 
-        {/* BODY */}
-        <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/40 p-6 space-y-5">
+        {/* BODY — en página fluye con el scroll de la página (sin altura fija ni fondo
+            de tarjeta); en modal mantiene el scroll interno. */}
+        <div className={asPage ? "space-y-5 pt-5" : "flex-1 min-h-0 overflow-y-auto bg-gray-50/40 p-6 space-y-5"}>
           {/* Config */}
           <div id="paste-fields" className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             {/* Grupo A — qué se importa y sus modificadores */}
@@ -486,11 +526,11 @@ export function PasteImportModal({
                   <SucursalSelector
                     value={localSubsidiaryId}
                     onValueChange={(val) => setLocalSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
-                    insideAModal
+                    insideAModal={!asPage}
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label className="text-xs font-semibold text-gray-700">No. de consolidado {kind === "master" && "(*)"}</Label>
+                  <Label className="text-xs font-semibold text-gray-700">No. de consolidado (*)</Label>
                   <Input className="h-9" value={consNumber} onChange={(e) => setConsNumber(e.target.value)} placeholder="Ej. CONS-123" />
                 </div>
                 <div className="grid gap-1.5">
@@ -597,7 +637,9 @@ export function PasteImportModal({
                 {(c?.withPayment ?? 0) > 0 && <CountChip label="Con pago" value={c?.withPayment ?? 0} tone="green" />}
                 {(c?.highValue ?? 0) > 0 && <CountChip label="Alto Valor" value={c?.highValue ?? 0} tone="purple" />}
               </div>
-              {preview.newCount === 0 && preview.recycledCount === 0 ? (
+              {preview.consNumberExists?.isDateConflict ? (
+                <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Ya existe otro consolidado ({preview.consNumberExists.consNumber}) en esta fecha. No se permite más de un consolidado por día.</p>
+              ) : preview.newCount === 0 && preview.recycledCount === 0 ? (
                 <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Todas las guías ya fueron importadas en este consolidado; no hay nuevas ni reingresos.</p>
               ) : preview.consNumberExists?.isExactMatch ? (
                 <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">El consolidado {preview.consNumberExists.consNumber} ya existe. Se agregarán {preview.newCount} nuevas{preview.recycledCount ? ` (+${preview.recycledCount} reingresos)` : ""}; {preview.alreadyImportedCount} ya estaban y se omiten.</p>
@@ -670,19 +712,17 @@ export function PasteImportModal({
           )}
         </div>
 
-        {/* FOOTER */}
-        <DialogFooter className="flex w-full items-center gap-3 border-t border-gray-100 p-6 sm:justify-between">
-          <div className="flex items-center gap-2 text-[12px]">
-            {previewing && <span className="text-muted-foreground">Validando…</span>}
-            {blockReason && !previewing && <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> {blockReason}</span>}
+        {/* FOOTER — en página, barra de acciones fija al fondo del viewport (mejor UX en
+            un formulario largo); en modal, pie de diálogo. */}
+        {asPage ? (
+          <div className="sticky bottom-0 z-10 mt-2 flex w-full items-center gap-3 border-t border-gray-200 bg-background/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:justify-between">
+            {footerInner}
           </div>
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={close} disabled={sending} className="text-gray-500 hover:bg-gray-100 hover:text-gray-800"><X className="mr-2 h-4 w-4" /> Cancelar</Button>
-            <Button id="paste-submit" onClick={submit} disabled={sending || !!blockReason} style={{ background: FEDEX }} className="text-white hover:opacity-90">
-              {sending ? "Importando…" : "Procesar e importar"}{!sending && <Check className="ml-2 h-4 w-4" />}
-            </Button>
-          </div>
-        </DialogFooter>
+        ) : (
+          <DialogFooter className="flex w-full items-center gap-3 border-t border-gray-100 p-6 sm:justify-between">
+            {footerInner}
+          </DialogFooter>
+        )}
     </>
   );
 
@@ -778,10 +818,11 @@ export function PasteImportModal({
     </>
   );
 
-  // --- Modo PÁGINA: mismo flujo sin Dialog (contenido embebido en la página). ---
+  // --- Modo PÁGINA: contenido embebido que fluye con el scroll de la página (sin
+  // Dialog, sin tarjeta flotante ni altura fija — ya no parece un modal). ---
   if (asPage) {
     return (
-      <div className="flex max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex flex-col">
         {main}
         {overlays}
       </div>
