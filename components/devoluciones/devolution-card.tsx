@@ -51,6 +51,36 @@ function prettyStatus(raw?: string | null): string {
   return known[raw] ?? raw.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
+/**
+ * Indicador de "Ingreso" con motivo, para que el usuario no confunda un "No" con una falla del
+ * sistema. El ingreso de shipment SOLO nace en el cierre de ruta:
+ *  - Carga/F2: el ingreso va agrupado en la carga (sin trackingNumber), nunca por guía → "Por carga".
+ *  - Shipment con ingreso → "Sí".
+ *  - Shipment sin ingreso que NUNCA salió a ruta → "Sin ruta" (esperado, no es falla).
+ *  - Shipment sin ingreso que SÍ salió a ruta → "No" (anomalía real: revisar).
+ */
+function incomeIndicator(item: ReturnValidaton): { label: string; className: string; title: string } {
+  if (item.isCharge)
+    return {
+      label: "Por carga",
+      className: "bg-violet-50 text-violet-700",
+      title: "El ingreso de esta guía va agrupado en la carga/F2 (no se registra por guía).",
+    };
+  if (item.hasIncome)
+    return { label: "Sí", className: "bg-emerald-50 text-emerald-700", title: "Esta guía generó ingreso." };
+  if (item.wasDispatched === false)
+    return {
+      label: "Sin ruta",
+      className: "bg-amber-50 text-amber-700",
+      title: "No generó ingreso porque nunca salió a ruta. El ingreso de shipment solo se crea al cerrar una ruta.",
+    };
+  return {
+    label: "No",
+    className: "bg-rose-50 text-rose-700",
+    title: "Salió a ruta pero no tiene ingreso registrado. Conviene revisar.",
+  };
+}
+
 /** Familia de color según la naturaleza del estatus (terminal bueno / devolución / excepción / tránsito). */
 function statusTone(raw?: string | null): string {
   if (!raw) return "bg-slate-100 text-slate-600";
@@ -138,14 +168,20 @@ export const DevolutionCard: FC<DevolutionCardProps> = ({
         </dd>
         <dt className="text-slate-500">Ingreso</dt>
         <dd className="text-right">
-          <span
-            className={classNames(
-              "inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold",
-              item.hasIncome ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500",
-            )}
-          >
-            {item.hasIncome ? "Sí" : "No"}
-          </span>
+          {(() => {
+            const ind = incomeIndicator(item);
+            return (
+              <span
+                className={classNames(
+                  "inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold",
+                  ind.className,
+                )}
+                title={ind.title}
+              >
+                {ind.label}
+              </span>
+            );
+          })()}
         </dd>
         {reasonLabel && (
           <>

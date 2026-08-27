@@ -21,6 +21,7 @@ import {
   fetchInventoryCodeReportMultiJson, fetchVisibility44FedexCheck, fetchVisibility67FedexCheck, updatePendingOne,
 } from "@/lib/services/reportes/reportes";
 import { buildVisibility44Excel } from "@/lib/services/reportes/visibilidad44-excel";
+import { daysWithPackage, daysWithPackageLabel } from "@/lib/days-with-package";
 
 const tipoLabel = (t?: string) => {
   const v = String(t || "").toLowerCase();
@@ -180,6 +181,12 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     { id: "tipo", accessorFn: (r) => tipoLabel(r.shipmentType), header: "Tipo", filterFn: inArray },
     { id: "scanCode", accessorFn: (r) => String(r.scanCode ?? "67"), header: "Código", cell: ({ getValue }) => <span className="font-mono text-xs">{String(getValue())}</span>, filterFn: inArray },
     { id: "status", accessorFn: (r) => prettyStatus(r.status), header: "Estatus", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span>, filterFn: inArray },
+    {
+      id: "diasConPaquete",
+      header: "Días con el paquete",
+      accessorFn: (r) => { const d = daysWithPackage(r.createdAt); return d == null ? Number.MAX_SAFE_INTEGER : d; },
+      cell: ({ row }) => <span className="text-xs">{daysWithPackageLabel(row.original.createdAt)}</span>,
+    },
     {
       id: "diasSinCodigo",
       header: "Días sin código",

@@ -9,6 +9,7 @@ import {
 // @ts-expect-error - file-saver no trae tipos empaquetados (igual que en report-runner)
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
+import { daysWithPackage, daysWithPackageLabel } from "@/lib/days-with-package";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -163,6 +164,7 @@ export function InventoryLDReport({ onBack }: { onBack: () => void }) {
     { id: "tipo", accessorFn: (r) => tipoLabel(r.shipmentType), header: "Tipo", filterFn: inArray },
     { id: "estatus", accessorFn: (r) => prettyStatus(r.status), header: "Estatus", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span> },
     { id: "vencimiento", accessorFn: (r) => r.commitDateTime, header: "Vencimiento", cell: ({ row }) => <span className="text-xs">{row.original.commitDateTime ? fmtDateTime(row.original.commitDateTime) : "—"}</span> },
+    { id: "diasConPaquete", accessorFn: (r) => { const d = daysWithPackage(r.createdAt); return d == null ? Number.MAX_SAFE_INTEGER : d; }, header: "Días con el paquete", cell: ({ row }) => <span className="text-xs">{daysWithPackageLabel(row.original.createdAt)}</span> },
     { id: "movio", accessorFn: (r) => (r.movedThatDay ? "Sí" : "No"), header: "¿Movió?", filterFn: inArray,
       cell: ({ row }) => row.original.movedThatDay ? <span className="text-emerald-600 text-xs">Sí</span> : <span className="text-rose-600 text-xs font-medium">No</span> },
     { id: "ld", accessorFn: (r) => (r.isLD ? "LD" : "OK"), header: "LD", filterFn: inArray,

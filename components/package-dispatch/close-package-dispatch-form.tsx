@@ -213,11 +213,27 @@ export default function ClosePackageDispatchWizard({
   const hasOtherPackagesDueToday = (otherPackages: PackageInfo[]) => {
     const dispatchWasYesterday = isYesterdayInHermosillo(dispatch?.createdAt);
     return otherPackages.some(pkg => {
+      // Las guías que YA se re-escanearon en otra salida a ruta no son responsabilidad
+      // de este cierre: se muestran informativas (badge) pero NUNCA bloquean.
+      if (pkg.movedToAnotherRoute) return false;
       if (!pkg.commitDateTime) return false;
       const dueToday = isTodayInHermosillo(pkg.commitDateTime);
       return dueToday && !dispatchWasYesterday;
     });
   };
+
+  // Badge informativo "En otra ruta" (guía reasignada a otra salida). Se pinta junto al
+  // tracking en las listas del cierre; no altera conteos ni bloquea.
+  const MovedBadge = ({ pkg }: { pkg: { movedToAnotherRoute?: boolean; currentDispatchTrackingNumber?: string | null } }) =>
+    pkg.movedToAnotherRoute ? (
+      <Badge
+        variant="outline"
+        className="bg-slate-100 text-slate-600 border-slate-300 shrink-0 text-[10px] whitespace-nowrap"
+        title={pkg.currentDispatchTrackingNumber ? `Ahora en la salida ${pkg.currentDispatchTrackingNumber}` : 'Ya está en otra salida a ruta'}
+      >
+        En otra ruta{pkg.currentDispatchTrackingNumber ? ` · ${pkg.currentDispatchTrackingNumber}` : ''}
+      </Badge>
+    ) : null;
 
   const {
   allShipments,
@@ -841,7 +857,7 @@ export default function ClosePackageDispatchWizard({
                             shownDeliveredPackages.map((pkg) => (
                               <div key={pkg.id || pkg.trackingNumber} className="p-2 rounded hover:bg-green-50 space-y-1 text-left">
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="font-medium text-sm text-gray-800 truncate">{pkg.trackingNumber}</div>
+                                  <div className="flex items-center gap-1.5 min-w-0"><div className="font-medium text-sm text-gray-800 truncate">{pkg.trackingNumber}</div><MovedBadge pkg={pkg} /></div>
                                   <Badge className="bg-green-100 text-green-800 shrink-0">{pkg.status || 'ENTREGADO'}</Badge>
                                 </div>
                                 <div className="text-xs text-gray-500 truncate">
@@ -897,7 +913,7 @@ export default function ClosePackageDispatchWizard({
                               return (
                                 <div key={pkg.id || pkg.trackingNumber} className="p-2 rounded hover:bg-red-50 space-y-1 text-left">
                                   <div className="flex items-start justify-between gap-2">
-                                    <div className="font-medium text-sm text-gray-800 truncate">{pkg.trackingNumber}</div>
+                                    <div className="flex items-center gap-1.5 min-w-0"><div className="font-medium text-sm text-gray-800 truncate">{pkg.trackingNumber}</div><MovedBadge pkg={pkg} /></div>
                                     <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 shrink-0">
                                       {pkg.status || 'NO ENTREGADO'}
                                     </Badge>
@@ -955,7 +971,7 @@ export default function ClosePackageDispatchWizard({
                             ocurrePackages.map((pkg) => (
                               <div key={pkg.id || pkg.trackingNumber} className="p-3 rounded border border-transparent hover:bg-sky-50 space-y-2 text-left">
                                 <div className="flex items-start justify-between gap-3">
-                                  <span className="font-semibold text-sm">{pkg.trackingNumber}</span>
+                                  <span className="flex items-center gap-1.5 min-w-0"><span className="font-semibold text-sm">{pkg.trackingNumber}</span><MovedBadge pkg={pkg} /></span>
                                   <Badge className="bg-sky-100 text-sky-800 border-sky-300 shrink-0">{pkg.status || "es_ocurre"}</Badge>
                                 </div>
                                 <div className="text-xs text-gray-600 truncate">{pkg.recipientName || "Sin destinatario"}</div>
@@ -1003,7 +1019,7 @@ export default function ClosePackageDispatchWizard({
                             otherPackages.map((pkg) => (
                               <div key={pkg.id || pkg.trackingNumber} className={cn("p-3 rounded border space-y-2 transition-colors text-left", isTodayInHermosillo(pkg.commitDateTime) ? "bg-red-100 border-red-300 text-red-900" : "hover:bg-amber-50 border-transparent")}>
                                 <div className="flex items-start justify-between gap-3">
-                                  <span className="font-semibold text-sm">{pkg.trackingNumber}</span>
+                                  <span className="flex items-center gap-1.5 min-w-0"><span className="font-semibold text-sm">{pkg.trackingNumber}</span><MovedBadge pkg={pkg} /></span>
                                   <Badge className={cn("whitespace-normal leading-tight max-w-[45%] text-left", isTodayInHermosillo(pkg.commitDateTime) ? "bg-red-200 text-red-900 border-red-400" : "bg-amber-100 text-amber-800 border-amber-300")}>
                                     {pkg.status || "otro"}
                                   </Badge>

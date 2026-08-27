@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
+import { daysWithPackageLabel } from "@/lib/days-with-package";
 
 const tipoLabel = (t?: string) => {
   const v = String(t || "").toLowerCase();
@@ -37,6 +38,7 @@ export async function buildVisibility44Excel(rows: any[]): Promise<Blob> {
     "Tipo",
     "Estatus",
     "Alta en sistema",
+    "Días con el paquete",
     "Último 44",
     "Días sin 44 (propio)",
     "Visibilidad",
@@ -60,6 +62,7 @@ export async function buildVisibility44Excel(rows: any[]): Promise<Blob> {
       tipoLabel(r.shipmentType),
       r.status || "",
       fmtDate(r.createdAt),
+      daysWithPackageLabel(r.createdAt),
       r.lastCodeDate ? fmtDate(r.lastCodeDate) : "—",
       r.daysSinceLastCode == null ? "Nunca" : r.daysSinceLastCode,
       catLabel(r.category),
@@ -79,7 +82,7 @@ export async function buildVisibility44Excel(rows: any[]): Promise<Blob> {
     sheet.addRow(base);
   }
 
-  const widths = [22, 20, 8, 16, 16, 14, 14, 14, 26, 8, 16, 30, 34, 60];
+  const widths = [22, 20, 8, 16, 16, 16, 14, 14, 14, 26, 8, 16, 30, 34, 60];
   sheet.columns.forEach((col, i) => { col.width = widths[i] ?? 16; });
 
   const buffer = await wb.xlsx.writeBuffer();

@@ -540,6 +540,9 @@ export type ReturnValidaton = {
   subsidiaryName: string;  // Existente
   hasIncome: boolean;
   isCharge: boolean;
+  /** ¿La guía salió alguna vez a ruta (package_dispatch)? Si es false y no hay ingreso, es
+   *  porque nunca salió a ruta — no una falla. Undefined en cargas. */
+  wasDispatched?: boolean;
   lastStatus: {
     type: string | null;
     exceptionCode: string | null;
@@ -763,6 +766,11 @@ export interface PackageInfo {
   exceptionCode?: string
   statusHistory?: StatusHistory[]
   dhlUniqueId?: string
+  /** La guía ya se re-escaneó en OTRA salida a ruta (su FK `routeId` apunta a otro
+   *  despacho). En el cierre se muestra con badge informativo y NO bloquea. */
+  movedToAnotherRoute?: boolean
+  /** Folio de la salida a ruta a la que se movió la guía (para el badge). */
+  currentDispatchTrackingNumber?: string | null
 }
 
 export interface SearchShipmentDto {

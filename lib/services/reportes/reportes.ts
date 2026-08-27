@@ -179,3 +179,28 @@ export const fetchVisibility44FedexCheck = async (
     }
   >;
 };
+
+/**
+ * Confirmación con FedEx CODE-AWARE (44/67 por fila): parte las filas según su `scanCode`,
+ * llama al check correcto y NORMALIZA el resultado del 44 a las llaves `daysWith67`/
+ * `daysWithout67` que consume el ReportRunner (para no tocar su mapeo genérico). Lo usan los
+ * reportes de inventario (Inventarios / Último inventario), que eligen 44 o 67 por sucursal.
+ */
+export const fetchVisibilityCodeFedexCheck = async (rows: any[], includeSundays: boolean) => {
+  const isFedex = (r: any) => String(r?.shipmentType || "").toLowerCase() === "fedex";
+  const toItem = (r: any) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId });
+  const targets = (rows || []).filter(isFedex);
+  const items44 = targets.filter((r) => String(r.scanCode) === "44").map(toItem);
+  const items67 = targets.filter((r) => String(r.scanCode) !== "44").map(toItem);
+  const [res44, res67] = await Promise.all([
+    items44.length ? fetchVisibility44FedexCheck(items44, includeSundays) : Promise.resolve({} as Record<string, any>),
+    items67.length ? fetchVisibility67FedexCheck(items67, includeSundays) : Promise.resolve({} as Record<string, any>),
+  ]);
+  const out: Record<string, any> = {};
+  for (const [tn, f] of Object.entries(res67 as Record<string, any>)) out[tn] = f;
+  for (const [tn, f] of Object.entries(res44 as Record<string, any>)) {
+    // Normaliza 44 → llaves "67" genéricas que lee el ReportRunner.
+    out[tn] = { ...f, daysWith67: (f as any).daysWith44, daysWithout67: (f as any).daysWithout44 };
+  }
+  return out;
+};

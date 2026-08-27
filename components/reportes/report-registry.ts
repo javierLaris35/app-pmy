@@ -1,5 +1,6 @@
 import { PackageX, PackageCheck, Boxes, EyeOff, ClipboardList, Truck, Route, Warehouse, MapPinned, type LucideIcon } from "lucide-react";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
+import { daysWithPackage, daysWithPackageLabel } from "@/lib/days-with-package";
 import {
   fetchPendientesJson, fetchPendientesExcel,
   fetchPendientesFedexStatus, updatePendingOne,
@@ -7,6 +8,7 @@ import {
   fetchInventario67Json, fetchInventario67Excel,
   fetchSin67Json, fetchSin67Excel,
   fetchVisibility67FedexCheck,
+  fetchVisibilityCodeFedexCheck,
   fetchInventoryReportJson,
   fetchUnloadingReportJson,
   fetchRoutesReportJson,
@@ -257,6 +259,7 @@ export const REPORTS: ReportDef[] = [
       { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
       { id: "tipo", label: "Tipo", accessor: (r) => tipoLabel(r.shipmentType) },
       { id: "status", label: "Estatus actual", accessor: (r) => r.status, cell: (v) => prettyStatus(v) },
+      { id: "scanCode", label: "Código", accessor: (r) => String(r.scanCode ?? "67"), mono: true },
       {
         id: "inventarios",
         label: "Inventarios",
@@ -269,16 +272,22 @@ export const REPORTS: ReportDef[] = [
       },
       { id: "createdAt", label: "Alta en sistema", accessor: (r) => r.createdAt, cell: (v) => fmtDate(v) },
       {
+        id: "diasConPaquete",
+        label: "Días con el paquete",
+        accessor: (r) => { const d = daysWithPackage(r.createdAt); return d == null ? Number.MAX_SAFE_INTEGER : d; },
+        cell: (_v, r) => daysWithPackageLabel(r.createdAt),
+      },
+      {
         id: "diasSin67",
-        label: "Días sin 67",
+        label: "Días sin código",
         accessor: (r) => (r.daysSinceLast67 == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLast67)),
         cell: (_v, r) => (r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Hoy (0)" : String(r.daysSinceLast67)),
       },
-      { id: "last67Date", label: "Último 67", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
+      { id: "last67Date", label: "Último código", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
       {
         id: "categoria",
         label: "Visibilidad",
-        accessor: (r) => (r.category === "hoy" ? "Con 67 hoy" : r.category === "nunca" ? "Nunca" : "Sin 67 hoy"),
+        accessor: (r) => { const code = r.scanCode ?? "67"; return r.category === "hoy" ? `Con ${code} hoy` : r.category === "nunca" ? "Nunca" : `Sin ${code} hoy`; },
       },
       { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
       { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
@@ -290,11 +299,8 @@ export const REPORTS: ReportDef[] = [
       { columnId: "status", title: "Estatus" },
     ],
     fedex67Check: {
-      fetch: (rows, includeSundays) =>
-        fetchVisibility67FedexCheck(
-          rows.filter(isFedexRow).map((r) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId })),
-          includeSundays,
-        ),
+      // Code-aware: usa 44 o 67 por sucursal (según `scanCode` de cada fila).
+      fetch: (rows, includeSundays) => fetchVisibilityCodeFedexCheck(rows, includeSundays),
     },
     updateRow: (subsidiaryId, row) => updatePendingOne(subsidiaryId, row.trackingNumber, !!row.isCharge),
     run: async (subsidiaryId, range) => {
@@ -468,24 +474,36 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "inventario67",
-    title: "Último inventario sin 67",
-    description: "Paquetes del último inventario que aún no tienen el 67.",
+    title: "Último inventario sin código (44/67)",
+    description: "Paquetes del último inventario que aún no tienen el código de escaneo local que monitorea la sucursal (44 o 67). Confirma con FedEx.",
     icon: Boxes,
     accent: "bg-indigo-100 text-indigo-600",
     columns: [
       { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
       { id: "status", label: "Estatus", accessor: (r) => r.currentStatus ?? r.status, cell: (v) => prettyStatus(v) },
+      { id: "scanCode", label: "Código", accessor: (r) => String(r.scanCode ?? "67"), mono: true },
+      {
+        id: "diasConPaquete",
+        label: "Días con el paquete",
+        accessor: (r) => { const d = daysWithPackage(r.createdAt); return d == null ? Number.MAX_SAFE_INTEGER : d; },
+        cell: (_v, r) => daysWithPackageLabel(r.createdAt),
+      },
       { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
       { id: "comment", label: "Comentario", accessor: (r) => r.comment },
     ],
-    filters: [{ columnId: "status", title: "Estatus" }],
+    filters: [{ columnId: "status", title: "Estatus" }, { columnId: "scanCode", title: "Código" }],
+    fedex67Check: {
+      // Code-aware: usa 44 o 67 por sucursal (según `scanCode` de cada fila).
+      fetch: (rows, includeSundays) => fetchVisibilityCodeFedexCheck(rows, includeSundays),
+    },
+    updateRow: (subsidiaryId, row) => updatePendingOne(subsidiaryId, row.trackingNumber, !!row.isCharge),
     run: async (subsidiaryId) => {
       const { summary, details } = await fetchInventario67Json(subsidiaryId);
       return { rows: details || [], summary };
     },
     exportExcel: (subsidiaryId) => fetchInventario67Excel(subsidiaryId),
-    fileName: (s) => `ultimo_inventario_sin_67_${s}_${ts()}.xlsx`,
-    emptyHint: "No hay inventario reciente o todo tiene 67.",
+    fileName: (s) => `ultimo_inventario_sin_codigo_${s}_${ts()}.xlsx`,
+    emptyHint: "No hay inventario reciente o todo tiene el código.",
   },
   {
     id: "sin44",

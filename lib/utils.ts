@@ -161,6 +161,8 @@ export function mapToPackageInfoComplete(
     lastHistory: s.lastHistory,
     statusHistory: s.statusHistory,
     status: s.status,
+    movedToAnotherRoute: s.movedToAnotherRoute ?? false,
+    currentDispatchTrackingNumber: s.currentDispatchTrackingNumber ?? null,
   }));
 
   const chargePackages: PackageInfo[] = chargeShipments.map((c) => ({
@@ -186,6 +188,8 @@ export function mapToPackageInfoComplete(
     lastHistory: c.lastHistory,
     status: c.status,
     exceptionCode: c.exceptionCode,
+    movedToAnotherRoute: c.movedToAnotherRoute ?? false,
+    currentDispatchTrackingNumber: c.currentDispatchTrackingNumber ?? null,
   }));
 
   return [...normalPackages, ...chargePackages];

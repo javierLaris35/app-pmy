@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
+import { daysWithPackageLabel } from "@/lib/days-with-package";
 
 const tipoLabel = (t?: string) => {
   const v = String(t || "").toLowerCase();
@@ -7,7 +8,7 @@ const tipoLabel = (t?: string) => {
   if (v === "dhl") return "DHL";
   return v ? v.toUpperCase() : "Otro";
 };
-const catLabel = (c?: string) => (c === "hoy" ? "Con 67 hoy" : c === "nunca" ? "Nunca" : "Sin 67 hoy");
+const catLabel = (c?: string, code: string = "67") => (c === "hoy" ? `Con ${code} hoy` : c === "nunca" ? "Nunca" : `Sin ${code} hoy`);
 const invTypeLabel = (t?: string) => {
   const v = String(t || "").toLowerCase();
   if (v === "initial") return "Inicial";
@@ -38,10 +39,10 @@ export async function buildInventoryReportExcel(rows: any[]): Promise<Blob> {
   sheet.addRow([]);
 
   const headers = [
-    "Guía", "Tipo", "Estatus actual", "Inventarios", "Alta en sistema",
-    "Último 67", "Días sin 67 (propio)", "Visibilidad", "Destinatario", "CP",
+    "Guía", "Tipo", "Código", "Estatus actual", "Inventarios", "Alta en sistema", "Días con el paquete",
+    "Último código", "Días sin código (propio)", "Visibilidad", "Destinatario", "CP",
   ];
-  if (consulted) headers.push("Días sin 67 (FedEx)", "Días faltantes", "Último movimiento", "Movimientos");
+  if (consulted) headers.push("Días sin código (FedEx)", "Días faltantes", "Último movimiento", "Movimientos");
 
   const headerRow = sheet.addRow(headers);
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
@@ -55,12 +56,14 @@ export async function buildInventoryReportExcel(rows: any[]): Promise<Blob> {
     const base: any[] = [
       r.trackingNumber || "",
       tipoLabel(r.shipmentType),
+      String(r.scanCode ?? "67"),
       r.status || "",
       invStr,
       fmtDate(r.createdAt),
+      daysWithPackageLabel(r.createdAt),
       r.last67Date ? fmtDate(r.last67Date) : "—",
       r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67,
-      catLabel(r.category),
+      catLabel(r.category, String(r.scanCode ?? "67")),
       r.recipientName || "",
       r.recipientZip || "",
     ];
@@ -77,7 +80,7 @@ export async function buildInventoryReportExcel(rows: any[]): Promise<Blob> {
     sheet.addRow(base);
   }
 
-  const widths = [22, 8, 16, 18, 16, 14, 16, 14, 26, 8, 16, 30, 34, 60];
+  const widths = [22, 8, 8, 16, 18, 16, 16, 14, 16, 14, 26, 8, 16, 30, 34, 60];
   sheet.columns.forEach((col, i) => { col.width = widths[i] ?? 16; });
 
   const buffer = await wb.xlsx.writeBuffer();

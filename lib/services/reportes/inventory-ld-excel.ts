@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { fmtDateTime } from "@/lib/audit-format";
+import { daysWithPackageLabel } from "@/lib/days-with-package";
 
 const tipoLabel = (t?: string) => {
   const v = String(t || "").toLowerCase();
@@ -38,7 +39,7 @@ export async function buildInventoryLDExcel(rows: any[], byCons?: any[], meta?: 
 
   const s2 = wb.addWorksheet("Detalle");
   const headers = [
-    "Guía", "Tipo", "Consolidado", "Estatus", "Vencimiento", "¿Movió ese día?", "LD",
+    "Guía", "Tipo", "Consolidado", "Estatus", "Vencimiento", "Días con el paquete", "¿Movió ese día?", "LD",
     "Fuente LD", "Destinatario", "Dirección", "CP", "Teléfono", "Costo (MXN)",
   ];
   const hr = s2.addRow(headers);
@@ -48,15 +49,15 @@ export async function buildInventoryLDExcel(rows: any[], byCons?: any[], meta?: 
   for (const r of rows) {
     const row = s2.addRow([
       r.trackingNumber || "", tipoLabel(r.shipmentType), r.consNumber || "", r.status || "",
-      r.commitDateTime ? fmtDateTime(r.commitDateTime) : "—", siNo(r.movedThatDay), r.isLD ? "LD" : "OK",
+      r.commitDateTime ? fmtDateTime(r.commitDateTime) : "—", daysWithPackageLabel(r.createdAt), siNo(r.movedThatDay), r.isLD ? "LD" : "OK",
       r.ldSource === "fedex" ? "FedEx" : "Local", r.recipientName || "", r.recipientAddress || "",
       r.recipientZip || "", r.recipientPhone || "", money(r.costPackage),
     ]);
-    row.getCell(13).numFmt = '"$"#,##0.00';
-    if (r.isLD) row.getCell(7).font = { bold: true, color: { argb: "E11D48" } };
+    row.getCell(14).numFmt = '"$"#,##0.00';
+    if (r.isLD) row.getCell(8).font = { bold: true, color: { argb: "E11D48" } };
   }
-  s2.columns.forEach((col, i) => { col.width = [22, 8, 20, 18, 18, 12, 6, 9, 24, 30, 8, 14, 12][i] ?? 14; });
-  if (rows.length > 0) s2.autoFilter = { from: "A1", to: "M1" };
+  s2.columns.forEach((col, i) => { col.width = [22, 8, 20, 18, 18, 14, 12, 6, 9, 24, 30, 8, 14, 12][i] ?? 14; });
+  if (rows.length > 0) s2.autoFilter = { from: "A1", to: "N1" };
 
   const buffer = await wb.xlsx.writeBuffer();
   return new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
