@@ -27,6 +27,7 @@ import { toast } from "@/lib/toast"
 import { ShipmentWizardModal } from "@/components/modals/import-shipment-wizard"
 import { withAuth } from "@/hoc/withAuth";
 import { useAuthStore } from "@/store/auth.store"
+import { hasPermission } from "@/lib/access/permissions"
 import { useRouter } from "next/navigation"
 
 /**
@@ -49,12 +50,11 @@ function ShipmentsPage() {
   // DHL MODALS (Limpiamos los estados viejos que ya no se usan)
   const [isDhlTextModalOpen, setIsDhlTextModalOpen] = useState(false)
 
-  // EXPERIMENTAL: pegar datos FedEx (solo superadmin + flag).
+  // EXPERIMENTAL: pegar datos FedEx. Gateado por RBAC (permiso
+  // `operaciones.pegarFedex`): por defecto solo superadmin, habilitable a otros
+  // roles/usuarios desde Configuración. Igual que `monitoreoRutas`.
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false)
-  const pasteRole = String(user?.role || "").toLowerCase()
-  const showPaste =
-    (pasteRole === "superadmin" || pasteRole === "superamin") &&
-    process.env.NEXT_PUBLIC_EXPERIMENTAL_PASTE === "1"
+  const showPaste = hasPermission(user, "operaciones.pegarFedex")
 
   // ✅ Determinamos la sucursal actual
   const effectiveSubsidiaryId = selectedSubsidiaryId || user?.subsidiary?.id
