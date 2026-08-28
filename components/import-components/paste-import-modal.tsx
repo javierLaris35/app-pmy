@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ClipboardPaste, FlaskConical, Info, Check, X, AlertTriangle, DollarSign, Diamond, Plus, Trash2, HelpCircle, CheckCircle2, Sparkles, Plane, Package } from "lucide-react";
 import { PasteTutorial, PASTE_SPOTLIGHT, PasteEmptyHint } from "./paste-tutorial";
+import { LoaderWithOverlay } from "@/components/loader";
 import { runSpotlight, useTutorialFirstView } from "@/components/shared/tutorial";
 import { toast } from "@/lib/toast";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
@@ -58,6 +59,13 @@ const SAMPLE_PASTE = [
   "383011751254\tAna López\tAv. Reforma 22\tHermosillo\t83100\t8/20/2026\t",
   "794000112233\tLuis Díaz\tBlvd. Kino 100\tHermosillo\t83200\t8/20/2026\t",
 ].join("\n");
+
+/** Fecha de hoy en formato YYYY-MM-DD (zona local) para el input date. */
+function todayLocalISO(): string {
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+}
 
 function parseTsv(raw: string): string[][] {
   return raw.replace(/\r\n/g, "\n").split("\n").filter((l) => l.trim().length > 0).map((l) => l.split("\t"));
@@ -106,7 +114,8 @@ export function PasteImportModal({
   const [raw, setRaw] = useState("");
   const [localSubsidiaryId, setLocalSubsidiaryId] = useState<string>(subsidiaryId ?? "");
   const [consNumber, setConsNumber] = useState("");
-  const [consDate, setConsDate] = useState("");
+  // Fecha por defecto = hoy (el flujo pide sucursal + consNumber + fecha antes de pegar).
+  const [consDate, setConsDate] = useState(todayLocalISO());
   const [isAereo, setIsAereo] = useState(true);
   const [notRemoveCharge, setNotRemoveCharge] = useState(false);
   const [isHalfTon, setIsHalfTon] = useState(false);
@@ -166,9 +175,12 @@ export function PasteImportModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detAereo]);
 
-  // --- Preview del backend (master) con debounce ---
+  // --- Preview/validación del backend (master Y F2) con debounce ---
+  // Revalida ante cualquier cambio que altere el resultado: tipo (master/f2), switch
+  // aéreo, migrar (notRemoveCharge), sucursal, consNumber, fecha y el propio pegado.
+  // Mientras corre, `previewing` bloquea la pantalla con el loader.
   useEffect(() => {
-    if (kind !== "master" || !table || !table.hasTracking || !localSubsidiaryId || !consNumber || table.rows.length === 0) {
+    if (!table || !table.hasTracking || !localSubsidiaryId || !consNumber.trim() || table.rows.length === 0) {
       setPreview(null);
       return;
     }
@@ -178,7 +190,8 @@ export function PasteImportModal({
         setPreviewing(true);
         const good = table.rows.filter((r) => !r.missingTracking);
         const file = buildXlsx(table.fields, good.map((r) => r.values), `preview_${Date.now()}.xlsx`);
-        const pv = await previewShipmentFile(file, localSubsidiaryId, consNumber, consDate, "fedex");
+        // kind + notRemoveCharge para que el backend valide F2 contra cargas (no shipments).
+        const pv = await previewShipmentFile(file, localSubsidiaryId, consNumber, consDate, "fedex", kind, notRemoveCharge);
         setPreview(pv);
       } catch {
         setPreview(null);
@@ -187,10 +200,10 @@ export function PasteImportModal({
       }
     }, 600);
     return () => { if (previewTimer.current) clearTimeout(previewTimer.current); };
-  }, [kind, table, localSubsidiaryId, consNumber, consDate]);
+  }, [kind, isAereo, notRemoveCharge, table, localSubsidiaryId, consNumber, consDate]);
 
   const reset = () => {
-    setRaw(""); setConsNumber(""); setConsDate(""); setPaymentsRaw(""); setHvRaw("");
+    setRaw(""); setConsNumber(""); setConsDate(todayLocalISO()); setPaymentsRaw(""); setHvRaw("");
     setAppliedPayments([]); setAppliedHv([]); setPreview(null); setResult(null);
   };
   const close = () => { reset(); if (onClose) onClose(); else onOpenChange?.(false); };
@@ -233,14 +246,18 @@ export function PasteImportModal({
     if ((c?.withTracking ?? 0) === 0) return "No hay guías válidas para importar.";
     const needsSub = true;
     if (needsSub && !localSubsidiaryId) return "Selecciona una sucursal.";
-    // Paridad con el wizard: consNumber obligatorio también en F2 (agrupa las cargas
-    // y ancla el 2º request de cobros).
+    // consNumber obligatorio también en F2 (agrupa las cargas, ancla el 2º request de
+    // cobros y es la clave con la que el backend deduplica).
     if (!consNumber.trim()) return "Captura el número de consolidado.";
-    if (kind === "master" && preview) {
+    // Validación del backend (aplica a master y F2 por igual).
+    if (preview) {
       if (preview.parseError) return `Archivo inválido: ${preview.parseError}`;
-      // Regla del wizard: no se permite más de un consolidado por día.
-      if (preview.consNumberExists?.isDateConflict) return `Ya existe otro consolidado (${preview.consNumberExists.consNumber}) en esta fecha. No se permite más de un consolidado por día.`;
-      if (preview.newCount === 0 && preview.recycledCount === 0) return "Todas las guías ya fueron importadas (sin nuevas ni reingresos).";
+      // Nada procesable: ni guías nuevas ni reingresos (todas ya existen en este consolidado).
+      if (preview.newCount === 0 && (preview.recycledCount ?? 0) === 0) {
+        return kind === "f2"
+          ? "Todas las cargas ya existen en este consolidado (sin nuevas)."
+          : "Todas las guías ya fueron importadas (sin nuevas ni reingresos).";
+      }
     }
     return null;
   }, [table, c, localSubsidiaryId, consNumber, kind, preview]);
@@ -625,27 +642,32 @@ export function PasteImportModal({
             </div>
           )}
 
-          {/* Preview del backend (master) */}
-          {kind === "master" && preview && (
+          {/* Preview/validación del backend (master Y F2) */}
+          {preview && (
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex flex-wrap gap-2">
-                <CountChip label="Guías" value={preview.withTracking} />
+                <CountChip label={kind === "f2" ? "Cargas" : "Guías"} value={preview.withTracking} />
                 <CountChip label="Nuevas" value={preview.newCount} tone="green" />
-                {preview.recycledCount > 0 && <CountChip label="Reingresos" value={preview.recycledCount} tone="blue" />}
-                {preview.alreadyImportedCount > 0 && <CountChip label="Ya import." value={preview.alreadyImportedCount} tone="amber" />}
+                {kind !== "f2" && preview.recycledCount > 0 && <CountChip label="Reingresos" value={preview.recycledCount} tone="blue" />}
+                {preview.alreadyImportedCount > 0 && <CountChip label="Ya existen" value={preview.alreadyImportedCount} tone="amber" />}
                 {preview.duplicatesInFile > 0 && <CountChip label="Dup. pegado" value={preview.duplicatesInFile} tone="amber" />}
                 {(c?.withPayment ?? 0) > 0 && <CountChip label="Con pago" value={c?.withPayment ?? 0} tone="green" />}
-                {(c?.highValue ?? 0) > 0 && <CountChip label="Alto Valor" value={c?.highValue ?? 0} tone="purple" />}
+                {kind !== "f2" && (c?.highValue ?? 0) > 0 && <CountChip label="Alto Valor" value={c?.highValue ?? 0} tone="purple" />}
               </div>
-              {preview.consNumberExists?.isDateConflict ? (
-                <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Ya existe otro consolidado ({preview.consNumberExists.consNumber}) en esta fecha. No se permite más de un consolidado por día.</p>
-              ) : preview.newCount === 0 && preview.recycledCount === 0 ? (
-                <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Todas las guías ya fueron importadas en este consolidado; no hay nuevas ni reingresos.</p>
-              ) : preview.consNumberExists?.isExactMatch ? (
-                <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">El consolidado {preview.consNumberExists.consNumber} ya existe. Se agregarán {preview.newCount} nuevas{preview.recycledCount ? ` (+${preview.recycledCount} reingresos)` : ""}; {preview.alreadyImportedCount} ya estaban y se omiten.</p>
-              ) : (
-                <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{preview.newCount} nuevas{preview.recycledCount ? ` + ${preview.recycledCount} reingresos` : ""} listas para importar.</p>
-              )}
+              {(() => {
+                const unit = kind === "f2" ? "cargas" : "guías";
+                const recycled = kind === "f2" ? 0 : (preview.recycledCount ?? 0);
+                if (preview.parseError) {
+                  return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Archivo inválido: {preview.parseError}</p>;
+                }
+                if (preview.newCount === 0 && recycled === 0) {
+                  return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Todas las {unit} ya existen en este consolidado; no hay nuevas{kind === "f2" ? "" : " ni reingresos"}.</p>;
+                }
+                if (preview.consNumberExists?.isExactMatch) {
+                  return <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">El consolidado {preview.consNumberExists.consNumber} ya existe. Se agregarán {preview.newCount} nuevas{recycled ? ` (+${recycled} reingresos)` : ""}; {preview.alreadyImportedCount} ya estaban y se omiten.</p>;
+                }
+                return <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{preview.newCount} {unit} nuevas{recycled ? ` + ${recycled} reingresos` : ""} listas para importar.</p>;
+              })()}
             </div>
           )}
 
@@ -730,6 +752,9 @@ export function PasteImportModal({
   // en modal o en página.
   const overlays = (
     <>
+      {/* Loader bloqueante mientras el backend valida (revalida en cada cambio). */}
+      {previewing && <LoaderWithOverlay overlay text="Validando…" className="z-[100]" />}
+
       {/* ¿Usar COD por defecto cuando el pago no trae tipo? */}
       <AlertDialog open={!!pendingPayments} onOpenChange={(o) => { if (!o) setPendingPayments(null); }}>
         <AlertDialogContent>

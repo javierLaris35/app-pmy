@@ -491,6 +491,36 @@ function recompute(table: {
  * Devuelve `null` solo si no hay NINGUNA columna de guía (ni por encabezado ni
  * por contenido) — todo lo demás se reporta en `problems`, nunca lanza.
  */
+/**
+ * Normaliza una GUÍA que a veces no llega en formato limpio (Excel la trae como número):
+ *  - "383012036065.0"  → "383012036065"      (float con .0)
+ *  - "3.83E+11"         → "383000000000"       (notación científica; best-effort)
+ *  - "3830 1203 6065"   → "383012036065"      (espacios/guiones si el resto es numérico)
+ * Caveat: si el ORIGEN ya guardó la guía como 3.83E+11 los dígitos reales se perdieron;
+ * la expansión no siempre recupera el número exacto. No toca IDs alfanuméricos (DHL JD…).
+ */
+export function normalizeTrackingValue(v: string | number | null | undefined): string {
+  let s = String(v ?? "").trim();
+  if (!s) return "";
+  if (/^\d+\.0+$/.test(s)) s = s.split(".")[0];
+  if (/^\d(\.\d+)?[eE][+-]?\d+$/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n)) s = n.toLocaleString("fullwide", { useGrouping: false });
+  }
+  const stripped = s.replace(/[\s-]/g, "");
+  if (/^\d+$/.test(stripped)) s = stripped;
+  return s;
+}
+
+/** Normaliza un TELÉFONO a solo dígitos (conserva un "+" inicial). */
+export function normalizePhoneValue(v: string | number | null | undefined): string {
+  let s = String(v ?? "").trim();
+  if (!s) return "";
+  if (/^\d+\.0+$/.test(s)) s = s.split(".")[0];
+  const plus = s.startsWith("+") ? "+" : "";
+  return plus + s.replace(/[^\d]/g, "");
+}
+
 export function buildMappedTable(rawRows: string[][]): MappedTable | null {
   const { headerRowIndex, map, sources, problems } = resolveColumns(rawRows);
   if (map["trackingNumber"] === undefined) return null;
@@ -509,6 +539,9 @@ export function buildMappedTable(rawRows: string[][]): MappedTable | null {
         const a2 = String(raw[addr2Index] ?? "").trim();
         if (a2) value = [value, a2].filter(Boolean).join(", ");
       }
+      // La app corrige guía/teléfono mal formateados (no el usuario antes de pegar).
+      if (f.field === "trackingNumber") value = normalizeTrackingValue(value);
+      else if (f.field === "recipientPhone") value = normalizePhoneValue(value);
       values[f.field] = value;
     }
     return analyzeRow(values, false);

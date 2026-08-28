@@ -170,13 +170,17 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     } | null
   }
 
-  /** Pre-valida un archivo SIN guardar: duplicados de guías + consNumber existente. */
+  /** Pre-valida un archivo SIN guardar: duplicados de guías + consNumber existente.
+   *  `kind` decide contra qué tabla se deduplica: 'master' → shipments, 'f2' → cargas.
+   *  `notRemoveCharge` (migrar) se pasa para que el conteo de F2 sea correcto. */
   export async function previewShipmentFile(
     file: File,
     subsidiaryId: string,
     consNumber: string = "",
     date: string = "",
     carrier: string = "fedex",
+    kind: "master" | "f2" = "master",
+    notRemoveCharge: boolean = false,
   ): Promise<UploadPreview> {
     const formData = new FormData()
     formData.append('file', file)
@@ -184,6 +188,8 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     formData.append('consNumber', consNumber)
     formData.append('date', date)
     formData.append('carrier', carrier)
+    formData.append('kind', kind)
+    formData.append('notRemoveCharge', String(notRemoveCharge))
     try {
       const response = await axiosConfig.post<UploadPreview>('/shipments/upload/preview', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },

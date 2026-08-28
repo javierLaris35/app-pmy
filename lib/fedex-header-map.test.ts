@@ -7,6 +7,8 @@ import {
   parseHvPaste,
   isBadDate,
   parsePaymentCell,
+  normalizeTrackingValue,
+  normalizePhoneValue,
 } from "./fedex-header-map";
 
 describe("buildMappedTable (pegar FedEx)", () => {
@@ -256,5 +258,35 @@ describe("enriquecimiento de high value", () => {
     expect(merged.counts.highValue).toBe(2);
     expect(merged.rows.find((r) => r.values.trackingNumber === "111111111")!.isHighValue).toBe(true);
     expect(merged.rows.find((r) => r.values.trackingNumber === "555555555")!.manual).toBe(true);
+  });
+});
+
+describe("normalizeTrackingValue / normalizePhoneValue (limpieza automática)", () => {
+  it("quita '.0' de guías que Excel trajo como float", () => {
+    expect(normalizeTrackingValue("383012036065.0")).toBe("383012036065");
+  });
+  it("quita espacios y guiones cuando el resto es numérico", () => {
+    expect(normalizeTrackingValue("3830 1203 6065")).toBe("383012036065");
+    expect(normalizeTrackingValue("383-012-036-065")).toBe("383012036065");
+  });
+  it("expande notación científica (best-effort)", () => {
+    expect(normalizeTrackingValue("3.83E+11")).toBe("383000000000");
+  });
+  it("no toca IDs alfanuméricos (DHL JD…)", () => {
+    expect(normalizeTrackingValue("JD014600003926438011")).toBe("JD014600003926438011");
+  });
+  it("teléfono: deja solo dígitos y conserva '+' inicial", () => {
+    expect(normalizePhoneValue("(662) 123-4567")).toBe("6621234567");
+    expect(normalizePhoneValue("+52 662 123 4567")).toBe("+526621234567");
+    expect(normalizePhoneValue("")).toBe("");
+  });
+  it("buildMappedTable normaliza la guía del pegado", () => {
+    const t = buildMappedTable([
+      ["Tracking No", "Recip Name", "Phone"],
+      ["383012036065.0", "Juan", "(662) 123-4567"],
+    ]);
+    expect(t).not.toBeNull();
+    expect(t!.rows[0].values.trackingNumber).toBe("383012036065");
+    expect(t!.rows[0].values.recipientPhone).toBe("6621234567");
   });
 });
