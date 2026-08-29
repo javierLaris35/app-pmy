@@ -60,6 +60,43 @@ export const applyCorrections = async (shipmentIds: string[]) => {
   return res.data;
 };
 
+// ── Reconciliación de cobros (F6) ──────────────────────────────────────────
+export interface CobrosReconcileReport {
+  windowDays: number;
+  deliveredShipments: number;
+  missingIncome: string[]; // entregados sin ingreso (cobro perdido)
+  orphanIncome: string[]; // ingreso 'entregado' cuyo envío no está entregado (cobro a revisar)
+  missingCount: number;
+  orphanCount: number;
+}
+
+export interface CobrosReportHistoryRow {
+  id: string;
+  runAt: string;
+  windowDays: number;
+  deliveredShipments: number;
+  missingCount: number;
+  orphanCount: number;
+}
+
+/** Snapshot en vivo de la reconciliación de cobros. */
+export const getCobrosReconciliation = async (windowDays = 14): Promise<CobrosReconcileReport> => {
+  const res = await axiosConfig.get<CobrosReconcileReport>(`tracking-sync/cobros-reconciliation`, { params: { windowDays } });
+  return res.data;
+};
+
+/** Tendencia: últimas corridas persistidas (más recientes primero). */
+export const getCobrosReconciliationHistory = async (limit = 30): Promise<CobrosReportHistoryRow[]> => {
+  const res = await axiosConfig.get<CobrosReportHistoryRow[]>(`tracking-sync/cobros-reconciliation/history`, { params: { limit } });
+  return res.data;
+};
+
+/** Corre y persiste la reconciliación ahora (sin esperar al cron diario). */
+export const runCobrosReconciliation = async (windowDays = 14): Promise<CobrosReconcileReport> => {
+  const res = await axiosConfig.post<CobrosReconcileReport>(`tracking-sync/cobros-reconciliation/run`, { windowDays });
+  return res.data;
+};
+
 /** Rutas (salidas a ruta) de una sucursal en un día, como opciones para el desplegable. */
 export const listRoutesBySubsidiaryDay = async (subsidiaryId: string, day: string): Promise<PickerOption[]> => {
   const { from, to } = toDayRange(day);
