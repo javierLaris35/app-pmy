@@ -413,7 +413,10 @@ export interface SubsidiaryMetrics {
       unknown: number;
     };
   };
-  inTransitPackages: number;
+  /** En proceso: guías que aún se mueven (en ruta + en bodega + pendiente). */
+  inProcessPackages: number;
+  /** Residual para cuadrar contra el total declarado (devueltos, ocurre, faltante, etc.). */
+  otherPackages: number;
   totalCharges: number;
   consolidations: {
     ordinary: number;

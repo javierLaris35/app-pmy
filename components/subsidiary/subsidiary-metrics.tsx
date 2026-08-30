@@ -11,6 +11,8 @@ import {
   PercentCircle,
   Truck,
   XOctagon,
+  Clock,
+  Boxes,
   LayoutGrid,
   Table as TableIcon,
   BarChart3,
@@ -60,7 +62,10 @@ export interface SubsidiaryMetrics {
       unknown: number
     }
   }
-  inTransitPackages: number
+  /** En proceso: guías que aún se mueven (en ruta + en bodega + pendiente). */
+  inProcessPackages: number
+  /** Residual para cuadrar contra el total declarado (devueltos, ocurre, faltante, etc.). */
+  otherPackages: number
   totalCharges: number
   consolidations: {
     ordinary: number
@@ -242,11 +247,15 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
                   </CardHeader>
 
                   <CardContent className="space-y-4 pt-2">
+                    {/* Cuadre: Total (declarado) = Entregados + Con DEX + En proceso + Otros */}
                     <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
-                      {kpiBox("from-blue-50", "to-blue-100/50", <Package className="w-4 h-4 text-blue-600" />, "Total", subsidiary.totalPackages)}
+                      <div className="col-span-2">
+                        {kpiBox("from-blue-50", "to-blue-100/50", <Package className="w-4 h-4 text-blue-600" />, "Total", subsidiary.totalPackages)}
+                      </div>
                       {kpiBox("from-green-50", "to-green-100/50", <CheckCircle className="w-4 h-4 text-green-600" />, "Entregados", subsidiary.deliveredPackages)}
                       {kpiBox("from-yellow-50", "to-yellow-100/50", <XOctagon className="w-4 h-4 text-yellow-600" />, "Con DEX", subsidiary.undeliveredPackages)}
-                      {kpiBox("from-teal-50", "to-teal-100/50", <Truck className="w-4 h-4 text-teal-600" />, "En Ruta", subsidiary.inTransitPackages)}
+                      {kpiBox("from-teal-50", "to-teal-100/50", <Clock className="w-4 h-4 text-teal-600" />, "En proceso", subsidiary.inProcessPackages)}
+                      {kpiBox("from-slate-50", "to-slate-100/50", <Boxes className="w-4 h-4 text-slate-600" />, "Otros", subsidiary.otherPackages)}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
@@ -299,7 +308,8 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
                             Desglose de Excepciones (DEX)
                           </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs font-medium text-red-900/80">
+                        {/* Solo DEX puros (07/08/03). Los demás desenlaces viven en el KPI "Otros". */}
+                        <div className="grid grid-cols-3 gap-2 text-xs font-medium text-red-900/80">
                           <div className="flex justify-between bg-white/50 p-1.5 rounded-md">
                             <span>DEX 07:</span> <span>{subsidiary.undeliveredDetails.byExceptionCode.code07}</span>
                           </div>
@@ -308,9 +318,6 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
                           </div>
                           <div className="flex justify-between bg-white/50 p-1.5 rounded-md">
                             <span>DEX 03:</span> <span>{subsidiary.undeliveredDetails.byExceptionCode.code03}</span>
-                          </div>
-                          <div className="flex justify-between bg-white/50 p-1.5 rounded-md">
-                            <span>Otros:</span> <span>{subsidiary.undeliveredDetails.byExceptionCode.unknown}</span>
                           </div>
                         </div>
                       </div>
@@ -333,6 +340,8 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
                     <TableHead className="text-right font-bold text-slate-700">Paquetes</TableHead>
                     <TableHead className="text-right font-bold text-slate-700">Entregados</TableHead>
                     <TableHead className="text-right font-bold text-slate-700">DEX</TableHead>
+                    <TableHead className="text-right font-bold text-slate-700">En proceso</TableHead>
+                    <TableHead className="text-right font-bold text-slate-700">Otros</TableHead>
                     {canSeeRevenue && <TableHead className="text-right font-bold text-slate-700">Ingresos</TableHead>}
                     <TableHead className="text-right font-bold text-slate-700">Gastos</TableHead>
                     {canSeeRevenue && <TableHead className="text-right font-bold text-slate-700">Utilidad</TableHead>}
@@ -351,6 +360,8 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
                         <TableCell className="text-right">{sub.totalPackages}</TableCell>
                         <TableCell className="text-right text-emerald-600 font-medium">{sub.deliveredPackages}</TableCell>
                         <TableCell className="text-right text-red-500 font-medium">{sub.undeliveredPackages}</TableCell>
+                        <TableCell className="text-right text-teal-600 font-medium">{sub.inProcessPackages}</TableCell>
+                        <TableCell className="text-right text-slate-600 font-medium">{sub.otherPackages}</TableCell>
                         {canSeeRevenue && <TableCell className="text-right">{formatCurrency(sub.totalRevenue)}</TableCell>}
                         <TableCell className="text-right">{formatCurrency(sub.totalExpenses)}</TableCell>
                         {canSeeRevenue && (
@@ -421,11 +432,11 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
           </Card>
           )}
 
-          {/* Gráfica Operativa */}
+          {/* Gráfica Operativa — barras apiladas: la altura total = Total declarado */}
           <Card className="border-none shadow-lg bg-white/60 backdrop-blur-xl p-6">
             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
               <Package className="w-5 h-5 text-indigo-600" />
-              Volumen Operativo vs Entregas
+              Composición del volumen (Total = Entregados + DEX + En proceso + Otros)
             </h3>
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 350 }}>
@@ -448,9 +459,10 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                   />
                   <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  <Bar dataKey="totalPackages" name="Total Paquetes" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="deliveredPackages" name="Entregados" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="undeliveredPackages" name="Con DEX" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="deliveredPackages" stackId="vol" name="Entregados" fill="#10b981" />
+                  <Bar dataKey="undeliveredPackages" stackId="vol" name="Con DEX" fill="#f59e0b" />
+                  <Bar dataKey="inProcessPackages" stackId="vol" name="En proceso" fill="#14b8a6" />
+                  <Bar dataKey="otherPackages" stackId="vol" name="Otros" fill="#94a3b8" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

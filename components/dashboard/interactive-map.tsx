@@ -183,9 +183,13 @@ function InteractiveMapImpl({ branches, canSeeRevenue = true }: InteractiveMapPr
                 <div className="text-xs text-red-600 font-semibold">DEX (No entregados)</div>
                 <div className="font-bold">{selectedBranch.undeliveredPackages.toLocaleString()}</div>
               </div>
+              <div className="bg-teal-50 p-3 rounded-lg">
+                <div className="text-xs text-teal-600 font-semibold">En proceso</div>
+                <div className="font-bold">{selectedBranch.inProcessPackages.toLocaleString()}</div>
+              </div>
               <div className="bg-slate-50 p-3 rounded-lg">
-                <div className="text-xs text-slate-600 font-semibold">En tránsito</div>
-                <div className="font-bold">{selectedBranch.inTransitPackages.toLocaleString()}</div>
+                <div className="text-xs text-slate-600 font-semibold">Otros</div>
+                <div className="font-bold">{selectedBranch.otherPackages.toLocaleString()}</div>
               </div>
               <div className="bg-purple-50 p-3 rounded-lg">
                 <div className="text-xs text-purple-600 font-semibold">Cargas</div>

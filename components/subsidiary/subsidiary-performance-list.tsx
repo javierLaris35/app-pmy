@@ -63,9 +63,9 @@ export function SubsidiaryPerformanceList({ data }: Props) {
                   </div>
                   <div className="text-center">
                     <div className="font-semibold text-slate-800">
-                      {branch.inTransitPackages}
+                      {branch.inProcessPackages}
                     </div>
-                    <div className="text-xs text-slate-500">Activos</div>
+                    <div className="text-xs text-slate-500">En proceso</div>
                   </div>
                 </div>
 
