@@ -55,9 +55,11 @@ interface Props {
   data: SubsidiaryMetrics[]
   /** Si es false, oculta ingresos/utilidad/margen (deja operativo + gastos). */
   canSeeRevenue?: boolean
+  /** Control extra que se pinta junto a las pestañas (p.ej. el switch de diseño). */
+  headerExtra?: React.ReactNode
 }
 
-function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
+function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: Props) {
   const summary = data.length > 0 ? data[0].generalSummary : null
 
   // Formateador de moneda
@@ -162,17 +164,20 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
       <Tabs defaultValue="cards" className="w-full">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold text-slate-800 sm:text-2xl">Métricas por Sucursal</h2>
-          <TabsList className="grid w-full grid-cols-3 border border-slate-200 bg-slate-100/50 backdrop-blur-sm sm:w-[360px]">
-            <TabsTrigger value="cards" className="flex items-center gap-1.5">
-              <LayoutGrid className="w-4 h-4" /> <span className="hidden sm:inline">Tarjetas</span>
-            </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-1.5">
-              <TableIcon className="w-4 h-4" /> <span className="hidden sm:inline">Tabla</span>
-            </TabsTrigger>
-            <TabsTrigger value="charts" className="flex items-center gap-1.5">
-              <BarChart3 className="w-4 h-4" /> <span className="hidden sm:inline">Gráficas</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {headerExtra}
+            <TabsList className="grid w-full grid-cols-3 border border-slate-200 bg-slate-100/50 backdrop-blur-sm sm:w-[360px]">
+              <TabsTrigger value="cards" className="flex items-center gap-1.5">
+                <LayoutGrid className="w-4 h-4" /> <span className="hidden sm:inline">Tarjetas</span>
+              </TabsTrigger>
+              <TabsTrigger value="table" className="flex items-center gap-1.5">
+                <TableIcon className="w-4 h-4" /> <span className="hidden sm:inline">Tabla</span>
+              </TabsTrigger>
+              <TabsTrigger value="charts" className="flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4" /> <span className="hidden sm:inline">Gráficas</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
         {/* --- VISTA DE TARJETAS --- */}

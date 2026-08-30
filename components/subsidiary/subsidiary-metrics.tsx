@@ -25,6 +25,7 @@ import {
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { SubsidiaryMetricsGridLegacy } from "./subsidiary-metrics-legacy"
@@ -79,6 +80,8 @@ interface Props {
   data: SubsidiaryMetrics[]
   /** Si es false, oculta ingresos/utilidad/margen (deja operativo + gastos). */
   canSeeRevenue?: boolean
+  /** Control extra que se pinta junto a las pestañas (p.ej. el switch de diseño). */
+  headerExtra?: React.ReactNode
 }
 
 /** Moneda compacta para las tarjetas (p.ej. $312.4k). La tabla usa el formato completo. */
@@ -86,13 +89,13 @@ const fmtCompact = new Intl.NumberFormat("es-MX", {
   style: "currency", currency: "MXN", notation: "compact", maximumFractionDigits: 1,
 })
 
-/** Nivel de efectividad → etiqueta, colores de badge y color del anillo. */
+/** Nivel de efectividad → etiqueta, tinte de la franja de encabezado, color de texto y de la barra. */
 const effLevel = (eff: number) =>
   eff >= 80
-    ? { label: "Alta", badge: "bg-emerald-100 text-emerald-700", ring: "#16a34a" }
+    ? { label: "Alta", text: "text-emerald-700", band: "bg-emerald-50/80", ring: "#16a34a" }
     : eff >= 60
-    ? { label: "Media", badge: "bg-amber-100 text-amber-700", ring: "#d97706" }
-    : { label: "Baja", badge: "bg-red-100 text-red-700", ring: "#e11d48" }
+    ? { label: "Media", text: "text-amber-700", band: "bg-amber-50/80", ring: "#d97706" }
+    : { label: "Baja", text: "text-red-700", band: "bg-red-50/80", ring: "#e11d48" }
 
 /** Tarjeta por sucursal — diseño "cuadre visual": Total = Entregados + DEX + En proceso + Otros,
  *  con barra de composición, anillo de efectividad, desglose DEX, finanzas y consolidados. */
@@ -112,39 +115,30 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
   ]
 
   return (
-    <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <CardContent className="space-y-4 p-5">
-        {/* Encabezado: sucursal + efectividad */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-100 text-blue-700">
-              <MapPinCheckInside className="h-4 w-4" />
-            </span>
-            <span className="truncate font-bold text-slate-800">{subsidiary.subsidiaryName}</span>
-          </div>
-          <Badge className={`shrink-0 border-0 font-bold ${lvl.badge}`}>
-            {lvl.label} · {eff.toFixed(0)}%
-          </Badge>
+    <Card className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-0 shadow-sm transition-shadow hover:shadow-md">
+      {/* Franja de encabezado: sucursal + efectividad */}
+      <div className={`flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5 ${lvl.band}`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-blue-100 text-blue-700">
+            <MapPinCheckInside className="h-3.5 w-3.5" />
+          </span>
+          <span className="truncate font-bold text-slate-800">{subsidiary.subsidiaryName}</span>
         </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={`text-xs font-extrabold ${lvl.text}`}>{eff.toFixed(0)}% {lvl.label}</span>
+          <span className="h-1.5 w-11 overflow-hidden rounded-full bg-white/70">
+            <span className="block h-full rounded-full" style={{ width: `${Math.min(100, eff)}%`, background: lvl.ring }} />
+          </span>
+        </div>
+      </div>
 
-        {/* Total + anillo de efectividad */}
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <div className="text-3xl font-extrabold leading-none tabular-nums text-slate-900">
-              {total.toLocaleString()}
-            </div>
-            <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Paquetes · total declarado
-            </div>
+      <CardContent className="space-y-3.5 p-4">
+        {/* Total */}
+        <div className="flex items-baseline justify-between">
+          <div className="text-[30px] font-extrabold leading-none tabular-nums text-slate-900">
+            {total.toLocaleString()}
           </div>
-          <div
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-full"
-            style={{ background: `conic-gradient(${lvl.ring} ${eff}%, #eef2f6 0)` }}
-          >
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-white">
-              <span className="text-xs font-extrabold text-slate-700">{eff.toFixed(0)}%</span>
-            </div>
-          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Paquetes · declarado</div>
         </div>
 
         {/* Barra de composición = el cuadre */}
@@ -211,8 +205,6 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
         <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-[13px]">
           <span className="text-slate-500">
             Consolidados <b className="text-slate-800">{subsidiary.consolidations.total}</b>
-            <span className="mx-1.5 text-slate-300">·</span>
-            Cargas <b className="tabular-nums text-slate-800">{subsidiary.totalCharges.toLocaleString()}</b>
           </span>
           <TooltipProvider>
             <Tooltip>
@@ -230,7 +222,7 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
   )
 }
 
-function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
+function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: Props) {
   const summary = data.length > 0 ? data[0].generalSummary : null
 
   // Formateador de moneda
@@ -314,17 +306,20 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
       <Tabs defaultValue="cards" className="w-full">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold text-slate-800 sm:text-2xl">Métricas por Sucursal</h2>
-          <TabsList className="grid w-full grid-cols-3 border border-slate-200 bg-slate-100/50 backdrop-blur-sm sm:w-[360px]">
-            <TabsTrigger value="cards" className="flex items-center gap-1.5">
-              <LayoutGrid className="w-4 h-4" /> <span className="hidden sm:inline">Tarjetas</span>
-            </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-1.5">
-              <TableIcon className="w-4 h-4" /> <span className="hidden sm:inline">Tabla</span>
-            </TabsTrigger>
-            <TabsTrigger value="charts" className="flex items-center gap-1.5">
-              <BarChart3 className="w-4 h-4" /> <span className="hidden sm:inline">Gráficas</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {headerExtra}
+            <TabsList className="grid w-full grid-cols-3 border border-slate-200 bg-slate-100/50 backdrop-blur-sm sm:w-[360px]">
+              <TabsTrigger value="cards" className="flex items-center gap-1.5">
+                <LayoutGrid className="w-4 h-4" /> <span className="hidden sm:inline">Tarjetas</span>
+              </TabsTrigger>
+              <TabsTrigger value="table" className="flex items-center gap-1.5">
+                <TableIcon className="w-4 h-4" /> <span className="hidden sm:inline">Tabla</span>
+              </TabsTrigger>
+              <TabsTrigger value="charts" className="flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4" /> <span className="hidden sm:inline">Gráficas</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
         {/* --- VISTA DE TARJETAS --- */}
@@ -483,11 +478,46 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
 /** Memoizado: solo re-renderiza si cambia `data` (ref estable vía SWR keepPreviousData). */
 const SubsidiaryMetricsGridNew = React.memo(SubsidiaryMetricsGridImpl)
 
-// ── Rollback del diseño de tarjetas ──────────────────────────────────────────
-// Pon NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS=1 (o cambia el default abajo a `true`)
-// para volver al diseño anterior, congelado en `subsidiary-metrics-legacy.tsx`.
-const USE_LEGACY_CARDS = process.env.NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS === "1"
+// ── Preferencia de diseño de tarjetas ────────────────────────────────────────
+// Persistida por navegador (localStorage). Arranca en "nuevo", salvo que
+// NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS=1 fije "clásico" como default.
+// El diseño anterior vive congelado en `subsidiary-metrics-legacy.tsx`.
+const DESIGN_STORAGE_KEY = "dashboardCardsDesign"
+const DEFAULT_LEGACY = process.env.NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS === "1"
 
-export const SubsidiaryMetricsGrid = React.memo(function SubsidiaryMetricsGrid(props: Props) {
-  return USE_LEGACY_CARDS ? <SubsidiaryMetricsGridLegacy {...props} /> : <SubsidiaryMetricsGridNew {...props} />
-})
+export function SubsidiaryMetricsGrid(props: Props) {
+  const [legacy, setLegacy] = React.useState(DEFAULT_LEGACY)
+
+  // Lee la preferencia guardada tras el montaje (evita desajuste de hidratación).
+  React.useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(DESIGN_STORAGE_KEY)
+      if (v === "legacy" || v === "new") setLegacy(v === "legacy")
+    } catch {
+      /* localStorage no disponible: se queda con el default */
+    }
+  }, [])
+
+  const setDesign = (useLegacy: boolean) => {
+    setLegacy(useLegacy)
+    try {
+      window.localStorage.setItem(DESIGN_STORAGE_KEY, useLegacy ? "legacy" : "new")
+    } catch {
+      /* noop */
+    }
+  }
+
+  const designSwitch = (
+    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+      <span className="text-xs font-semibold text-slate-600">{legacy ? "Diseño clásico" : "Diseño nuevo"}</span>
+      <Switch
+        checked={!legacy}
+        onCheckedChange={(on) => setDesign(!on)}
+        aria-label="Alternar entre el diseño nuevo y el clásico de las tarjetas"
+      />
+    </div>
+  )
+
+  const Grid = legacy ? SubsidiaryMetricsGridLegacy : SubsidiaryMetricsGridNew
+  return <Grid {...props} headerExtra={designSwitch} />
+}
