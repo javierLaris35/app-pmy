@@ -89,13 +89,13 @@ const fmtCompact = new Intl.NumberFormat("es-MX", {
   style: "currency", currency: "MXN", notation: "compact", maximumFractionDigits: 1,
 })
 
-/** Nivel de efectividad → etiqueta, tinte de la franja de encabezado, color de texto y de la barra. */
+/** Nivel de efectividad → etiqueta, tinte de la franja, chip del header y color del anillo. */
 const effLevel = (eff: number) =>
   eff >= 80
-    ? { label: "Alta", text: "text-emerald-700", band: "bg-emerald-50/80", ring: "#16a34a" }
+    ? { label: "Alta", band: "bg-emerald-50/80", chip: "bg-emerald-100 text-emerald-700", ring: "#16a34a" }
     : eff >= 60
-    ? { label: "Media", text: "text-amber-700", band: "bg-amber-50/80", ring: "#d97706" }
-    : { label: "Baja", text: "text-red-700", band: "bg-red-50/80", ring: "#e11d48" }
+    ? { label: "Media", band: "bg-amber-50/80", chip: "bg-amber-100 text-amber-700", ring: "#d97706" }
+    : { label: "Baja", band: "bg-red-50/80", chip: "bg-red-100 text-red-700", ring: "#e11d48" }
 
 /** Tarjeta por sucursal — diseño "cuadre visual": Total = Entregados + DEX + En proceso + Otros,
  *  con barra de composición, anillo de efectividad, desglose DEX, finanzas y consolidados. */
@@ -124,21 +124,33 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
           </span>
           <span className="truncate font-bold text-slate-800">{subsidiary.subsidiaryName}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className={`text-xs font-extrabold ${lvl.text}`}>{eff.toFixed(0)}% {lvl.label}</span>
-          <span className="h-1.5 w-11 overflow-hidden rounded-full bg-white/70">
-            <span className="block h-full rounded-full" style={{ width: `${Math.min(100, eff)}%`, background: lvl.ring }} />
-          </span>
-        </div>
+        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${lvl.chip}`}>
+          {lvl.label}
+        </span>
       </div>
 
       <CardContent className="space-y-3.5 p-4">
-        {/* Total */}
-        <div className="flex items-baseline justify-between">
-          <div className="text-[30px] font-extrabold leading-none tabular-nums text-slate-900">
-            {total.toLocaleString()}
+        {/* Total + anillo de efectividad */}
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[30px] font-extrabold leading-none tabular-nums text-slate-900">
+              {total.toLocaleString()}
+            </div>
+            <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Paquetes · declarado
+            </div>
           </div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Paquetes · declarado</div>
+          <div
+            className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full"
+            style={{ background: `conic-gradient(${lvl.ring} ${eff}%, #eef2f6 0)` }}
+          >
+            <div className="grid h-[46px] w-[46px] place-items-center rounded-full bg-white text-center leading-none">
+              <span>
+                <span className="text-[13px] font-extrabold text-slate-800">{eff.toFixed(0)}%</span>
+                <span className="mt-0.5 block text-[8px] font-bold uppercase tracking-wide text-slate-400">Efect.</span>
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Barra de composición = el cuadre */}
