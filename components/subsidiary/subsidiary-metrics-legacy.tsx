@@ -1,17 +1,26 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import {
   AlertCircleIcon,
   Banknote,
+  CheckCircle,
   EyeIcon,
   MapPinCheckInside,
   Package,
+  PercentCircle,
+  Truck,
+  XOctagon,
+  Clock,
+  Boxes,
   LayoutGrid,
   Table as TableIcon,
   BarChart3,
+  TrendingUp,
+  TrendingDown,
   Wallet,
 } from "lucide-react"
+import { IconTruckLoading } from "@tabler/icons-react"
 import {
   BarChart,
   Bar,
@@ -23,11 +32,11 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import { SubsidiaryMetricsGridLegacy } from "./subsidiary-metrics-legacy"
+import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -38,196 +47,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-export interface SubsidiaryMetrics {
-  subsidiaryId: string
-  subsidiaryName: string
-  totalPackages: number
-  deliveredPackages: number
-  undeliveredPackages: number
-  undeliveredDetails: {
-    total: number
-    byExceptionCode: {
-      code07: number
-      code08: number
-      code03: number
-      unknown: number
-    }
-  }
-  /** En proceso: guías que aún se mueven (en ruta + en bodega + pendiente). */
-  inProcessPackages: number
-  /** Residual para cuadrar contra el total declarado (devueltos, ocurre, faltante, etc.). */
-  otherPackages: number
-  totalCharges: number
-  consolidations: {
-    ordinary: number
-    air: number
-    total: number
-  }
-  averageRevenuePerPackage: number
-  totalRevenue: number
-  totalExpenses: number
-  averageEfficiency: number
-  totalProfit: number
-  generalSummary?: {
-    totalIncome: number
-    totalExpenses: number
-    totalProfit: number
-  }
-}
+// Diseño LEGACY de las tarjetas del Dashboard Ejecutivo, congelado para rollback.
+// El tipo vive en subsidiary-metrics.tsx (fuente única); aquí solo se importa.
+import type { SubsidiaryMetrics } from "./subsidiary-metrics"
 
 interface Props {
   data: SubsidiaryMetrics[]
   /** Si es false, oculta ingresos/utilidad/margen (deja operativo + gastos). */
   canSeeRevenue?: boolean
-}
-
-/** Moneda compacta para las tarjetas (p.ej. $312.4k). La tabla usa el formato completo. */
-const fmtCompact = new Intl.NumberFormat("es-MX", {
-  style: "currency", currency: "MXN", notation: "compact", maximumFractionDigits: 1,
-})
-
-/** Nivel de efectividad → etiqueta, colores de badge y color del anillo. */
-const effLevel = (eff: number) =>
-  eff >= 80
-    ? { label: "Alta", badge: "bg-emerald-100 text-emerald-700", ring: "#16a34a" }
-    : eff >= 60
-    ? { label: "Media", badge: "bg-amber-100 text-amber-700", ring: "#d97706" }
-    : { label: "Baja", badge: "bg-red-100 text-red-700", ring: "#e11d48" }
-
-/** Tarjeta por sucursal — diseño "cuadre visual": Total = Entregados + DEX + En proceso + Otros,
- *  con barra de composición, anillo de efectividad, desglose DEX, finanzas y consolidados. */
-function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryMetrics; canSeeRevenue: boolean }) {
-  const total = subsidiary.totalPackages || 0
-  const eff = subsidiary.averageEfficiency || 0
-  const lvl = effLevel(eff)
-  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
-  const margin = subsidiary.totalRevenue > 0 ? (subsidiary.totalProfit / subsidiary.totalRevenue) * 100 : 0
-  const dd = subsidiary.undeliveredDetails.byExceptionCode
-
-  const segs = [
-    { key: "Entregados", val: subsidiary.deliveredPackages, dot: "bg-emerald-500", color: "#10b981" },
-    { key: "Con DEX", val: subsidiary.undeliveredPackages, dot: "bg-amber-500", color: "#f59e0b" },
-    { key: "En proceso", val: subsidiary.inProcessPackages, dot: "bg-teal-500", color: "#14b8a6" },
-    { key: "Otros", val: subsidiary.otherPackages, dot: "bg-slate-400", color: "#94a3b8" },
-  ]
-
-  return (
-    <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <CardContent className="space-y-4 p-5">
-        {/* Encabezado: sucursal + efectividad */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-100 text-blue-700">
-              <MapPinCheckInside className="h-4 w-4" />
-            </span>
-            <span className="truncate font-bold text-slate-800">{subsidiary.subsidiaryName}</span>
-          </div>
-          <Badge className={`shrink-0 border-0 font-bold ${lvl.badge}`}>
-            {lvl.label} · {eff.toFixed(0)}%
-          </Badge>
-        </div>
-
-        {/* Total + anillo de efectividad */}
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <div className="text-3xl font-extrabold leading-none tabular-nums text-slate-900">
-              {total.toLocaleString()}
-            </div>
-            <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Paquetes · total declarado
-            </div>
-          </div>
-          <div
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-full"
-            style={{ background: `conic-gradient(${lvl.ring} ${eff}%, #eef2f6 0)` }}
-          >
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-white">
-              <span className="text-xs font-extrabold text-slate-700">{eff.toFixed(0)}%</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Barra de composición = el cuadre */}
-        <div>
-          <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
-            {segs.map((s) =>
-              s.val > 0 ? <div key={s.key} style={{ width: `${pct(s.val)}%`, background: s.color }} /> : null,
-            )}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
-            {segs.map((s) => (
-              <div key={s.key} className="flex items-center justify-between text-[13px]">
-                <span className="flex items-center gap-2 text-slate-500">
-                  <span className={`h-2 w-2 rounded-full ${s.dot}`} />
-                  {s.key}
-                </span>
-                <span className="font-bold tabular-nums text-slate-800">{s.val.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Desglose DEX (solo 07/03/08; el resto vive en "Otros") */}
-        {subsidiary.undeliveredPackages > 0 && (
-          <div className="rounded-xl border border-rose-200/60 bg-rose-50/60 p-2.5">
-            <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-rose-600">
-              <AlertCircleIcon className="h-3.5 w-3.5" /> Desglose DEX
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-rose-900/80">
-              {([["07", dd.code07], ["03", dd.code03], ["08", dd.code08]] as const).map(([k, v]) => (
-                <div key={k} className="flex justify-between rounded-md border border-slate-200 bg-white px-2 py-1">
-                  <span className="text-slate-400">{k}</span>
-                  <span className="tabular-nums">{v}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Finanzas (Ingresos/Utilidad solo con permiso; Gastos siempre) */}
-        <div className={`grid gap-2.5 ${canSeeRevenue ? "grid-cols-3" : "grid-cols-1"}`}>
-          {canSeeRevenue && (
-            <div className="rounded-xl bg-slate-50 p-2.5">
-              <div className="text-[10px] font-semibold text-slate-400">Ingresos</div>
-              <div className="text-[15px] font-extrabold text-slate-800">{fmtCompact.format(subsidiary.totalRevenue)}</div>
-            </div>
-          )}
-          <div className="rounded-xl bg-slate-50 p-2.5">
-            <div className="text-[10px] font-semibold text-slate-400">Gastos</div>
-            <div className="text-[15px] font-extrabold text-slate-800">{fmtCompact.format(subsidiary.totalExpenses)}</div>
-          </div>
-          {canSeeRevenue && (
-            <div className="rounded-xl bg-slate-50 p-2.5">
-              <div className="text-[10px] font-semibold text-slate-400">Utilidad</div>
-              <div className="text-[15px] font-extrabold text-indigo-600">{fmtCompact.format(subsidiary.totalProfit)}</div>
-              <div className={`text-[11px] font-bold ${margin >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                {margin >= 0 ? "+" : ""}{margin.toFixed(1)}%
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Pie: consolidados + cargas + detalles */}
-        <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-[13px]">
-          <span className="text-slate-500">
-            Consolidados <b className="text-slate-800">{subsidiary.consolidations.total}</b>
-            <span className="mx-1.5 text-slate-300">·</span>
-            Cargas <b className="tabular-nums text-slate-800">{subsidiary.totalCharges.toLocaleString()}</b>
-          </span>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-blue-600 hover:text-blue-700">
-                  <EyeIcon className="h-4 w-4" /> Detalles
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver Detalles de Consolidados</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </CardContent>
-    </Card>
-  )
 }
 
 function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
@@ -242,6 +69,27 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
     ? (summary.totalProfit / summary.totalIncome) * 100 
     : 0;
 
+  // Helper para renderizar los mini KPIs dentro de las tarjetas
+  const kpiBox = (
+    bgFrom: string,
+    bgTo: string,
+    icon: React.ReactNode,
+    label: string,
+    value: React.ReactNode 
+  ) => (
+    <div
+      className={`flex min-w-0 flex-col justify-between gap-2 p-3 bg-gradient-to-r ${bgFrom} ${bgTo} rounded-xl
+      shadow-sm border border-white/20 backdrop-blur-md bg-opacity-50 transition-shadow duration-300 hover:shadow-md`}
+    >
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate text-xs font-semibold text-slate-600">{label}</span>
+      </div>
+      <div className="flex flex-wrap items-baseline justify-end gap-x-1 text-right text-base font-bold leading-tight text-slate-800 tabular-nums">
+        {value}
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-8 w-full">
@@ -330,9 +178,121 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
         {/* --- VISTA DE TARJETAS --- */}
         <TabsContent value="cards" className="mt-0">
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-            {data.map((subsidiary) => (
-              <SubsidiaryCard key={subsidiary.subsidiaryId} subsidiary={subsidiary} canSeeRevenue={canSeeRevenue} />
-            ))}
+            {data.map((subsidiary) => {
+              let efficiencyColor = "bg-green-500"
+              let efficiencyLabel = "Alta"
+              if (subsidiary.averageEfficiency < 60) {
+                efficiencyColor = "bg-red-500"
+                efficiencyLabel = "Baja"
+              } else if (subsidiary.averageEfficiency < 80) {
+                efficiencyColor = "bg-orange-400"
+                efficiencyLabel = "Media"
+              }
+
+              // Calcular margen por sucursal
+              const margin = subsidiary.totalRevenue > 0 
+                ? (subsidiary.totalProfit / subsidiary.totalRevenue) * 100 
+                : 0;
+
+              return (
+                <Card
+                  key={subsidiary.subsidiaryId}
+                  className={`relative bg-white/40 backdrop-blur-xl rounded-2xl border border-white/60 
+                  shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1`}
+                >
+                  <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-white text-xs font-bold shadow-sm ${efficiencyColor}`}>
+                    {efficiencyLabel} {subsidiary.averageEfficiency.toFixed(0)}%
+                  </div>
+
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2 pr-16">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <MapPinCheckInside className="w-5 h-5 text-blue-700" />
+                      </div>
+                      {subsidiary.subsidiaryName}
+                    </CardTitle>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4 pt-2">
+                    {/* Cuadre: Total (declarado) = Entregados + Con DEX + En proceso + Otros */}
+                    <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
+                      <div className="col-span-2">
+                        {kpiBox("from-blue-50", "to-blue-100/50", <Package className="w-4 h-4 text-blue-600" />, "Total", subsidiary.totalPackages)}
+                      </div>
+                      {kpiBox("from-green-50", "to-green-100/50", <CheckCircle className="w-4 h-4 text-green-600" />, "Entregados", subsidiary.deliveredPackages)}
+                      {kpiBox("from-yellow-50", "to-yellow-100/50", <XOctagon className="w-4 h-4 text-yellow-600" />, "Con DEX", subsidiary.undeliveredPackages)}
+                      {kpiBox("from-teal-50", "to-teal-100/50", <Clock className="w-4 h-4 text-teal-600" />, "En proceso", subsidiary.inProcessPackages)}
+                      {kpiBox("from-slate-50", "to-slate-100/50", <Boxes className="w-4 h-4 text-slate-600" />, "Otros", subsidiary.otherPackages)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm text-slate-700">
+                      {canSeeRevenue && kpiBox("from-green-50", "to-emerald-100/50", <Banknote className="w-4 h-4 text-emerald-700" />, "Ingresos", formatCurrency(subsidiary.totalRevenue))}
+                      {kpiBox("from-orange-50", "to-orange-100/50", <Banknote className="w-4 h-4 text-orange-600" />, "Gastos", formatCurrency(subsidiary.totalExpenses))}
+
+                      {canSeeRevenue && kpiBox(
+                        "from-blue-50",
+                        "to-indigo-100/50",
+                        <Banknote className="w-4 h-4 text-indigo-700" />,
+                        "Utilidad",
+                        <>
+                          {formatCurrency(subsidiary.totalProfit)}
+                          <span className={`text-xs font-bold ${margin >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            ({margin.toFixed(1)}%)
+                          </span>
+                        </>
+                      )}
+
+                      {kpiBox("from-purple-50", "to-purple-100/50", <PercentCircle className="w-4 h-4 text-purple-600" />, "Efectividad", `${subsidiary.averageEfficiency.toFixed(0)}%`)}
+                    </div>
+
+                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <IconTruckLoading className="w-5 h-5 text-slate-500" />
+                        <span className="text-sm font-semibold text-slate-700">Consolidados</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="bg-slate-200 text-slate-700 hover:bg-slate-300">
+                          {subsidiary.consolidations.total} totales
+                        </Badge>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg bg-white">
+                                <EyeIcon className="h-4 w-4 text-slate-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Ver Detalles de Consolidados</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </div>
+
+                    {subsidiary.undeliveredPackages > 0 && (
+                      <div className="p-3 bg-red-50/80 rounded-xl border border-red-100">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircleIcon className="w-4 h-4 text-red-500" />
+                          <span className="text-xs font-bold text-red-800 uppercase tracking-wider">
+                            Desglose de Excepciones (DEX)
+                          </span>
+                        </div>
+                        {/* Solo DEX puros (07/08/03). Los demás desenlaces viven en el KPI "Otros". */}
+                        <div className="grid grid-cols-3 gap-2 text-xs font-medium text-red-900/80">
+                          <div className="flex justify-between bg-white/50 p-1.5 rounded-md">
+                            <span>DEX 07:</span> <span>{subsidiary.undeliveredDetails.byExceptionCode.code07}</span>
+                          </div>
+                          <div className="flex justify-between bg-white/50 p-1.5 rounded-md">
+                            <span>DEX 08:</span> <span>{subsidiary.undeliveredDetails.byExceptionCode.code08}</span>
+                          </div>
+                          <div className="flex justify-between bg-white/50 p-1.5 rounded-md">
+                            <span>DEX 03:</span> <span>{subsidiary.undeliveredDetails.byExceptionCode.code03}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </TabsContent>
 
@@ -481,13 +441,4 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true }: Props) {
 }
 
 /** Memoizado: solo re-renderiza si cambia `data` (ref estable vía SWR keepPreviousData). */
-const SubsidiaryMetricsGridNew = React.memo(SubsidiaryMetricsGridImpl)
-
-// ── Rollback del diseño de tarjetas ──────────────────────────────────────────
-// Pon NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS=1 (o cambia el default abajo a `true`)
-// para volver al diseño anterior, congelado en `subsidiary-metrics-legacy.tsx`.
-const USE_LEGACY_CARDS = process.env.NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS === "1"
-
-export const SubsidiaryMetricsGrid = React.memo(function SubsidiaryMetricsGrid(props: Props) {
-  return USE_LEGACY_CARDS ? <SubsidiaryMetricsGridLegacy {...props} /> : <SubsidiaryMetricsGridNew {...props} />
-})
+export const SubsidiaryMetricsGridLegacy = React.memo(SubsidiaryMetricsGridImpl)
