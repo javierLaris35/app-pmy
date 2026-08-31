@@ -883,7 +883,7 @@ export interface RouteClosure {
   podPackages: Shipment[];
   subsidiary: Subsidiary;
   createdBy: User;
-  packageDipatch: PackageDispatch;
+  packageDispatch: { id: string };
   actualKms: string;
   collections: string[];
   noVanPackages: string[];
@@ -892,6 +892,15 @@ export interface RouteClosure {
 export interface ValidatedPackagesForClousere {
   validatedPackages: PackageInfo[],
   podPackages: PackageInfo[]
+}
+
+/** Resultado de validar una guía "No VAN" en el cierre (una por trackingNumber). */
+export interface NoVanPackageDetail {
+  trackingNumber: string;
+  isValid: boolean;
+  status: string;
+  isCharge: boolean;
+  reason?: string | null;
 }
 
 export interface PackageInfoForInventory {

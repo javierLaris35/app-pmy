@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -162,8 +163,28 @@ export default function SupportTicketsPage() {
     return steps
   }
 
-  const totalSteps = 3
   const completedSteps = getCompletedSteps()
+
+  // Navegación del stepper: qué paso está completo y a cuál se puede saltar.
+  const step2Ok = !!(formData.titulo && formData.descripcion && (formData.tipo !== "error" || formData.pasosReplicar))
+  const stepDone = (n: number) => (n === 1 ? !!formData.tipo : n === 2 ? step2Ok : completedSteps === 3)
+  const canGoTo = (n: number) => n === 1 || (n === 2 && !!formData.tipo) || (n === 3 && step2Ok)
+  const STEPS = [
+    { title: "Tipo", subtitle: "¿Qué necesitas?" },
+    { title: "Detalles", subtitle: "Cuéntanos más" },
+    { title: "Ubicación", subtitle: "¿Dónde está?" },
+  ]
+
+  // Etiqueta legible de la ubicación elegida, para el resumen del paso 3.
+  const cap = (s?: string) => (s ? s.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "")
+  const locationLabel = (() => {
+    if (formData.tipo === "mejora") {
+      const main = formData.menuPrincipal === "nuevo" ? `Nuevo menú: ${formData.nuevoMenu ?? ""}` : cap(formData.menuPrincipal)
+      return [main, cap(formData.submenu)].filter(Boolean).join(" › ")
+    }
+    if (formData.tipo === "error") return [cap(formData.menuError), cap(formData.submenuError)].filter(Boolean).join(" › ")
+    return [cap(formData.seccion), cap(formData.subseccion)].filter(Boolean).join(" › ")
+  })()
 
   return (
     <AppLayout>
@@ -204,48 +225,39 @@ export default function SupportTicketsPage() {
             </Alert>
           )}
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Progreso</span>
-                <span className="text-sm text-muted-foreground">
-                  {completedSteps} de {totalSteps} pasos
-                </span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div
-                  className="bg-primary h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(completedSteps / totalSteps) * 100}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between mt-4 text-xs">
-                <div className={`flex items-center gap-1 ${formData.tipo ? "text-primary" : "text-muted-foreground"}`}>
-                  {formData.tipo ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <div className="h-4 w-4 rounded-full border-2" />
-                  )}
-                  <span>Tipo</span>
-                </div>
-                <div
-                  className={`flex items-center gap-1 ${formData.titulo && formData.descripcion ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  {formData.titulo && formData.descripcion ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <div className="h-4 w-4 rounded-full border-2" />
-                  )}
-                  <span>Detalles</span>
-                </div>
-                <div
-                  className={`flex items-center gap-1 ${completedSteps === 3 ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  {completedSteps === 3 ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <div className="h-4 w-4 rounded-full border-2" />
-                  )}
-                  <span>Ubicación</span>
-                </div>
+            <CardContent className="py-4">
+              <div className="flex items-center">
+                {STEPS.map((s, i) => {
+                  const num = i + 1
+                  const done = stepDone(num)
+                  const active = currentStep === num
+                  const reachable = canGoTo(num)
+                  return (
+                    <div key={s.title} className={`flex items-center ${i < STEPS.length - 1 ? "flex-1" : ""}`}>
+                      <button
+                        type="button"
+                        onClick={() => reachable && setCurrentStep(num)}
+                        disabled={!reachable}
+                        className={`flex items-center gap-2.5 rounded-md p-1 text-left transition ${reachable ? "cursor-pointer hover:bg-muted/60" : "cursor-default"}`}
+                      >
+                        {done && !active ? (
+                          <CheckCircle2 className="h-8 w-8 shrink-0 text-primary" />
+                        ) : (
+                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition ${active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                            {num}
+                          </span>
+                        )}
+                        <div className="hidden sm:block">
+                          <div className={`text-sm font-medium leading-tight ${active || done ? "text-foreground" : "text-muted-foreground"}`}>{s.title}</div>
+                          <div className="text-xs text-muted-foreground">{s.subtitle}</div>
+                        </div>
+                      </button>
+                      {i < STEPS.length - 1 && (
+                        <div className={`mx-2 h-0.5 flex-1 rounded-full transition-colors sm:mx-3 ${done ? "bg-primary/60" : "bg-muted"}`} />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
@@ -338,8 +350,10 @@ export default function SupportTicketsPage() {
                       id="titulo"
                       placeholder="Ej: Agregar botón para imprimir etiquetas"
                       value={formData.titulo}
+                      maxLength={120}
                       onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
                     />
+                    <p className="text-right text-xs text-muted-foreground">{formData.titulo.length}/120</p>
                   </div>
 
                   <div className="space-y-2">
@@ -361,84 +375,79 @@ export default function SupportTicketsPage() {
                       onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                       rows={5}
                     />
+                    <p className="text-right text-xs text-muted-foreground">{formData.descripcion.length} caracteres</p>
                   </div>
 
-                  {/* Para errores, pedimos los pasos aquí */}
+                  {/* Para errores, pedimos los pasos para replicar */}
                   {formData.tipo === "error" && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="pasosReplicar">
-                          ¿Cómo podemos ver el error? *
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <HelpCircle className="h-3 w-3 ml-1 inline" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                Dinos paso a paso qué hacer para que nos aparezca el mismo error
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </Label>
-                        <Textarea
-                          id="pasosReplicar"
-                          placeholder="Ej:&#10;1. Abro la pantalla de consolidados&#10;2. Hago clic en 'Agregar'&#10;3. Lleno todos los campos&#10;4. Al dar clic en 'Guardar' me sale un error"
-                          value={formData.pasosReplicar}
-                          onChange={(e) => setFormData({ ...formData, pasosReplicar: e.target.value })}
-                          rows={6}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>
-                          Imágenes del error (opcional pero muy útil)
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <HelpCircle className="h-3 w-3 ml-1 inline" />
-                              </TooltipTrigger>
-                              <TooltipContent>Capturas de pantalla que muestren el error</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </Label>
-                        <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                          <input
-                            type="file"
-                            id="fileUpload"
-                            className="hidden"
-                            accept="image/*"
-                            multiple
-                            onChange={handleImageUpload}
-                          />
-                          <label htmlFor="fileUpload" className="cursor-pointer">
-                            <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                            <p className="text-sm text-muted-foreground">Haz clic para subir imágenes</p>
-                            <p className="text-xs text-muted-foreground mt-1">Puedes subir varias imágenes</p>
-                          </label>
-                        </div>
-
-                        {previewImages.length > 0 && (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-                            {previewImages.map((img, index) => (
-                              <div key={index} className="relative group">
-                                <img
-                                  src={img || "/placeholder.svg"}
-                                  alt={`Captura ${index + 1}`}
-                                  className="w-full h-24 object-cover rounded border"
-                                />
-                                <button
-                                  onClick={() => removeImage(index)}
-                                  className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </>
+                    <div className="space-y-2">
+                      <Label htmlFor="pasosReplicar">
+                        ¿Cómo podemos ver el error? *
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <HelpCircle className="h-3 w-3 ml-1 inline" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Dinos paso a paso qué hacer para que nos aparezca el mismo error
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </Label>
+                      <Textarea
+                        id="pasosReplicar"
+                        placeholder="Ej:&#10;1. Abro la pantalla de consolidados&#10;2. Hago clic en 'Agregar'&#10;3. Lleno todos los campos&#10;4. Al dar clic en 'Guardar' me sale un error"
+                        value={formData.pasosReplicar}
+                        onChange={(e) => setFormData({ ...formData, pasosReplicar: e.target.value })}
+                        rows={6}
+                      />
+                    </div>
                   )}
+
+                  {/* Adjuntos: disponibles para todos los tipos */}
+                  <div className="space-y-2">
+                    <Label>
+                      {formData.tipo === "error" ? "Capturas del error" : "Adjuntos"}
+                      <span className="ml-1 font-normal text-muted-foreground">
+                        {formData.tipo === "error" ? "(opcional, pero muy útil)" : "(opcional)"}
+                      </span>
+                    </Label>
+                    <div className="rounded-lg border-2 border-dashed p-6 text-center transition-colors hover:border-primary/50">
+                      <input
+                        type="file"
+                        id="fileUpload"
+                        className="hidden"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageUpload}
+                      />
+                      <label htmlFor="fileUpload" className="cursor-pointer">
+                        <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Haz clic para subir imágenes</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Puedes subir varias a la vez</p>
+                      </label>
+                    </div>
+
+                    {previewImages.length > 0 && (
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {previewImages.map((img, index) => (
+                          <div key={index} className="group relative">
+                            <img
+                              src={img || "/placeholder.svg"}
+                              alt={`Adjunto ${index + 1}`}
+                              className="h-24 w-full rounded border object-cover"
+                            />
+                            <button
+                              onClick={() => removeImage(index)}
+                              className="absolute right-1 top-1 rounded-full bg-destructive p-1 text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex justify-between pt-4">
                     <Button variant="outline" onClick={() => setCurrentStep(1)}>
@@ -691,6 +700,38 @@ export default function SupportTicketsPage() {
                     </>
                   )}
 
+                  {/* Resumen antes de enviar */}
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resumen</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="w-24 shrink-0 text-muted-foreground">Tipo</span>
+                        {formData.tipo && (
+                          <Badge variant="outline" className={getTipoColor(formData.tipo)}>
+                            <span className="mr-1">{getTipoIcon(formData.tipo)}</span>
+                            {TIPO_TICKET_INFO[formData.tipo].titulo}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="w-24 shrink-0 text-muted-foreground">Título</span>
+                        <span className="min-w-0 font-medium">{formData.titulo || "—"}</span>
+                      </div>
+                      {locationLabel && (
+                        <div className="flex gap-2">
+                          <span className="w-24 shrink-0 text-muted-foreground">Ubicación</span>
+                          <span className="min-w-0 font-medium">{locationLabel}</span>
+                        </div>
+                      )}
+                      {previewImages.length > 0 && (
+                        <div className="flex gap-2">
+                          <span className="w-24 shrink-0 text-muted-foreground">Adjuntos</span>
+                          <span className="font-medium">{previewImages.length} imagen{previewImages.length > 1 ? "es" : ""}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex justify-between pt-4">
                     <Button variant="outline" onClick={() => setCurrentStep(2)}>
                       Atrás
@@ -698,6 +739,7 @@ export default function SupportTicketsPage() {
                     <Button
                       onClick={handleSubmit}
                       disabled={
+                        isSubmitting ||
                         (formData.tipo === "mejora" && !formData.menuPrincipal) ||
                         (formData.tipo === "mejora" && formData.menuPrincipal === "nuevo" && !formData.nuevoMenu) ||
                         ((formData.tipo === "cambio" || formData.tipo === "eliminar") &&
@@ -706,8 +748,8 @@ export default function SupportTicketsPage() {
                       }
                       className="bg-primary"
                     >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Enviar Solicitud
+                      {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                      {isSubmitting ? "Enviando…" : "Enviar solicitud"}
                     </Button>
                   </div>
                 </div>

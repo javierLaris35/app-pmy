@@ -35,12 +35,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
+import { clearScanBuffer } from "@/components/scanner/use-scan-buffer";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, mapToPackageInfoComplete } from "@/lib/utils";
-import { PackageDispatch, PackageInfo, RouteClosure } from "@/lib/types";
+import { NoVanPackageDetail, PackageDispatch, PackageInfo, Priority, RouteClosure } from "@/lib/types";
 import { useAuthStore } from "@/store/auth.store";
 import { save, uploadFiles, validateTrackinNumberNoVan, reconcile } from "@/lib/services/route-closure";
 import { pdf } from "@react-pdf/renderer";
@@ -56,14 +57,6 @@ interface ClosePackageDispatchProps {
   dispatchId: string;
   onClose: () => void;
   onSuccess: () => void;
-}
-
-interface NoVanPackageDetail {
-  trackingNumber: string;
-  isValid: boolean;
-  status: string;
-  isCharge: boolean;
-  reason?: string | null;
 }
 
 export default function ClosePackageDispatchWizard({
@@ -310,8 +303,11 @@ export default function ClosePackageDispatchWizard({
     const extraPkg: PackageInfo = {
       id: `novan-${extra.trackingNumber}`,
       trackingNumber: extra.trackingNumber,
-      status: extra.status,
+      // El estatus No VAN es un string libre resuelto por el backend; el bucketing lo tolera.
+      status: extra.status as PackageInfo["status"],
       isCharge: extra.isCharge,
+      isValid: extra.isValid,
+      priority: Priority.BAJA,
       shipmentType: 'FEDEX', // Por defecto o según tu lógica
       recipientName: 'Paquete No VAN'
     };
@@ -391,7 +387,7 @@ export default function ClosePackageDispatchWizard({
   const shownDeliveredPackages = [...deliveredPackages, ...dhlDeliveredPkgs];
   const shownNotDeliveredPackages = [...notDeliveredPackages, ...dhlExceptionPkgs];
 
-  const [activeTab, setActiveTab] = useState<'dhl' | 'collections' | 'novan'>(
+  const [activeTab, setActiveTab] = useState<'dhl' | 'collections' | 'novan' | null>(
     dhlShipments.length > 0 ? 'dhl' : 'collections'
   );
 
@@ -434,6 +430,15 @@ export default function ClosePackageDispatchWizard({
   };
 
   const handleSendEmail = async (routeClosure: RouteClosure) => {
+    // El cierre recién guardado siempre trae id; sin él no se pueden adjuntar los archivos.
+    if (!routeClosure?.id) {
+      toast({
+        title: "Error en documentos",
+        description: "El cierre no devolvió un identificador; no se adjuntaron los archivos.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const collectionsForPdf = collectionsRaw.split("\n")
@@ -585,22 +590,37 @@ export default function ClosePackageDispatchWizard({
         else returnedShipmentIds.push(entry);
       }
       
+      if (!user?.subsidiary) {
+        toast({ title: "Sesión inválida", description: "No se pudo identificar tu usuario o sucursal. Vuelve a iniciar sesión.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
+
       const closurePackageDispatch: RouteClosure = {
         packageDispatch: { id: dispatch.id },
-        closeDate: new Date(),
+        closeDate: new Date().toISOString(),
         returnedPackages: returnedShipmentIds,
-        podPackages: podShipmentIds, 
+        podPackages: podShipmentIds,
         actualKms: actualKms,
-        subsidiary: user?.subsidiary,
+        subsidiary: user.subsidiary,
         createdBy: user,
         collections: collectionsRaw.split("\n").map(item => item.trim()).filter(item => item.length > 0),
-        noVanPackages: noVanPackages
+        // El backend solo necesita el trackingNumber de cada No VAN (re-resuelve estatus en FedEx).
+        noVanPackages: noVanPackages.map(p => p.trackingNumber),
       };
 
-      const savedClosure = await save(closurePackageDispatch as any);
+      const savedClosure = await save(closurePackageDispatch);
 
       toast({ title: "Cierre exitoso", description: "La ruta se ha cerrado correctamente." });
+      // Limpieza del estado en memoria del escáner montado (si lo está en este paso).
       collectionsScanRef.current?.clear();
+      noVanScanRef.current?.clear();
+      // Limpieza del buffer PERSISTIDO por storageKey. El submit ocurre en el Paso 3, donde el
+      // bloque del Paso 2 (que monta ambos escáneres) está desmontado → sus refs son null y el
+      // ref.clear() no alcanza su localStorage. Sin esto, las guías reaparecían al reabrir el
+      // cierre y se reenviaban en el siguiente cierre (recolecciones/No VAN duplicadas).
+      clearScanBuffer("scan:dispatch-close-collections");
+      clearScanBuffer("scan:dispatch-close-novan");
 
       await handleSendEmail(savedClosure);
       onSuccess();

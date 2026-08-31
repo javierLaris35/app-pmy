@@ -94,6 +94,8 @@ export interface PackageListItemProps {
   onCompleteData?: (pkg: PackageInfo) => void;
   /** Si se pasa, las guías que "no pertenecen a la sucursal" muestran "Traspasar" (subadmin+). */
   onTransfer?: (pkg: PackageInfo) => void;
+  /** Si se pasa, muestra un número de fila (gutter estilo VSCode) a la izquierda. */
+  index?: number;
 }
 
 /**
@@ -101,7 +103,7 @@ export interface PackageListItemProps {
  * salidas a ruta y desembarque): borde de acento por urgencia, pill de carrier,
  * ID prominente, chips de indicadores y datos del destinatario.
  */
-export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onCompleteData, onTransfer }: PackageListItemProps) {
+export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onCompleteData, onTransfer, index }: PackageListItemProps) {
   const pkgId = pkg.dhlUniqueId || pkg.trackingNumber;
   const needsData = pkg.isValid && (!pkg.recipientName || !pkg.recipientAddress || !pkg.recipientPhone);
   const isDhl = pkg.shipmentType === "dhl";
@@ -125,8 +127,13 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
     pkg.isHighValue || pkg.priority === "alta";
 
   return (
-    <div className={cn("p-3 border-l-4 hover:bg-muted/30 transition-colors border-b", accent)}>
-      <div className="flex justify-between items-start gap-2">
+    <div className={cn("flex border-l-4 hover:bg-muted/30 transition-colors border-b", accent)}>
+      {index != null && (
+        <div className="shrink-0 select-none self-stretch flex items-start justify-end border-r bg-muted/40 px-2 pt-3 text-xs font-mono tabular-nums text-muted-foreground min-w-[2.25rem]">
+          {index}
+        </div>
+      )}
+      <div className="flex-1 min-w-0 p-3 flex justify-between items-start gap-2">
         <div className="flex-1 min-w-0 space-y-1.5">
           {/* Línea principal */}
           <div className="flex items-center flex-wrap gap-2">

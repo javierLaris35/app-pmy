@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config";
-import { PackageInfo, RouteClosure, ValidatedPackagesForClousere } from "../types";
+import { NoVanPackageDetail, PackageInfo, RouteClosure, ValidatedPackagesForClousere } from "../types";
 
 const url = "/route-closure";
 
@@ -19,7 +19,8 @@ const validateTrackingNumbers = async (trackingNumbers: string[], packageDispatc
 }
 
 const validateTrackinNumberNoVan = async (noVanTrackingNumbers: string[]) => {
-    const response = await axiosConfig.post<{ validNoVanTrackings: string[] }>(`${url}/validateNoVanTrackings`, {
+    // El backend devuelve un arreglo de detalles (uno por guía), no un objeto envolvente.
+    const response = await axiosConfig.post<NoVanPackageDetail[]>(`${url}/validateNoVanTrackings`, {
         noVanTrackingNumbers
     });
     return response.data;

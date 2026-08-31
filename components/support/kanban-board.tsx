@@ -8,13 +8,13 @@ import {
 } from "@dnd-kit/core"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Tag, TimerReset, Clock, MapPin, Gavel, Timer, MessageSquare } from "lucide-react"
+import { TimerReset, Clock, MapPin, Gavel, Timer, MessageSquare, AlertTriangle, UserCircle2 } from "lucide-react"
 import {
   type Ticket, type TicketStatus,
   KANBAN_COLUMNS, getTicketPriorityColor, getPriorityLabel, formatHours,
   getApprovalColor, getApprovalLabel,
 } from "@/lib/types/support-ticket"
-import { EstadoIcon, TipoIcon, getTipoColor, getColumnAccent } from "./support-ui"
+import { TipoIcon, getTipoColor } from "./support-ui"
 import { avatarStyle, initialsFrom } from "@/lib/support/avatar"
 
 export type GroupBy = "ninguno" | "prioridad" | "tipo" | "sucursal"
@@ -33,6 +33,16 @@ const PRIORITY_ORDER: Record<string, number> = { urgente: 0, alta: 1, media: 2, 
 const PRIORITY_WEIGHT: Record<string, number> = { urgente: 100, alta: 60, media: 30, baja: 10 }
 const TYPE_ORDER: Record<string, number> = { error: 0, mejora: 1, cambio: 2, eliminar: 3 }
 
+// Punto de color por estado para la cabecera (píldora) de cada columna.
+const COLUMN_DOT: Record<string, string> = {
+  pendiente: "bg-gray-400",
+  por_hacer: "bg-violet-400",
+  en_progreso: "bg-blue-500",
+  en_revision: "bg-amber-400",
+  completado: "bg-emerald-500",
+  rechazado: "bg-red-400",
+}
+
 function sortTickets(list: Ticket[], sortBy: SortBy): Ticket[] {
   const arr = [...list]
   if (sortBy === "antiguedad") {
@@ -50,10 +60,14 @@ function sortTickets(list: Ticket[], sortBy: SortBy): Ticket[] {
 
 // -- Tarjeta arrastrable -----------------------------------------------------
 
-function TicketCard({ ticket, onOpen, subsidiaryName }: { ticket: Ticket; onOpen: (t: Ticket) => void; subsidiaryName?: (id?: string) => string }) {
+function TicketCard({ ticket, onOpen, subsidiaryName, faded = false }: {
+  ticket: Ticket; onOpen: (t: Ticket) => void; subsidiaryName?: (id?: string) => string; faded?: boolean
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: String(ticket.id) })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   const overdue = ticket.slaBreached && ticket.estado !== "completado" && ticket.estado !== "rechazado"
+  const sucursal = subsidiaryName && ticket.subsidiaryId ? subsidiaryName(ticket.subsidiaryId) : null
+  const prioAlta = ticket.prioridad === "urgente" || ticket.prioridad === "alta"
 
   return (
     <div
@@ -62,9 +76,10 @@ function TicketCard({ ticket, onOpen, subsidiaryName }: { ticket: Ticket; onOpen
       {...listeners}
       {...attributes}
       onClick={() => onOpen(ticket)}
-      className={`group relative cursor-grab active:cursor-grabbing rounded-lg border bg-card p-3 shadow-sm hover:border-primary/60 hover:shadow transition
+      className={`group relative cursor-grab rounded-xl border bg-card p-4 shadow-sm transition active:cursor-grabbing hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md
         ${isDragging ? "opacity-40" : ""}
-        ${overdue ? "border-red-500/40 ring-1 ring-red-500/20" : ticket.unread ? "border-blue-500/50 ring-1 ring-blue-500/25" : ""}`}
+        ${faded ? "opacity-70 hover:opacity-100" : ""}
+        ${overdue ? "ring-1 ring-red-500/25" : ticket.unread ? "ring-1 ring-blue-500/25" : ""}`}
     >
       {ticket.unread && (
         <span className="absolute -right-1 -top-1 flex h-3 w-3">
@@ -72,69 +87,92 @@ function TicketCard({ ticket, onOpen, subsidiaryName }: { ticket: Ticket; onOpen
           <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-600" />
         </span>
       )}
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-[11px] font-mono text-muted-foreground">{ticket.folio}</span>
-        {ticket.prioridad && (
-          <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${getTicketPriorityColor(ticket.prioridad)}`}>
-            <Tag className="h-2.5 w-2.5 mr-0.5" />{getPriorityLabel(ticket.prioridad)}
-          </Badge>
-        )}
+
+      {/* Cabecera: sucursal (origen) + folio */}
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+        <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
+          <MapPin className="h-3 w-3 shrink-0 text-primary/70" />
+          <span className="truncate font-medium">{sucursal ?? "Sin sucursal"}</span>
+        </span>
+        <span className="shrink-0 font-mono text-muted-foreground/70">{ticket.folio ?? `#${ticket.id}`}</span>
       </div>
 
-      <h4 className="text-sm font-medium leading-snug line-clamp-2 mb-2">{ticket.titulo}</h4>
+      {/* Título */}
+      <h4 className="mb-3 line-clamp-2 text-[15px] font-semibold leading-snug text-foreground">{ticket.titulo}</h4>
 
-      <div className="flex flex-wrap items-center gap-1.5 mb-2">
-        <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${getTipoColor(ticket.tipo)}`}>
-          <TipoIcon tipo={ticket.tipo} className="h-2.5 w-2.5" /><span className="ml-0.5 capitalize">{ticket.tipo}</span>
+      {/* Categoría (tipo) + prioridad */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Badge variant="secondary" className={`h-6 gap-1 rounded-md border-0 px-2 text-[11px] font-medium ${getTipoColor(ticket.tipo)}`}>
+          <TipoIcon tipo={ticket.tipo} className="h-3 w-3" /><span className="capitalize">{ticket.tipo}</span>
         </Badge>
-        {(ticket.approvalStatus === "pendiente" || ticket.approvalStatus === "rechazado") && (
-          <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${getApprovalColor(ticket.approvalStatus)}`}>
-            <Gavel className="h-2.5 w-2.5 mr-0.5" />{getApprovalLabel(ticket.approvalStatus)}
+        {ticket.prioridad && (
+          <Badge variant="outline" className={`h-6 gap-1 rounded-md px-2 text-[11px] font-semibold ${getTicketPriorityColor(ticket.prioridad)}`}>
+            {prioAlta && <AlertTriangle className="h-3 w-3" />}{getPriorityLabel(ticket.prioridad)}
           </Badge>
-        )}
-        {overdue && (
-          <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-red-500/10 text-red-600 border-red-500/30">
-            <TimerReset className="h-2.5 w-2.5 mr-0.5" />Vencido
-          </Badge>
-        )}
-        {ticket.confirmedAt && (
-          <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-green-500/10 text-green-600 border-green-500/30">Cerrado</Badge>
-        )}
-        {!!ticket.commentsCount && (
-          ticket.unread ? (
-            <Badge className="h-5 gap-0.5 border-transparent bg-blue-600 px-1.5 text-[10px] text-white">
-              <MessageSquare className="h-2.5 w-2.5" />{ticket.commentsCount} · nuevo
-            </Badge>
-          ) : (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <MessageSquare className="h-2.5 w-2.5" />{ticket.commentsCount}
-            </span>
-          )
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-        <span className="flex min-w-0 items-center gap-1.5 truncate">
-          <Avatar className="h-5 w-5 shrink-0">
-            <AvatarFallback style={avatarStyle(ticket.asignadoA ?? ticket.usuario)} className="text-[9px] font-semibold">
-              {initialsFrom(ticket.asignadoA ?? ticket.usuario)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="truncate">{ticket.asignadoA ?? ticket.usuario ?? "Sin asignar"}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {ticket.workedHours != null && (
-            <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{formatHours(ticket.workedHours)}</span>
+      {/* Estados (aprobación / vencido / cerrado) */}
+      {(ticket.approvalStatus === "pendiente" || ticket.approvalStatus === "rechazado" || overdue || ticket.confirmedAt) && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {(ticket.approvalStatus === "pendiente" || ticket.approvalStatus === "rechazado") && (
+            <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${getApprovalColor(ticket.approvalStatus)}`}>
+              <Gavel className="h-2.5 w-2.5 mr-0.5" />{getApprovalLabel(ticket.approvalStatus)}
+            </Badge>
           )}
-          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatHours(ticket.ageHours)}</span>
-        </span>
-      </div>
-      {subsidiaryName && ticket.subsidiaryId && (
-        <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <MapPin className="h-3 w-3 text-primary shrink-0" />
-          <span className="truncate">{subsidiaryName(ticket.subsidiaryId)}</span>
+          {overdue && (
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-red-500/10 text-red-600 border-red-500/30">
+              <TimerReset className="h-2.5 w-2.5 mr-0.5" />Vencido
+            </Badge>
+          )}
+          {ticket.confirmedAt && (
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-green-500/10 text-green-600 border-green-500/30">Cerrado</Badge>
+          )}
         </div>
       )}
+
+      {/* Footer: creador + tiempo (izq) · responsable + comentarios (der) */}
+      <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Avatar className="h-7 w-7 shrink-0">
+            <AvatarFallback style={avatarStyle(ticket.usuario)} className="text-[9px] font-semibold">
+              {initialsFrom(ticket.usuario)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 leading-tight">
+            <div className="truncate text-xs font-medium text-foreground">{ticket.usuario ?? "Desconocido"}</div>
+            <div className="text-[10px] text-muted-foreground">Creó · hace {formatHours(ticket.ageHours)}</div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {!!ticket.commentsCount && (
+            ticket.unread ? (
+              <Badge className="h-5 gap-0.5 border-transparent bg-blue-600 px-1.5 text-[10px] text-white">
+                <MessageSquare className="h-2.5 w-2.5" />{ticket.commentsCount}
+              </Badge>
+            ) : (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <MessageSquare className="h-2.5 w-2.5" />{ticket.commentsCount}
+              </span>
+            )
+          )}
+          <div className="flex flex-col items-center">
+            <span className="mb-0.5 text-[8px] font-medium uppercase tracking-wide text-muted-foreground/60">Atiende</span>
+            {ticket.asignadoA ? (
+              <Avatar className="h-7 w-7 shrink-0 ring-2 ring-background" title={ticket.asignadoA}>
+                <AvatarFallback style={avatarStyle(ticket.asignadoA)} className="text-[9px] font-semibold">
+                  {initialsFrom(ticket.asignadoA)}
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <span title="Sin asignar" className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground/50">
+                <UserCircle2 className="h-4 w-4" />
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -148,20 +186,24 @@ function Column({
   onOpen: (t: Ticket) => void; subsidiaryName?: (id?: string) => string
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `${groupKey}::${estado}` })
+  const faded = estado === "rechazado" // columna "cerrada" se muestra atenuada
   return (
     <div className="flex w-72 shrink-0 flex-col">
-      <div className={`flex items-center justify-between rounded-t-lg border-t-2 bg-muted/50 px-3 py-2 ${getColumnAccent(estado)}`}>
-        <span className="flex items-center gap-1.5 text-sm font-medium">
-          <EstadoIcon estado={estado} className="h-3.5 w-3.5" />{label}
+      {/* Cabecera píldora: punto de estado + nombre + conteo */}
+      <div className="mb-2 flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2">
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <span className={`h-2 w-2 rounded-full ${COLUMN_DOT[estado] ?? "bg-gray-400"}`} />{label}
         </span>
-        <span className="rounded-full bg-background px-2 text-xs text-muted-foreground">{tickets.length}</span>
+        <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">{tickets.length}</span>
       </div>
       <div
         ref={setNodeRef}
-        className={`flex-1 space-y-2 rounded-b-lg border border-t-0 p-2 min-h-[120px] transition-colors ${isOver ? "bg-primary/5 ring-1 ring-primary/30" : "bg-muted/20"}`}
+        className={`flex-1 space-y-3 rounded-lg p-1 min-h-[140px] transition-colors ${isOver ? "bg-primary/5 ring-1 ring-primary/30" : ""}`}
       >
-        {tickets.map((t) => <TicketCard key={t.id} ticket={t} onOpen={onOpen} subsidiaryName={subsidiaryName} />)}
-        {tickets.length === 0 && <p className="pt-6 text-center text-xs text-muted-foreground/60">—</p>}
+        {tickets.map((t) => <TicketCard key={t.id} ticket={t} onOpen={onOpen} subsidiaryName={subsidiaryName} faded={faded} />)}
+        {tickets.length === 0 && (
+          <p className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground/50">Sin tickets</p>
+        )}
       </div>
     </div>
   )
@@ -247,9 +289,9 @@ export function KanbanBoard({ tickets, groupBy, sortBy, onMove, onOpen, subsidia
 
       <DragOverlay>
         {activeTicket ? (
-          <div className="w-72 rotate-2 rounded-lg border bg-card p-3 shadow-lg">
-            <span className="text-[11px] font-mono text-muted-foreground">{activeTicket.folio}</span>
-            <h4 className="text-sm font-medium leading-snug line-clamp-2">{activeTicket.titulo}</h4>
+          <div className="w-72 rotate-2 rounded-xl border bg-card p-4 shadow-xl ring-1 ring-primary/20">
+            <span className="font-mono text-[11px] text-muted-foreground/70">{activeTicket.folio ?? `#${activeTicket.id}`}</span>
+            <h4 className="mt-1 line-clamp-2 text-[15px] font-semibold leading-snug">{activeTicket.titulo}</h4>
           </div>
         ) : null}
       </DragOverlay>

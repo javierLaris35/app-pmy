@@ -191,12 +191,20 @@ const PackageDispatchForm: React.FC<Props> = ({
   }, [propSubsidiaryName, user]);
 
   // ¿Esta sucursal ordena las salidas a ruta por código postal? (config en BD).
-  // Si está en false, se conserva el orden de escaneo (en pantalla, PDF y Excel).
+  // Es el DEFAULT; el operador puede cambiarlo en caliente con el control de orden.
   const { subsidiaries } = useSubsidiaries();
-  const sortByCp = useMemo(() => {
+  const configSortByCp = useMemo(() => {
     const sub = (subsidiaries as any[] | undefined)?.find((s) => s.id === selectedSubsidiaryId);
     return Boolean(sub?.sortDispatchByPostalCode);
   }, [subsidiaries, selectedSubsidiaryId]);
+
+  // Override local (control segmentado): "cp" | "scan" | null. null = seguir la
+  // config de la sucursal. Gobierna lista en pantalla, PDF y Excel de esta salida.
+  const [sortModeOverride, setSortModeOverride] = useState<"cp" | "scan" | null>(null);
+  const sortByCp = (sortModeOverride ?? (configSortByCp ? "cp" : "scan")) === "cp";
+
+  // Al cambiar de sucursal, volvemos a respetar su config (descartamos el override).
+  useEffect(() => { setSortModeOverride(null); }, [selectedSubsidiaryId]);
 
   // ¿Esta sucursal valida los paquetes por LISTA (1 request batch) o uno-por-uno?
   // Config en BD (validateDispatchByList). Default false = uno-por-uno histórico.
@@ -515,11 +523,11 @@ const PackageDispatchForm: React.FC<Props> = ({
         drivers: selectedRepartidores,
         routes: selectedRutas,
         vehicle: selectedUnidad,
-        shipments: validPackages.map((p) => p.id).filter(Boolean),
+        shipments: validPackages.map((p) => p.id).filter((id): id is string => Boolean(id)),
         subsidiary: {
           id: selectedSubsidiaryId,
           name: selectedSubsidiaryName || "Unknown"
-        },
+        } as DispatchFormData["subsidiary"],
         kms: selectedKms,
         routeDate: routeDate,
         is315: is315,
@@ -560,10 +568,10 @@ const PackageDispatchForm: React.FC<Props> = ({
           key={Date.now()}
           drivers={selectedRepartidores}
           routes={selectedRutas}
-          vehicle={selectedUnidad}
+          vehicle={selectedUnidad as Vehicles}
           invalidTrackings={invalidPackages}
           packages={validPackages}
-          subsidiaryName={selectedSubsidiaryName}
+          subsidiaryName={selectedSubsidiaryName ?? ""}
           trackingNumber="123456789"
           sortByPostalCode={sortByCp}
         />
@@ -593,7 +601,7 @@ const PackageDispatchForm: React.FC<Props> = ({
           key={Date.now()}
           drivers={selectedRepartidores}
           routes={selectedRutas}
-          vehicle={selectedUnidad}
+          vehicle={selectedUnidad as Vehicles}
           invalidTrackings={invalidPackages}
           packages={validPackages}
           subsidiaryName={packageDispatch.subsidiary?.name}
@@ -611,7 +619,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         year: "numeric",
       });
 
-      packageDispatch.shipments = validPackages;
+      packageDispatch.shipments = validPackages as unknown as PackageDispatch["shipments"];
 
       const fileName = `${packageDispatch?.drivers[0]?.name.toUpperCase()}--${packageDispatch.subsidiary?.name}--Salida a Ruta--${currentDate.replace(/\//g, "-")}.pdf`;
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
@@ -1025,6 +1033,41 @@ const PackageDispatchForm: React.FC<Props> = ({
                 onClear={clearFilters}
               />
 
+              {/* Orden de la salida: control segmentado (override local del default de
+                  la sucursal). Se muestra siempre (igual que los filtros), pegado sobre
+                  la lista, para ver el reordenamiento en vivo. Gobierna lista, PDF y Excel. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-lg border bg-muted/30 px-3 py-2">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">Orden de la salida</span>
+                  <span className="text-xs text-muted-foreground leading-snug">
+                    {sortByCp
+                      ? "Por CP y dirección (lista, PDF y Excel)."
+                      : "Por orden de escaneo (lista, PDF y Excel)."}
+                  </span>
+                </div>
+                <div className="inline-flex shrink-0 rounded-lg border bg-background p-0.5">
+                  {[
+                    { cp: true, label: "CP + dirección" },
+                    { cp: false, label: "Escaneo" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setSortModeOverride(opt.cp ? "cp" : "scan")}
+                      disabled={isLoading}
+                      className={cn(
+                        "rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+                        sortByCp === opt.cp
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Packages Tabs */}
               {packages.length > 0 && (
                 <Tabs defaultValue="validos" className="w-full">
@@ -1043,7 +1086,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                     {filteredValidPackages.length > 0 ? (
                       <ScrollArea className="h-[400px] rounded-md border">
                         <div className="grid grid-cols-1 divide-y">
-                          {filteredValidPackages.map(pkg => {
+                          {filteredValidPackages.map((pkg, i) => {
                             const uniqueKey = pkg.dhlUniqueId || pkg.trackingNumber;
                             return (
                               <PackageListItem
@@ -1051,6 +1094,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                                 pkg={pkg}
                                 onRemove={handleRemovePackage}
                                 isLoading={isLoading}
+                                index={i + 1}
                               />
                             );
                           })}
@@ -1068,13 +1112,14 @@ const PackageDispatchForm: React.FC<Props> = ({
                     {invalidPackages.length > 0 ? (
                       <ScrollArea className="h-[300px] rounded-md border">
                         <div className="grid grid-cols-1 divide-y">
-                          {invalidPackages.map((pkg) => (
+                          {invalidPackages.map((pkg, i) => (
                             <PackageListItem
                               key={pkg.trackingNumber}
                               pkg={pkg}
                               onRemove={handleRemovePackage}
                               isLoading={isLoading}
                               onTransfer={canTransfer ? setTransferPkg : undefined}
+                              index={i + 1}
                             />
                           ))}
                         </div>

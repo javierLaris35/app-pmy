@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode, type ComponentType } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   KanbanSquare, Search, RefreshCw, Loader2, Filter, Layers, ArrowDownWideNarrow,
-  Inbox, TimerReset, CheckCircle2, Timer, Settings, MessageSquare, ShieldCheck,
+  Inbox, TimerReset, CheckCircle2, Timer, Settings, MessageSquare, ShieldCheck, List,
 } from "lucide-react"
 import {
   type Ticket, type TicketStatus, type TicketPriority,
@@ -23,6 +23,8 @@ import { SupportTicketService } from "@/lib/services/support-ticket.service"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { KanbanBoard, type GroupBy, type SortBy } from "@/components/support/kanban-board"
+import { TicketListView, TicketViewsRail } from "@/components/support/ticket-list-view"
+import { viewMatches, type ViewKey } from "@/lib/support/ticket-views"
 import { TicketDetailDialog } from "@/components/support/ticket-detail-dialog"
 import { SupportChannelsCard } from "@/components/support/support-channels-card"
 import { SupportAuthorizersCard } from "@/components/support/support-authorizers-card"
@@ -55,6 +57,8 @@ export default function SupportBoardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [selected, setSelected] = useState<Ticket | null>(null)
+  const [view, setView] = useState<"kanban" | "lista">("kanban")
+  const [activeView, setActiveView] = useState<ViewKey>("todos")
   const [groupBy, setGroupBy] = useState<GroupBy>("ninguno")
   const [sortBy, setSortBy] = useState<SortBy>("urgencia")
 
@@ -132,6 +136,9 @@ export default function SupportBoardPage() {
     }
     return tickets.filter((t) => matchesTicketFilters(t, f))
   }, [tickets, search, fTipos, fPrioridades, fSucursales, fAsignados])
+
+  // En vista Lista, el rail aplica un filtro extra (vista activa) sobre lo ya filtrado.
+  const listTickets = useMemo(() => filtered.filter((t) => viewMatches(t, activeView)), [filtered, activeView])
 
   // Opciones dinámicas de los chips derivadas de datos cargados.
   const asignadoOptions = useMemo(
@@ -222,6 +229,10 @@ export default function SupportBoardPage() {
 
   const headerActions = (
     <div className="flex items-center gap-2">
+      <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v as "kanban" | "lista")} size="sm" variant="outline">
+        <ToggleGroupItem value="kanban" className="h-8 gap-1.5 px-2.5 text-xs"><KanbanSquare className="h-4 w-4" />Kanban</ToggleGroupItem>
+        <ToggleGroupItem value="lista" className="h-8 gap-1.5 px-2.5 text-xs"><List className="h-4 w-4" />Lista</ToggleGroupItem>
+      </ToggleGroup>
       {isSuper && (
         <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
           <Settings className="h-4 w-4 mr-2" />Configuración
@@ -244,10 +255,10 @@ export default function SupportBoardPage() {
 
       {/* Métricas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <MetricCard icon={<Inbox className="h-4 w-4 text-blue-600" />} label="Abiertos" value={metrics.abiertos} />
-        <MetricCard icon={<TimerReset className="h-4 w-4 text-red-600" />} label="SLA vencido" value={metrics.vencidos} accent={metrics.vencidos > 0 ? "text-red-600" : ""} />
-        <MetricCard icon={<CheckCircle2 className="h-4 w-4 text-green-600" />} label="Resueltos" value={metrics.resueltos} />
-        <MetricCard icon={<Timer className="h-4 w-4 text-violet-600" />} label="Tiempo prom. resolución" value={formatHours(metrics.avgHours)} />
+        <MetricCard icon={Inbox} tone="blue" label="Abiertos" value={metrics.abiertos} />
+        <MetricCard icon={TimerReset} tone="red" label="SLA vencido" value={metrics.vencidos} highlight={metrics.vencidos > 0} />
+        <MetricCard icon={CheckCircle2} tone="green" label="Resueltos" value={metrics.resueltos} />
+        <MetricCard icon={Timer} tone="violet" label="Tiempo prom. resolución" value={formatHours(metrics.avgHours)} />
       </div>
 
       {/* Toolbar: filtros (estilo chip) + agrupar/ordenar */}
@@ -258,13 +269,15 @@ export default function SupportBoardPage() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Buscar folio, título, usuario…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8" />
             </div>
+            <Filter className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
             <FilterChip title="Tipo" options={TIPO_OPTIONS} selected={fTipos} onChange={setFTipos} />
             <FilterChip title="Prioridad" options={PRIORIDAD_OPTIONS} selected={fPrioridades} onChange={setFPrioridades} />
             <FilterChip title="Asignado" options={asignadoOptions} selected={fAsignados} onChange={setFAsignados} />
             <FilterChip title="Sucursal" options={sucursalOptions} selected={fSucursales} onChange={setFSucursales} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          {view === "kanban" && (
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
               <Layers className="h-4 w-4 text-muted-foreground" />
               <Label className="text-xs text-muted-foreground">Agrupar</Label>
@@ -285,6 +298,7 @@ export default function SupportBoardPage() {
               </ToggleGroup>
             </div>
           </div>
+          )}
         </CardContent>
       </Card>
 
@@ -292,6 +306,11 @@ export default function SupportBoardPage() {
       {isLoading ? (
         <div className="flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : view === "lista" ? (
+        <div className="flex flex-col gap-4 md:flex-row">
+          <TicketViewsRail tickets={filtered} active={activeView} onChange={setActiveView} />
+          <TicketListView tickets={listTickets} subsidiaryName={subsidiaryName} onOpen={openTicket} />
         </div>
       ) : filtered.length === 0 ? (
         <Card><CardContent className="p-10 text-center text-muted-foreground">
@@ -315,6 +334,7 @@ export default function SupportBoardPage() {
         onOpenChange={(o) => !o && setSelected(null)}
         agents={agents}
         isSubmitting={isSubmitting}
+        subsidiaryName={subsidiaryName}
         onUpdateStatus={onUpdateStatus}
         onUpdatePriority={onUpdatePriority}
         onAssign={onAssign}
@@ -355,12 +375,27 @@ export default function SupportBoardPage() {
   )
 }
 
-function MetricCard({ icon, label, value, accent = "" }: { icon: ReactNode; label: string; value: ReactNode; accent?: string }) {
+const METRIC_TONES: Record<string, { chip: string; icon: string; value: string; ring: string }> = {
+  blue:   { chip: "bg-blue-500/10",   icon: "text-blue-600",   value: "text-foreground", ring: "" },
+  red:    { chip: "bg-red-500/10",    icon: "text-red-600",    value: "text-red-600",    ring: "border-red-500/40" },
+  green:  { chip: "bg-green-500/10",  icon: "text-green-600",  value: "text-foreground", ring: "" },
+  violet: { chip: "bg-violet-500/10", icon: "text-violet-600", value: "text-foreground", ring: "" },
+}
+
+function MetricCard({
+  icon: Icon, tone, label, value, highlight = false,
+}: { icon: ComponentType<{ className?: string }>; tone: keyof typeof METRIC_TONES; label: string; value: ReactNode; highlight?: boolean }) {
+  const t = METRIC_TONES[tone]
   return (
-    <Card>
-      <CardContent className="p-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">{icon}{label}</div>
-        <div className={`text-2xl font-bold ${accent}`}>{value}</div>
+    <Card className={`transition hover:shadow-md ${highlight ? t.ring : ""}`}>
+      <CardContent className="flex items-center gap-3 p-3">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${t.chip}`}>
+          <Icon className={`h-5 w-5 ${t.icon}`} />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-xs text-muted-foreground">{label}</div>
+          <div className={`text-2xl font-bold leading-tight ${highlight ? t.value : "text-foreground"}`}>{value}</div>
+        </div>
       </CardContent>
     </Card>
   )
