@@ -61,14 +61,58 @@ export const applyCorrections = async (shipmentIds: string[]) => {
 };
 
 // ── Reconciliación de cobros (F6) ──────────────────────────────────────────
+export interface CobrosReconRow {
+  trackingNumber: string;
+  consNumber: string | null;
+  subsidiary: string | null;
+  recipientName: string | null;
+  status: string | null;
+  date: string | null;
+  cost: number | null;
+}
+
 export interface CobrosReconcileReport {
   windowDays: number;
-  deliveredShipments: number;
-  missingIncome: string[]; // entregados sin ingreso (cobro perdido)
-  orphanIncome: string[]; // ingreso 'entregado' cuyo envío no está entregado (cobro a revisar)
+  deliveredShipments: number; // guías entregadas distintas
+  missingIncome: CobrosReconRow[]; // entregados sin cobro (cobro perdido)
+  orphanIncome: CobrosReconRow[]; // cobro 'entregado' cuyo envío ya no está entregado
   missingCount: number;
   orphanCount: number;
 }
+
+// ── Paridad shadow (nuevo vs legacy) ────────────────────────────────────────
+export interface ParityRunRow {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  total: number;
+  ok: number;
+  matchesLegacy: number;
+  divergesLegacy: number;
+  aborted: boolean;
+  matchPct: number;
+}
+
+export interface ParityDivergenceRow {
+  trackingNumber: string;
+  kind: string | null;
+  consNumber: string | null;
+  subsidiary: string | null;
+  recipientName: string | null;
+  legacyCurrentStatus: string | null;
+  proposedStatus: string | null;
+  wouldInsertEvents: number;
+}
+
+export const getParityRuns = async (limit = 20): Promise<ParityRunRow[]> => {
+  const res = await axiosConfig.get<ParityRunRow[]>(`tracking-sync/parity/runs`, { params: { limit } });
+  return res.data;
+};
+
+export const getParityDivergences = async (runId?: string, limit = 200): Promise<{ runId: string | null; rows: ParityDivergenceRow[] }> => {
+  const res = await axiosConfig.get<{ runId: string | null; rows: ParityDivergenceRow[] }>(`tracking-sync/parity/divergences`, { params: { runId, limit } });
+  return res.data;
+};
 
 export interface CobrosReportHistoryRow {
   id: string;

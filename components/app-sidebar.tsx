@@ -19,7 +19,7 @@ import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
 import { User } from "@/lib/types"
 import { useFilteredMenu } from "@/hooks/use-filtered-menu"
-import { Route as RouteIcon, Radio, RefreshCw, ScrollText } from "lucide-react"
+import { Route as RouteIcon, Radio, RefreshCw, ScrollText, GitCompare } from "lucide-react"
 import { hasPermission } from "@/lib/access/permissions"
 
 /** Versión de la app (sube con cambios menores/medianos/mayores). */
@@ -45,12 +45,17 @@ export function AppSidebar({ user, ...props }: { user: User }) {
   const cobrosReconItem = ["superadmin", "superamin"].includes((user?.role ?? "").toLowerCase())
     ? [{ title: "Reconciliación de cobros", url: "/dev/tracking-sync/cobros", icon: ScrollText }]
     : []
+  // Paridad FedEx (nuevo vs legacy): shadow, solo superadmin.
+  const paridadItem = ["superadmin", "superamin"].includes((user?.role ?? "").toLowerCase())
+    ? [{ title: "Paridad FedEx", url: "/dev/tracking-sync/paridad", icon: GitCompare }]
+    : []
   const secondaryItems = [
     ...(sidebarMenu.secondary ?? []),
     ...(IS_DEV ? DEV_ITEMS : []),
     ...monitoreoRutasItem,
     ...trackingSyncItem,
     ...cobrosReconItem,
+    ...paridadItem,
   ]
 
   return (
