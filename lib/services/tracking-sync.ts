@@ -68,6 +68,8 @@ export interface CobrosReconRow {
   recipientName: string | null;
   status: string | null;
   date: string | null;
+  deliveredAt: string | null; // fecha/hora real del evento ENTREGADO de FedEx
+  type: "envio" | "f2";       // 'f2' = la guía también es carga (cobro agrupado → falso positivo)
   cost: number | null;
 }
 
