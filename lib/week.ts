@@ -1,7 +1,7 @@
 export interface WeekRange {
   /** YYYY-MM-DD (lunes) */
   from: string;
-  /** YYYY-MM-DD (sábado) */
+  /** YYYY-MM-DD (domingo) */
   to: string;
 }
 
@@ -13,9 +13,9 @@ function toISODate(d: Date): string {
 }
 
 /**
- * Lunes–Sábado de la semana que contiene `refDate` (semana operativa de 6 días;
- * el domingo NO forma parte de la semana). En domingo devuelve la semana que acaba
- * de terminar (lunes anterior a sábado anterior).
+ * Lunes–Domingo de la semana que contiene `refDate` (semana de 7 días).
+ * El domingo es el último día de la semana, por lo que en domingo se devuelve
+ * la semana en curso (ese domingo cierra su propia semana).
  */
 export function getWeekRange(refDate: Date = new Date()): WeekRange {
   const d = new Date(refDate);
@@ -23,9 +23,9 @@ export function getWeekRange(refDate: Date = new Date()): WeekRange {
   const diffToMonday = day === 0 ? -6 : 1 - day;
   const monday = new Date(d);
   monday.setDate(d.getDate() + diffToMonday);
-  const saturday = new Date(monday);
-  saturday.setDate(monday.getDate() + 5); // lunes + 5 = sábado (semana lun–sáb)
-  return { from: toISODate(monday), to: toISODate(saturday) };
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6); // lunes + 6 = domingo (semana lun–dom)
+  return { from: toISODate(monday), to: toISODate(sunday) };
 }
 
 /** Mueve el rango `weeks` semanas (negativo = atrás). */
