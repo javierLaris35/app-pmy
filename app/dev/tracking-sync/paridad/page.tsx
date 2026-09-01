@@ -145,10 +145,10 @@ function ParityContent() {
         description="Compara el estatus que pondría el nuevo motor contra el que tienes hoy. Solo lectura, no cambia nada."
       />
 
-      <div className="mx-auto max-w-6xl space-y-4 p-3 sm:p-4">
-        <Alert className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40">
-          <Info className="h-4 w-4 text-sky-600" />
-          <AlertDescription className="text-xs text-sky-900 dark:text-sky-200 sm:text-sm">
+      <div className="space-y-4 p-4">
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-xs sm:text-sm">
             <strong>Estatus actual</strong> = el que hay hoy en el sistema. <strong>Nuevo motor</strong> = el que pondría el motor nuevo (aún sin escribir). Si coinciden, el motor decide igual que hoy.
             <span className="mt-1 block"><strong>Resultados (shadow):</strong> lo que el motor observó en su última corrida automática. <strong>Comparar en vivo:</strong> jala FedEx ahora mismo para una guía/ruta/consolidado (mismo dato, comparación exacta).</span>
           </AlertDescription>
