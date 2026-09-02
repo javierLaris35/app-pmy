@@ -531,6 +531,26 @@ export interface Devolution {
   sucursalId: string
 }
 
+/**
+ * Fila de devolución tal como la maneja el formulario unificado y la tarjeta (DevolutionCard):
+ * lo que `checkDevolutionInfo` arma desde `validateDevolution` + el motivo/fecha editables. Es un
+ * tipo distinto de `Devolution` (el que consumen el PDF/Excel) para no mezclar responsabilidades.
+ */
+export type DevolutionRow = {
+  id: string
+  trackingNumber: string
+  status: string
+  subsidiaryName: string
+  hasIncome: boolean
+  /** Ingreso `entregado` vigente; si viene, al devolver se anula (confirmación). */
+  entregadoIncome?: { id: string; cost: number } | null
+  isCharge?: boolean
+  wasDispatched?: boolean
+  date: string
+  reason: string
+  lastStatus: { type: string | null; exceptionCode: string | null; notes?: string | null } | null
+}
+
 export type ReturnValidaton = {
   id: string;
   trackingNumber: string;
@@ -542,6 +562,8 @@ export type ReturnValidaton = {
   subsidiaryId: string;    // Nuevo campo
   subsidiaryName: string;  // Existente
   hasIncome: boolean;
+  /** Ingreso `entregado` vigente de la guía; si viene, al devolverla se anulará (confirmación). */
+  entregadoIncome?: { id: string; cost: number } | null;
   isCharge: boolean;
   /** ¿La guía salió alguna vez a ruta (package_dispatch)? Si es false y no hay ingreso, es
    *  porque nunca salió a ruta — no una falla. Undefined en cargas. */

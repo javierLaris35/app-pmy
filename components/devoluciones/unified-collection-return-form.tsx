@@ -16,7 +16,7 @@ import { saveReturning, uploadReturningFiles } from "@/lib/services/returning"
 import { DevolutionCard } from "./devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { toast } from "@/lib/toast"
-import { Driver, ReturnValidaton, Vehicles } from "@/lib/types"
+import { Driver, DevolutionRow, Devolution as LibDevolution, Vehicles } from "@/lib/types"
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input"
 import { clearScanBuffer } from "@/components/scanner/use-scan-buffer"
 import { RepartidorSelector } from "../selectors/repartidor-selector"
@@ -27,28 +27,14 @@ import { pdf } from "@react-pdf/renderer"
 import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator"
 
 // Types
+// Fila de recolección del formulario. Estructuralmente compatible con `lib/types` Collection
+// (trae `subsidiaryId`), más `date` que necesita el payload de guardado.
 export type Collection = {
   trackingNumber: string
-  subsidiary: { id: string }
+  subsidiaryId: string
   status: string | null
   date: string
   isPickUp: boolean
-}
-
-export type LastStatus = {
-  type: string
-  exceptionCode: string | null
-}
-
-export type Devolution = {
-  id: string
-  trackingNumber: string
-  subsidiaryName: string
-  date: string
-  hasIncome: boolean
-  status: string
-  lastStatus: LastStatus | null
-  reason: string
 }
 
 type Props = {
@@ -89,7 +75,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
   // Devolution states
   const [devolutionTrackingRaw, setDevolutionTrackingRaw] = useState("")
-  const [devolutions, setDevolutions] = useState<ReturnValidaton[]>([])
+  const [devolutions, setDevolutions] = useState<DevolutionRow[]>([])
   const [invalidDevolutions, setInvalidDevolutions] = useState<string[]>([])
   const [hasValidatedDevolutions, setHasValidatedDevolutions] = useState(false)
 
@@ -99,6 +85,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   
   // ESTADO: Controla el aviso de paquetes sin Pick Up
   const [showWarningModal, setShowWarningModal] = useState(false);
+  const [showAnnulModal, setShowAnnulModal] = useState(false);
 
   // Refs a los escáneres para limpiar su buffer persistido tras un guardado exitoso.
   const collectionsScanRef = useRef<ScanInputHandle>(null);
@@ -169,7 +156,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       const info = await checkCollectionInfo(tn)
       results.push({
         trackingNumber: tn,
-        subsidiary: { id: selectedSubsidiaryId },
+        subsidiaryId: selectedSubsidiaryId,
         status: info.status,
         date: selectedDate ?? "",
         isPickUp: info.isPickUp,
@@ -190,7 +177,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   }
 
   // Devolution handlers
-  const checkDevolutionInfo = async (trackingNumber: string): Promise<Devolution> => {
+  const checkDevolutionInfo = async (trackingNumber: string): Promise<DevolutionRow> => {
     try {
       const res = await validateDevolution(trackingNumber)
       const status =
@@ -208,6 +195,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         status,
         subsidiaryName: res.subsidiaryName,
         hasIncome: res.hasIncome,
+        entregadoIncome: res.entregadoIncome ?? null,
         date: selectedDate,
         lastStatus: res.lastStatus || null,
         reason,
@@ -220,6 +208,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         status: "",
         subsidiaryName: "",
         hasIncome: false,
+        entregadoIncome: null,
+        date: selectedDate ?? "",
         lastStatus: null,
         reason: "",
       }
@@ -247,7 +237,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
 
     setIsLoading(true)
     setProgress(0)
-    const results: Devolution[] = []
+    const results: DevolutionRow[] = []
 
     for (let i = 0; i < validNumbers.length; i++) {
       const tn = validNumbers[i]
@@ -301,8 +291,9 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
               status: newStatus,
               reason: "",
               lastStatus: {
-                ...item.lastStatus,
-                exceptionCode: newStatus
+                type: item.lastStatus?.type ?? null,
+                exceptionCode: newStatus,
+                notes: item.lastStatus?.notes ?? null,
               }
             }
           : item,
@@ -314,6 +305,17 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     setDevolutions((prev) => prev.map((item, i) => (i === index ? { ...item, reason: newReason } : item)))
   }, [])
 
+  // Adaptador para PDF/Excel: la fila del form (DevolutionRow) → el tipo `Devolution` de lib que
+  // consumen esos generadores. Todas las devoluciones del lote son de la sucursal seleccionada.
+  const devolutionsForDoc: LibDevolution[] = devolutions.map((d) => ({
+    id: d.id,
+    trackingNumber: d.trackingNumber,
+    createdAt: d.date ?? "",
+    status: d.status,
+    reason: d.reason ?? "",
+    sucursalId: selectedSubsidiaryId,
+  }))
+
   // PDF Generation
   const generatePDF = async () => {
     try {
@@ -322,14 +324,14 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       const blob= await pdf(<EnhancedFedExPDF 
         key={Date.now()}
         collections={collections}
-        devolutions={devolutions}
+        devolutions={devolutionsForDoc}
         subsidiaryName={subsidiaryName}
         />).toBlob()
 
       const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
       window.open(blobUrl, '_blank');
 
-      await generateFedExExcel(collections, devolutions, subsidiaryName)
+      await generateFedExExcel(collections, devolutionsForDoc, subsidiaryName)
 
       toast("El documento ha sido descargado exitosamente.")
     } catch (error) {
@@ -346,7 +348,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     const blob = await pdf(<EnhancedFedExPDF
       key={Date.now()}
       collections={collections}
-      devolutions={devolutions}
+      devolutions={devolutionsForDoc}
       subsidiaryName={subsidiaryName}
       />).toBlob()
 
@@ -373,7 +375,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     // El 4º arg es `charges`; el flag de descarga es el 5º. Antes se pasaba `false`
     // en la posición de `charges`, por lo que forDownload quedaba en true y forzaba
     // una descarga extra del Excel al mandar el correo.
-    const excelBuffer = await generateFedExExcel(collections, devolutions, subsidiaryName, [], false)
+    const excelBuffer = await generateFedExExcel(collections, devolutionsForDoc, subsidiaryName, [], false)
     const excelBlob = new Blob([excelBuffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
@@ -403,6 +405,9 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
           trackingNumber: d.trackingNumber,
           status: d.status || undefined,
           reason: d.lastStatus?.exceptionCode || undefined,
+          // Solo se llega a executeSave sin ingreso, o tras confirmar el modal de anulación:
+          // marcar las guías con ingreso `entregado` para que el backend lo anule.
+          annulEntregadoIncome: d.entregadoIncome ? true : undefined,
         })),
         collections: collections.map((c) => ({
           trackingNumber: c.trackingNumber,
@@ -434,6 +439,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       setHasValidatedCollections(false)
       setHasValidatedDevolutions(false)
       setShowWarningModal(false)
+      setShowAnnulModal(false)
       // Limpieza del estado en memoria del escáner activo (el de la pestaña visible).
       collectionsScanRef.current?.clear()
       devolutionsScanRef.current?.clear()
@@ -450,6 +456,19 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Último paso antes de guardar: si alguna devolución tiene ingreso `entregado` vigente, se pide
+  // confirmación (se anulará ese cobro al regresar el paquete a FedEx). Si ninguna, guarda directo.
+  // Todas las rutas hacia el guardado pasan por aquí para no saltarse la confirmación.
+  const proceedToSaveOrConfirmAnnul = () => {
+    setShowWarningModal(false)
+    const devsWithIncome = devolutions.filter((d) => d.entregadoIncome)
+    if (devsWithIncome.length > 0) {
+      setShowAnnulModal(true)
+      return
+    }
+    executeSave()
   }
 
   // Unified save (El guardia de validaciones)
@@ -489,8 +508,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       return
     }
 
-    // Si todo está perfecto, guardamos directo
-    executeSave()
+    // Si todo está perfecto, pasamos al gate de confirmación de anulación (o guarda directo).
+    proceedToSaveOrConfirmAnnul()
   }
 
   const totalItems = collections.length + devolutions.length
@@ -769,8 +788,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
               >
                 Cancelar y revisar
               </Button>
-              <Button 
-                onClick={executeSave} 
+              <Button
+                onClick={proceedToSaveOrConfirmAnnul}
                 disabled={isLoading}
                 className="bg-orange-600 hover:bg-orange-700 text-white"
               >
@@ -780,8 +799,51 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Action buttons (Se ocultan si el modal de advertencia está activo) */}
-        {!showWarningModal && (
+        {showAnnulModal && (
+          <div className="bg-red-50 p-4 rounded-lg mt-6 animate-in fade-in slide-in-from-bottom-2">
+            <h3 className="text-red-900 font-bold flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Se anulará el ingreso de estos paquetes
+            </h3>
+            <p className="text-sm text-red-800 mt-2">
+              Los siguientes paquetes se regresarán a FedEx y ya tienen un ingreso <strong>"entregado"</strong>. Al continuar, ese ingreso se <strong>anulará</strong>. ¿Estás de acuerdo?
+            </p>
+
+            <div className="mt-3 bg-white/60 rounded p-2 max-h-40 overflow-y-auto">
+              <ul className="text-sm text-red-900 divide-y divide-red-100">
+                {devolutions.filter((d) => d.entregadoIncome).map((d) => (
+                  <li key={d.trackingNumber} className="flex items-center justify-between gap-3 py-1">
+                    <span className="font-mono">{d.trackingNumber}</span>
+                    <span className="text-red-700 truncate">{d.subsidiaryName || "—"}</span>
+                    <span className="font-semibold tabular-nums whitespace-nowrap">
+                      {(d.entregadoIncome?.cost ?? 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex gap-3 mt-4">
+              <Button
+                onClick={() => setShowAnnulModal(false)}
+                variant="outline"
+                className="bg-white hover:bg-gray-100"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={executeSave}
+                disabled={isLoading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isLoading ? "Guardando..." : "Sí, devolver y anular ingreso"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons (Se ocultan si algún modal de confirmación está activo) */}
+        {!showWarningModal && !showAnnulModal && (
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
               onClick={handleUnifiedSave}

@@ -142,6 +142,16 @@ const PackageDispatchForm: React.FC<Props> = ({
     'dispatch_is315',
     false,
   );
+
+  // Guarda del footgun: un `routeDate` persistido de un día ANTERIOR no debe acarrearse
+  // silenciosamente al reabrir el formulario (eso dejaba rutas fechadas "ayer" sin querer,
+  // que luego blindaban el estatus en el sync). Al montar se re-ancla a HOY; un backfill
+  // deliberado se vuelve a elegir en el momento y queda avisado abajo.
+  useEffect(() => {
+    const today = new Date().toLocaleDateString('en-CA');
+    if (routeDate && routeDate < today) setRouteDate(today);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [packages, setPackages] = useLocalStorage<PackageInfo[]>(
     'dispatch_packages', 
     []
@@ -872,6 +882,22 @@ const PackageDispatchForm: React.FC<Props> = ({
                   disabled={isLoading}
                   className="w-full"
                 />
+                {routeDate !== new Date().toLocaleDateString('en-CA') && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                    <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Fecha retroactiva: los paquetes se registrarán con la ruta del{" "}
+                      <strong>
+                        {new Date(`${routeDate}T00:00:00`).toLocaleDateString("es-MX", {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "short",
+                        })}
+                      </strong>
+                      , no de hoy. Verifica que sea intencional.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <Separator />

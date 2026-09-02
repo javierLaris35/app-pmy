@@ -8,6 +8,8 @@ export type ReturningDevolutionItem = {
   trackingNumber: string
   status?: string
   reason?: string
+  /** El usuario confirmó anular el ingreso `entregado` de esta guía al devolverla. */
+  annulEntregadoIncome?: boolean
 }
 
 export type ReturningCollectionItem = {

@@ -3,12 +3,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { SelectStatus } from "./select-status";
-import { ReturnValidaton } from "@/lib/types";
+import { DevolutionRow } from "@/lib/types";
 import { DEVOLUTION_REASON_MAP } from "@/lib/constants";
 import classNames from "classnames";
 
 interface DevolutionCardProps {
-  item: ReturnValidaton;
+  item: DevolutionRow;
   index: number;
   isLoading: boolean;
   handleChangeStatus: (index: number, status: string) => void;
@@ -59,7 +59,7 @@ function prettyStatus(raw?: string | null): string {
  *  - Shipment sin ingreso que NUNCA salió a ruta → "Sin ruta" (esperado, no es falla).
  *  - Shipment sin ingreso que SÍ salió a ruta → "No" (anomalía real: revisar).
  */
-function incomeIndicator(item: ReturnValidaton): { label: string; className: string; title: string } {
+function incomeIndicator(item: DevolutionRow): { label: string; className: string; title: string } {
   if (item.isCharge)
     return {
       label: "Por carga",
