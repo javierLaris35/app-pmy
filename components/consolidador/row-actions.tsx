@@ -101,9 +101,26 @@ export function RowActions({ row, onEditCost, onToggleSecondAbord, onDelete }: P
             <DialogTitle>Editar costo</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              Costo actual: <span className="font-semibold text-slate-900">{formatCurrency(row.originalCost ?? row.cost)}</span>
-            </div>
+            {isCharge && row.secondAbordApplied === true && row.secondAbordAmount > 0 ? (
+              <div className="rounded-md bg-slate-50 px-3 py-2 text-sm">
+                <div className="flex justify-between text-slate-600">
+                  <span>Costo de carga</span>
+                  <span className="tabular-nums">{formatCurrency(Math.max(0, row.cost - row.secondAbordAmount))}</span>
+                </div>
+                <div className="flex justify-between text-violet-600">
+                  <span>2º a bordo</span>
+                  <span className="tabular-nums">{formatCurrency(row.secondAbordAmount)}</span>
+                </div>
+                <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900">
+                  <span>Total actual</span>
+                  <span className="tabular-nums">{formatCurrency(row.cost)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                Costo actual: <span className="font-semibold text-slate-900">{formatCurrency(row.originalCost ?? row.cost)}</span>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="cost">Nuevo costo</Label>
               <Input id="cost" type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />

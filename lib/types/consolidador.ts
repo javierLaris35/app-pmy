@@ -24,6 +24,7 @@ export interface ConsolidadorRow {
   shipmentStatus: string | null;
   editReason: string | null;
   secondAbordApplied: boolean | null;
+  secondAbordAmount: number;
 }
 
 export interface ConsolidadorBucket {
