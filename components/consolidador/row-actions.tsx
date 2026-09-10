@@ -101,7 +101,7 @@ export function RowActions({ row, onEditCost, onToggleSecondAbord, onDelete }: P
             <DialogTitle>Editar costo</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {isCharge && row.secondAbordApplied === true && row.secondAbordAmount > 0 ? (
+            {isCharge && isApplied && row.secondAbordAmount > 0 ? (
               <div className="rounded-md bg-slate-50 px-3 py-2 text-sm">
                 <div className="flex justify-between text-slate-600">
                   <span>Costo de carga</span>
