@@ -41,7 +41,7 @@ export function HistoryDialog({ incomeId, open, onOpenChange }: Props) {
     let active = true;
     setLoading(true);
     getIncomeHistory(incomeId)
-      .then((data) => active && setEntries(data))
+      .then((data) => active && setEntries(Array.isArray(data) ? data : []))
       .catch(() => active && setEntries([]))
       .finally(() => active && setLoading(false));
     return () => {
