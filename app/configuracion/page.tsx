@@ -29,7 +29,7 @@ const CompanyPanel = dynamic(() => import("@/components/configuracion/company-pa
 const PermissionsPanel = dynamic(() => import("@/components/configuracion/permissions-panel").then((m) => m.PermissionsPanel), { ssr: false, loading: PanelFallback })
 const UsersPanel = dynamic(() => import("@/components/configuracion/users-panel").then((m) => m.UsersPanel), { ssr: false, loading: PanelFallback })
 const SubsidiaryConfigPanel = dynamic(() => import("@/components/configuracion/subsidiary-config-panel").then((m) => m.SubsidiaryConfigPanel), { ssr: false, loading: PanelFallback })
-const SeventeenTrackQuotaCard = dynamic(() => import("@/components/configuracion/seventeen-track-quota-card").then((m) => m.SeventeenTrackQuotaCard), { ssr: false, loading: PanelFallback })
+const DhlTrackingCard = dynamic(() => import("@/components/configuracion/dhl-tracking-card").then((m) => m.DhlTrackingCard), { ssr: false, loading: PanelFallback })
 const CatalogPanel = dynamic(() => import("@/components/configuracion/catalog-panel").then((m) => m.CatalogPanel), { ssr: false, loading: PanelFallback })
 const GeocodePanel = dynamic(() => import("@/components/configuracion/geocode-panel").then((m) => m.GeocodePanel), { ssr: false, loading: PanelFallback })
 const ServerStatsPanel = dynamic(() => import("@/components/configuracion/server-stats-panel").then((m) => m.ServerStatsPanel), { ssr: false, loading: PanelFallback })
@@ -169,7 +169,7 @@ function ConfiguracionPage() {
                   </CardContent>
                 </Card>
 
-                <SeventeenTrackQuotaCard />
+                <DhlTrackingCard />
               </div>
             )}
           </div>

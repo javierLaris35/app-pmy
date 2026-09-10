@@ -142,7 +142,7 @@ function AuditoriaPage() {
       setDhlRunning(true);
       await runDhlSyncCron();
       toast.success(
-        "Tracking DHL iniciado en segundo plano. El avance sale en los logs; el uso se actualiza en unos minutos.",
+        "Tracking DHL iniciado en segundo plano. El avance sale en los logs.",
         { duration: 8000 },
       );
     } catch (e: any) {
@@ -282,7 +282,7 @@ function AuditoriaPage() {
               <Button size="sm" variant="outline" onClick={handleDevTracking} disabled={devRunning} title="Probar tracking FedEx (dev · 60 guías)">
                 {devRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">FedEx</span>
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDhlTracking} disabled={dhlRunning} title="Probar tracking DHL (WhereParcel)">
+              <Button size="sm" variant="outline" onClick={handleDhlTracking} disabled={dhlRunning} title="Probar tracking DHL (API oficial)">
                 {dhlRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">DHL</span>
               </Button>
               <select
