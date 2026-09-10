@@ -50,6 +50,7 @@ export function ServerBackupPanel() {
   const [elapsed, setElapsed] = useState(0) // segundos, corre en el front
   const [timings, setTimings] = useState<Partial<Record<string, number>>>({})
   const [reuseCache, setReuseCache] = useState(false)
+  const [trimDays, setTrimDays] = useState(7) // 7 = recortado (rápido); 0 = completo
   const [dbSize, setDbSize] = useState<{ bytes: number; tables: number } | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
@@ -123,8 +124,8 @@ export function ServerBackupPanel() {
     setDbSize(null)
     const controller = new AbortController()
     abortRef.current = controller
-    streamRestoreFromProd(onEvent, () => { setRunning(false); abortRef.current = null }, controller.signal, reuseCache)
-  }, [onEvent, reuseCache])
+    streamRestoreFromProd(onEvent, () => { setRunning(false); abortRef.current = null }, controller.signal, reuseCache, trimDays)
+  }, [onEvent, reuseCache, trimDays])
 
   const cancel = useCallback(() => abortRef.current?.abort(), [])
 
@@ -188,6 +189,16 @@ export function ServerBackupPanel() {
                 <Button variant="outline" onClick={cancel}>Cancelar</Button>
               )}
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Switch checked={trimDays > 0} onCheckedChange={(v) => setTrimDays(v ? 7 : 0)} disabled={running} />
+              Recorte de historial (7 días) — mucho más rápido
+            </label>
+            {trimDays > 0 && (
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                El historial de estatus se recorta a los últimos 7 días; los shipments se conservan completos.
+              </p>
+            )}
 
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Switch checked={reuseCache} onCheckedChange={setReuseCache} disabled={running} />
