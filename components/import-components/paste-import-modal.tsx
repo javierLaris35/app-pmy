@@ -100,7 +100,7 @@ function CountChip({ label, value, tone = "neutral" }: { label: string; value: n
 }
 
 export function PasteImportModal({
-  open = true, onOpenChange, subsidiaryId, asPage = false, onClose,
+  open = true, onOpenChange, subsidiaryId, asPage = false, onClose, helpHandleRef,
 }: {
   open?: boolean;
   onOpenChange?: (o: boolean) => void;
@@ -109,6 +109,8 @@ export function PasteImportModal({
   asPage?: boolean;
   /** En modo página: qué hacer al cancelar / terminar (p.ej. router.back()). */
   onClose?: () => void;
+  /** En modo página: recibe el disparador del tutorial para montar el botón "Cómo funciona" arriba (OperationHeader). */
+  helpHandleRef?: React.MutableRefObject<(() => void) | undefined>;
 }) {
   const { subsidiaries } = useSubsidiaries();
   const [kind, setKind] = useState<PasteKind>("master");
@@ -126,6 +128,11 @@ export function PasteImportModal({
   // Tutorial ilustrado: se abre una sola vez en el primer uso (motor genérico).
   const [tutorialOpen, setTutorialOpen] = useTutorialFirstView("hasSeenPasteTutorial", open);
   const startSpotlight = () => runSpotlight(PASTE_SPOTLIGHT);
+  // En modo página, expone el disparador del tutorial para que el botón "Cómo funciona"
+  // pueda vivir arriba en el OperationHeader.
+  useEffect(() => {
+    if (helpHandleRef) helpHandleRef.current = () => setTutorialOpen(true);
+  }, [helpHandleRef, setTutorialOpen]);
 
   // Enriquecimiento acumulado.
   const [paymentsRaw, setPaymentsRaw] = useState("");
@@ -435,17 +442,13 @@ export function PasteImportModal({
             así que aquí solo va una barra ligera (chips + "Cómo funciona"). En modal
             se conserva el header completo. */}
         {asPage ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
-            {countChips ?? <span />}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTutorialOpen(true)}
-              className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
-            >
-              <HelpCircle className="h-4 w-4" /> Cómo funciona
-            </Button>
-          </div>
+          // El botón "Cómo funciona" vive arriba en el OperationHeader (via helpHandleRef).
+          // Aquí solo mostramos los chips cuando ya hay datos, para que el cuerpo suba.
+          countChips ? (
+            <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 pb-4">
+              {countChips}
+            </div>
+          ) : null
         ) : (
           <DialogHeader className="flex flex-col gap-3 border-b border-gray-100 p-6 pb-5">
             <div className="flex items-start justify-between gap-4">

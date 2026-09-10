@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ClipboardPaste, ArrowLeft } from "lucide-react";
+import { useRef } from "react";
+import { ClipboardPaste, ArrowLeft, HelpCircle } from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { withAuth } from "@/hoc/withAuth";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -19,6 +20,7 @@ function PasteImportPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const subsidiaryId = user?.subsidiary?.id;
+  const helpRef = useRef<(() => void) | undefined>(undefined);
 
   return (
     <AppLayout>
@@ -28,13 +30,18 @@ function PasteImportPage() {
           title="Pegar datos FedEx"
           description="Copia desde Excel (con encabezados) y pega aquí. Mismo mapeo y validaciones que el import por archivo."
           actions={
-            <Button variant="outline" className="gap-1.5" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4" /> Volver
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => helpRef.current?.()}>
+                <HelpCircle className="h-4 w-4" /> Cómo funciona
+              </Button>
+              <Button variant="outline" className="gap-1.5" onClick={() => router.back()}>
+                <ArrowLeft className="h-4 w-4" /> Volver
+              </Button>
+            </div>
           }
         />
 
-        <PasteImportModal asPage subsidiaryId={subsidiaryId} onClose={() => router.back()} />
+        <PasteImportModal asPage subsidiaryId={subsidiaryId} onClose={() => router.back()} helpHandleRef={helpRef} />
       </div>
     </AppLayout>
   );
