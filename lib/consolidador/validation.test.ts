@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidCostEdit, isValidManualIncome, canFixStatus } from "./validation";
+import { isValidCostEdit, isValidManualIncome, canFixStatus, parseTrackingList, MAX_BATCH_TRACKINGS } from "./validation";
 import type { SearchPackageResult } from "@/lib/types/consolidador";
 
 describe("isValidCostEdit", () => {
@@ -49,5 +49,18 @@ describe("canFixStatus", () => {
   });
   it("bloquea sin shipment", () => {
     expect(canFixStatus({ ...base, shipment: null })).toBe(false);
+  });
+});
+
+describe("parseTrackingList", () => {
+  it("separa por saltos de línea, comas y espacios y deduplica", () => {
+    expect(parseTrackingList("T1\nT2, T3  T2")).toEqual(["T1", "T2", "T3"]);
+  });
+  it("recorta a MAX_BATCH_TRACKINGS", () => {
+    const many = Array.from({ length: 40 }, (_, i) => `T${i}`).join("\n");
+    expect(parseTrackingList(many)).toHaveLength(MAX_BATCH_TRACKINGS);
+  });
+  it("texto vacío → lista vacía", () => {
+    expect(parseTrackingList("   \n  ")).toEqual([]);
   });
 });

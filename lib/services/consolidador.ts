@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config";
-import { ConsolidadorReadResult, ConsolidadorRow, ManualKind, SearchPackageResult } from "../types/consolidador";
+import { ConsolidadorReadResult, ConsolidadorRow, ManualKind, SearchBatchResult, SearchPackageResult } from "../types/consolidador";
 
 const baseUrl = "/consolidador";
 
@@ -39,6 +39,10 @@ export const createManualIncome = async (payload: {
 /** GET: busca un paquete y devuelve estatus interno vs FedEx + income ligado. */
 export const searchPackage = async (tracking: string): Promise<SearchPackageResult> =>
   (await axiosConfig.get<SearchPackageResult>(`${baseUrl}/package/${encodeURIComponent(tracking)}`)).data;
+
+/** POST: búsqueda por lote (hasta 30 guías). */
+export const searchPackageBatch = async (trackings: string[]): Promise<SearchBatchResult> =>
+  (await axiosConfig.post<SearchBatchResult>(`${baseUrl}/package/batch`, { trackings })).data;
 
 /** PATCH: corrige el estatus del shipment contra FedEx y ajusta el income ligado. */
 export const fixPackageStatus = async (shipmentId: string, newStatus: string, reason: string) =>

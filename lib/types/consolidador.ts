@@ -62,3 +62,11 @@ export interface SearchPackageResult {
   suggestion: { newStatus: string | null; incomeEffect: { kind: string } } | null;
   income: ConsolidadorRow | null;
 }
+
+export interface SearchBatchItem extends SearchPackageResult {
+  tracking: string;
+}
+
+export interface SearchBatchResult {
+  results: SearchBatchItem[];
+}

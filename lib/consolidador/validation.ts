@@ -22,6 +22,21 @@ export function isValidManualIncome(draft: ManualIncomeDraft, week: { from: stri
   return true;
 }
 
+/** Máximo de guías por búsqueda en lote. */
+export const MAX_BATCH_TRACKINGS = 30;
+
+/**
+ * Parsea un texto libre (saltos de línea, comas, espacios, tabs) a una lista de guías única,
+ * recortada a {@link MAX_BATCH_TRACKINGS}.
+ */
+export function parseTrackingList(text: string): string[] {
+  const tokens = (text || "")
+    .split(/[\s,;]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return [...new Set(tokens)].slice(0, MAX_BATCH_TRACKINGS);
+}
+
 /**
  * ¿Se puede corregir el estatus? Solo si hay shipment, FedEx confirmó (found y sin error), y su
  * estatus difiere del interno. Si FedEx falla o coincide, no se ofrece la corrección.
