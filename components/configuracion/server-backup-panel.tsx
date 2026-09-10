@@ -50,6 +50,7 @@ export function ServerBackupPanel() {
   const [elapsed, setElapsed] = useState(0) // segundos, corre en el front
   const [timings, setTimings] = useState<Partial<Record<string, number>>>({})
   const [reuseCache, setReuseCache] = useState(false)
+  const [dbSize, setDbSize] = useState<{ bytes: number; tables: number } | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const logEndRef = useRef<HTMLDivElement | null>(null)
@@ -89,6 +90,9 @@ export function ServerBackupPanel() {
         setPercent(ev.percent)
         setBytes({ done: ev.bytes, total: ev.totalBytes })
         break
+      case "size":
+        setDbSize({ bytes: ev.bytes, tables: ev.tables })
+        break
       case "log":
         if (ev.level === "table" && ev.line) {
           setCurrentTable(ev.line.replace(/^▶.*Restaurando `?/, "").replace(/`$/, ""))
@@ -116,6 +120,7 @@ export function ServerBackupPanel() {
     setCurrentTable("")
     setElapsed(0)
     setTimings({})
+    setDbSize(null)
     const controller = new AbortController()
     abortRef.current = controller
     streamRestoreFromProd(onEvent, () => { setRunning(false); abortRef.current = null }, controller.signal, reuseCache)
@@ -163,6 +168,14 @@ export function ServerBackupPanel() {
                 <span className="truncate font-medium">{status.prodApiUrl}</span>
                 <span className="text-muted-foreground">Destino local</span>
                 <span className="font-medium">{status.targetDatabase}</span>
+                {dbSize && (
+                  <>
+                    <span className="text-muted-foreground">Tamaño (prod)</span>
+                    <span className="font-medium tabular-nums">
+                      {fmtBytes(dbSize.bytes)} en disco · {dbSize.tables} tablas
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 

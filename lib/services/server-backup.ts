@@ -18,6 +18,7 @@ export type LogLevel = "info" | "warn" | "phase" | "table" | "heartbeat";
 export type BackupEvent =
   | { type: "step"; key: BackupPhase; message: string; percent: number }
   | { type: "progress"; phase: BackupPhase; percent: number; bytes?: number; totalBytes?: number }
+  | { type: "size"; bytes: number; tables: number }
   | { type: "log"; stream?: "stdout" | "stderr"; level?: LogLevel; line: string; elapsedMs?: number }
   | { type: "done"; message: string; percent: number; timings?: Partial<Record<BackupPhase, number>> }
   | { type: "error"; message: string };
