@@ -131,6 +131,7 @@ export function DataTable<TData, TValue>({
         "recipientCity",
         "recipientZip",
         "trackingNumber",
+        "consNumber", // No. de consolidado (aditivo: solo aplica a tablas que tengan esta columna)
         "pid", // PID/dhlUniqueId (aditivo: solo aplica a tablas que tengan esta columna)
       ]
 

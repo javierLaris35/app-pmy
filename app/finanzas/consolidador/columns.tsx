@@ -65,16 +65,17 @@ export function getConsolidadorColumns({ renderActions }: Handlers = {}): Column
     },
     {
       accessorKey: "trackingNumber",
-      header: "Guía / Consolidado",
-      cell: ({ row }) => {
-        const { trackingNumber, consNumber } = row.original;
-        return (
-          <div className="flex flex-col">
-            <span className="font-medium text-slate-800 tabular-nums">{trackingNumber || consNumber || "—"}</span>
-            {consNumber && trackingNumber && <span className="text-[11px] text-slate-400">Cons. {consNumber}</span>}
-          </div>
-        );
-      },
+      header: "Guía",
+      cell: ({ row }) => (
+        <span className="font-medium text-slate-800 tabular-nums">{row.original.trackingNumber || "—"}</span>
+      ),
+    },
+    {
+      accessorKey: "consNumber",
+      header: "Consolidado",
+      cell: ({ row }) => (
+        <span className="tabular-nums text-slate-600">{row.original.consNumber || "—"}</span>
+      ),
     },
     {
       accessorKey: "shipmentStatus",
