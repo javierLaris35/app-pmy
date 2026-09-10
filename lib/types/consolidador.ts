@@ -87,6 +87,8 @@ export interface SearchBatchItem extends SearchPackageResult {
   statusDate: string | null;
   /** Fecha del registro en ingresos (income.date). */
   incomeDate: string | null;
+  /** Anomalías detectadas (fecha desalineada, estatus retrocedió, ingreso sin respaldo…). */
+  anomalies: { code: string; label: string }[];
 }
 
 export interface SearchBatchResult {

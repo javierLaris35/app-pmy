@@ -129,6 +129,34 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
       },
     },
     {
+      id: "alertas",
+      header: "Alertas",
+      cell: ({ row }) => {
+        const a = row.original.anomalies ?? [];
+        if (a.length === 0) return <span className="text-xs text-emerald-500">OK</span>;
+        const short: Record<string, string> = {
+          date_mismatch: "Fecha",
+          status_regressed: "Retroceso",
+          income_without_support: "Sin respaldo",
+        };
+        return (
+          <div className="flex flex-wrap gap-1">
+            {a.map((an) => (
+              <Badge
+                key={an.code}
+                variant="outline"
+                className="whitespace-nowrap gap-1 bg-amber-50 text-amber-700 border-amber-200 font-normal"
+                title={an.label}
+              >
+                <AlertTriangle className="h-3 w-3" />
+                {short[an.code] ?? an.code}
+              </Badge>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
       id: "fechas",
       header: () => (
         <div className="whitespace-nowrap">
