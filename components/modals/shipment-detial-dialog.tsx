@@ -221,7 +221,9 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
             ? format(new Date(fechaEntrega), "dd/MM/yyyy hh:mm a", { locale: es })
             : "-",
           "Días de Retraso": diasRetraso,
-          "Estado": item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1).replace("_", " ") : "Desconocido"
+          "Estado": item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1).replace("_", " ") : "Desconocido",
+          "Costo": formatCurrency(Number(item.cost ?? 0)),
+          "2º a bordo": Number(item.secondAbord ?? 0) > 0 ? formatCurrency(Number(item.secondAbord)) : "-",
         };
       });
 
