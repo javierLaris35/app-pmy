@@ -9,13 +9,13 @@ import { withAuth } from "@/hoc/withAuth";
 import { useConsolidadorWeek } from "@/hooks/services/consolidador/use-consolidador";
 import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-toolbar";
 import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
-import { ChargeActions } from "@/components/consolidador/charge-actions";
+import { RowActions } from "@/components/consolidador/row-actions";
 import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
 import { SearchPackageDialog } from "@/components/consolidador/search-package-dialog";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
-import { patchIncomeCost, patchSecondAbord, createManualIncome } from "@/lib/services/consolidador";
+import { patchIncomeCost, patchSecondAbord, createManualIncome, deleteIncome } from "@/lib/services/consolidador";
 import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/week";
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
@@ -77,18 +77,34 @@ function ConsolidadorPage() {
     [subsidiaryId, mutate],
   );
 
+  const handleDelete = useCallback(
+    async (id: string, reason: string) => {
+      try {
+        await deleteIncome(id, reason);
+        await mutate();
+        toast.success("Ingreso eliminado");
+      } catch {
+        toast.error("No se pudo eliminar el ingreso");
+      }
+    },
+    [mutate],
+  );
+
   const renderActions = useCallback(
     (row: ConsolidadorRow) => (
       <div className="flex items-center justify-end gap-1">
         <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial" onClick={() => setHistoryId(row.id)}>
           <History className="h-4 w-4 text-slate-500" />
         </Button>
-        {row.sourceType === "charge" && (
-          <ChargeActions row={row} onEditCost={handleEditCost} onToggleSecondAbord={handleToggleSecondAbord} />
-        )}
+        <RowActions
+          row={row}
+          onEditCost={handleEditCost}
+          onToggleSecondAbord={handleToggleSecondAbord}
+          onDelete={handleDelete}
+        />
       </div>
     ),
-    [handleEditCost, handleToggleSecondAbord],
+    [handleEditCost, handleToggleSecondAbord, handleDelete],
   );
 
   const columns = useMemo(() => getConsolidadorColumns({ renderActions }), [renderActions]);

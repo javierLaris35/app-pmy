@@ -37,6 +37,10 @@ export const patchIncomeCost = async (id: string, cost: number, reason: string):
 export const patchSecondAbord = async (id: string, enabled: boolean, reason: string): Promise<ConsolidadorRow> =>
   (await axiosConfig.patch<ConsolidadorRow>(`${baseUrl}/income/${id}/second-abord`, { enabled, reason })).data;
 
+/** DELETE: elimina (soft-delete) un ingreso; deja de contar en los reportes. */
+export const deleteIncome = async (id: string, reason: string) =>
+  (await axiosConfig.delete(`${baseUrl}/income/${id}`, { data: { reason } })).data;
+
 /** POST: alta manual de ingreso (recolección / POD / DEX / manual). */
 export const createManualIncome = async (payload: {
   subsidiaryId: string;

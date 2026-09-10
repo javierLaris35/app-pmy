@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,50 +16,54 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
 import { isValidCostEdit } from "@/lib/consolidador/validation";
 import { ConsolidadorRow } from "@/lib/types/consolidador";
-import { MoreHorizontal, PencilLine, PlusCircle, MinusCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PencilLine, PlusCircle, MinusCircle, Loader2, Trash2 } from "lucide-react";
 
 interface Props {
   row: ConsolidadorRow;
   onEditCost: (id: string, cost: number, reason: string) => Promise<void>;
   onToggleSecondAbord: (id: string, enabled: boolean, reason: string) => Promise<void>;
+  onDelete: (id: string, reason: string) => Promise<void>;
 }
 
-export function ChargeActions({ row, onEditCost, onToggleSecondAbord }: Props) {
+export function RowActions({ row, onEditCost, onToggleSecondAbord, onDelete }: Props) {
   const [costOpen, setCostOpen] = useState(false);
   const [abordOpen, setAbordOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [cost, setCost] = useState<string>(String(row.cost));
   const [costReason, setCostReason] = useState("");
   const [abordReason, setAbordReason] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
 
-  // null o true => actualmente incluido → la acción es quitarlo.
-  const isApplied = row.secondAbordApplied !== false;
+  const isCharge = row.sourceType === "charge";
+  const isApplied = row.secondAbordApplied !== false; // null o true => incluido → acción = quitar
   const targetEnabled = !isApplied;
 
-  const submitCost = async () => {
-    const value = Number(cost);
-    if (!isValidCostEdit(value, costReason)) return;
+  const wrap = async (fn: () => Promise<void>, close: () => void) => {
     setSaving(true);
     try {
-      await onEditCost(row.id, value, costReason.trim());
-      setCostOpen(false);
-      setCostReason("");
+      await fn();
+      close();
     } finally {
       setSaving(false);
     }
   };
 
-  const submitAbord = async () => {
+  const submitCost = () => {
+    const value = Number(cost);
+    if (!isValidCostEdit(value, costReason)) return;
+    return wrap(() => onEditCost(row.id, value, costReason.trim()), () => { setCostOpen(false); setCostReason(""); });
+  };
+
+  const submitAbord = () => {
     if (abordReason.trim().length < 3) return;
-    setSaving(true);
-    try {
-      await onToggleSecondAbord(row.id, targetEnabled, abordReason.trim());
-      setAbordOpen(false);
-      setAbordReason("");
-    } finally {
-      setSaving(false);
-    }
+    return wrap(() => onToggleSecondAbord(row.id, targetEnabled, abordReason.trim()), () => { setAbordOpen(false); setAbordReason(""); });
+  };
+
+  const submitDelete = () => {
+    if (deleteReason.trim().length < 3) return;
+    return wrap(() => onDelete(row.id, deleteReason.trim()), () => { setDeleteOpen(false); setDeleteReason(""); });
   };
 
   return (
@@ -73,12 +78,18 @@ export function ChargeActions({ row, onEditCost, onToggleSecondAbord }: Props) {
           <DropdownMenuItem onClick={() => { setCost(String(row.cost)); setCostOpen(true); }}>
             <PencilLine className="mr-2 h-4 w-4" /> Editar costo
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setAbordOpen(true)}>
-            {isApplied ? (
-              <><MinusCircle className="mr-2 h-4 w-4" /> Quitar 2º a bordo</>
-            ) : (
-              <><PlusCircle className="mr-2 h-4 w-4" /> Poner 2º a bordo</>
-            )}
+          {isCharge && (
+            <DropdownMenuItem onClick={() => setAbordOpen(true)}>
+              {isApplied ? (
+                <><MinusCircle className="mr-2 h-4 w-4" /> Quitar 2º a bordo</>
+              ) : (
+                <><PlusCircle className="mr-2 h-4 w-4" /> Poner 2º a bordo</>
+              )}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-rose-600 focus:text-rose-600" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -87,7 +98,7 @@ export function ChargeActions({ row, onEditCost, onToggleSecondAbord }: Props) {
       <Dialog open={costOpen} onOpenChange={setCostOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar costo de la carga</DialogTitle>
+            <DialogTitle>Editar costo</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
@@ -99,7 +110,7 @@ export function ChargeActions({ row, onEditCost, onToggleSecondAbord }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cost-reason">Motivo</Label>
-              <Textarea id="cost-reason" placeholder="Ej. carga sin 2º a bordo real" value={costReason} onChange={(e) => setCostReason(e.target.value)} />
+              <Textarea id="cost-reason" placeholder="Motivo del ajuste" value={costReason} onChange={(e) => setCostReason(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
@@ -111,7 +122,7 @@ export function ChargeActions({ row, onEditCost, onToggleSecondAbord }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: 2º a bordo */}
+      {/* Dialog: 2º a bordo (solo cargas) */}
       <Dialog open={abordOpen} onOpenChange={setAbordOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -119,9 +130,7 @@ export function ChargeActions({ row, onEditCost, onToggleSecondAbord }: Props) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
-              {isApplied
-                ? "Se restará el 2º a bordo del costo de esta carga."
-                : "Se sumará el 2º a bordo al costo de esta carga."}
+              {isApplied ? "Se restará el 2º a bordo del costo de esta carga." : "Se sumará el 2º a bordo al costo de esta carga."}
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="abord-reason">Motivo</Label>
@@ -132,6 +141,30 @@ export function ChargeActions({ row, onEditCost, onToggleSecondAbord }: Props) {
             <Button variant="outline" onClick={() => setAbordOpen(false)} disabled={saving}>Cancelar</Button>
             <Button onClick={submitAbord} disabled={saving || abordReason.trim().length < 3}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: eliminar */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar ingreso</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              El ingreso se eliminará y <strong>dejará de contar</strong> en los reportes. Queda registrado en el historial.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="del-reason">Motivo</Label>
+              <Textarea id="del-reason" placeholder="Motivo de la eliminación" value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={saving}>Cancelar</Button>
+            <Button variant="destructive" onClick={submitDelete} disabled={saving || deleteReason.trim().length < 3}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>
