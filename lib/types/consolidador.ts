@@ -83,6 +83,10 @@ export interface SearchPackageResult {
 
 export interface SearchBatchItem extends SearchPackageResult {
   tracking: string;
+  /** Fecha del último evento de estatus (shipment_status.timestamp). */
+  statusDate: string | null;
+  /** Fecha del registro en ingresos (income.date). */
+  incomeDate: string | null;
 }
 
 export interface SearchBatchResult {

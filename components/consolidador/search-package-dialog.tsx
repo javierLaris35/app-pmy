@@ -40,6 +40,9 @@ interface Props {
 }
 
 const fmt = (s: string | null) => (s ? s.replace(/_/g, " ") : "—");
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : "—";
+const dayKey = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : null);
 
 interface Handlers {
   reasonOk: boolean;
@@ -118,6 +121,29 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
           <span className={`text-xs ${mis ? "font-medium text-amber-600" : "text-slate-600"}`}>
             {r.income.subsidiaryName ?? "—"}
           </span>
+        );
+      },
+    },
+    {
+      id: "fechas",
+      header: () => (
+        <div className="whitespace-nowrap">
+          F. estatus <span className="text-slate-300">/</span> ingreso
+        </div>
+      ),
+      cell: ({ row }) => {
+        const r = row.original;
+        // Resalta cuando ambas existen pero caen en días distintos (posible cobro mal fechado).
+        const mismatch =
+          !!r.statusDate && !!r.incomeDate && dayKey(r.statusDate) !== dayKey(r.incomeDate);
+        return (
+          <div className="whitespace-nowrap text-xs tabular-nums">
+            <span className="text-slate-600">{fmtDate(r.statusDate)}</span>
+            <span className="mx-1 text-slate-300">/</span>
+            <span className={mismatch ? "font-semibold text-amber-600" : "text-slate-600"}>
+              {fmtDate(r.incomeDate)}
+            </span>
+          </div>
         );
       },
     },
