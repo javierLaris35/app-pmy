@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
@@ -62,7 +63,7 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
       id: "interno",
       header: "Interno",
       cell: ({ row }) => (
-        <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 font-normal">
+        <Badge variant="outline" className="whitespace-nowrap bg-slate-50 text-slate-600 border-slate-200 font-normal">
           {fmt(row.original.internalStatus)}
         </Badge>
       ),
@@ -80,7 +81,7 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
           );
         }
         return (
-          <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 font-normal">
+          <Badge variant="outline" className="whitespace-nowrap bg-sky-50 text-sky-700 border-sky-200 font-normal">
             {fmt(f.status)}
           </Badge>
         );
@@ -304,23 +305,24 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
 
           {/* Motivo compartido */}
           {anyActionable && (
-            <div className="space-y-1.5">
-              <Label htmlFor="batch-reason" className="text-xs font-semibold text-slate-600">
-                Motivo <span className="font-normal text-slate-400">(aplica a la acción que ejecutes)</span>
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <Label htmlFor="batch-reason" className="shrink-0 text-xs font-semibold text-slate-600">
+                Motivo
               </Label>
-              <Textarea
+              <Input
                 id="batch-reason"
-                rows={2}
-                className="resize-none"
+                className="h-8 border-slate-200"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Motivo"
+                placeholder="Requerido para aplicar cualquier acción"
               />
             </div>
           )}
 
           {/* Resultados */}
-          {results.length > 0 && <DataTable columns={columns} data={results} autoResetPageIndex={false} />}
+          {results.length > 0 && (
+            <DataTable columns={columns} data={results} autoResetPageIndex={false} hideToolbar hideSelectionCount />
+          )}
         </div>
       </DialogContent>
     </Dialog>

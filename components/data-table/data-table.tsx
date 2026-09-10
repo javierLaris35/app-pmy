@@ -6,6 +6,7 @@ import {
   type VisibilityState,
   type ExpandedState,
   type Row,
+  type Table as TanstackTable,
   type PaginationState,
   type OnChangeFn,
   flexRender,
@@ -32,7 +33,7 @@ interface DataTableProps<TData, TValue> {
     title: string
     options?: { label: string; value: string }[] 
   }[],
-  onTableReady?: (table: ReturnType<typeof useReactTable>) => void
+  onTableReady?: (table: TanstackTable<TData>) => void
   // NUEVA PROPIEDAD OPCIONAL PARA RENDERIZAR SUB-FILAS
   renderSubComponent?: (props: { row: Row<TData> }) => React.ReactNode
   // Paginación server-side (opt-in). Si no se pasan, el comportamiento es client-side como siempre.
@@ -51,6 +52,10 @@ interface DataTableProps<TData, TValue> {
   rowClassName?: (row: TData) => string | undefined
   /** Estado inicial de filtros de columna (p.ej. para ocultar categorías por defecto). */
   initialColumnFilters?: ColumnFiltersState
+  /** Oculta la barra superior (búsqueda global + filtros + opciones de vista). */
+  hideToolbar?: boolean
+  /** Oculta el texto "N de M fila(s) seleccionada(s)." en la paginación. */
+  hideSelectionCount?: boolean
 }
 
 export function DataTable<TData, TValue>({
@@ -67,6 +72,8 @@ export function DataTable<TData, TValue>({
   autoResetPageIndex = true,
   rowClassName,
   initialColumnFilters,
+  hideToolbar = false,
+  hideSelectionCount = false,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -146,11 +153,13 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar
-        table={table}
-        filters={filters}
-        setGlobalFilter={setGlobalFilter}
-      />
+      {!hideToolbar && (
+        <DataTableToolbar
+          table={table}
+          filters={filters}
+          setGlobalFilter={setGlobalFilter}
+        />
+      )}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -226,7 +235,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      <DataTablePagination table={table} hideSelectionCount={hideSelectionCount} />
     </div>
   )
 }
