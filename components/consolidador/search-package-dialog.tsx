@@ -16,8 +16,10 @@ import {
   repairPackageIncome,
   reassignIncomeSubsidiary,
 } from "@/lib/services/consolidador";
+import { editIncomeDate } from "@/lib/services/consolidador";
 import { canFixStatus, parseTrackingList, MAX_BATCH_TRACKINGS } from "@/lib/consolidador/validation";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
+import { EditDateDialog } from "@/components/consolidador/edit-date-dialog";
 import { SearchBatchItem } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
 import {
@@ -28,6 +30,7 @@ import {
   RefreshCw,
   DollarSign,
   ArrowRightLeft,
+  CalendarClock,
 } from "lucide-react";
 
 interface Props {
@@ -52,6 +55,7 @@ interface Handlers {
   onStatus: (r: SearchBatchItem) => void;
   onIncome: (r: SearchBatchItem) => void;
   onMove: (r: SearchBatchItem) => void;
+  onDate: (r: SearchBatchItem) => void;
 }
 
 function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
@@ -180,6 +184,18 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
               {h.busy === `${id}:income` ? <Loader2 className="h-3 w-3 animate-spin" /> : <DollarSign className="h-3 w-3" />}
               Ingreso
             </Button>
+            {r.income && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 px-2 text-xs"
+                disabled={h.busy !== null}
+                onClick={() => h.onDate(r)}
+                title="Editar fecha del ingreso"
+              >
+                <CalendarClock className="h-3 w-3" /> Fecha
+              </Button>
+            )}
             {mis && (
               <Button
                 size="sm"
@@ -210,6 +226,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
   const [reason, setReason] = useState("");
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [dateItem, setDateItem] = useState<SearchBatchItem | null>(null);
 
   const { subsidiaries } = useSubsidiaries();
   const selectedName = subsidiaries.find((s: any) => s.id === selectedSubsidiaryId)?.name ?? "esta sucursal";
@@ -286,8 +303,23 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
     (r) => (r.shipment && canFixStatus(r)) || r.incomeRepairNeeded || isMisassigned(r),
   );
 
+  const onDate = (r: SearchBatchItem) => setDateItem(r);
+
+  const submitDate = async (date: string, reason: string) => {
+    if (!dateItem?.income) return;
+    try {
+      await editIncomeDate(dateItem.income.id, date, reason);
+      toast.success(`Fecha actualizada: ${dateItem.tracking}`);
+      onFixed();
+      await doSearch();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? "No se pudo actualizar la fecha");
+      throw e;
+    }
+  };
+
   const columns = useMemo(
-    () => buildColumns({ reasonOk, busy, selectedSubsidiaryId, selectedName, onStatus, onIncome, onMove }),
+    () => buildColumns({ reasonOk, busy, selectedSubsidiaryId, selectedName, onStatus, onIncome, onMove, onDate }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [reasonOk, busy, selectedSubsidiaryId, selectedName, reason, results],
   );
@@ -352,6 +384,13 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
             </div>
           )}
         </div>
+
+        <EditDateDialog
+          open={!!dateItem}
+          onOpenChange={(o) => !o && setDateItem(null)}
+          currentDate={dateItem?.income?.date ?? null}
+          onSubmit={submitDate}
+        />
       </DialogContent>
     </Dialog>
   );

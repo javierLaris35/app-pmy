@@ -15,7 +15,7 @@ import { SearchPackageDialog } from "@/components/consolidador/search-package-di
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
-import { patchIncomeCost, patchSecondAbord, createManualIncome, deleteIncome } from "@/lib/services/consolidador";
+import { patchIncomeCost, patchSecondAbord, createManualIncome, deleteIncome, editIncomeDate } from "@/lib/services/consolidador";
 import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/week";
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
@@ -77,6 +77,19 @@ function ConsolidadorPage() {
     [subsidiaryId, mutate],
   );
 
+  const handleEditDate = useCallback(
+    async (id: string, date: string, reason: string) => {
+      try {
+        await editIncomeDate(id, date, reason);
+        await mutate();
+        toast.success("Fecha actualizada");
+      } catch {
+        toast.error("No se pudo actualizar la fecha");
+      }
+    },
+    [mutate],
+  );
+
   const handleDelete = useCallback(
     async (id: string, reason: string) => {
       try {
@@ -100,11 +113,12 @@ function ConsolidadorPage() {
           row={row}
           onEditCost={handleEditCost}
           onToggleSecondAbord={handleToggleSecondAbord}
+          onEditDate={handleEditDate}
           onDelete={handleDelete}
         />
       </div>
     ),
-    [handleEditCost, handleToggleSecondAbord, handleDelete],
+    [handleEditCost, handleToggleSecondAbord, handleEditDate, handleDelete],
   );
 
   const columns = useMemo(() => getConsolidadorColumns({ renderActions }), [renderActions]);

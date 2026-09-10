@@ -16,18 +16,21 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
 import { isValidCostEdit } from "@/lib/consolidador/validation";
 import { ConsolidadorRow } from "@/lib/types/consolidador";
-import { MoreHorizontal, PencilLine, PlusCircle, MinusCircle, Loader2, Trash2 } from "lucide-react";
+import { EditDateDialog } from "@/components/consolidador/edit-date-dialog";
+import { MoreHorizontal, PencilLine, PlusCircle, MinusCircle, Loader2, Trash2, CalendarClock } from "lucide-react";
 
 interface Props {
   row: ConsolidadorRow;
   onEditCost: (id: string, cost: number, reason: string) => Promise<void>;
   onToggleSecondAbord: (id: string, enabled: boolean, reason: string) => Promise<void>;
+  onEditDate: (id: string, date: string, reason: string) => Promise<void>;
   onDelete: (id: string, reason: string) => Promise<void>;
 }
 
-export function RowActions({ row, onEditCost, onToggleSecondAbord, onDelete }: Props) {
+export function RowActions({ row, onEditCost, onToggleSecondAbord, onEditDate, onDelete }: Props) {
   const [costOpen, setCostOpen] = useState(false);
   const [abordOpen, setAbordOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -77,6 +80,9 @@ export function RowActions({ row, onEditCost, onToggleSecondAbord, onDelete }: P
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => { setCost(String(row.cost)); setCostOpen(true); }}>
             <PencilLine className="mr-2 h-4 w-4" /> Editar costo
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setDateOpen(true)}>
+            <CalendarClock className="mr-2 h-4 w-4" /> Editar fecha
           </DropdownMenuItem>
           {isCharge && (
             <DropdownMenuItem onClick={() => setAbordOpen(true)}>
@@ -162,6 +168,14 @@ export function RowActions({ row, onEditCost, onToggleSecondAbord, onDelete }: P
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog: editar fecha */}
+      <EditDateDialog
+        open={dateOpen}
+        onOpenChange={setDateOpen}
+        currentDate={row.date}
+        onSubmit={(date, reason) => onEditDate(row.id, date, reason)}
+      />
 
       {/* Dialog: eliminar */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

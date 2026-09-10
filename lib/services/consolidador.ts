@@ -70,3 +70,7 @@ export const repairPackageIncome = async (shipmentId: string, reason: string): P
 /** PATCH: reasigna el ingreso a otra sucursal (ingreso mal asignado). */
 export const reassignIncomeSubsidiary = async (incomeId: string, subsidiaryId: string, reason: string) =>
   (await axiosConfig.patch(`${baseUrl}/income/${incomeId}/subsidiary`, { subsidiaryId, reason })).data;
+
+/** PATCH: cambia la fecha del ingreso (YYYY-MM-DD). */
+export const editIncomeDate = async (incomeId: string, date: string, reason: string) =>
+  (await axiosConfig.patch(`${baseUrl}/income/${incomeId}/date`, { date, reason })).data;
