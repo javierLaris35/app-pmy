@@ -62,3 +62,7 @@ export const searchPackageBatch = async (trackings: string[]): Promise<SearchBat
 /** PATCH: corrige el estatus del shipment contra FedEx y ajusta el income ligado. */
 export const fixPackageStatus = async (shipmentId: string, newStatus: string, reason: string) =>
   (await axiosConfig.patch(`${baseUrl}/package/${shipmentId}/status`, { newStatus, reason })).data;
+
+/** PATCH: repara el ingreso del paquete (crea el income faltante si el estatus es cobrable). */
+export const repairPackageIncome = async (shipmentId: string, reason: string): Promise<{ created: boolean; reason?: string }> =>
+  (await axiosConfig.patch(`${baseUrl}/package/${shipmentId}/repair-income`, { reason })).data;

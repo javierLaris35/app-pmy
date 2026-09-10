@@ -37,6 +37,8 @@ describe("canFixStatus", () => {
     fedex: { found: true, status: "entregado" },
     suggestion: { newStatus: "entregado", incomeEffect: { kind: "reclassify" } },
     income: null,
+    incomeRepairNeeded: false,
+    incomeRepairType: null,
   };
   it("permite corregir cuando FedEx confirma y difiere", () => {
     expect(canFixStatus(base)).toBe(true);

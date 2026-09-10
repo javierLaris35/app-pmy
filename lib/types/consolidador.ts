@@ -75,6 +75,8 @@ export interface SearchPackageResult {
   fedex: FedexLatestStatus;
   suggestion: { newStatus: string | null; incomeEffect: { kind: string } } | null;
   income: ConsolidadorRow | null;
+  incomeRepairNeeded: boolean;
+  incomeRepairType: string | null;
 }
 
 export interface SearchBatchItem extends SearchPackageResult {
