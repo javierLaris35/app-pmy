@@ -12,6 +12,7 @@ import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
 import { ChargeActions } from "@/components/consolidador/charge-actions";
 import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
 import { SearchPackageDialog } from "@/components/consolidador/search-package-dialog";
+import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
 import { patchIncomeCost, patchSecondAbord, createManualIncome } from "@/lib/services/consolidador";
@@ -19,7 +20,7 @@ import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/w
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, Loader2, PlusCircle, Search } from "lucide-react";
+import { SlidersHorizontal, Loader2, PlusCircle, Search, History } from "lucide-react";
 
 function ConsolidadorPage() {
   const [subsidiaryId, setSubsidiaryId] = useState<string>("");
@@ -28,6 +29,7 @@ function ConsolidadorPage() {
   const [routeId, setRouteId] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [historyId, setHistoryId] = useState<string | null>(null);
 
   // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
   const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
@@ -76,10 +78,16 @@ function ConsolidadorPage() {
   );
 
   const renderActions = useCallback(
-    (row: ConsolidadorRow) =>
-      row.sourceType === "charge" ? (
-        <ChargeActions row={row} onEditCost={handleEditCost} onToggleSecondAbord={handleToggleSecondAbord} />
-      ) : null,
+    (row: ConsolidadorRow) => (
+      <div className="flex items-center justify-end gap-1">
+        <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial" onClick={() => setHistoryId(row.id)}>
+          <History className="h-4 w-4 text-slate-500" />
+        </Button>
+        {row.sourceType === "charge" && (
+          <ChargeActions row={row} onEditCost={handleEditCost} onToggleSecondAbord={handleToggleSecondAbord} />
+        )}
+      </div>
+    ),
     [handleEditCost, handleToggleSecondAbord],
   );
 
@@ -178,6 +186,7 @@ function ConsolidadorPage() {
 
         <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} onSubmit={handleAddIncome} />
         <SearchPackageDialog open={searchOpen} onOpenChange={setSearchOpen} onFixed={() => mutate()} />
+        <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
       </div>
     </AppLayout>
   );

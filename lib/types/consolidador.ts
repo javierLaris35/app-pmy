@@ -47,6 +47,19 @@ export interface ConsolidadorReadResult {
 
 export type ManualKind = "recoleccion" | "pod" | "dex" | "manual";
 
+export interface IncomeChangeLogEntry {
+  id: string;
+  incomeId: string | null;
+  shipmentId: string | null;
+  action: string;
+  field: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  reason: string | null;
+  userId: string | null;
+  createdAt: string;
+}
+
 export interface FedexLatestStatus {
   found: boolean;
   status: string | null;

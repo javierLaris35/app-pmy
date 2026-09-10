@@ -1,5 +1,12 @@
 import { axiosConfig } from "../axios-config";
-import { ConsolidadorReadResult, ConsolidadorRow, ManualKind, SearchBatchResult, SearchPackageResult } from "../types/consolidador";
+import {
+  ConsolidadorReadResult,
+  ConsolidadorRow,
+  IncomeChangeLogEntry,
+  ManualKind,
+  SearchBatchResult,
+  SearchPackageResult,
+} from "../types/consolidador";
 
 const baseUrl = "/consolidador";
 
@@ -17,6 +24,10 @@ export const getConsolidadorWeek = async (
   const res = await axiosConfig.get<ConsolidadorReadResult>(`${baseUrl}/${subsidiaryId}/${from}/${to}${qs}`);
   return res.data;
 };
+
+/** GET: historial de cambios de un ingreso (más reciente primero). */
+export const getIncomeHistory = async (id: string): Promise<IncomeChangeLogEntry[]> =>
+  (await axiosConfig.get<IncomeChangeLogEntry[]>(`${baseUrl}/income/${id}/history`)).data;
 
 /** PATCH: nuevo costo in-place de un ingreso. */
 export const patchIncomeCost = async (id: string, cost: number, reason: string): Promise<ConsolidadorRow> =>
