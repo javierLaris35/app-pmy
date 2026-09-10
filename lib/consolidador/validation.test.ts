@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { isValidCostEdit, isValidManualIncome } from "./validation";
+import { isValidCostEdit, isValidManualIncome, canFixStatus } from "./validation";
+import type { SearchPackageResult } from "@/lib/types/consolidador";
 
 describe("isValidCostEdit", () => {
   it("acepta costo >= 0 con motivo suficiente", () => {
@@ -26,5 +27,27 @@ describe("isValidManualIncome", () => {
     expect(isValidManualIncome({ kind: "", cost: 100, date: "2026-09-09", reason: "ok?" }, week)).toBe(false);
     expect(isValidManualIncome({ kind: "dex", cost: -5, date: "2026-09-09", reason: "dex" }, week)).toBe(false);
     expect(isValidManualIncome({ kind: "manual", cost: 10, date: "2026-09-09", reason: "x" }, week)).toBe(false);
+  });
+});
+
+describe("canFixStatus", () => {
+  const base: SearchPackageResult = {
+    shipment: { id: "s1", trackingNumber: "T1", status: "en_ruta" },
+    internalStatus: "en_ruta",
+    fedex: { found: true, status: "entregado" },
+    suggestion: { newStatus: "entregado", incomeEffect: { kind: "reclassify" } },
+    income: null,
+  };
+  it("permite corregir cuando FedEx confirma y difiere", () => {
+    expect(canFixStatus(base)).toBe(true);
+  });
+  it("bloquea si FedEx no encontró o dio error", () => {
+    expect(canFixStatus({ ...base, fedex: { found: false, status: null, error: "timeout" } })).toBe(false);
+  });
+  it("bloquea si FedEx coincide con el interno", () => {
+    expect(canFixStatus({ ...base, fedex: { found: true, status: "en_ruta" } })).toBe(false);
+  });
+  it("bloquea sin shipment", () => {
+    expect(canFixStatus({ ...base, shipment: null })).toBe(false);
   });
 });

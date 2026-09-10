@@ -11,6 +11,7 @@ import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-tool
 import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
 import { ChargeActions } from "@/components/consolidador/charge-actions";
 import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
+import { SearchPackageDialog } from "@/components/consolidador/search-package-dialog";
 import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
 import { patchIncomeCost, patchSecondAbord, createManualIncome } from "@/lib/services/consolidador";
@@ -18,7 +19,7 @@ import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/w
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, Loader2, PlusCircle } from "lucide-react";
+import { SlidersHorizontal, Loader2, PlusCircle, Search } from "lucide-react";
 
 function ConsolidadorPage() {
   const [subsidiaryId, setSubsidiaryId] = useState<string>("");
@@ -26,6 +27,7 @@ function ConsolidadorPage() {
   const [consNumber, setConsNumber] = useState("");
   const [routeId, setRouteId] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
   const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
@@ -135,6 +137,9 @@ function ConsolidadorPage() {
                   setSubsidiaryId(id ?? "");
                 }}
               />
+              <Button variant="outline" onClick={() => setSearchOpen(true)} className="gap-2 bg-white">
+                <Search className="h-4 w-4" /> Buscar paquete
+              </Button>
               <Button onClick={() => setAddOpen(true)} disabled={!subsidiaryId} className="gap-2">
                 <PlusCircle className="h-4 w-4" /> Agregar ingreso
               </Button>
@@ -172,6 +177,7 @@ function ConsolidadorPage() {
         )}
 
         <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} onSubmit={handleAddIncome} />
+        <SearchPackageDialog open={searchOpen} onOpenChange={setSearchOpen} onFixed={() => mutate()} />
       </div>
     </AppLayout>
   );

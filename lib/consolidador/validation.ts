@@ -1,4 +1,4 @@
-import { ManualKind } from "@/lib/types/consolidador";
+import { ManualKind, SearchPackageResult } from "@/lib/types/consolidador";
 
 /** ¿Es válido el ajuste de costo? cost >= 0 y motivo con al menos 3 caracteres. */
 export function isValidCostEdit(cost: number, reason: string): boolean {
@@ -19,5 +19,17 @@ export function isValidManualIncome(draft: ManualIncomeDraft, week: { from: stri
   if (!Number.isFinite(draft.cost) || draft.cost < 0) return false;
   if (draft.reason.trim().length < 3) return false;
   if (!draft.date || draft.date < week.from || draft.date > week.to) return false;
+  return true;
+}
+
+/**
+ * ¿Se puede corregir el estatus? Solo si hay shipment, FedEx confirmó (found y sin error), y su
+ * estatus difiere del interno. Si FedEx falla o coincide, no se ofrece la corrección.
+ */
+export function canFixStatus(result: SearchPackageResult | null): boolean {
+  if (!result?.shipment) return false;
+  const { fedex, internalStatus } = result;
+  if (!fedex.found || fedex.error) return false;
+  if (!fedex.status || fedex.status === internalStatus) return false;
   return true;
 }
