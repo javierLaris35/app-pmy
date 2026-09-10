@@ -13,11 +13,13 @@ export interface BackupStatus {
 /** Fases del restore; el peso lo maneja el backend, aquí solo etiquetamos. */
 export type BackupPhase = "connect" | "download" | "prepare" | "restore";
 
+export type LogLevel = "info" | "warn" | "phase" | "table" | "heartbeat";
+
 export type BackupEvent =
   | { type: "step"; key: BackupPhase; message: string; percent: number }
   | { type: "progress"; phase: BackupPhase; percent: number; bytes?: number; totalBytes?: number }
-  | { type: "log"; stream: "stdout" | "stderr"; line: string }
-  | { type: "done"; message: string; percent: number }
+  | { type: "log"; stream?: "stdout" | "stderr"; level?: LogLevel; line: string; elapsedMs?: number }
+  | { type: "done"; message: string; percent: number; timings?: Partial<Record<BackupPhase, number>> }
   | { type: "error"; message: string };
 
 /** Estado de la función de respaldo (solo superadmin). */
@@ -35,9 +37,11 @@ export async function streamRestoreFromProd(
   onEvent: (event: BackupEvent) => void,
   onEnd: () => void,
   signal: AbortSignal,
+  reuseCache = false,
 ): Promise<void> {
   const token = useAuthStore.getState().token;
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/server/backup/restore-from-prod`;
+  const base = `${process.env.NEXT_PUBLIC_API_URL}/server/backup/restore-from-prod`;
+  const url = reuseCache ? `${base}?reuse=1` : base;
 
   try {
     const res = await fetch(url, {
