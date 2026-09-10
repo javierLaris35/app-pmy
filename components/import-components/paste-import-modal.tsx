@@ -479,7 +479,30 @@ export function PasteImportModal({
         <div className={asPage ? "space-y-5 pt-5" : "flex-1 min-h-0 overflow-y-auto bg-gray-50/40 p-6 space-y-5"}>
           {/* Config */}
           <div id="paste-fields" className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            {/* Grupo A — qué se importa y sus modificadores */}
+            {/* Datos del consolidado — primero: a dónde entra la importación. */}
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Datos del consolidado</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Sucursal (*)</Label>
+                  <SucursalSelector
+                    value={localSubsidiaryId}
+                    onValueChange={(val) => setLocalSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
+                    insideAModal={!asPage}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">No. de consolidado (*)</Label>
+                  <Input className="h-9" value={consNumber} onChange={(e) => setConsNumber(e.target.value)} placeholder="Ej. CONS-123" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Fecha del consolidado</Label>
+                  <Input type="date" className="h-9" value={consDate} onChange={(e) => setConsDate(e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            {/* Qué se importa y sus modificadores. */}
             <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qué vas a importar</p>
               <ToggleGroup
@@ -549,29 +572,6 @@ export function PasteImportModal({
                     )}
                   </>
                 )}
-              </div>
-            </div>
-
-            {/* Grupo B — a dónde entra */}
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Datos del consolidado</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="grid gap-1.5">
-                  <Label className="text-xs font-semibold text-gray-700">Sucursal (*)</Label>
-                  <SucursalSelector
-                    value={localSubsidiaryId}
-                    onValueChange={(val) => setLocalSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
-                    insideAModal={!asPage}
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label className="text-xs font-semibold text-gray-700">No. de consolidado (*)</Label>
-                  <Input className="h-9" value={consNumber} onChange={(e) => setConsNumber(e.target.value)} placeholder="Ej. CONS-123" />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label className="text-xs font-semibold text-gray-700">Fecha del consolidado</Label>
-                  <Input type="date" className="h-9" value={consDate} onChange={(e) => setConsDate(e.target.value)} />
-                </div>
               </div>
             </div>
           </div>
