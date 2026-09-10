@@ -39,10 +39,14 @@ export async function streamRestoreFromProd(
   onEnd: () => void,
   signal: AbortSignal,
   reuseCache = false,
+  trimDays = 0,
 ): Promise<void> {
   const token = useAuthStore.getState().token;
   const base = `${process.env.NEXT_PUBLIC_API_URL}/server/backup/restore-from-prod`;
-  const url = reuseCache ? `${base}?reuse=1` : base;
+  const qs = new URLSearchParams();
+  if (reuseCache) qs.set("reuse", "1");
+  if (trimDays > 0) qs.set("trim", String(trimDays));
+  const url = qs.toString() ? `${base}?${qs.toString()}` : base;
 
   try {
     const res = await fetch(url, {
