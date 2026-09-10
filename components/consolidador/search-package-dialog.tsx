@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatCurrency } from "@/lib/utils";
-import { searchPackageBatch, fixPackageStatus, repairPackageIncome } from "@/lib/services/consolidador";
+import { searchPackageBatch, fixPackageStatus, repairPackageIncome, reassignIncomeSubsidiary } from "@/lib/services/consolidador";
 import { canFixStatus, parseTrackingList, MAX_BATCH_TRACKINGS } from "@/lib/consolidador/validation";
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { SearchBatchItem } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
 import { Search, Loader2, AlertTriangle } from "lucide-react";
@@ -18,7 +19,9 @@ import { Search, Loader2, AlertTriangle } from "lucide-react";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Se llama tras corregir/reparar, para refrescar la tabla de la semana. */
+  /** Sucursal seleccionada arriba: destino al mover un ingreso mal asignado. */
+  selectedSubsidiaryId: string;
+  /** Se llama tras corregir/reparar/mover, para refrescar la tabla de la semana. */
   onFixed: () => void;
 }
 
@@ -26,15 +29,22 @@ function fmt(status: string | null): string {
   return status ? status.replace(/_/g, " ") : "—";
 }
 
-export function SearchPackageDialog({ open, onOpenChange, onFixed }: Props) {
+export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, onFixed }: Props) {
   const [text, setText] = useState("");
   const [results, setResults] = useState<SearchBatchItem[]>([]);
   const [reason, setReason] = useState("");
   const [searching, setSearching] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null); // `${id}:status` | `${id}:income`
+  const [busy, setBusy] = useState<string | null>(null); // `${id}:status` | `${id}:income` | `${id}:move`
+
+  const { subsidiaries } = useSubsidiaries();
+  const selectedName = subsidiaries.find((s: any) => s.id === selectedSubsidiaryId)?.name ?? "esta sucursal";
 
   const parsed = useMemo(() => parseTrackingList(text), [text]);
   const reasonOk = reason.trim().length >= 3;
+
+  /** El ingreso existe pero pertenece a una sucursal distinta a la seleccionada arriba. */
+  const isMisassigned = (r: SearchBatchItem) =>
+    !!r.income && !!selectedSubsidiaryId && r.income.subsidiaryId !== selectedSubsidiaryId;
 
   const doSearch = async () => {
     if (parsed.length === 0) return;
@@ -81,7 +91,22 @@ export function SearchPackageDialog({ open, onOpenChange, onFixed }: Props) {
     }
   };
 
-  const anyActionable = results.some((r) => (r.shipment && canFixStatus(r)) || r.incomeRepairNeeded);
+  const moveIncome = async (r: SearchBatchItem) => {
+    if (!r.income || !selectedSubsidiaryId || !reasonOk) return;
+    setBusy(`${r.income.id}:move`);
+    try {
+      await reassignIncomeSubsidiary(r.income.id, selectedSubsidiaryId, reason.trim());
+      toast.success(`Ingreso movido a ${selectedName}: ${r.tracking}`);
+      onFixed();
+      await doSearch();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? "No se pudo mover el ingreso");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const anyActionable = results.some((r) => (r.shipment && canFixStatus(r)) || r.incomeRepairNeeded || isMisassigned(r));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -118,6 +143,7 @@ export function SearchPackageDialog({ open, onOpenChange, onFixed }: Props) {
                     <TableHead>Interno</TableHead>
                     <TableHead>FedEx</TableHead>
                     <TableHead>Ingreso</TableHead>
+                    <TableHead>Sucursal</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -126,6 +152,7 @@ export function SearchPackageDialog({ open, onOpenChange, onFixed }: Props) {
                     const id = r.shipment?.id;
                     const canStatus = !!r.shipment && canFixStatus(r);
                     const canIncome = !!r.shipment && r.incomeRepairNeeded;
+                    const misassigned = isMisassigned(r);
                     return (
                       <TableRow key={r.tracking} className="text-sm">
                         <TableCell className="font-medium tabular-nums">{r.tracking}</TableCell>
@@ -144,6 +171,15 @@ export function SearchPackageDialog({ open, onOpenChange, onFixed }: Props) {
                             <span className="text-xs font-medium text-emerald-600">Sí · {formatCurrency(r.income.cost)}</span>
                           ) : r.incomeRepairNeeded ? (
                             <span className="text-xs font-medium text-rose-600">Falta</span>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {r.income ? (
+                            <span className={`text-xs ${misassigned ? "font-medium text-amber-600" : "text-slate-600"}`}>
+                              {r.income.subsidiaryName ?? "—"}
+                            </span>
                           ) : (
                             <span className="text-xs text-slate-400">—</span>
                           )}
@@ -171,6 +207,18 @@ export function SearchPackageDialog({ open, onOpenChange, onFixed }: Props) {
                               >
                                 {busy === `${id}:income` && <Loader2 className="mr-1 h-3 w-3 animate-spin" />} Ingreso
                               </Button>
+                              {misassigned && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                                  disabled={!reasonOk || busy !== null}
+                                  onClick={() => moveIncome(r)}
+                                  title={`Mover a ${selectedName}`}
+                                >
+                                  {busy === `${r.income!.id}:move` && <Loader2 className="mr-1 h-3 w-3 animate-spin" />} Mover aquí
+                                </Button>
+                              )}
                             </div>
                           )}
                         </TableCell>

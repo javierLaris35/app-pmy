@@ -66,3 +66,7 @@ export const fixPackageStatus = async (shipmentId: string, newStatus: string, re
 /** PATCH: repara el ingreso del paquete (crea el income faltante si el estatus es cobrable). */
 export const repairPackageIncome = async (shipmentId: string, reason: string): Promise<{ created: boolean; reason?: string }> =>
   (await axiosConfig.patch(`${baseUrl}/package/${shipmentId}/repair-income`, { reason })).data;
+
+/** PATCH: reasigna el ingreso a otra sucursal (ingreso mal asignado). */
+export const reassignIncomeSubsidiary = async (incomeId: string, subsidiaryId: string, reason: string) =>
+  (await axiosConfig.patch(`${baseUrl}/income/${incomeId}/subsidiary`, { subsidiaryId, reason })).data;

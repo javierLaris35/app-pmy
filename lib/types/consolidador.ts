@@ -25,6 +25,8 @@ export interface ConsolidadorRow {
   editReason: string | null;
   secondAbordApplied: boolean | null;
   secondAbordAmount: number;
+  subsidiaryId: string | null;
+  subsidiaryName: string | null;
 }
 
 export interface ConsolidadorBucket {

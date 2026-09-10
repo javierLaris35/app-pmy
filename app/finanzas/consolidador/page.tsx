@@ -201,7 +201,7 @@ function ConsolidadorPage() {
         )}
 
         <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} onSubmit={handleAddIncome} />
-        <SearchPackageDialog open={searchOpen} onOpenChange={setSearchOpen} onFixed={() => mutate()} />
+        <SearchPackageDialog open={searchOpen} onOpenChange={setSearchOpen} selectedSubsidiaryId={subsidiaryId} onFixed={() => mutate()} />
         <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
       </div>
     </AppLayout>
