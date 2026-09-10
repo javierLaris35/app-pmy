@@ -10,19 +10,22 @@ import { useConsolidadorWeek } from "@/hooks/services/consolidador/use-consolida
 import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-toolbar";
 import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
 import { ChargeActions } from "@/components/consolidador/charge-actions";
+import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
+import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
-import { patchIncomeCost, patchSecondAbord } from "@/lib/services/consolidador";
+import { patchIncomeCost, patchSecondAbord, createManualIncome } from "@/lib/services/consolidador";
 import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/week";
 import { Subsidiary } from "@/lib/types";
-import { ConsolidadorRow } from "@/lib/types/consolidador";
+import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, Loader2 } from "lucide-react";
+import { SlidersHorizontal, Loader2, PlusCircle } from "lucide-react";
 
 function ConsolidadorPage() {
   const [subsidiaryId, setSubsidiaryId] = useState<string>("");
   const [week, setWeek] = useState(() => getWeekRange());
   const [consNumber, setConsNumber] = useState("");
   const [routeId, setRouteId] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
   // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
   const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
@@ -53,6 +56,21 @@ function ConsolidadorPage() {
       }
     },
     [mutate],
+  );
+
+  const handleAddIncome = useCallback(
+    async (payload: { kind: ManualKind; trackingNumber?: string; cost: number; date: string; reason: string }) => {
+      try {
+        await createManualIncome({ subsidiaryId, ...payload });
+        await mutate();
+        toast.success("Ingreso agregado");
+      } catch (e: any) {
+        if (e?.response?.status === 409) toast.error("Ya existe un ingreso equivalente ese día para esa guía");
+        else toast.error("No se pudo agregar el ingreso");
+        throw e; // el dialog no cierra si falló
+      }
+    },
+    [subsidiaryId, mutate],
   );
 
   const renderActions = useCallback(
@@ -109,13 +127,18 @@ function ConsolidadorPage() {
           title="Consolidador de Finanzas"
           description="Concilia ingresos por sucursal y semana"
           actions={
-            <SucursalSelector
-              value={subsidiaryId}
-              onValueChange={(val) => {
-                const id = typeof val === "string" ? val : (val as Subsidiary).id;
-                setSubsidiaryId(id ?? "");
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <SucursalSelector
+                value={subsidiaryId}
+                onValueChange={(val) => {
+                  const id = typeof val === "string" ? val : (val as Subsidiary).id;
+                  setSubsidiaryId(id ?? "");
+                }}
+              />
+              <Button onClick={() => setAddOpen(true)} disabled={!subsidiaryId} className="gap-2">
+                <PlusCircle className="h-4 w-4" /> Agregar ingreso
+              </Button>
+            </div>
           }
         />
 
@@ -147,6 +170,8 @@ function ConsolidadorPage() {
             autoResetPageIndex={false}
           />
         )}
+
+        <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} onSubmit={handleAddIncome} />
       </div>
     </AppLayout>
   );
