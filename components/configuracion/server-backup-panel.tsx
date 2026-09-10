@@ -5,6 +5,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle, PanelDescription } from "
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { Switch } from "@/components/ui/switch"
 import { DatabaseBackup, Download, Loader2, AlertTriangle, CheckCircle2, XCircle, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -30,7 +31,9 @@ const fmtBytes = (n?: number) => {
   return `${v.toFixed(v < 10 ? 1 : 0)} ${u[i]}`
 }
 
-interface LogLine { stream: "stdout" | "stderr"; line: string }
+interface LogLine { level?: string; stream?: "stdout" | "stderr"; line: string; elapsedMs?: number }
+
+const fmtClock = (totalSecs: number) => `${Math.floor(totalSecs / 60)}:${String(totalSecs % 60).padStart(2, "0")}`
 
 export function ServerBackupPanel() {
   const [status, setStatus] = useState<BackupStatus | null>(null)
@@ -43,6 +46,10 @@ export function ServerBackupPanel() {
   const [bytes, setBytes] = useState<{ done?: number; total?: number }>({})
   const [logs, setLogs] = useState<LogLine[]>([])
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [currentTable, setCurrentTable] = useState<string>("")
+  const [elapsed, setElapsed] = useState(0) // segundos, corre en el front
+  const [timings, setTimings] = useState<Partial<Record<string, number>>>({})
+  const [reuseCache, setReuseCache] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const logEndRef = useRef<HTMLDivElement | null>(null)
@@ -64,6 +71,14 @@ export function ServerBackupPanel() {
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
+  // Reloj de tiempo transcurrido: corre en el front, así nunca parece congelado
+  // aunque el backend deje de emitir eventos por un rato.
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(() => setElapsed((s) => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [running])
+
   const onEvent = useCallback((ev: BackupEvent) => {
     switch (ev.type) {
       case "step":
@@ -75,10 +90,14 @@ export function ServerBackupPanel() {
         setBytes({ done: ev.bytes, total: ev.totalBytes })
         break
       case "log":
-        setLogs((l) => [...l.slice(-499), { stream: ev.stream, line: ev.line }])
+        if (ev.level === "table" && ev.line) {
+          setCurrentTable(ev.line.replace(/^▶.*Restaurando `?/, "").replace(/`$/, ""))
+        }
+        setLogs((l) => [...l.slice(-499), { level: ev.level, stream: ev.stream, line: ev.line, elapsedMs: ev.elapsedMs }])
         break
       case "done":
         setPercent(100)
+        setTimings(ev.timings ?? {})
         setResult({ ok: true, message: ev.message })
         break
       case "error":
@@ -94,10 +113,13 @@ export function ServerBackupPanel() {
     setBytes({})
     setLogs([])
     setResult(null)
+    setCurrentTable("")
+    setElapsed(0)
+    setTimings({})
     const controller = new AbortController()
     abortRef.current = controller
-    streamRestoreFromProd(onEvent, () => { setRunning(false); abortRef.current = null }, controller.signal)
-  }, [onEvent])
+    streamRestoreFromProd(onEvent, () => { setRunning(false); abortRef.current = null }, controller.signal, reuseCache)
+  }, [onEvent, reuseCache])
 
   const cancel = useCallback(() => abortRef.current?.abort(), [])
 
@@ -154,6 +176,11 @@ export function ServerBackupPanel() {
               )}
             </div>
 
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Switch checked={reuseCache} onCheckedChange={setReuseCache} disabled={running} />
+              Reutilizar dump reciente (salta la descarga si hay uno de &lt; 2 h)
+            </label>
+
             {(running || result || percent > 0) && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -179,14 +206,45 @@ export function ServerBackupPanel() {
               </div>
             )}
 
-            {logs.length > 0 && (
-              <div className="rounded-xl border bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed text-zinc-200 max-h-64 overflow-auto">
-                {logs.map((l, i) => (
-                  <div key={i} className={cn("whitespace-pre-wrap break-all", l.stream === "stderr" ? "text-amber-300" : "text-zinc-300")}>
-                    {l.line}
+            {(running || logs.length > 0) && (
+              <div className="space-y-1.5">
+                {running && (
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate">
+                      {phase}
+                      {currentTable && <> · tabla: <code className="text-foreground">{currentTable}</code></>}
+                    </span>
+                    <span className="tabular-nums">{fmtClock(elapsed)}</span>
                   </div>
+                )}
+                {logs.length > 0 && (
+                  <div className="rounded-xl border bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed max-h-64 overflow-auto">
+                    {logs.map((l, i) => {
+                      const color =
+                        l.level === "phase" ? "text-sky-300"
+                        : l.level === "table" ? "text-cyan-300"
+                        : l.level === "warn" || l.stream === "stderr" ? "text-amber-300"
+                        : l.level === "heartbeat" ? "text-zinc-500"
+                        : "text-zinc-300"
+                      return (
+                        <div key={i} className={cn("whitespace-pre-wrap break-all", color)}>
+                          {l.line}
+                        </div>
+                      )
+                    })}
+                    <div ref={logEndRef} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {Object.keys(timings).length > 0 && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {Object.entries(timings).map(([k, ms]) => (
+                  <span key={k}>
+                    <span className="font-medium">{PHASE_LABEL[k] ?? k}:</span> {fmtClock(Math.round((ms as number) / 1000))}
+                  </span>
                 ))}
-                <div ref={logEndRef} />
               </div>
             )}
           </>
