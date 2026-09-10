@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { SucursalSelector } from "@/components/sucursal-selector";
@@ -9,9 +9,13 @@ import { withAuth } from "@/hoc/withAuth";
 import { useConsolidadorWeek } from "@/hooks/services/consolidador/use-consolidador";
 import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-toolbar";
 import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
+import { ChargeActions } from "@/components/consolidador/charge-actions";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
+import { patchIncomeCost, patchSecondAbord } from "@/lib/services/consolidador";
 import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/week";
 import { Subsidiary } from "@/lib/types";
+import { ConsolidadorRow } from "@/lib/types/consolidador";
+import { toast } from "@/lib/toast";
 import { SlidersHorizontal, Loader2 } from "lucide-react";
 
 function ConsolidadorPage() {
@@ -21,11 +25,45 @@ function ConsolidadorPage() {
   const [routeId, setRouteId] = useState("");
 
   // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
-  const { data, isLoading } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
+  const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
   // Consulta base sin filtros → opciones de los popovers (SWR deduplica si no hay filtros).
   const { data: base } = useConsolidadorWeek(subsidiaryId, week.from, week.to, {});
 
-  const columns = useMemo(() => getConsolidadorColumns(), []);
+  const handleEditCost = useCallback(
+    async (id: string, cost: number, reason: string) => {
+      try {
+        await patchIncomeCost(id, cost, reason);
+        await mutate();
+        toast.success("Costo actualizado");
+      } catch {
+        toast.error("No se pudo actualizar el costo");
+      }
+    },
+    [mutate],
+  );
+
+  const handleToggleSecondAbord = useCallback(
+    async (id: string, enabled: boolean, reason: string) => {
+      try {
+        await patchSecondAbord(id, enabled, reason);
+        await mutate();
+        toast.success(enabled ? "2º a bordo agregado" : "2º a bordo quitado");
+      } catch {
+        toast.error("No se pudo ajustar el 2º a bordo");
+      }
+    },
+    [mutate],
+  );
+
+  const renderActions = useCallback(
+    (row: ConsolidadorRow) =>
+      row.sourceType === "charge" ? (
+        <ChargeActions row={row} onEditCost={handleEditCost} onToggleSecondAbord={handleToggleSecondAbord} />
+      ) : null,
+    [handleEditCost, handleToggleSecondAbord],
+  );
+
+  const columns = useMemo(() => getConsolidadorColumns({ renderActions }), [renderActions]);
 
   const consOptions = useMemo(() => {
     const set = new Set<string>();

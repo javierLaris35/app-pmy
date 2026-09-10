@@ -23,6 +23,7 @@ export interface ConsolidadorRow {
   shipmentId: string | null;
   shipmentStatus: string | null;
   editReason: string | null;
+  secondAbordApplied: boolean | null;
 }
 
 export interface ConsolidadorBucket {
