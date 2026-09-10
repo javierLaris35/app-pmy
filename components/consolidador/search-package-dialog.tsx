@@ -268,7 +268,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="max-h-[90vh] max-w-[95vw] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackageSearch className="h-5 w-5 text-slate-500" />
@@ -276,7 +276,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* Entrada de guías */}
           <div className="rounded-lg border bg-slate-50/60 p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -321,7 +321,9 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
 
           {/* Resultados */}
           {results.length > 0 && (
-            <DataTable columns={columns} data={results} autoResetPageIndex={false} hideToolbar hideSelectionCount />
+            <div className="min-w-0 overflow-x-auto">
+              <DataTable columns={columns} data={results} autoResetPageIndex={false} hideToolbar hideSelectionCount />
+            </div>
           )}
         </div>
       </DialogContent>
