@@ -237,6 +237,7 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     consDate?: string,
     notRemoveCharge: boolean = false,
     isHalfTon: boolean = false,
+    secondAbord?: boolean,
     onProgress?: (progress: number) => void
   ) {
     const formData = new FormData()
@@ -245,6 +246,8 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     formData.append("consNumber", consNumber || "")
     formData.append("notRemoveCharge", notRemoveCharge ? "true" : "false")
     formData.append("isHalfTon", isHalfTon ? "true" : "false")
+    // Solo se envía cuando el switch está definido; si se omite, el backend usa el default de la sucursal.
+    if (secondAbord !== undefined) formData.append("secondAbord", secondAbord ? "true" : "false")
 
     // Solo agrega consDate si existe
     if (consDate) {

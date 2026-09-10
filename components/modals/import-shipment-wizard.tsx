@@ -96,6 +96,7 @@ export function ShipmentWizardModal({
   const [notRemoveCharge, setNotRemoveCharge] = useState<boolean>(false)
   // Carga 1.5 toneladas: cambia el ingreso a subsidiary.chargeCostHalfTon.
   const [isHalfTon, setIsHalfTon] = useState<boolean>(false)
+  const [secondAbord, setSecondAbord] = useState<boolean>(false)
   const [consNumber, setConsNumber] = useState("")
   const [files, setFiles] = useState<(File | null)[]>(() => {
     if (typeof window !== "undefined") {
@@ -128,6 +129,8 @@ export function ShipmentWizardModal({
   const halfTonAvailable = halfTonCost > 0
   // Si la sucursal no aplica, no arrastres el flag activo.
   useEffect(() => { if (!halfTonAvailable && isHalfTon) setIsHalfTon(false) }, [halfTonAvailable, isHalfTon])
+  // 2º a bordo: por defecto según la sucursal (chargeSecondAbord). Se reinicia al cambiar sucursal.
+  useEffect(() => { setSecondAbord(!!(selectedSubsidiary as any)?.chargeSecondAbord) }, [sucursalId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- CONFIGURACIÓN DEL TUTORIAL ACTUALIZADA ---
   const startTutorial = useCallback(() => {
@@ -289,7 +292,7 @@ export function ShipmentWizardModal({
       if (step === 0 && files[0]) { res = await uploadShipmentFile(files[0], sucursalId, consNumber, date || ""); uploaded = true }
       else if (step === 1 && files[1]) { res = await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true); uploaded = true }
       else if (step === 2 && files[2]) { res = await uploadHighValueShipments(files[2], sucursalId, consNumber, date || ""); uploaded = true }
-      else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge, isHalfTon); uploaded = true }
+      else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge, isHalfTon, secondAbord); uploaded = true }
       else if (step === 4 && files[4]) { res = await uploadShipmentPayments(files[4], consNumber); uploaded = true }
 
       if (res) toast.success(summarizeResult(step, res))
@@ -475,6 +478,20 @@ export function ShipmentWizardModal({
               }
               checked={isHalfTon}
               onCheckedChange={setIsHalfTon}
+            />
+          )}
+
+          {/* Switch 2º a bordo (paso 3). No aplica a cargas 1.5 ton. */}
+          {step === 3 && !isHalfTon && (
+            <SwitchRow
+              label="2º a bordo"
+              hint={
+                secondAbord
+                  ? "ACTIVO: se suma el 2º a bordo de la sucursal al costo de la carga."
+                  : "INACTIVO: no se suma el 2º a bordo."
+              }
+              checked={secondAbord}
+              onCheckedChange={setSecondAbord}
             />
           )}
 

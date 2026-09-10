@@ -119,6 +119,7 @@ export function PasteImportModal({
   const [isAereo, setIsAereo] = useState(true);
   const [notRemoveCharge, setNotRemoveCharge] = useState(false);
   const [isHalfTon, setIsHalfTon] = useState(false);
+  const [secondAbord, setSecondAbord] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   // Tutorial ilustrado: se abre una sola vez en el primer uso (motor genérico).
@@ -144,6 +145,8 @@ export function PasteImportModal({
   const halfTonCost = Number(selectedSub?.chargeCostHalfTon ?? 0);
   const halfTonAvailable = halfTonCost > 0;
   useEffect(() => { if (!halfTonAvailable && isHalfTon) setIsHalfTon(false); }, [halfTonAvailable, isHalfTon]);
+  // 2º a bordo: por defecto según la sucursal (chargeSecondAbord). Se reinicia al cambiar sucursal.
+  useEffect(() => { setSecondAbord(!!selectedSub?.chargeSecondAbord); }, [localSubsidiaryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const baseTable = useMemo(() => buildMappedTable(parseTsv(raw)), [raw]);
   const table: MappedTable | null = useMemo(() => {
@@ -287,7 +290,7 @@ export function PasteImportModal({
           catch (e: any) { summary.hvFailed = true; toast.error(`Se importaron los envíos, pero falló marcar Alto Valor: ${e?.message ?? ""}`); }
         }
       } else {
-        const res: any = await uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon);
+        const res: any = await uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon, secondAbord);
         const insertedNew = Number(res?.summary?.insertedNew ?? 0);
         const migrated = Number(res?.summary?.migrated ?? 0);
         const savedF2 = insertedNew + migrated;
@@ -527,6 +530,18 @@ export function PasteImportModal({
                         }
                         checked={isHalfTon}
                         onCheckedChange={setIsHalfTon}
+                      />
+                    )}
+                    {!isHalfTon && (
+                      <SwitchRow
+                        label="2º a bordo"
+                        hint={
+                          secondAbord
+                            ? "ACTIVO: se suma el 2º a bordo de la sucursal al costo de la carga."
+                            : "INACTIVO: no se suma el 2º a bordo."
+                        }
+                        checked={secondAbord}
+                        onCheckedChange={setSecondAbord}
                       />
                     )}
                   </>
