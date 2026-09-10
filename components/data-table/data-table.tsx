@@ -124,6 +124,7 @@ export function DataTable<TData, TValue>({
         "recipientCity",
         "recipientZip",
         "trackingNumber",
+        "pid", // PID/dhlUniqueId (aditivo: solo aplica a tablas que tengan esta columna)
       ]
 
       const availableCols = row.getAllCells().map((cell) => cell.column.id)

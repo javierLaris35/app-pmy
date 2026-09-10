@@ -14,7 +14,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { OperationHeader } from "@/components/shared/operation-header"
 import { columns } from "./columns"
 import { ShipmentTimeline } from "@/components/shipment-timeline"
-import { Shipment, UserRoleEnum } from "@/lib/types"
+import { Shipment } from "@/lib/types"
+import type { CellContext } from "@tanstack/react-table"
 import { AppLayout } from "@/components/app-layout"
 import { useShipments } from "@/hooks/services/shipments/use-shipments"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -36,7 +37,7 @@ import { useRouter } from "next/navigation"
  */
 const PASTE_AS_PAGE = true
 import { SucursalSelector } from "@/components/sucursal-selector"
-import { updateFromDHL, uploadShipmentFileDhl } from "@/lib/services/shipments"
+import { updateFromDHL, uploadShipmentFileDhl, parseDhlExcelFile } from "@/lib/services/shipments"
 import { ImportDhlTextModal, ParsedDhlShipment, FinalDhlSubmission } from "@/components/import-components/import-dhl-text-modal" // <-- Importamos FinalDhlSubmission
 import { PasteImportModal } from "@/components/import-components/paste-import-modal"
 
@@ -82,6 +83,12 @@ function ShipmentsPage() {
     }
   }
 
+  // TEMPORAL: leer el Excel nativo de DHL (3 hojas) y devolver el preview
+  // (combinado, con vencimientos precargados) para el Paso 2 del Wizard.
+  const handleParseDhlFile = async (file: File): Promise<ParsedDhlShipment[]> => {
+    return parseDhlExcelFile(file)
+  }
+
   // Handler para el guardado final (Paso 3 del Wizard)
   const handleFinalSaveDhl = async (data: FinalDhlSubmission) => {
     const formData = new FormData();
@@ -119,7 +126,7 @@ function ShipmentsPage() {
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) => (
+          cell: ({ row }: CellContext<Shipment, unknown>) => (
             <Button variant="ghost" className="h-8 w-8 p-0" onClick={() => handleViewTimeline(row.original)}>
               <span className="sr-only">Ver timeline</span>
               <Eye className="h-4 w-4" />
@@ -139,11 +146,15 @@ function ShipmentsPage() {
           description="Administra los paquetes a enviar de las diferentes empresas (FedEx & DHL)"
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              {(user?.role === UserRoleEnum.ADMIN || user?.role === UserRoleEnum.SUPERADMIN) && (
+              {/* admin + superadmin (incluye el typo histórico "superamin", igual
+                  que SUPER_ROLES en lib/access/permissions.ts). */}
+              {(["admin", "superadmin", "superamin"] as string[]).includes(String(user?.role ?? "")) && (
                 <div className="w-full sm:w-[220px]">
                   <SucursalSelector
-                    value={effectiveSubsidiaryId}
-                    onValueChange={setSelectedSubsidiaryId}
+                    value={effectiveSubsidiaryId ?? ""}
+                    onValueChange={(val) =>
+                      setSelectedSubsidiaryId(typeof val === "string" ? val : null)
+                    }
                   />
                 </div>
               )}
@@ -193,6 +204,7 @@ function ShipmentsPage() {
           onOpenChange={setIsDhlTextModalOpen}
           onProcessText={handleProcessDhlText}
           onFinalSave={handleFinalSaveDhl}
+          onParseFile={handleParseDhlFile}
           defaultSubsidiaryId={effectiveSubsidiaryId || ""}
         />
         {showPaste && !PASTE_AS_PAGE && (

@@ -27,6 +27,10 @@ export interface ParsedDhlShipment {
   pieces: number;
   weight: number;
   description: string;
+  /** yyyy-MM-dd: vencimiento (EDD) precargado cuando el origen es el Excel de DHL. */
+  dueDate?: string;
+  /** true = la pieza no cruzó con la hoja Shipment (sin dirección/CP reales). */
+  incomplete?: boolean;
   receiver: {
     name: string;
     contactName?: string;
@@ -89,20 +93,26 @@ interface ImportDhlTextModalProps {
   onOpenChange: (open: boolean) => void;
   onProcessText: (text: string) => Promise<ParsedDhlShipment[]>;
   onFinalSave: (data: FinalDhlSubmission) => Promise<void>;
+  /** TEMPORAL: parseo del Excel de DHL (combina 3 hojas) para armar el preview. */
+  onParseFile?: (file: File) => Promise<ParsedDhlShipment[]>;
   defaultSubsidiaryId?: string;
 }
 
-export function ImportDhlTextModal({ 
-  isOpen, 
-  onOpenChange, 
+export function ImportDhlTextModal({
+  isOpen,
+  onOpenChange,
   onProcessText,
   onFinalSave,
+  onParseFile,
   defaultSubsidiaryId = ""
 }: ImportDhlTextModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [text, setText] = useState("")
   const [parsedData, setParsedData] = useState<ParsedDhlShipment[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  // Origen del preview: "paste" (texto) usa el Paso 3 (capturar cons/sucursal);
+  // "file" (Excel de DHL) ya trae todo → del Paso 2 se guarda directo a la BD.
+  const [origin, setOrigin] = useState<"paste" | "file">("paste")
 
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [subsidiaryId, setSubsidiaryId] = useState<string>(defaultSubsidiaryId)
@@ -134,6 +144,7 @@ export function ImportDhlTextModal({
       setConsDate("")
       setConsNumber("")
       setDueDates({})
+      setOrigin("paste")
     }, 300)
   }
 
@@ -147,6 +158,7 @@ export function ImportDhlTextModal({
         toast.warning("No se detectaron guías en el texto. Verifica que pegaste el reporte completo de DHL.")
         return
       }
+      setOrigin("paste")
       setParsedData(data)
       setDueDates({})
       setStep(2)
@@ -154,6 +166,36 @@ export function ImportDhlTextModal({
     } catch (error: any) {
       console.error("Error al procesar el texto", error)
       toast.error(error?.response?.data?.message || "No se pudo procesar el texto de DHL.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // TEMPORAL: leer el Excel de DHL (3 hojas) → arma el preview igual que el
+  // pegado, pero con los vencimientos (EDD) ya precargados desde el archivo.
+  const handleFileParse = async (file: File | null | undefined) => {
+    if (!file || !onParseFile) return;
+    try {
+      setIsLoading(true)
+      const data = await onParseFile(file)
+      if (!data || data.length === 0) {
+        toast.warning("El archivo no contiene piezas válidas. Verifica que sea el Excel de DHL con sus hojas.")
+        return
+      }
+      setOrigin("file")
+      setParsedData(data)
+      // Prellenar los vencimientos desde el archivo (editable en la tabla).
+      const seeded: Record<string, string> = {}
+      data.forEach((item) => { if (item.dueDate) seeded[dueKey(item)] = item.dueDate })
+      setDueDates(seeded)
+      setStep(2)
+      const incompletas = data.filter((d) => d.incomplete).length
+      toast.success(
+        `${data.length} pieza(s) leída(s) del Excel${incompletas ? ` · ${incompletas} sin dirección/CP` : ""}.`
+      )
+    } catch (error: any) {
+      console.error("Error al leer el Excel de DHL", error)
+      toast.error(error?.message || error?.response?.data?.message || "No se pudo leer el Excel de DHL.")
     } finally {
       setIsLoading(false)
     }
@@ -198,6 +240,24 @@ export function ImportDhlTextModal({
     setStep(3)
   }
 
+  // Guardado DIRECTO (origen archivo): del Paso 2 se sube a la BD sin pasar por
+  // el Paso 3. Arma el layout en memoria con lo validado (incluye los
+  // vencimientos editados) — no hay descarga ni re-subida manual.
+  const handleDirectSave = async () => {
+    if (!subsidiaryId) { toast.error("Selecciona la sucursal de destino."); return; }
+    try {
+      setIsLoading(true)
+      await onFinalSave({ file: buildLayoutFile(), subsidiaryId, consDate, consNumber })
+      toast.success("Envíos DHL importados correctamente.")
+      handleClose()
+    } catch (error: any) {
+      console.error("Error al guardar los envíos", error)
+      toast.error(error?.response?.data?.message || "No se pudieron importar los envíos.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleFinalSubmit = async () => {
     if (!subsidiaryId) { toast.error("Selecciona la sucursal de destino."); return; }
     const file = uploadFile ?? buildLayoutFile();
@@ -222,17 +282,21 @@ export function ImportDhlTextModal({
       cell: ({ row }) => <span className="font-medium text-muted-foreground">{row.index + 1}</span>,
     },
     {
-      accessorKey: "awb",
+      // id = "trackingNumber" para que el buscador global del DataTable lo incluya.
+      id: "trackingNumber",
+      accessorFn: (r) => r.awb,
       header: "AWB Maestro",
       cell: ({ row }) => <span className="font-bold text-gray-900">{row.original.awb}</span>,
     },
     {
+      // id "pid" → buscable por PID/dhlUniqueId.
       accessorKey: "pid",
       header: "Pieza (PID)",
       cell: ({ row }) => <span className="text-sm font-mono text-muted-foreground">{row.original.pid || "-"}</span>,
     },
     {
-      accessorKey: "receiver.name",
+      id: "recipientName",
+      accessorFn: (r) => recipientName(r.receiver),
       header: "Destinatario",
       cell: ({ row }) => {
         const name = recipientName(row.original.receiver)
@@ -240,8 +304,28 @@ export function ImportDhlTextModal({
       },
     },
     {
-      accessorKey: "receiver.city",
-      header: "Ciudad",
+      id: "recipientAddress",
+      accessorFn: (r) => [r.receiver.address1, r.receiver.address2].filter(Boolean).join(", "),
+      header: "Dirección",
+      cell: ({ row }) => {
+        const r = row.original.receiver
+        const dir = [r.address1, r.address2].filter(Boolean).join(", ")
+        if (!dir) {
+          return <span className="text-xs font-medium text-amber-600">Sin dirección</span>
+        }
+        return <span className="truncate max-w-[220px] block text-sm" title={dir}>{dir}</span>
+      },
+    },
+    {
+      id: "recipientZip",
+      accessorFn: (r) => r.receiver.zip || "",
+      header: "CP",
+      cell: ({ row }) => {
+        const zip = row.original.receiver.zip
+        return zip
+          ? <span className="text-sm">{zip}</span>
+          : <span className="text-xs font-medium text-amber-600">—</span>
+      },
     },
     {
       accessorKey: "shipmentTime",
@@ -305,6 +389,51 @@ export function ImportDhlTextModal({
           {/* --- PASO 1 --- */}
           {step === 1 && (
             <div className="grid gap-5 animate-in fade-in slide-in-from-right-4 duration-500 h-full flex-col flex">
+              {/* TEMPORAL: subir el Excel nativo de DHL (3 hojas) — AL INICIO.
+                  Combina Shipment+Piece y precarga los vencimientos (EDD). */}
+              {onParseFile && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <FileSpreadsheet className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-amber-900">
+                        Sube el Excel de DHL <span className="font-normal text-amber-700">(temporal)</span>
+                      </p>
+                      <p className="text-[12px] text-amber-700 mt-0.5 leading-relaxed">
+                        Combina las hojas del archivo y arma la tabla con los <strong>vencimientos ya cargados</strong>. Solo revísala y continúa.
+                      </p>
+                      <div className="mt-3 grid gap-1.5">
+                        <Label className="text-xs font-semibold text-amber-900">Sucursal de destino (*)</Label>
+                        <SucursalSelector
+                          value={subsidiaryId}
+                          onValueChange={(val) => setSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
+                          insideAModal={true}
+                        />
+                      </div>
+                      <Input
+                        type="file"
+                        accept=".xlsx, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                        disabled={isLoading || !subsidiaryId}
+                        onChange={(e) => { handleFileParse(e.target.files?.[0]); e.target.value = "" }}
+                        className="mt-3 cursor-pointer bg-white file:text-amber-700 file:font-semibold file:bg-amber-100 file:border-0 file:rounded-md file:px-4 file:py-1 hover:file:bg-amber-200 transition-colors focus-visible:ring-amber-400 h-auto py-2 disabled:opacity-60"
+                      />
+                      {!subsidiaryId && (
+                        <p className="text-[12px] text-amber-700 mt-1">Selecciona la sucursal antes de subir el archivo.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Separador: pegado como opción secundaria */}
+              {onParseFile && (
+                <div className="flex items-center gap-3 text-xs font-medium text-gray-400">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  o pega el texto
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+              )}
+
               <div className="bg-gradient-to-r from-red-50 to-white p-4 rounded-xl border border-red-100/50 text-red-900 text-sm shadow-sm flex items-start gap-3">
                 <Info className="h-5 w-5 text-[#e5282d] shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
@@ -315,7 +444,7 @@ export function ImportDhlTextModal({
                 placeholder="AWB : 4465779301&#10;Orig  Dest  Shipment Time..."
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                className="flex-1 min-h-[350px] font-mono text-xs whitespace-pre bg-white border-gray-200 shadow-sm focus-visible:ring-[#e5282d] focus-visible:border-[#e5282d] rounded-xl resize-none p-4"
+                className="flex-1 min-h-[240px] font-mono text-xs whitespace-pre bg-white border-gray-200 shadow-sm focus-visible:ring-[#e5282d] focus-visible:border-[#e5282d] rounded-xl resize-none p-4"
               />
             </div>
           )}
@@ -329,22 +458,32 @@ export function ImportDhlTextModal({
                 <div className="pl-2">
                   <h4 className="font-bold text-gray-900 text-base">Validación de Datos</h4>
                   <p className="text-sm text-gray-500 mt-1.5">
-                    Captura las <strong className="text-gray-700">fechas de vencimiento</strong> directamente en la columna <strong className="text-gray-700">Vencimiento</strong> de la tabla. (Opcional: descarga el layout en Excel si lo prefieres.)
+                    {origin === "file" ? (
+                      <>Revisa que todo esté correcto. Los <strong className="text-gray-700">vencimientos</strong> ya vienen del archivo (puedes ajustarlos en la columna <strong className="text-gray-700">Vencimiento</strong>). Al continuar se sube directo a la base de datos.</>
+                    ) : (
+                      <>Captura las <strong className="text-gray-700">fechas de vencimiento</strong> directamente en la columna <strong className="text-gray-700">Vencimiento</strong> de la tabla. (Opcional: descarga el layout en Excel si lo prefieres.)</>
+                    )}
                   </p>
                 </div>
-                <Button 
-                  onClick={handleExportExcel} 
-                  className="bg-[#e5282d] hover:bg-red-700 text-white shadow-md shadow-red-200 whitespace-nowrap shrink-0 transition-all rounded-lg"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Descargar Excel
-                </Button>
+                {/* La descarga del layout solo aplica al pegado (captura manual de
+                    fechas). Si venimos del archivo, no se descarga nada. */}
+                {origin === "paste" && (
+                  <Button
+                    onClick={handleExportExcel}
+                    className="bg-[#e5282d] hover:bg-red-700 text-white shadow-md shadow-red-200 whitespace-nowrap shrink-0 transition-all rounded-lg"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Descargar Excel
+                  </Button>
+                )}
               </div>
               <div className="overflow-hidden">
-                <DataTable 
-                  columns={columns} 
-                  data={parsedData} 
-                  searchKey="awb" 
+                {/* Búsqueda global: AWB, PID, destinatario, dirección y CP
+                    (ver globalFilterFn del DataTable). */}
+                <DataTable
+                  columns={columns}
+                  data={parsedData}
+                  searchKey="trackingNumber"
                 />
               </div>
             </div>
@@ -450,7 +589,18 @@ export function ImportDhlTextModal({
               </Button>
             )}
 
-            {step === 2 && (
+            {step === 2 && origin === "file" && (
+              <Button
+                onClick={handleDirectSave}
+                disabled={isLoading || !subsidiaryId}
+                className="bg-[#e5282d] hover:bg-red-700 text-white w-full sm:w-auto rounded-lg shadow-md shadow-red-200/50"
+              >
+                {isLoading ? "Importando Envíos..." : "Subir a la base de datos"}
+                {!isLoading && <Check className="h-4 w-4 ml-2" />}
+              </Button>
+            )}
+
+            {step === 2 && origin === "paste" && (
               <Button
                 onClick={goToFinalStep}
                 className="bg-[#e5282d] hover:bg-red-700 text-white w-full sm:w-auto rounded-lg shadow-md shadow-red-200/50"

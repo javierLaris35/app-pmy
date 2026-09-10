@@ -323,6 +323,26 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     }
   }
 
+  /**
+   * PREVIEW (sin guardar) del Excel de DHL: el backend combina las 3 hojas
+   * (Shipment/Piece/Event) y devuelve las filas en el shape del pegado, con el
+   * vencimiento (EDD) precargado en `dueDate`. Se pinta en la tabla del Paso 2
+   * para que el usuario valide antes de guardar.
+   */
+  export const parseDhlExcelFile = async (file: File): Promise<ParsedDhlShipment[]> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      const response = await axiosConfig.post<ParsedDhlShipment[]>('/shipments/dhl/parse-excel', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: UPLOAD_TIMEOUT_MS,
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(extractUploadError(error, "No se pudo leer el Excel de DHL."))
+    }
+  }
+
   export const searchPackageInfo = async (trackingNumber: string): Promise<SearchShipmentDto> => {
     const response = await axiosConfig.get<SearchShipmentDto>(`${url}/search-by-trackingnumber/${trackingNumber}`);
     return response.data;
