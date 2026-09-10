@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { ColumnDef } from "@tanstack/react-table";
+import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,6 +145,8 @@ export function PasteImportModal({
   const selectedSub = subsidiaries.find((s: any) => s.id === localSubsidiaryId) as any;
   const halfTonCost = Number(selectedSub?.chargeCostHalfTon ?? 0);
   const halfTonAvailable = halfTonCost > 0;
+  const chargeCost = Number(selectedSub?.chargeCost ?? 0);
+  const secondAbordAmount = Number(selectedSub?.secondAbordAmount ?? 0);
   useEffect(() => { if (!halfTonAvailable && isHalfTon) setIsHalfTon(false); }, [halfTonAvailable, isHalfTon]);
   // 2º a bordo: por defecto según la sucursal (chargeSecondAbord). Se reinicia al cambiar sucursal.
   useEffect(() => { setSecondAbord(!!selectedSub?.chargeSecondAbord); }, [localSubsidiaryId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -525,8 +528,8 @@ export function PasteImportModal({
                         label="Carga de 1.5 toneladas"
                         hint={
                           isHalfTon
-                            ? `ACTIVO: el ingreso de esta carga se generará por ${halfTonCost.toLocaleString("es-MX", { style: "currency", currency: "MXN" })} (costo 1.5 ton) en vez del costo de carga normal.`
-                            : "INACTIVO (normal): el ingreso usa el costo de carga estándar de la sucursal."
+                            ? `ACTIVO: el ingreso de esta carga se generará por ${formatCurrency(halfTonCost)} (costo 1.5 ton) en vez del costo de carga normal.`
+                            : `INACTIVO (normal): el ingreso usa el costo de carga estándar de ${formatCurrency(chargeCost)}.`
                         }
                         checked={isHalfTon}
                         onCheckedChange={setIsHalfTon}
@@ -537,8 +540,8 @@ export function PasteImportModal({
                         label="2º a bordo"
                         hint={
                           secondAbord
-                            ? "ACTIVO: se suma el 2º a bordo de la sucursal al costo de la carga."
-                            : "INACTIVO: no se suma el 2º a bordo."
+                            ? `ACTIVO: se suma el 2º a bordo de ${formatCurrency(secondAbordAmount)} → total ${formatCurrency(chargeCost + secondAbordAmount)}.`
+                            : `INACTIVO: costo de carga normal ${formatCurrency(chargeCost)} (sin 2º a bordo).`
                         }
                         checked={secondAbord}
                         onCheckedChange={setSecondAbord}

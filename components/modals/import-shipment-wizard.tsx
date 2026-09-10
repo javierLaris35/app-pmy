@@ -26,7 +26,7 @@ import { toast } from "@/lib/toast"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import { SucursalSelector } from "../sucursal-selector"
 import {
   uploadF2ChargeShipments,
@@ -127,6 +127,8 @@ export function ShipmentWizardModal({
   const selectedSubsidiary = subsidiaries.find((s) => s.id === sucursalId)
   const halfTonCost = Number(selectedSubsidiary?.chargeCostHalfTon ?? 0)
   const halfTonAvailable = halfTonCost > 0
+  const chargeCost = Number((selectedSubsidiary as any)?.chargeCost ?? 0)
+  const secondAbordAmount = Number((selectedSubsidiary as any)?.secondAbordAmount ?? 0)
   // Si la sucursal no aplica, no arrastres el flag activo.
   useEffect(() => { if (!halfTonAvailable && isHalfTon) setIsHalfTon(false) }, [halfTonAvailable, isHalfTon])
   // 2º a bordo: por defecto según la sucursal (chargeSecondAbord). Se reinicia al cambiar sucursal.
@@ -473,8 +475,8 @@ export function ShipmentWizardModal({
               label="Carga de 1.5 toneladas"
               hint={
                 isHalfTon
-                  ? `ACTIVO: el ingreso de esta carga se generará por ${halfTonCost.toLocaleString("es-MX", { style: "currency", currency: "MXN" })} (costo 1.5 ton) en vez del costo de carga normal.`
-                  : "INACTIVO (normal): el ingreso usa el costo de carga estándar de la sucursal."
+                  ? `ACTIVO: el ingreso de esta carga se generará por ${formatCurrency(halfTonCost)} (costo 1.5 ton) en vez del costo de carga normal.`
+                  : `INACTIVO (normal): el ingreso usa el costo de carga estándar de ${formatCurrency(chargeCost)}.`
               }
               checked={isHalfTon}
               onCheckedChange={setIsHalfTon}
@@ -487,8 +489,8 @@ export function ShipmentWizardModal({
               label="2º a bordo"
               hint={
                 secondAbord
-                  ? "ACTIVO: se suma el 2º a bordo de la sucursal al costo de la carga."
-                  : "INACTIVO: no se suma el 2º a bordo."
+                  ? `ACTIVO: se suma el 2º a bordo de ${formatCurrency(secondAbordAmount)} → total ${formatCurrency(chargeCost + secondAbordAmount)}.`
+                  : `INACTIVO: costo de carga normal ${formatCurrency(chargeCost)} (sin 2º a bordo).`
               }
               checked={secondAbord}
               onCheckedChange={setSecondAbord}
