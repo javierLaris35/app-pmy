@@ -1,0 +1,47 @@
+/** Tipos del Consolidador de Finanzas (espejo del backend `src/consolidador/consolidador.types.ts`). */
+
+export type ConsolidadorSourceType =
+  | "shipment"
+  | "collection"
+  | "charge"
+  | "manual"
+  | "tyco"
+  | "aeropuerto"
+  | "special_transfer";
+
+export interface ConsolidadorRow {
+  id: string;
+  trackingNumber: string | null;
+  sourceType: ConsolidadorSourceType;
+  incomeType: string;
+  cost: number;
+  originalCost: number | null;
+  date: string; // ISO
+  consNumber: string | null;
+  consolidatedId: string | null;
+  routeId: string | null;
+  shipmentId: string | null;
+  shipmentStatus: string | null;
+  editReason: string | null;
+}
+
+export interface ConsolidadorBucket {
+  amount: number;
+  count: number;
+}
+
+export interface ConsolidadorBuckets {
+  envios: ConsolidadorBucket;
+  cargas: ConsolidadorBucket;
+  recolecciones: ConsolidadorBucket;
+  traslados: ConsolidadorBucket;
+  manual: ConsolidadorBucket;
+  total: ConsolidadorBucket;
+}
+
+export interface ConsolidadorReadResult {
+  rows: ConsolidadorRow[];
+  buckets: ConsolidadorBuckets;
+}
+
+export type ManualKind = "recoleccion" | "pod" | "dex" | "manual";
