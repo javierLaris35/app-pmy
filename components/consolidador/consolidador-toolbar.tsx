@@ -1,12 +1,10 @@
 "use client";
 
-import { SucursalSelector } from "@/components/sucursal-selector";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Subsidiary } from "@/lib/types";
-import { ChevronLeft, ChevronRight, Filter, Package2, Route, X, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Package2, Route, X, Check } from "lucide-react";
 
 interface RouteOption {
   id: string;
@@ -14,8 +12,6 @@ interface RouteOption {
 }
 
 interface Props {
-  subsidiaryId: string;
-  onSubsidiary: (id: string) => void;
   weekLabel: string;
   isCurrentWeek: boolean;
   onPrevWeek: () => void;
@@ -93,46 +89,32 @@ export function ConsolidadorToolbar(props: Props) {
   const routeLabel = props.routeOptions.find((r) => r.id === props.routeId)?.label ?? props.routeId;
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
-          <Filter className="h-3 w-3" /> Sucursal
-        </label>
-        <SucursalSelector
-          value={props.subsidiaryId}
-          onValueChange={(val) => {
-            const id = typeof val === "string" ? val : (val as Subsidiary).id;
-            props.onSubsidiary(id ?? "");
-          }}
-        />
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Navegación de semana */}
+      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1 py-0.5">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={props.onPrevWeek}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex flex-col items-center px-2 min-w-[120px]">
+          <span className="text-xs font-semibold text-slate-700">{props.weekLabel}</span>
+          {props.isCurrentWeek && (
+            <Badge variant="outline" className="mt-0.5 h-4 px-1 text-[9px] bg-emerald-50 text-emerald-600 border-emerald-200">
+              Semana actual
+            </Badge>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={props.onNextWeek}
+          disabled={props.isCurrentWeek}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Navegación de semana */}
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1 py-0.5">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={props.onPrevWeek}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex flex-col items-center px-2 min-w-[120px]">
-            <span className="text-xs font-semibold text-slate-700">{props.weekLabel}</span>
-            {props.isCurrentWeek && (
-              <Badge variant="outline" className="mt-0.5 h-4 px-1 text-[9px] bg-emerald-50 text-emerald-600 border-emerald-200">
-                Semana actual
-              </Badge>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={props.onNextWeek}
-            disabled={props.isCurrentWeek}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <FilterPopover
+      <FilterPopover
           icon={Package2}
           title="Consolidado"
           value={props.consNumber}
@@ -148,7 +130,6 @@ export function ConsolidadorToolbar(props: Props) {
           options={props.routeOptions.map((r) => ({ key: r.id, label: r.label }))}
           onChange={props.onRouteChange}
         />
-      </div>
     </div>
   );
 }

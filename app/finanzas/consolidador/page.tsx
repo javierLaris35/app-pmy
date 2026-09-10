@@ -2,14 +2,16 @@
 
 import React, { useMemo, useState } from "react";
 import { AppLayout } from "@/components/app-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OperationHeader } from "@/components/shared/operation-header";
+import { SucursalSelector } from "@/components/sucursal-selector";
+import { DataTable } from "@/components/data-table/data-table";
 import { withAuth } from "@/hoc/withAuth";
 import { useConsolidadorWeek } from "@/hooks/services/consolidador/use-consolidador";
 import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-toolbar";
 import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
-import { ConsolidadorTable } from "@/components/consolidador/consolidador-table";
+import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
 import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/week";
+import { Subsidiary } from "@/lib/types";
 import { SlidersHorizontal, Loader2 } from "lucide-react";
 
 function ConsolidadorPage() {
@@ -18,10 +20,12 @@ function ConsolidadorPage() {
   const [consNumber, setConsNumber] = useState("");
   const [routeId, setRouteId] = useState("");
 
-  // Consulta filtrada → tabla + KPIs.
+  // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
   const { data, isLoading } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
-  // Consulta base (sin filtros) → opciones de los popovers (SWR deduplica si no hay filtros).
+  // Consulta base sin filtros → opciones de los popovers (SWR deduplica si no hay filtros).
   const { data: base } = useConsolidadorWeek(subsidiaryId, week.from, week.to, {});
+
+  const columns = useMemo(() => getConsolidadorColumns(), []);
 
   const consOptions = useMemo(() => {
     const set = new Set<string>();
@@ -35,13 +39,28 @@ function ConsolidadorPage() {
     return [...set].map((id) => ({ id, label: `Ruta …${id.slice(-6)}` }));
   }, [base]);
 
+  // Opciones del filtro facetado de Estatus, derivadas de los datos reales.
+  const statusOptions = useMemo(() => {
+    const set = new Set<string>();
+    data?.rows.forEach((r) => r.shipmentStatus && set.add(r.shipmentStatus));
+    return [...set].sort().map((v) => ({ label: v.replace(/_/g, " "), value: v }));
+  }, [data]);
+
+  const tableFilters = useMemo(
+    () => [
+      { columnId: "sourceType", title: "Tipo de ingreso", options: SOURCE_FILTER_OPTIONS },
+      { columnId: "shipmentStatus", title: "Estatus", options: statusOptions },
+    ],
+    [statusOptions],
+  );
+
   return (
     <AppLayout>
-      <div className="relative flex flex-col gap-5 p-6 bg-slate-50/30 min-h-screen">
+      <div className="relative flex flex-col gap-3 p-4 bg-slate-50/30 min-h-screen">
         {isLoading && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
-            <div className="flex flex-col items-center gap-2 bg-white p-6 rounded-xl shadow-xl border border-slate-100">
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
+            <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-lg shadow-lg border border-slate-100">
+              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
               <p className="text-sm font-medium text-slate-600">Cargando consolidado...</p>
             </div>
           </div>
@@ -50,42 +69,46 @@ function ConsolidadorPage() {
         <OperationHeader
           icon={SlidersHorizontal}
           title="Consolidador de Finanzas"
-          description="Concilia ingresos por sucursal y semana: costos, altas manuales y estatus"
+          description="Concilia ingresos por sucursal y semana"
+          actions={
+            <SucursalSelector
+              value={subsidiaryId}
+              onValueChange={(val) => {
+                const id = typeof val === "string" ? val : (val as Subsidiary).id;
+                setSubsidiaryId(id ?? "");
+              }}
+            />
+          }
         />
 
-        <Card className="shadow-sm border-none bg-white">
-          <CardContent className="pt-5">
-            <ConsolidadorToolbar
-              subsidiaryId={subsidiaryId}
-              onSubsidiary={setSubsidiaryId}
-              weekLabel={formatWeekLabel(week)}
-              isCurrentWeek={isCurrentWeek(week)}
-              onPrevWeek={() => setWeek((w) => shiftWeek(w, -1))}
-              onNextWeek={() => setWeek((w) => shiftWeek(w, 1))}
-              consNumber={consNumber}
-              routeId={routeId}
-              onConsChange={setConsNumber}
-              onRouteChange={setRouteId}
-              consOptions={consOptions}
-              routeOptions={routeOptions}
-            />
-          </CardContent>
-        </Card>
+        {/* Barra compacta: semana + filtros de consolidado/ruta */}
+        <ConsolidadorToolbar
+          weekLabel={formatWeekLabel(week)}
+          isCurrentWeek={isCurrentWeek(week)}
+          onPrevWeek={() => setWeek((w) => shiftWeek(w, -1))}
+          onNextWeek={() => setWeek((w) => shiftWeek(w, 1))}
+          consNumber={consNumber}
+          routeId={routeId}
+          onConsChange={setConsNumber}
+          onRouteChange={setRouteId}
+          consOptions={consOptions}
+          routeOptions={routeOptions}
+        />
 
         <ConsolidadorKpis buckets={data?.buckets} />
 
-        <Card className="shadow-md border-none overflow-hidden bg-white">
-          <CardHeader className="border-b border-slate-50">
-            <CardTitle className="text-base font-semibold text-slate-800">Ingresos de la semana</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {!subsidiaryId ? (
-              <div className="py-16 text-center text-sm text-slate-400">Selecciona una sucursal para comenzar</div>
-            ) : (
-              <ConsolidadorTable rows={data?.rows ?? []} />
-            )}
-          </CardContent>
-        </Card>
+        {!subsidiaryId ? (
+          <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">
+            Selecciona una sucursal para comenzar
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={data?.rows ?? []}
+            filters={tableFilters}
+            autoResetPageIndex={false}
+          />
+        )}
       </div>
     </AppLayout>
   );
