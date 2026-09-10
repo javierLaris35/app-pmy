@@ -7,6 +7,7 @@ import {
   XCircle
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { formatCurrency } from "@/lib/utils"
 import {
   Dialog,
   DialogTrigger,
@@ -32,6 +33,8 @@ interface ShipmentItem {
   type: string
   shipmentType: string
   status?: string
+  cost?: number
+  secondAbord?: number
 }
 
 interface ShipmentDetailDialogProps {
@@ -330,6 +333,22 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
         const type = row.getValue("type")
         const status = row.getValue("status")
         return renderStatusBadge(status, type)
+      }
+    },
+    {
+      accessorKey: "cost",
+      header: "Costo",
+      cell: ({ row }) => {
+        const cost = Number(row.original.cost ?? 0)
+        const secondAbord = Number(row.original.secondAbord ?? 0)
+        return (
+          <div className="flex flex-col">
+            <span className="font-semibold text-slate-900 tabular-nums">{formatCurrency(cost)}</span>
+            {secondAbord > 0 && (
+              <span className="text-[11px] text-violet-600">incl. 2º a bordo {formatCurrency(secondAbord)}</span>
+            )}
+          </div>
+        )
       }
     }
   ]

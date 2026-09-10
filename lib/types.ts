@@ -183,6 +183,8 @@ export type NewIncome = {
     status: string;
     date: string;
     cost: number;
+    /** Parte del costo de la carga que corresponde al 2º a bordo (derivado, informativo). */
+    secondAbord?: number;
     commitDateTime?: string;
   }[];
 };
