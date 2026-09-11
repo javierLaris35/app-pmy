@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { DataTable } from "@/components/data-table/data-table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { RowActions } from "@/components/consolidador/row-actions";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { StatusTimelineDialog } from "@/components/consolidador/status-timeline-dialog";
@@ -20,7 +18,18 @@ import {
 import { AnomalyRow } from "@/lib/types/consolidador";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/lib/toast";
-import { AlertTriangle, Loader2, History, ShieldCheck, ListOrdered } from "lucide-react";
+import {
+  AlertTriangle,
+  AlertOctagon,
+  Loader2,
+  History,
+  ShieldCheck,
+  ListOrdered,
+  CalendarClock,
+  Truck,
+  FileWarning,
+  PackageX,
+} from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -31,17 +40,42 @@ interface Props {
   onChanged: () => void;
 }
 
-const SHORT: Record<string, string> = {
-  date_mismatch: "Fecha no coincide",
-  status_regressed: "Volvió a tránsito",
-  income_without_support: "Cobro sin entrega",
-  delivered_by_fedex: "Lo entregó FedEx",
+type Severity = "danger" | "warn";
+
+// Cada anomalía: título corto, ícono y severidad (danger = el cobro probablemente está mal).
+const ANOMALY: Record<string, { short: string; icon: typeof AlertTriangle; severity: Severity }> = {
+  delivered_by_fedex: { short: "Lo entregó FedEx", icon: PackageX, severity: "danger" },
+  income_without_support: { short: "Cobro sin entrega", icon: FileWarning, severity: "danger" },
+  status_regressed: { short: "Volvió a tránsito", icon: Truck, severity: "warn" },
+  date_mismatch: { short: "Fecha no coincide", icon: CalendarClock, severity: "warn" },
+};
+
+const SEV: Record<Severity, { card: string; strip: string; iconBg: string; iconText: string; chip: string; chipText: string }> = {
+  danger: {
+    card: "border-red-200 bg-red-50/40",
+    strip: "bg-red-500",
+    iconBg: "bg-red-100",
+    iconText: "text-red-600",
+    chip: "bg-red-100/70",
+    chipText: "text-red-700",
+  },
+  warn: {
+    card: "border-amber-200 bg-amber-50/40",
+    strip: "bg-amber-400",
+    iconBg: "bg-amber-100",
+    iconText: "text-amber-600",
+    chip: "bg-amber-100/70",
+    chipText: "text-amber-700",
+  },
 };
 
 const fmtDateTime = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : "—";
+
+const rowSeverity = (r: AnomalyRow): Severity =>
+  r.anomalies.some((a) => ANOMALY[a.code]?.severity === "danger") ? "danger" : "warn";
 
 export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChanged }: Props) {
   const [rows, setRows] = useState<AnomalyRow[]>([]);
@@ -54,6 +88,8 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
     setLoading(true);
     try {
       const { rows } = await getWeekAnomalies(subsidiaryId, week.from, week.to);
+      // Críticas primero.
+      rows.sort((a, b) => (rowSeverity(a) === rowSeverity(b) ? 0 : rowSeverity(a) === "danger" ? -1 : 1));
       setRows(rows);
     } catch {
       toast.error("No se pudieron cargar las anomalías");
@@ -77,154 +113,134 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
     }
   };
 
-  const columns = useMemo<ColumnDef<AnomalyRow>[]>(
-    () => [
-      {
-        accessorKey: "trackingNumber",
-        header: "Guía",
-        cell: ({ row }) => (
-          <span className="font-medium tabular-nums text-slate-800">
-            {row.original.trackingNumber || row.original.consNumber || "—"}
-          </span>
-        ),
-      },
-      {
-        id: "alertas",
-        header: "Alertas",
-        cell: ({ row }) => (
-          <div className="flex max-w-[400px] flex-col gap-2">
-            {row.original.anomalies.map((a) => (
-              <div key={a.code} className="border-l-2 border-amber-400 pl-2.5">
-                <div className="text-xs font-semibold text-slate-800">{SHORT[a.code] ?? a.code}</div>
-                <div className="text-[11px] leading-snug text-slate-500">{a.label}</div>
-              </div>
-            ))}
-          </div>
-        ),
-      },
-      {
-        id: "estatus",
-        header: "Estatus",
-        cell: ({ row }) => (
-          <Badge variant="outline" className="whitespace-nowrap bg-slate-50 text-slate-600 border-slate-200 font-normal">
-            {row.original.shipmentStatus ?? "—"}
-          </Badge>
-        ),
-      },
-      {
-        id: "fechas",
-        header: () => <span className="whitespace-nowrap">F. estatus / ingreso</span>,
-        cell: ({ row }) => (
-          <div className="whitespace-nowrap text-xs tabular-nums leading-tight">
-            <div className="text-slate-600">
-              <span className="text-[10px] text-slate-400">Est</span> {fmtDateTime(row.original.statusDate)}
-            </div>
-            <div className="font-medium text-amber-600">
-              <span className="text-[10px] text-slate-400">Ing</span> {fmtDateTime(row.original.date)}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "cost",
-        header: "Costo",
-        cell: ({ row }) => <span className="font-semibold tabular-nums">{formatCurrency(row.original.cost)}</span>,
-      },
-      {
-        id: "actions",
-        header: () => <div className="text-right">Acciones</div>,
-        enableSorting: false,
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial de estatus" onClick={() => setTimelineRow(row.original)}>
-              <ListOrdered className="h-4 w-4 text-slate-500" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial de cambios" onClick={() => setHistoryId(row.original.id)}>
-              <History className="h-4 w-4 text-slate-500" />
-            </Button>
-            <RowActions
-              row={row.original}
-              onEditCost={(id, cost, reason) => after(patchIncomeCost(id, cost, reason), "Costo actualizado")}
-              onToggleSecondAbord={(id, enabled, reason) => after(patchSecondAbord(id, enabled, reason), "2º a bordo ajustado")}
-              onEditDate={(id, date, reason) => after(editIncomeDate(id, date, reason), "Fecha actualizada")}
-              onDelete={(id, reason) => after(deleteIncome(id, reason), "Ingreso eliminado")}
-            />
-          </div>
-        ),
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const byType = useMemo(() => {
-    const m = new Map<string, number>();
-    rows.forEach((r) => r.anomalies.forEach((a) => m.set(a.code, (m.get(a.code) ?? 0) + 1)));
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  const { danger, warn } = useMemo(() => {
+    let d = 0;
+    let w = 0;
+    rows.forEach((r) => (rowSeverity(r) === "danger" ? d++ : w++));
+    return { danger: d, warn: w };
   }, [rows]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-5xl">
-        <DialogHeader className="border-b border-slate-100 pb-3">
+      <DialogContent className="max-h-[92vh] w-[95vw] max-w-[95vw] gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b border-slate-100 px-5 py-4">
           <DialogTitle className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
               <AlertTriangle className="h-5 w-5" />
             </span>
             <span className="flex flex-col">
-              <span className="text-base font-semibold text-slate-900">Revisión de anomalías</span>
+              <span className="text-base font-semibold text-slate-900">Anomalías por revisar</span>
               <span className="text-xs font-normal text-slate-400">Ingresos con problemas de esta sucursal y semana</span>
             </span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="min-w-0 space-y-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
-                <ShieldCheck className="h-8 w-8 text-emerald-500" />
-              </span>
-              <p className="text-sm font-semibold text-slate-700">Todo en orden</p>
-              <p className="text-xs text-slate-400">No se detectaron anomalías en esta sucursal y semana.</p>
-            </div>
-          ) : (
-            <>
-              {/* Resumen — mismo lenguaje que los KPIs del consolidador. */}
-              <Card className="overflow-hidden border-slate-200 shadow-sm">
-                <div className="grid grid-cols-2 divide-slate-100 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x [&>*]:border-b [&>*]:border-slate-100 sm:[&>*]:border-b-0">
-                  <div className="relative px-4 py-3">
-                    <span className="absolute left-0 top-0 h-full w-0.5 bg-amber-500" />
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Con alertas</div>
-                    <div className="mt-1 text-xl font-bold tabular-nums tracking-tight text-amber-600">{rows.length}</div>
-                    <div className="text-[11px] text-slate-400">paquetes</div>
-                  </div>
-                  {byType.map(([code, n]) => (
-                    <div key={code} className="px-4 py-3">
-                      <div className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-400">{SHORT[code] ?? code}</div>
-                      <div className="mt-1 text-lg font-semibold tabular-nums tracking-tight text-slate-900">{n}</div>
-                      <div className="text-[11px] text-slate-400">casos</div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-
-              <div className="min-w-0 overflow-x-auto rounded-lg border border-slate-200 p-3">
-                <DataTable columns={columns} data={rows} autoResetPageIndex={false} hideToolbar hideSelectionCount />
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-slate-400">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-20 text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
+              <ShieldCheck className="h-9 w-9 text-emerald-500" />
+            </span>
+            <p className="text-base font-semibold text-slate-800">Todo en orden</p>
+            <p className="text-sm text-slate-400">No se detectaron anomalías esta semana.</p>
+          </div>
+        ) : (
+          <>
+            {/* Resumen de severidad — se lee de un vistazo. */}
+            <div className="flex items-center gap-5 border-b border-slate-100 bg-slate-50/60 px-5 py-3">
+              <div className="flex items-center gap-2">
+                <AlertOctagon className="h-4 w-4 text-red-500" />
+                <span className="text-sm text-slate-600">
+                  <span className="font-bold text-red-600 tabular-nums">{danger}</span> crítica{danger === 1 ? "" : "s"}
+                </span>
               </div>
-            </>
-          )}
-        </div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <span className="text-sm text-slate-600">
+                  <span className="font-bold text-amber-600 tabular-nums">{warn}</span> por revisar
+                </span>
+              </div>
+              <span className="ml-auto text-xs text-slate-400">{rows.length} en total</span>
+            </div>
+
+            <ScrollArea className="max-h-[62vh]">
+              <div className="space-y-3 p-5">
+                {rows.map((r) => {
+                  const sev = rowSeverity(r);
+                  const S = SEV[sev];
+                  return (
+                    <div key={r.id} className={`relative overflow-hidden rounded-xl border ${S.card} pl-4 pr-3 py-3`}>
+                      <span className={`absolute left-0 top-0 h-full w-1 ${S.strip}`} />
+
+                      {/* Cabecera de la tarjeta: identidad + acciones */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="font-semibold tabular-nums text-slate-900">{r.trackingNumber || r.consNumber || "—"}</span>
+                          {r.shipmentStatus && (
+                            <Badge variant="outline" className="whitespace-nowrap border-slate-200 bg-white/70 font-normal text-slate-600">
+                              {r.shipmentStatus.replace(/_/g, " ")}
+                            </Badge>
+                          )}
+                          <span className="font-semibold tabular-nums text-slate-700">{formatCurrency(r.cost)}</span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Trazabilidad" onClick={() => setTimelineRow(r)}>
+                            <ListOrdered className="h-4 w-4 text-slate-500" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial de cambios" onClick={() => setHistoryId(r.id)}>
+                            <History className="h-4 w-4 text-slate-500" />
+                          </Button>
+                          <RowActions
+                            row={r}
+                            onEditCost={(id, cost, reason) => after(patchIncomeCost(id, cost, reason), "Costo actualizado")}
+                            onToggleSecondAbord={(id, enabled, reason) => after(patchSecondAbord(id, enabled, reason), "2º a bordo ajustado")}
+                            onEditDate={(id, date, reason) => after(editIncomeDate(id, date, reason), "Fecha actualizada")}
+                            onDelete={(id, reason) => after(deleteIncome(id, reason), "Ingreso eliminado")}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Alertas de la tarjeta */}
+                      <div className="mt-2.5 space-y-1.5">
+                        {r.anomalies.map((a) => {
+                          const meta = ANOMALY[a.code] ?? { short: a.code, icon: AlertTriangle, severity: "warn" as Severity };
+                          const AS = SEV[meta.severity];
+                          const AIcon = meta.icon;
+                          return (
+                            <div key={a.code} className={`flex items-start gap-2 rounded-lg ${AS.chip} px-2.5 py-1.5`}>
+                              <AIcon className={`mt-0.5 h-4 w-4 shrink-0 ${AS.chipText}`} />
+                              <div className="min-w-0">
+                                <div className={`text-xs font-semibold ${AS.chipText}`}>{meta.short}</div>
+                                <div className="text-[11px] leading-snug text-slate-600">{a.label}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Fechas */}
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] tabular-nums text-slate-500">
+                        <span>
+                          <span className="text-slate-400">Estatus</span> {fmtDateTime(r.statusDate)}
+                        </span>
+                        <span>
+                          <span className="text-slate-400">Ingreso</span>{" "}
+                          <span className="font-medium text-amber-600">{fmtDateTime(r.date)}</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </>
+        )}
 
         <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
-        <StatusTimelineDialog
-          open={!!timelineRow}
-          onOpenChange={(o) => !o && setTimelineRow(null)}
-          tracking={timelineRow?.trackingNumber ?? null}
-        />
+        <StatusTimelineDialog open={!!timelineRow} onOpenChange={(o) => !o && setTimelineRow(null)} tracking={timelineRow?.trackingNumber ?? null} />
       </DialogContent>
     </Dialog>
   );
