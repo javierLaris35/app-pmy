@@ -192,7 +192,6 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
           open={!!timelineRow}
           onOpenChange={(o) => !o && setTimelineRow(null)}
           tracking={timelineRow?.trackingNumber ?? null}
-          history={timelineRow?.statusHistory ?? []}
         />
       </DialogContent>
     </Dialog>

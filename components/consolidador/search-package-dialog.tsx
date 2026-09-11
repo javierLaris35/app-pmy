@@ -235,9 +235,9 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
         return (
           <div className="flex justify-end gap-1.5">
             <IconAction
-              label="Ver historial de estatus"
+              label="Ver trazabilidad del paquete"
               icon={ListOrdered}
-              disabled={h.busy !== null || (r.statusHistory?.length ?? 0) === 0}
+              disabled={h.busy !== null}
               onClick={() => h.onTimeline(r)}
             />
             <IconAction
@@ -457,7 +457,6 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
           open={!!timelineItem}
           onOpenChange={(o) => !o && setTimelineItem(null)}
           tracking={timelineItem?.tracking ?? null}
-          history={timelineItem?.statusHistory ?? []}
         />
         </TooltipProvider>
       </DialogContent>

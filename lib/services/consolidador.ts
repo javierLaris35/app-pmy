@@ -26,6 +26,19 @@ export const getConsolidadorWeek = async (
   return res.data;
 };
 
+export interface TimelineEvent {
+  kind: string;
+  label: string;
+  date: string | null;
+  meta?: { cost?: number; subsidiary?: string | null };
+}
+
+/** GET: timeline unificado del paquete (recibido, consolidado, salida a ruta, FedEx, ingreso). */
+export const getPackageTimeline = async (
+  tracking: string,
+): Promise<{ tracking?: string; currentStatus?: string; events: TimelineEvent[] }> =>
+  (await axiosConfig.get(`${baseUrl}/package/${encodeURIComponent(tracking)}/timeline`)).data;
+
 /** GET: ingresos con anomalías de la semana (panel de revisión). */
 export const getWeekAnomalies = async (subsidiaryId: string, from: string, to: string): Promise<{ rows: AnomalyRow[] }> =>
   (await axiosConfig.get<{ rows: AnomalyRow[] }>(`${baseUrl}/${subsidiaryId}/${from}/${to}/anomalies`)).data;
