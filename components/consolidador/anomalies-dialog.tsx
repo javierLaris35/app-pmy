@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/data-table/data-table";
 import { RowActions } from "@/components/consolidador/row-actions";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
@@ -91,14 +92,11 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
         id: "alertas",
         header: "Alertas",
         cell: ({ row }) => (
-          <div className="flex max-w-[380px] flex-col gap-1.5">
+          <div className="flex max-w-[400px] flex-col gap-2">
             {row.original.anomalies.map((a) => (
-              <div key={a.code} className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-amber-800">{SHORT[a.code] ?? a.code}</div>
-                  <div className="text-[11px] leading-snug text-amber-700">{a.label}</div>
-                </div>
+              <div key={a.code} className="border-l-2 border-amber-400 pl-2.5">
+                <div className="text-xs font-semibold text-slate-800">{SHORT[a.code] ?? a.code}</div>
+                <div className="text-[11px] leading-snug text-slate-500">{a.label}</div>
               </div>
             ))}
           </div>
@@ -159,30 +157,65 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
     [],
   );
 
+  const byType = useMemo(() => {
+    const m = new Map<string, number>();
+    rows.forEach((r) => r.anomalies.forEach((a) => m.set(a.code, (m.get(a.code) ?? 0) + 1)));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [rows]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-5xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            Revisión de anomalías — semana seleccionada
+        <DialogHeader className="border-b border-slate-100 pb-3">
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+            </span>
+            <span className="flex flex-col">
+              <span className="text-base font-semibold text-slate-900">Revisión de anomalías</span>
+              <span className="text-xs font-normal text-slate-400">Ingresos con problemas de esta sucursal y semana</span>
+            </span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="min-w-0 space-y-3">
+        <div className="min-w-0 space-y-4">
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-slate-400">
+            <div className="flex items-center justify-center py-16 text-slate-400">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-12 text-center text-slate-500">
-              <ShieldCheck className="h-10 w-10 text-emerald-500" />
-              <p className="text-sm font-medium">Sin anomalías en esta sucursal y semana.</p>
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
+                <ShieldCheck className="h-8 w-8 text-emerald-500" />
+              </span>
+              <p className="text-sm font-semibold text-slate-700">Todo en orden</p>
+              <p className="text-xs text-slate-400">No se detectaron anomalías en esta sucursal y semana.</p>
             </div>
           ) : (
-            <div className="min-w-0 overflow-x-auto">
-              <DataTable columns={columns} data={rows} autoResetPageIndex={false} hideToolbar hideSelectionCount />
-            </div>
+            <>
+              {/* Resumen — mismo lenguaje que los KPIs del consolidador. */}
+              <Card className="overflow-hidden border-slate-200 shadow-sm">
+                <div className="grid grid-cols-2 divide-slate-100 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x [&>*]:border-b [&>*]:border-slate-100 sm:[&>*]:border-b-0">
+                  <div className="relative px-4 py-3">
+                    <span className="absolute left-0 top-0 h-full w-0.5 bg-amber-500" />
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Con alertas</div>
+                    <div className="mt-1 text-xl font-bold tabular-nums tracking-tight text-amber-600">{rows.length}</div>
+                    <div className="text-[11px] text-slate-400">paquetes</div>
+                  </div>
+                  {byType.map(([code, n]) => (
+                    <div key={code} className="px-4 py-3">
+                      <div className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-400">{SHORT[code] ?? code}</div>
+                      <div className="mt-1 text-lg font-semibold tabular-nums tracking-tight text-slate-900">{n}</div>
+                      <div className="text-[11px] text-slate-400">casos</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <div className="min-w-0 overflow-x-auto rounded-lg border border-slate-200 p-3">
+                <DataTable columns={columns} data={rows} autoResetPageIndex={false} hideToolbar hideSelectionCount />
+              </div>
+            </>
           )}
         </div>
 
