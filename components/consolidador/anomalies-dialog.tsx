@@ -36,7 +36,7 @@ const SHORT: Record<string, string> = {
 };
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : "—";
+  iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
 
 export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChanged }: Props) {
   const [rows, setRows] = useState<AnomalyRow[]>([]);

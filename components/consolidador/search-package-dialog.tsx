@@ -45,7 +45,7 @@ interface Props {
 
 const fmt = (s: string | null) => (s ? s.replace(/_/g, " ") : "—");
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : "—";
+  iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
 const dayKey = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : null);
 
 interface Handlers {

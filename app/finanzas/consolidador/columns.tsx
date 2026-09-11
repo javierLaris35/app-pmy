@@ -91,7 +91,7 @@ export function getConsolidadorColumns({ renderActions }: Handlers = {}): Column
       accessorKey: "date",
       header: "Fecha",
       cell: ({ row }) =>
-        new Date(row.original.date).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
+        new Date(row.original.date).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" }),
     },
     {
       accessorKey: "cost",
