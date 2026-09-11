@@ -31,10 +31,10 @@ interface Props {
 }
 
 const SHORT: Record<string, string> = {
-  date_mismatch: "Fecha",
-  status_regressed: "Retroceso",
-  income_without_support: "Sin respaldo",
-  delivered_by_fedex: "FedEx entregó",
+  date_mismatch: "Fecha no coincide",
+  status_regressed: "Volvió a tránsito",
+  income_without_support: "Cobro sin entrega",
+  delivered_by_fedex: "Lo entregó FedEx",
 };
 
 const fmtDateTime = (iso: string | null) =>
@@ -91,17 +91,15 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
         id: "alertas",
         header: "Alertas",
         cell: ({ row }) => (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex max-w-[380px] flex-col gap-1.5">
             {row.original.anomalies.map((a) => (
-              <Badge
-                key={a.code}
-                variant="outline"
-                className="whitespace-nowrap gap-1 bg-amber-50 text-amber-700 border-amber-200 font-normal"
-                title={a.label}
-              >
-                <AlertTriangle className="h-3 w-3" />
-                {SHORT[a.code] ?? a.code}
-              </Badge>
+              <div key={a.code} className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-amber-800">{SHORT[a.code] ?? a.code}</div>
+                  <div className="text-[11px] leading-snug text-amber-700">{a.label}</div>
+                </div>
+              </div>
             ))}
           </div>
         ),

@@ -176,10 +176,10 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
         const a = row.original.anomalies ?? [];
         if (a.length === 0) return <span className="text-xs text-emerald-500">OK</span>;
         const short: Record<string, string> = {
-          date_mismatch: "Fecha",
-          status_regressed: "Retroceso",
-          income_without_support: "Sin respaldo",
-          delivered_by_fedex: "FedEx entregó",
+          date_mismatch: "Fecha no coincide",
+          status_regressed: "Volvió a tránsito",
+          income_without_support: "Cobro sin entrega",
+          delivered_by_fedex: "Lo entregó FedEx",
         };
         return (
           <div className="flex flex-wrap gap-1">
