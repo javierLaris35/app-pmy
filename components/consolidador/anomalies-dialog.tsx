@@ -34,6 +34,7 @@ const SHORT: Record<string, string> = {
   date_mismatch: "Fecha",
   status_regressed: "Retroceso",
   income_without_support: "Sin respaldo",
+  delivered_by_fedex: "FedEx entregó",
 };
 
 const fmtDateTime = (iso: string | null) =>

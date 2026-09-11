@@ -179,6 +179,7 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
           date_mismatch: "Fecha",
           status_regressed: "Retroceso",
           income_without_support: "Sin respaldo",
+          delivered_by_fedex: "FedEx entregó",
         };
         return (
           <div className="flex flex-wrap gap-1">

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getPackageTimeline, TimelineEvent } from "@/lib/services/consolidador";
 import { formatCurrency } from "@/lib/utils";
-import { Loader2, Route, PackageCheck, Inbox, DollarSign, Truck } from "lucide-react";
+import { Loader2, Route, PackageCheck, Inbox, DollarSign, Truck, ScanLine } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -29,7 +29,8 @@ const KIND: Record<string, { label: string; icon: typeof Route; dot: string; tex
   recibido: { label: "Recibido", icon: Inbox, dot: "bg-slate-400", text: "text-slate-700" },
   consolidado: { label: "Consolidado", icon: PackageCheck, dot: "bg-violet-500", text: "text-violet-700" },
   salida_ruta: { label: "Salida a ruta", icon: Route, dot: "bg-blue-500", text: "text-blue-700" },
-  estatus: { label: "Estatus FedEx", icon: Truck, dot: "bg-sky-400", text: "text-sky-700" },
+  estatus_interno: { label: "Estatus interno", icon: ScanLine, dot: "bg-blue-500", text: "text-blue-700" },
+  estatus_fedex: { label: "Estatus FedEx", icon: Truck, dot: "bg-orange-500", text: "text-orange-700" },
   ingreso: { label: "Ingreso", icon: DollarSign, dot: "bg-emerald-500", text: "text-emerald-700" },
 };
 
