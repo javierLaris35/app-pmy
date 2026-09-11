@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DataTable } from "@/components/data-table/data-table";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -56,6 +57,41 @@ interface Handlers {
   onIncome: (r: SearchBatchItem) => void;
   onMove: (r: SearchBatchItem) => void;
   onDate: (r: SearchBatchItem) => void;
+}
+
+function IconAction({
+  label,
+  icon: Icon,
+  onClick,
+  disabled,
+  loading,
+  className,
+}: {
+  label: string;
+  icon: typeof RefreshCw;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">
+          <Button
+            size="icon"
+            variant="outline"
+            className={`h-8 w-8 ${className ?? ""}`}
+            disabled={disabled}
+            onClick={onClick}
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
@@ -192,54 +228,37 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
         const mis = !!r.income && !!h.selectedSubsidiaryId && r.income.subsidiaryId !== h.selectedSubsidiaryId;
         return (
           <div className="flex justify-end gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 px-2 text-xs"
+            <IconAction
+              label="Corregir estatus contra FedEx"
+              icon={RefreshCw}
               disabled={!canStatus || !h.reasonOk || h.busy !== null}
+              loading={h.busy === `${id}:status`}
               onClick={() => h.onStatus(r)}
-            >
-              {h.busy === `${id}:status` ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              Estatus
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 px-2 text-xs"
+            />
+            <IconAction
+              label="Reparar ingreso (crear si falta)"
+              icon={DollarSign}
               disabled={!canIncome || !h.reasonOk || h.busy !== null}
+              loading={h.busy === `${id}:income`}
               onClick={() => h.onIncome(r)}
-            >
-              {h.busy === `${id}:income` ? <Loader2 className="h-3 w-3 animate-spin" /> : <DollarSign className="h-3 w-3" />}
-              Ingreso
-            </Button>
+            />
             {r.income && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 px-2 text-xs"
+              <IconAction
+                label="Editar fecha del ingreso"
+                icon={CalendarClock}
                 disabled={h.busy !== null}
                 onClick={() => h.onDate(r)}
-                title="Editar fecha del ingreso"
-              >
-                <CalendarClock className="h-3 w-3" /> Fecha
-              </Button>
+              />
             )}
             {mis && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 px-2 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+              <IconAction
+                label={`Mover ingreso a ${h.selectedName}`}
+                icon={ArrowRightLeft}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
                 disabled={!h.reasonOk || h.busy !== null}
+                loading={h.busy === `${r.income!.id}:move`}
                 onClick={() => h.onMove(r)}
-                title={`Mover a ${h.selectedName}`}
-              >
-                {h.busy === `${r.income!.id}:move` ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <ArrowRightLeft className="h-3 w-3" />
-                )}
-                Mover aquí
-              </Button>
+              />
             )}
           </div>
         );
@@ -354,7 +373,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-[95vw] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[92vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackageSearch className="h-5 w-5 text-slate-500" />
@@ -362,6 +381,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
           </DialogTitle>
         </DialogHeader>
 
+        <TooltipProvider delayDuration={200}>
         <div className="min-w-0 space-y-4">
           {/* Entrada de guías */}
           <div className="rounded-lg border bg-slate-50/60 p-3 space-y-2">
@@ -419,6 +439,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
           currentDate={dateItem?.income?.date ?? null}
           onSubmit={submitDate}
         />
+        </TooltipProvider>
       </DialogContent>
     </Dialog>
   );
