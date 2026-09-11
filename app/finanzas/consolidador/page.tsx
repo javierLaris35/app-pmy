@@ -154,7 +154,7 @@ function ConsolidadorPage() {
 
   return (
     <AppLayout>
-      <div className="relative flex flex-col gap-3 p-4 bg-slate-50/30 min-h-screen">
+      <div className="relative flex min-h-screen flex-col gap-4 p-4 md:p-5">
         {isLoading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
             <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-lg shadow-lg border border-slate-100">
