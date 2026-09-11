@@ -13,6 +13,7 @@ import { RowActions } from "@/components/consolidador/row-actions";
 import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
 import { SearchPackageDialog } from "@/components/consolidador/search-package-dialog";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
+import { AnomaliesDialog } from "@/components/consolidador/anomalies-dialog";
 import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
 import { patchIncomeCost, patchSecondAbord, createManualIncome, deleteIncome, editIncomeDate } from "@/lib/services/consolidador";
@@ -20,7 +21,7 @@ import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/w
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, Loader2, PlusCircle, Search, History } from "lucide-react";
+import { SlidersHorizontal, Loader2, PlusCircle, Search, History, AlertTriangle } from "lucide-react";
 
 function ConsolidadorPage() {
   const [subsidiaryId, setSubsidiaryId] = useState<string>("");
@@ -30,6 +31,7 @@ function ConsolidadorPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
+  const [anomaliesOpen, setAnomaliesOpen] = useState(false);
 
   // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
   const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
@@ -175,6 +177,14 @@ function ConsolidadorPage() {
                   setSubsidiaryId(id ?? "");
                 }}
               />
+              <Button
+                variant="outline"
+                onClick={() => setAnomaliesOpen(true)}
+                disabled={!subsidiaryId}
+                className="gap-2 border-amber-300 bg-white text-amber-700 hover:bg-amber-50"
+              >
+                <AlertTriangle className="h-4 w-4" /> Anomalías
+              </Button>
               <Button variant="outline" onClick={() => setSearchOpen(true)} className="gap-2 bg-white">
                 <Search className="h-4 w-4" /> Buscar paquete
               </Button>
@@ -217,6 +227,13 @@ function ConsolidadorPage() {
         <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} onSubmit={handleAddIncome} />
         <SearchPackageDialog open={searchOpen} onOpenChange={setSearchOpen} selectedSubsidiaryId={subsidiaryId} onFixed={() => mutate()} />
         <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
+        <AnomaliesDialog
+          open={anomaliesOpen}
+          onOpenChange={setAnomaliesOpen}
+          subsidiaryId={subsidiaryId}
+          week={week}
+          onChanged={() => mutate()}
+        />
       </div>
     </AppLayout>
   );

@@ -63,6 +63,11 @@ export interface IncomeChangeLogEntry {
   createdAt: string;
 }
 
+export interface AnomalyRow extends ConsolidadorRow {
+  anomalies: { code: string; label: string }[];
+  statusDate: string | null;
+}
+
 export interface FedexLatestStatus {
   found: boolean;
   status: string | null;

@@ -1,5 +1,6 @@
 import { axiosConfig } from "../axios-config";
 import {
+  AnomalyRow,
   ConsolidadorReadResult,
   ConsolidadorRow,
   IncomeChangeLogEntry,
@@ -24,6 +25,10 @@ export const getConsolidadorWeek = async (
   const res = await axiosConfig.get<ConsolidadorReadResult>(`${baseUrl}/${subsidiaryId}/${from}/${to}${qs}`);
   return res.data;
 };
+
+/** GET: ingresos con anomalías de la semana (panel de revisión). */
+export const getWeekAnomalies = async (subsidiaryId: string, from: string, to: string): Promise<{ rows: AnomalyRow[] }> =>
+  (await axiosConfig.get<{ rows: AnomalyRow[] }>(`${baseUrl}/${subsidiaryId}/${from}/${to}/anomalies`)).data;
 
 /** GET: historial de cambios de un ingreso (más reciente primero). */
 export const getIncomeHistory = async (id: string): Promise<IncomeChangeLogEntry[]> =>
