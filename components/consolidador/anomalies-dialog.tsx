@@ -40,8 +40,13 @@ const ANOMALY: Record<string, { short: string; severity: Severity }> = {
 };
 
 const CHIP: Record<Severity, string> = {
-  danger: "bg-red-50 text-red-700 border-red-200",
-  warn: "bg-amber-50 text-amber-700 border-amber-200",
+  danger: "bg-red-100 text-red-700 border-red-200",
+  warn: "bg-amber-100 text-amber-800 border-amber-200",
+};
+
+const ROW_TINT: Record<Severity, string> = {
+  danger: "bg-red-50/50 hover:bg-red-50",
+  warn: "bg-amber-50/30 hover:bg-amber-50/70",
 };
 
 const fmtDateTime = (iso: string | null) =>
@@ -129,7 +134,7 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
         accessorKey: "trackingNumber",
         header: "Guía",
         cell: ({ row }) => (
-          <span className="font-medium tabular-nums text-slate-800">
+          <span className="font-semibold tabular-nums text-slate-900">
             {row.original.trackingNumber || row.original.consNumber || "—"}
           </span>
         ),
@@ -269,7 +274,14 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
                 </div>
 
                 <div className="min-w-0 overflow-x-auto">
-                  <DataTable columns={columns} data={rows} filters={tableFilters} autoResetPageIndex={false} hideSelectionCount />
+                  <DataTable
+                    columns={columns}
+                    data={rows}
+                    filters={tableFilters}
+                    autoResetPageIndex={false}
+                    hideSelectionCount
+                    rowClassName={(r) => ROW_TINT[rowSeverity(r)]}
+                  />
                 </div>
               </>
             )}
