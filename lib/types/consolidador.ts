@@ -63,9 +63,15 @@ export interface IncomeChangeLogEntry {
   createdAt: string;
 }
 
+export interface StatusHistoryEntry {
+  status: string;
+  timestamp: string | null;
+}
+
 export interface AnomalyRow extends ConsolidadorRow {
   anomalies: { code: string; label: string }[];
   statusDate: string | null;
+  statusHistory: StatusHistoryEntry[];
 }
 
 export interface FedexLatestStatus {
@@ -94,6 +100,8 @@ export interface SearchBatchItem extends SearchPackageResult {
   incomeDate: string | null;
   /** Anomalías detectadas (fecha desalineada, estatus retrocedió, ingreso sin respaldo…). */
   anomalies: { code: string; label: string }[];
+  /** Secuencia de estatus del envío (status + timestamp), más reciente primero. */
+  statusHistory: StatusHistoryEntry[];
 }
 
 export interface SearchBatchResult {

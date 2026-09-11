@@ -21,6 +21,7 @@ import { editIncomeDate } from "@/lib/services/consolidador";
 import { canFixStatus, parseTrackingList, MAX_BATCH_TRACKINGS } from "@/lib/consolidador/validation";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { EditDateDialog } from "@/components/consolidador/edit-date-dialog";
+import { StatusTimelineDialog } from "@/components/consolidador/status-timeline-dialog";
 import { SearchBatchItem } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
 import {
@@ -32,6 +33,7 @@ import {
   DollarSign,
   ArrowRightLeft,
   CalendarClock,
+  ListOrdered,
 } from "lucide-react";
 
 interface Props {
@@ -44,8 +46,10 @@ interface Props {
 }
 
 const fmt = (s: string | null) => (s ? s.replace(/_/g, " ") : "—");
-const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+const fmtDateTime = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "—";
 const dayKey = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : null);
 
 interface Handlers {
@@ -57,6 +61,7 @@ interface Handlers {
   onIncome: (r: SearchBatchItem) => void;
   onMove: (r: SearchBatchItem) => void;
   onDate: (r: SearchBatchItem) => void;
+  onTimeline: (r: SearchBatchItem) => void;
 }
 
 function IconAction({
@@ -205,12 +210,13 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
         const mismatch =
           !!r.statusDate && !!r.incomeDate && dayKey(r.statusDate) !== dayKey(r.incomeDate);
         return (
-          <div className="whitespace-nowrap text-xs tabular-nums">
-            <span className="text-slate-600">{fmtDate(r.statusDate)}</span>
-            <span className="mx-1 text-slate-300">/</span>
-            <span className={mismatch ? "font-semibold text-amber-600" : "text-slate-600"}>
-              {fmtDate(r.incomeDate)}
-            </span>
+          <div className="whitespace-nowrap text-xs tabular-nums leading-tight">
+            <div className="text-slate-600">
+              <span className="text-[10px] text-slate-400">Est</span> {fmtDateTime(r.statusDate)}
+            </div>
+            <div className={mismatch ? "font-semibold text-amber-600" : "text-slate-600"}>
+              <span className="text-[10px] text-slate-400">Ing</span> {fmtDateTime(r.incomeDate)}
+            </div>
           </div>
         );
       },
@@ -228,6 +234,12 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
         const mis = !!r.income && !!h.selectedSubsidiaryId && r.income.subsidiaryId !== h.selectedSubsidiaryId;
         return (
           <div className="flex justify-end gap-1.5">
+            <IconAction
+              label="Ver historial de estatus"
+              icon={ListOrdered}
+              disabled={h.busy !== null || (r.statusHistory?.length ?? 0) === 0}
+              onClick={() => h.onTimeline(r)}
+            />
             <IconAction
               label="Corregir estatus contra FedEx"
               icon={RefreshCw}
@@ -274,6 +286,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [dateItem, setDateItem] = useState<SearchBatchItem | null>(null);
+  const [timelineItem, setTimelineItem] = useState<SearchBatchItem | null>(null);
 
   const { subsidiaries } = useSubsidiaries();
   const selectedName = subsidiaries.find((s: any) => s.id === selectedSubsidiaryId)?.name ?? "esta sucursal";
@@ -351,6 +364,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
   );
 
   const onDate = (r: SearchBatchItem) => setDateItem(r);
+  const onTimeline = (r: SearchBatchItem) => setTimelineItem(r);
 
   const submitDate = async (date: string, reason: string) => {
     if (!dateItem?.income) return;
@@ -366,7 +380,7 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
   };
 
   const columns = useMemo(
-    () => buildColumns({ reasonOk, busy, selectedSubsidiaryId, selectedName, onStatus, onIncome, onMove, onDate }),
+    () => buildColumns({ reasonOk, busy, selectedSubsidiaryId, selectedName, onStatus, onIncome, onMove, onDate, onTimeline }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [reasonOk, busy, selectedSubsidiaryId, selectedName, reason, results],
   );
@@ -438,6 +452,12 @@ export function SearchPackageDialog({ open, onOpenChange, selectedSubsidiaryId, 
           onOpenChange={(o) => !o && setDateItem(null)}
           currentDate={dateItem?.income?.date ?? null}
           onSubmit={submitDate}
+        />
+        <StatusTimelineDialog
+          open={!!timelineItem}
+          onOpenChange={(o) => !o && setTimelineItem(null)}
+          tracking={timelineItem?.tracking ?? null}
+          history={timelineItem?.statusHistory ?? []}
         />
         </TooltipProvider>
       </DialogContent>

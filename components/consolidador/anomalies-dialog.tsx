@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
 import { RowActions } from "@/components/consolidador/row-actions";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
+import { StatusTimelineDialog } from "@/components/consolidador/status-timeline-dialog";
 import {
   getWeekAnomalies,
   patchIncomeCost,
@@ -18,7 +19,7 @@ import {
 import { AnomalyRow } from "@/lib/types/consolidador";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/lib/toast";
-import { AlertTriangle, Loader2, History, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Loader2, History, ShieldCheck, ListOrdered } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -35,13 +36,16 @@ const SHORT: Record<string, string> = {
   income_without_support: "Sin respaldo",
 };
 
-const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+const fmtDateTime = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "—";
 
 export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChanged }: Props) {
   const [rows, setRows] = useState<AnomalyRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
+  const [timelineRow, setTimelineRow] = useState<AnomalyRow | null>(null);
 
   const reload = useCallback(async () => {
     if (!subsidiaryId) return;
@@ -114,10 +118,14 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
         id: "fechas",
         header: () => <span className="whitespace-nowrap">F. estatus / ingreso</span>,
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-xs tabular-nums text-slate-600">
-            {fmtDate(row.original.statusDate)} <span className="text-slate-300">/</span>{" "}
-            <span className="font-medium text-amber-600">{fmtDate(row.original.date)}</span>
-          </span>
+          <div className="whitespace-nowrap text-xs tabular-nums leading-tight">
+            <div className="text-slate-600">
+              <span className="text-[10px] text-slate-400">Est</span> {fmtDateTime(row.original.statusDate)}
+            </div>
+            <div className="font-medium text-amber-600">
+              <span className="text-[10px] text-slate-400">Ing</span> {fmtDateTime(row.original.date)}
+            </div>
+          </div>
         ),
       },
       {
@@ -131,7 +139,10 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial" onClick={() => setHistoryId(row.original.id)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial de estatus" onClick={() => setTimelineRow(row.original)}>
+              <ListOrdered className="h-4 w-4 text-slate-500" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial de cambios" onClick={() => setHistoryId(row.original.id)}>
               <History className="h-4 w-4 text-slate-500" />
             </Button>
             <RowActions
@@ -177,6 +188,12 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
         </div>
 
         <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
+        <StatusTimelineDialog
+          open={!!timelineRow}
+          onOpenChange={(o) => !o && setTimelineRow(null)}
+          tracking={timelineRow?.trackingNumber ?? null}
+          history={timelineRow?.statusHistory ?? []}
+        />
       </DialogContent>
     </Dialog>
   );
