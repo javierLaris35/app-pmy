@@ -16,11 +16,10 @@ import {
 import type { Transfer } from "@/lib/types";
 
 const TYPE_LABEL: Record<string, string> = {
-  TYCO: "Tyco",
-  AEROPUERTO: "Aeropuerto",
-  AIRPORT: "Aeropuerto",
-  OTRO: "Otro",
-  OTHER: "Otro",
+  tyco: "Tyco",
+  aeropuerto: "Aeropuerto",
+  sucursal: "Sucursal",
+  otro: "Otro",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -50,7 +49,7 @@ export function TransferDetailDialog({ transfer }: { transfer: Transfer }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const typeLabel =
-    transfer.transferType === "OTRO"
+    transfer.transferType === "otro"
       ? transfer.otherTransferType || "Otro"
       : TYPE_LABEL[transfer.transferType] || transfer.transferType;
 
@@ -74,7 +73,17 @@ export function TransferDetailDialog({ transfer }: { transfer: Transfer }) {
 
         <div className="mt-2">
           <Row
-            label="Fecha"
+            label="Fecha del traslado"
+            value={
+              transfer.transferDate
+                ? format(new Date(transfer.transferDate), "dd/MM/yyyy", { locale: es })
+                : transfer.createdAt
+                  ? format(new Date(transfer.createdAt), "dd/MM/yyyy", { locale: es })
+                  : "—"
+            }
+          />
+          <Row
+            label="Capturado"
             value={
               transfer.createdAt
                 ? format(new Date(transfer.createdAt), "dd/MM/yyyy HH:mm", { locale: es })

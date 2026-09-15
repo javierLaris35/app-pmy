@@ -1103,11 +1103,12 @@ export interface Transfer {
   secondAbord?: boolean;
   secondAboardAmount?: number;
   totalAmount?: number; // Monto total cobrado (base + extra + segundo abordaje).
-  transferType: 'TYCO' | 'AEROPUERTO' | 'OTRO'; // Ej: 'Tyco', 'Aeropuerto', 'Otro'
+  transferType: 'tyco' | 'aeropuerto' | 'sucursal' | 'otro' | string; // Valores reales del catálogo (minúscula).
   otherTransferType?: string; // Descripción cuando el tipo es "Otro"
-  
+
   // Estado y metadatos
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | string;
+  transferDate?: string; // Fecha en que se realizó el traslado (ISO). Distinta de createdAt (captura).
   createdAt: string; // NestJS mandará la fecha como un string ISO (ej: "2026-05-02T10:00:00.000Z")
   
   // Relaciones adicionales (opcionales dependiendo de si las pides en el backend)

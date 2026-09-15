@@ -2,14 +2,26 @@ import type { ColumnDef } from "@tanstack/react-table"
 import type { Transfer } from "@/lib/types"
 import { TransferDetailDialog } from "./transfer-detail-dialog"
 
+// Etiquetas legibles para los valores reales del catálogo (minúscula).
+const TYPE_LABEL: Record<string, string> = {
+  tyco: "Tyco",
+  aeropuerto: "Aeropuerto",
+  sucursal: "Sucursal",
+  otro: "Otro",
+}
+
 export const columns: ColumnDef<Transfer>[] = [
   {
-    accessorKey: "createdAt",
+    id: "transferDate",
     header: "Fecha",
+    // Fecha en que se REALIZÓ el traslado (transferDate). Los registros viejos que no
+    // la tengan caen a createdAt como respaldo para no mostrar vacío.
+    accessorFn: (row) => row.transferDate ?? row.createdAt,
     cell: ({ row }) => {
-      const date = new Date(row.getValue("createdAt"))
-      return date.toLocaleDateString()
-    }
+      const value = row.original.transferDate ?? row.original.createdAt
+      if (!value) return "—"
+      return new Date(value).toLocaleDateString()
+    },
   },
   {
     accessorKey: "originId", // Aunque el key sea originId, usaremos row.original
@@ -46,13 +58,33 @@ export const columns: ColumnDef<Transfer>[] = [
     accessorKey: "transferType",
     header: "Tipo",
     cell: ({ row }) => {
-      const tipo = row.getValue("transferType") as string
-      // Puedes mapear el tipo de inglés a español aquí visualmente si lo deseas
-      const displayType = tipo === 'OTHER' ? 'Otro' : tipo === 'AIRPORT' ? 'Aeropuerto' : tipo;
-      
+      const transfer = row.original
+      // Para "otro" mostramos la descripción capturada; el resto usa su etiqueta legible.
+      const displayType =
+        transfer.transferType === "otro"
+          ? transfer.otherTransferType || "Otro"
+          : TYPE_LABEL[transfer.transferType] || transfer.transferType
+
       return (
         <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-medium border border-slate-200">
           {displayType}
+        </span>
+      )
+    },
+  },
+  {
+    id: "monto",
+    header: "Monto",
+    // El cobro real vive en totalAmount; `amount` es el base (0 en traslados viejos).
+    accessorFn: (row) => Number(row.totalAmount ?? row.amount ?? 0),
+    cell: ({ row }) => {
+      const monto = Number(row.original.totalAmount ?? row.original.amount ?? 0)
+      return (
+        <span className="font-medium text-slate-700 tabular-nums">
+          {`$${monto.toLocaleString("es-MX", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`}
         </span>
       )
     },
