@@ -1,6 +1,7 @@
 import { axiosConfig } from "../axios-config";
 import {
   AnomalyRow,
+  CobrosAuditReport,
   ConsolidadorReadResult,
   ConsolidadorRow,
   IncomeChangeLogEntry,
@@ -42,6 +43,10 @@ export const getPackageTimeline = async (
 /** GET: ingresos con anomalías de la semana (panel de revisión). */
 export const getWeekAnomalies = async (subsidiaryId: string, from: string, to: string): Promise<{ rows: AnomalyRow[] }> =>
   (await axiosConfig.get<{ rows: AnomalyRow[] }>(`${baseUrl}/${subsidiaryId}/${from}/${to}/anomalies`)).data;
+
+/** GET: auditoría de cobros de la semana (FedEx envío): faltan / sobran por regla. */
+export const getCobrosAudit = async (subsidiaryId: string, from: string, to: string): Promise<CobrosAuditReport> =>
+  (await axiosConfig.get<CobrosAuditReport>(`${baseUrl}/${subsidiaryId}/${from}/${to}/cobros-audit`)).data;
 
 /** GET: historial de cambios de un ingreso (más reciente primero). */
 export const getIncomeHistory = async (id: string): Promise<IncomeChangeLogEntry[]> =>

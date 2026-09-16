@@ -14,6 +14,8 @@ import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
 import { SearchPackageDialog } from "@/components/consolidador/search-package-dialog";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { AnomaliesDialog } from "@/components/consolidador/anomalies-dialog";
+import { CobrosAuditPanel } from "@/components/consolidador/cobros-audit-panel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
 import { patchIncomeCost, patchSecondAbord, createManualIncome, deleteIncome, editIncomeDate } from "@/lib/services/consolidador";
@@ -32,6 +34,7 @@ function ConsolidadorPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
+  const [tab, setTab] = useState<"ingresos" | "auditoria">("ingresos");
 
   // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
   const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
@@ -209,20 +212,37 @@ function ConsolidadorPage() {
           routeOptions={routeOptions}
         />
 
-        <ConsolidadorKpis buckets={data?.buckets} />
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "ingresos" | "auditoria")}>
+          <TabsList>
+            <TabsTrigger value="ingresos">Ingresos</TabsTrigger>
+            <TabsTrigger value="auditoria">Auditoría de cobros</TabsTrigger>
+          </TabsList>
 
-        {!subsidiaryId ? (
-          <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">
-            Selecciona una sucursal para comenzar
-          </div>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={data?.rows ?? []}
-            filters={tableFilters}
-            autoResetPageIndex={false}
-          />
-        )}
+          <TabsContent value="ingresos" className="mt-4 flex flex-col gap-4">
+            <ConsolidadorKpis buckets={data?.buckets} />
+            {!subsidiaryId ? (
+              <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">
+                Selecciona una sucursal para comenzar
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={data?.rows ?? []}
+                filters={tableFilters}
+                autoResetPageIndex={false}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="auditoria" className="mt-4">
+            <CobrosAuditPanel
+              subsidiaryId={subsidiaryId}
+              from={week.from}
+              to={week.to}
+              active={tab === "auditoria"}
+            />
+          </TabsContent>
+        </Tabs>
 
         <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} onSubmit={handleAddIncome} />
         <SearchPackageDialog open={searchOpen} onOpenChange={setSearchOpen} selectedSubsidiaryId={subsidiaryId} onFixed={() => mutate()} />

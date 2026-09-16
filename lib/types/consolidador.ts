@@ -107,3 +107,39 @@ export interface SearchBatchItem extends SearchPackageResult {
 export interface SearchBatchResult {
   results: SearchBatchItem[];
 }
+
+// --- Auditoría de cobros (FedEx envío, por sucursal + semana) ---
+export type CobroRule = "entregado" | "no_entregado";
+export type CobroDiscrepancy = "missing" | "extra";
+
+export interface CobrosAuditRow {
+  trackingNumber: string;
+  rule: CobroRule;
+  subCode: "07" | "08" | null;
+  discrepancy: CobroDiscrepancy;
+  reason: string;
+  isF2: boolean;
+  count: number;
+  currentStatus: string | null;
+  cost: number | null;
+}
+
+export interface CobrosAuditRuleBucket {
+  rule: CobroRule;
+  missing: CobrosAuditRow[];
+  missingCount: number;
+  missingAmount: number;
+  extra: CobrosAuditRow[];
+  extraCount: number;
+  extraAmount: number;
+}
+
+export interface CobrosAuditReport {
+  subsidiaryId: string;
+  subsidiaryName: string | null;
+  from: string;
+  to: string;
+  evaluated: number;
+  rules: CobrosAuditRuleBucket[];
+  totals: { missingCount: number; extraCount: number; missingAmount: number; extraAmount: number };
+}
