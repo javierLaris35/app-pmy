@@ -14,6 +14,7 @@ interface Props {
   tracking: string | null;
 }
 
+// Instante: fecha+hora en la zona del navegador (Hermosillo). Evento real (createdAt, FedEx…).
 const fmtDateTime = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleString("es-MX", {
@@ -24,6 +25,20 @@ const fmtDateTime = (iso: string | null) =>
         minute: "2-digit",
       })
     : "—";
+
+// Día de negocio guardado como medianoche UTC (consolidado, ruta, carga): se muestra SOLO la
+// fecha por su día UTC (timeZone: 'UTC'), sin hora, para no correrlo 7h al día anterior.
+const fmtDay = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "—";
+
+const fmtEvent = (e: TimelineEvent) => (e.granularity === "day" ? fmtDay(e.date) : fmtDateTime(e.date));
 
 const KIND: Record<string, { label: string; icon: typeof Route; dot: string; text: string }> = {
   recibido: { label: "Recibido", icon: Inbox, dot: "bg-slate-400", text: "text-slate-700" },
@@ -92,7 +107,7 @@ export function StatusTimelineDialog({ open, onOpenChange, tracking }: Props) {
                           </div>
                         )}
                       </div>
-                      <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-slate-500">{fmtDateTime(e.date)}</span>
+                      <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-slate-500">{fmtEvent(e)}</span>
                     </div>
                   </li>
                 );

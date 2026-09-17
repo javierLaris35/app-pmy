@@ -31,6 +31,8 @@ export interface TimelineEvent {
   kind: string;
   label: string;
   date: string | null;
+  /** 'instant' = fecha+hora reales (local); 'day' = día de negocio (00:00Z) → mostrar solo fecha por día UTC. */
+  granularity?: "instant" | "day";
   meta?: { cost?: number; subsidiary?: string | null };
 }
 
