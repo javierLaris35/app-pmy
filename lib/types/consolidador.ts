@@ -181,6 +181,13 @@ export interface ConsolidadorGroupsResult {
   groups: ConsolidadorGroup[];
 }
 
+export interface WarehouseKpi {
+  count: number;
+  packageCost: number;
+  potentialAmount: number;
+  aging: { d3to5: number; d6plus: number };
+}
+
 export interface SearchBatchResult {
   results: SearchBatchItem[];
 }

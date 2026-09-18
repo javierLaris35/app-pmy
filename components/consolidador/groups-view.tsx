@@ -5,6 +5,7 @@ import { GroupCard, GroupRowHandlers } from "@/components/consolidador/group-car
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { StatusTimelineDialog } from "@/components/consolidador/status-timeline-dialog";
 import { useConsolidadorGroups, GroupsMode } from "@/hooks/services/consolidador/use-consolidador-groups";
+import { useWarehouseKpi } from "@/hooks/services/consolidador/use-warehouse-kpi";
 import {
   fixPackageStatus,
   deleteIncome,
@@ -19,7 +20,7 @@ import { toast } from "@/lib/toast";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Loader2, Route, PackageCheck, Search, X } from "lucide-react";
+import { Loader2, Route, PackageCheck, Search, X, Warehouse } from "lucide-react";
 
 interface Props {
   mode: GroupsMode;
@@ -55,6 +56,28 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-0.5 text-lg font-semibold tabular-nums text-slate-800">{value}</p>
+    </div>
+  );
+}
+
+function WarehouseStat({ subsidiaryId, active }: { subsidiaryId: string; active: boolean }) {
+  const { data } = useWarehouseKpi(subsidiaryId, active);
+  const potential = data?.potentialAmount ?? 0;
+  const count = data?.count ?? 0;
+  const d3to5 = data?.aging.d3to5 ?? 0;
+  const d6plus = data?.aging.d6plus ?? 0;
+  const aged = d3to5 + d6plus;
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${aged > 0 ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <p className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        <Warehouse className="h-3 w-3" /> En bodega (44/67)
+      </p>
+      <p className={`mt-0.5 text-lg font-semibold tabular-nums ${aged > 0 ? "text-amber-700" : "text-slate-800"}`}>
+        {formatCurrency(potential)}
+      </p>
+      <p className="text-[10px] text-slate-500">
+        {count} paquetes{aged > 0 ? ` · ${d3to5} de 3-5 d · ${d6plus} de 6+ d` : ""}
+      </p>
     </div>
   );
 }
@@ -252,11 +275,12 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
         <SummaryStat label="Entregados" value={String(totals.delivered)} />
         <SummaryStat label="No entregados" value={String(totals.notDelivered)} />
         <SummaryStat label="Ingresos" value={formatCurrency(totals.income)} />
         <SummaryStat label="Anomalías" value={String(totals.anomalies)} />
+        <WarehouseStat subsidiaryId={subsidiaryId} active={active} />
       </div>
 
       {filtered.length === 0 ? (

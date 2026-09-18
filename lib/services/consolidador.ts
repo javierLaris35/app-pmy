@@ -9,9 +9,14 @@ import {
   ManualKind,
   SearchBatchResult,
   SearchPackageResult,
+  WarehouseKpi,
 } from "../types/consolidador";
 
 const baseUrl = "/consolidador";
+
+/** GET: KPI de paquetes en bodega (44/67) sin ingreso — dinero potencial + antigüedad. */
+export const getWarehouseKpi = async (subsidiaryId: string): Promise<WarehouseKpi> =>
+  (await axiosConfig.get<WarehouseKpi>(`${baseUrl}/${subsidiaryId}/warehouse-kpi`)).data;
 
 /** GET: grupos de la semana POR RUTA (KPIs + guías con veredicto). */
 export const getGroupsByRoute = async (
