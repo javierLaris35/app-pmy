@@ -17,6 +17,8 @@ export function actionLabel(a: SuggestedAction): string | null {
   switch (a.kind) {
     case "fix_status":
       return `Corregir estatus a ${String(a.to).replace(/_/g, " ").toUpperCase()}`;
+    case "repair_income":
+      return "Generar cobro";
     case "delete_income":
       return "Eliminar cobro";
     case "none":

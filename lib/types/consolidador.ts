@@ -113,6 +113,7 @@ export type VerdictCode =
   | "fedex_delivery_doubtful"
   | "our_delivery_ok"
   | "no_income_ok"
+  | "income_missing"
   | "date_mismatch"
   | "income_without_support"
   | "status_regressed"
@@ -120,6 +121,7 @@ export type VerdictCode =
 export type SuggestedAction =
   | { kind: "none" }
   | { kind: "fix_status"; to: string }
+  | { kind: "repair_income" }
   | { kind: "delete_income" };
 
 export interface Verdict {

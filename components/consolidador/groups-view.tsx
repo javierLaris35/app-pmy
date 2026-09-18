@@ -11,6 +11,7 @@ import {
   patchIncomeCost,
   patchSecondAbord,
   editIncomeDate,
+  repairPackageIncome,
 } from "@/lib/services/consolidador";
 import { ConsolidadorGroupRow, SuggestedAction } from "@/lib/types/consolidador";
 import { formatCurrency } from "@/lib/utils";
@@ -67,6 +68,10 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
           if (action.kind === "fix_status" && row.shipmentId) {
             await fixPackageStatus(row.shipmentId, action.to, reason);
             toast.success(`Estatus corregido: ${row.tracking}`);
+          } else if (action.kind === "repair_income" && row.shipmentId) {
+            const res = await repairPackageIncome(row.shipmentId, reason);
+            if (res.created) toast.success(`Cobro generado: ${row.tracking}`);
+            else toast.error(res.reason ?? "No se generó el cobro");
           } else if (action.kind === "delete_income" && row.income) {
             await deleteIncome(row.income.id, reason);
             toast.success(`Cobro eliminado: ${row.tracking}`);
