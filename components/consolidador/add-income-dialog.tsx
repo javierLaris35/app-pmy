@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   week: { from: string; to: string };
+  /** Precarga la guía (p. ej. desde Buscar paquete cuando no existe en el sistema). */
+  defaultTracking?: string;
+  /** Precarga el tipo de ingreso manual. */
+  defaultKind?: ManualKind;
   onSubmit: (payload: {
     kind: ManualKind;
     trackingNumber?: string;
@@ -31,13 +35,21 @@ interface Props {
   }) => Promise<void>;
 }
 
-export function AddIncomeDialog({ open, onOpenChange, week, onSubmit }: Props) {
-  const [kind, setKind] = useState<ManualKind | "">("");
-  const [trackingNumber, setTrackingNumber] = useState("");
+export function AddIncomeDialog({ open, onOpenChange, week, defaultTracking, defaultKind, onSubmit }: Props) {
+  const [kind, setKind] = useState<ManualKind | "">(defaultKind ?? "");
+  const [trackingNumber, setTrackingNumber] = useState(defaultTracking ?? "");
   const [cost, setCost] = useState("");
   const [date, setDate] = useState(week.to);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Al abrir, precarga con los defaults (guía/tipo) que llegan desde Buscar paquete.
+  useEffect(() => {
+    if (open) {
+      setKind(defaultKind ?? "");
+      setTrackingNumber(defaultTracking ?? "");
+    }
+  }, [open, defaultKind, defaultTracking]);
 
   const draft = { kind, cost: Number(cost), date, reason, trackingNumber };
   const valid = isValidManualIncome(draft, week);
