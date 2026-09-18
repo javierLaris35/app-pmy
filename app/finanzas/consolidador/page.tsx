@@ -11,7 +11,8 @@ import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-tool
 import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
 import { RowActions } from "@/components/consolidador/row-actions";
 import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
-import { SearchPackageDialog } from "@/components/consolidador/search-package-dialog";
+import { SearchPackageView } from "@/components/consolidador/search-package-view";
+import { GroupsView } from "@/components/consolidador/groups-view";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { AnomaliesDialog } from "@/components/consolidador/anomalies-dialog";
 import { CobrosAuditPanel } from "@/components/consolidador/cobros-audit-panel";
@@ -23,7 +24,9 @@ import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/w
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, Loader2, PlusCircle, Search, History, AlertTriangle } from "lucide-react";
+import { SlidersHorizontal, Loader2, PlusCircle, History, AlertTriangle } from "lucide-react";
+
+type TabKey = "por-ruta" | "por-consolidado" | "ingresos" | "buscar" | "auditoria";
 
 function ConsolidadorPage() {
   const [subsidiaryId, setSubsidiaryId] = useState<string>("");
@@ -31,12 +34,12 @@ function ConsolidadorPage() {
   const [consNumber, setConsNumber] = useState("");
   const [routeId, setRouteId] = useState("");
   const [addOpen, setAddOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [addDefaultTracking, setAddDefaultTracking] = useState<string | undefined>(undefined);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
-  const [tab, setTab] = useState<"ingresos" | "auditoria">("ingresos");
+  const [tab, setTab] = useState<TabKey>("por-ruta");
 
-  // Consulta filtrada (server: consolidado/ruta) → tabla + KPIs.
+  // Consulta filtrada (server: consolidado/ruta) → tabla plana + KPIs.
   const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
   // Consulta base sin filtros → opciones de los popovers (SWR deduplica si no hay filtros).
   const { data: base } = useConsolidadorWeek(subsidiaryId, week.from, week.to, {});
@@ -108,6 +111,11 @@ function ConsolidadorPage() {
     [mutate],
   );
 
+  const openAddForTracking = useCallback((tracking: string) => {
+    setAddDefaultTracking(tracking);
+    setAddOpen(true);
+  }, []);
+
   const renderActions = useCallback(
     (row: ConsolidadorRow) => (
       <div className="flex items-center justify-end gap-1">
@@ -140,7 +148,6 @@ function ConsolidadorPage() {
     return [...set].map((id) => ({ id, label: `Ruta …${id.slice(-6)}` }));
   }, [base]);
 
-  // Opciones del filtro facetado de Estatus, derivadas de los datos reales.
   const statusOptions = useMemo(() => {
     const set = new Set<string>();
     data?.rows.forEach((r) => r.shipmentStatus && set.add(r.shipmentStatus));
@@ -158,9 +165,9 @@ function ConsolidadorPage() {
   return (
     <AppLayout>
       <div className="relative flex min-h-screen flex-col gap-4 p-4 md:p-5">
-        {isLoading && (
+        {isLoading && tab === "ingresos" && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
-            <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-lg shadow-lg border border-slate-100">
+            <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-4 py-3 shadow-lg">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
               <p className="text-sm font-medium text-slate-600">Cargando consolidado...</p>
             </div>
@@ -188,17 +195,13 @@ function ConsolidadorPage() {
               >
                 <AlertTriangle className="h-4 w-4" /> Anomalías
               </Button>
-              <Button variant="outline" onClick={() => setSearchOpen(true)} className="gap-2 bg-white">
-                <Search className="h-4 w-4" /> Buscar paquete
-              </Button>
-              <Button onClick={() => setAddOpen(true)} disabled={!subsidiaryId} className="gap-2">
+              <Button onClick={() => { setAddDefaultTracking(undefined); setAddOpen(true); }} disabled={!subsidiaryId} className="gap-2">
                 <PlusCircle className="h-4 w-4" /> Agregar ingreso
               </Button>
             </div>
           }
         />
 
-        {/* Barra compacta: semana + filtros de consolidado/ruta */}
         <ConsolidadorToolbar
           weekLabel={formatWeekLabel(week)}
           isCurrentWeek={isCurrentWeek(week)}
@@ -212,11 +215,22 @@ function ConsolidadorPage() {
           routeOptions={routeOptions}
         />
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "ingresos" | "auditoria")}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           <TabsList>
+            <TabsTrigger value="por-ruta">Por ruta</TabsTrigger>
+            <TabsTrigger value="por-consolidado">Por consolidado</TabsTrigger>
             <TabsTrigger value="ingresos">Ingresos</TabsTrigger>
+            <TabsTrigger value="buscar">Buscar paquete</TabsTrigger>
             <TabsTrigger value="auditoria">Auditoría de cobros</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="por-ruta" className="mt-4">
+            <GroupsView mode="route" subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "por-ruta"} onFixed={() => mutate()} />
+          </TabsContent>
+
+          <TabsContent value="por-consolidado" className="mt-4">
+            <GroupsView mode="consolidado" subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "por-consolidado"} onFixed={() => mutate()} />
+          </TabsContent>
 
           <TabsContent value="ingresos" className="mt-4 flex flex-col gap-4">
             <ConsolidadorKpis buckets={data?.buckets} />
@@ -225,27 +239,20 @@ function ConsolidadorPage() {
                 Selecciona una sucursal para comenzar
               </div>
             ) : (
-              <DataTable
-                columns={columns}
-                data={data?.rows ?? []}
-                filters={tableFilters}
-                autoResetPageIndex={false}
-              />
+              <DataTable columns={columns} data={data?.rows ?? []} filters={tableFilters} autoResetPageIndex={false} />
             )}
           </TabsContent>
 
+          <TabsContent value="buscar" className="mt-4">
+            <SearchPackageView selectedSubsidiaryId={subsidiaryId} onFixed={() => mutate()} onAddIncome={openAddForTracking} />
+          </TabsContent>
+
           <TabsContent value="auditoria" className="mt-4">
-            <CobrosAuditPanel
-              subsidiaryId={subsidiaryId}
-              from={week.from}
-              to={week.to}
-              active={tab === "auditoria"}
-            />
+            <CobrosAuditPanel subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "auditoria"} />
           </TabsContent>
         </Tabs>
 
-        <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} onSubmit={handleAddIncome} />
-        <SearchPackageDialog open={searchOpen} onOpenChange={setSearchOpen} selectedSubsidiaryId={subsidiaryId} onFixed={() => mutate()} />
+        <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} defaultTracking={addDefaultTracking} onSubmit={handleAddIncome} />
         <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
         <AnomaliesDialog
           open={anomaliesOpen}
