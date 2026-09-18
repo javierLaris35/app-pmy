@@ -9,7 +9,6 @@ import { SubsidiaryMetricsGrid } from "@/components/subsidiary/subsidiary-metric
 import { InteractiveMap } from "@/components/dashboard/interactive-map"
 import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaryStore } from "@/store/subsidiary.store"
-import { useFinancialSummary } from "@/hooks/services/incomes/use-income"
 import { useDashboard } from "@/hooks/services/dashboard/use-dashboard"
 import { parseDateFromDDMMYYYY } from "@/utils/date.utils"
 import { format, startOfMonth, parseISO } from "date-fns"

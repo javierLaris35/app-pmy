@@ -11,6 +11,7 @@ import {
   Table as TableIcon,
   BarChart3,
   Wallet,
+  ChevronDown,
 } from "lucide-react"
 import {
   BarChart,
@@ -66,14 +67,158 @@ export interface SubsidiaryMetrics {
   }
   averageRevenuePerPackage: number
   totalRevenue: number
+  /** Desglose del ingreso contable por tipo (misma regla que la tabla de ingresos). */
+  revenueBreakdown?: RevenueBreakdown
   totalExpenses: number
   averageEfficiency: number
   totalProfit: number
+  /** Desglose de gastos por categoría (misma prorrateo que totalExpenses). */
+  expenseBreakdown?: Record<string, number>
   generalSummary?: {
     totalIncome: number
     totalExpenses: number
     totalProfit: number
+    revenueBreakdown?: RevenueBreakdown
+    expenseBreakdown?: Record<string, number>
   }
+}
+
+/** Ingreso contable por tipo. La suma de los cinco == totalRevenue. */
+export interface RevenueBreakdown {
+  fedex: number
+  dhl: number
+  cargas: number
+  collections: number
+  transfers: number
+}
+
+/** Moneda MXN — helper a nivel de módulo para reusar en las tarjetas y su desglose. */
+const formatMXN = (value: number) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value)
+
+/** Un renglón de composición: etiqueta, monto y color de su segmento. */
+interface CompItem {
+  label: string
+  value: number
+  color: string
+}
+
+/** Paleta para categorías de gasto (dinámicas). Se asigna por orden. */
+const EXPENSE_PALETTE = ["#ef4444", "#f97316", "#eab308", "#8b5cf6", "#0ea5e9", "#ec4899", "#10b981", "#64748b"]
+
+/**
+ * Panel de composición sobre superficie blanca (legible dentro de una tarjeta con
+ * degradado). Barra apilada (el TODO) + renglones con % y monto, ordenados de mayor a
+ * menor; el excedente sobre 6 categorías se agrupa en "Otros". La suma == total de la
+ * tarjeta, así el desglose SIEMPRE cuadra con el número grande de arriba.
+ */
+function CompositionPanel({ items }: { items: CompItem[] }) {
+  const MAX = 6
+  const sorted = [...items].filter((i) => i.value !== 0).sort((a, b) => b.value - a.value)
+  const shown: CompItem[] =
+    sorted.length > MAX
+      ? [...sorted.slice(0, MAX), { label: "Otros", value: sorted.slice(MAX).reduce((s, i) => s + i.value, 0), color: "#94a3b8" }]
+      : sorted
+  const total = shown.reduce((s, i) => s + i.value, 0)
+  const pct = (v: number) => (total > 0 ? (v / total) * 100 : 0)
+
+  if (shown.length === 0) {
+    return <p className="py-2 text-center text-xs text-slate-400">Sin datos en el periodo.</p>
+  }
+
+  return (
+    <div className="text-slate-700">
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        {shown.filter((i) => i.value > 0).map((i) => (
+          <div key={i.label} className="h-full" style={{ width: `${pct(i.value)}%`, background: i.color }} title={`${i.label}: ${pct(i.value).toFixed(1)}%`} />
+        ))}
+      </div>
+      <ul className="mt-3 space-y-2">
+        {shown.map((i) => (
+          <li key={i.label} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: i.color }} />
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600">{i.label}</span>
+            <span className="shrink-0 text-xs font-bold tabular-nums text-slate-900">{formatMXN(i.value)}</span>
+            <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-slate-400">{pct(i.value).toFixed(0)}%</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Tarjeta KPI con degradado (Ingresos/Gastos/Utilidad). Muestra el número grande y, si
+ * recibe `items`, un botón "Ver detalles" que revela su composición dentro de la MISMA
+ * tarjeta (sin robar espacio cuando está colapsada). `footer` es contenido extra opcional
+ * (p. ej. la barra de margen de Utilidad).
+ */
+function KpiStatCard({
+  label,
+  value,
+  Icon,
+  gradient,
+  items,
+  footer,
+}: {
+  label: string
+  value: number
+  Icon: typeof Banknote
+  gradient: string
+  items?: CompItem[]
+  footer?: React.ReactNode
+}) {
+  const [open, setOpen] = React.useState(false)
+  const hasBreakdown = !!items && items.some((i) => i.value !== 0)
+
+  return (
+    // UNA sola envoltura redondeada: degradado arriba + panel blanco flush abajo, para que
+    // el desglose se vea PARTE del mismo card. `overflow-hidden` recorta las esquinas.
+    <Card className="overflow-hidden rounded-2xl border-none py-0 gap-0 shadow-lg">
+      {/* Sección con degradado — min-h fijo → los 3 cards quedan del MISMO tamaño. */}
+      <div className={`flex min-h-[176px] flex-col ${gradient} p-5 text-white`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-xs font-semibold uppercase tracking-wider text-white/85">{label}</span>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20 backdrop-blur-sm"><Icon className="h-[18px] w-[18px] text-white" /></span>
+        </div>
+        <p className="mt-3 whitespace-nowrap text-3xl font-extrabold tracking-tight tabular-nums xl:text-2xl 2xl:text-4xl">
+          {formatMXN(value)}
+        </p>
+
+        {footer}
+
+        {/* Empuja el botón al fondo-DERECHA (posición fija, altura consistente). */}
+        <div className="flex-1" />
+
+        {hasBreakdown && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="mt-3 inline-flex items-center gap-1 self-end rounded text-xs font-semibold text-white/90 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          >
+            {open ? "Ocultar detalle" : "Ver detalles"}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+          </button>
+        )}
+      </div>
+
+      {/* Panel de composición: continuo con el card (misma envoltura). Slide-down con el
+          truco grid-rows 0fr→1fr, sin agrandar la sección del degradado. */}
+      {hasBreakdown && (
+        <div
+          className="grid transition-all duration-300 ease-out motion-reduce:transition-none"
+          style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+        >
+          <div className="overflow-hidden">
+            <div className="bg-white p-4">
+              <CompositionPanel items={items!} />
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  )
 }
 
 interface Props {
@@ -242,74 +387,80 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: 
     new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value)
 
   // Cálculo del margen global
-  const globalMargin = summary && summary.totalIncome > 0 
-    ? (summary.totalProfit / summary.totalIncome) * 100 
+  const globalMargin = summary && summary.totalIncome > 0
+    ? (summary.totalProfit / summary.totalIncome) * 100
     : 0;
+
+  // Ítems de composición. Ingresos: colores fijos por tipo (igual que el Panel de
+  // Ingresos). Gastos: categorías dinámicas con paleta por orden. La suma de cada
+  // conjunto == su total (cuadra con el número grande de la tarjeta).
+  const revenueItems: CompItem[] | undefined = summary?.revenueBreakdown
+    ? [
+        { label: "FedEx", value: summary.revenueBreakdown.fedex, color: "#3b82f6" },
+        { label: "DHL", value: summary.revenueBreakdown.dhl, color: "#f59e0b" },
+        { label: "Cargas", value: summary.revenueBreakdown.cargas, color: "#64748b" },
+        { label: "Recolecciones", value: summary.revenueBreakdown.collections, color: "#14b8a6" },
+        { label: "Traslados", value: summary.revenueBreakdown.transfers, color: "#6366f1" },
+      ]
+    : undefined
+  const expenseItems: CompItem[] = Object.entries(summary?.expenseBreakdown || {})
+    .map(([label, value], i) => ({ label, value: Number(value) || 0, color: EXPENSE_PALETTE[i % EXPENSE_PALETTE.length] }))
 
 
   return (
     <div className="space-y-8 w-full">
-      {/* 1. SECCIÓN DE RESUMEN GENERAL (GLOBAL KPIs) */}
+      {/* 1. SECCIÓN DE RESUMEN GENERAL (GLOBAL KPIs). Cada tarjeta puede abrir su
+             composición con "Ver detalles" — el desglose cuadra con su total. */}
       {summary && (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 xl:gap-6">
+        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3 xl:gap-6">
           {/* Ingresos Totales (solo con permiso) */}
           {canSeeRevenue && (
-            <Card className="relative overflow-hidden rounded-2xl border-none bg-gradient-to-br from-green-500 to-emerald-700 text-white shadow-lg">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-xs font-semibold uppercase tracking-wider text-emerald-50/90">Ingresos Totales</span>
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20 backdrop-blur-sm"><Banknote className="h-[18px] w-[18px] text-white" /></span>
-                </div>
-                <p className="mt-3 whitespace-nowrap text-3xl font-extrabold tracking-tight tabular-nums xl:text-2xl 2xl:text-4xl">
-                  {formatCurrency(summary.totalIncome)}
-                </p>
-              </CardContent>
-            </Card>
+            <KpiStatCard
+              label="Ingresos Totales"
+              value={summary.totalIncome}
+              Icon={Banknote}
+              gradient="bg-gradient-to-br from-green-500 to-emerald-700"
+              items={revenueItems}
+            />
           )}
 
-          {/* Gastos Totales */}
-          <Card className="relative overflow-hidden rounded-2xl border-none bg-gradient-to-br from-orange-400 to-red-600 text-white shadow-lg">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-semibold uppercase tracking-wider text-red-50/90">Gastos Totales</span>
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20 backdrop-blur-sm"><Wallet className="h-[18px] w-[18px] text-white" /></span>
-              </div>
-              <p className="mt-3 whitespace-nowrap text-3xl font-extrabold tracking-tight tabular-nums xl:text-2xl 2xl:text-4xl">
-                {formatCurrency(summary.totalExpenses)}
-              </p>
-              {canSeeRevenue && summary.totalIncome > 0 && (
-                <p className="mt-2 text-xs text-red-50/80">
+          {/* Gastos Totales — desglose por categoría */}
+          <KpiStatCard
+            label="Gastos Totales"
+            value={summary.totalExpenses}
+            Icon={Wallet}
+            gradient="bg-gradient-to-br from-orange-400 to-red-600"
+            items={expenseItems}
+            footer={
+              canSeeRevenue && summary.totalIncome > 0 ? (
+                <p className="mt-2 text-xs text-white/80">
                   {((summary.totalExpenses / summary.totalIncome) * 100).toFixed(1)}% de los ingresos
                 </p>
-              )}
-            </CardContent>
-          </Card>
+              ) : undefined
+            }
+          />
 
-          {/* Utilidad Neta (solo con permiso) */}
+          {/* Utilidad Neta (solo con permiso) — sin desglose, con barra de margen */}
           {canSeeRevenue && (
-            <Card className="relative overflow-hidden rounded-2xl border-none bg-gradient-to-br from-blue-600 to-indigo-800 text-white shadow-lg">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-xs font-semibold uppercase tracking-wider text-indigo-50/90">Utilidad Neta</span>
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20 backdrop-blur-sm"><Banknote className="h-[18px] w-[18px] text-white" /></span>
-                </div>
-                <p className="mt-3 whitespace-nowrap text-3xl font-extrabold tracking-tight tabular-nums xl:text-2xl 2xl:text-4xl">
-                  {formatCurrency(summary.totalProfit)}
-                </p>
-                {/* Barra de margen: track translúcido + relleno blanco sobre el degradado */}
+            <KpiStatCard
+              label="Utilidad Neta"
+              value={summary.totalProfit}
+              Icon={Banknote}
+              gradient="bg-gradient-to-br from-blue-600 to-indigo-800"
+              footer={
                 <div className="mt-4">
                   <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-xs uppercase tracking-wider text-indigo-50/80">Margen</span>
+                    <span className="text-xs uppercase tracking-wider text-white/80">Margen</span>
                     <span className="text-lg font-extrabold tabular-nums leading-none">
-                      {globalMargin > 0 ? '+' : ''}{globalMargin.toFixed(1)}%
+                      {globalMargin > 0 ? "+" : ""}{globalMargin.toFixed(1)}%
                     </span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-white/20">
                     <div className="h-full rounded-full bg-white transition-all" style={{ width: `${Math.max(0, Math.min(100, globalMargin))}%` }} />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              }
+            />
           )}
         </div>
       )}
