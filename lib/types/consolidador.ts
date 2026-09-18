@@ -196,6 +196,11 @@ export interface SearchBatchResult {
 export type CobroRule = "entregado" | "no_entregado";
 export type CobroDiscrepancy = "missing" | "extra";
 
+export interface CobroRouteRef {
+  label: string;
+  date: string | null;
+}
+
 export interface CobrosAuditRow {
   trackingNumber: string;
   rule: CobroRule;
@@ -206,6 +211,10 @@ export interface CobrosAuditRow {
   count: number;
   currentStatus: string | null;
   cost: number | null;
+  shipmentId: string | null;
+  incomeId: string | null;
+  consNumber: string | null;
+  routes: CobroRouteRef[];
 }
 
 export interface CobrosAuditRuleBucket {

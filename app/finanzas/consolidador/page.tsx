@@ -248,7 +248,7 @@ function ConsolidadorPage() {
           </TabsContent>
 
           <TabsContent value="auditoria" className="mt-4">
-            <CobrosAuditPanel subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "auditoria"} />
+            <CobrosAuditPanel subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "auditoria"} onFixed={() => mutate()} />
           </TabsContent>
         </Tabs>
 
