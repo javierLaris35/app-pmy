@@ -1,32 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/data-table/data-table";
 import { VerdictBadge } from "@/components/consolidador/verdict-badge";
+import { RowActions } from "@/components/consolidador/row-actions";
 import { formatCurrency } from "@/lib/utils";
 import { ConsolidadorGroup, ConsolidadorGroupRow, SuggestedAction } from "@/lib/types/consolidador";
-import { ChevronDown, Route, PackageCheck, User, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ChevronDown, Route, PackageCheck, User, AlertTriangle, CheckCircle2, History } from "lucide-react";
+
+export interface GroupRowHandlers {
+  onVerdictAction: (row: ConsolidadorGroupRow, action: SuggestedAction, reason: string) => Promise<void>;
+  onEditCost: (id: string, cost: number, reason: string) => Promise<void>;
+  onToggleSecondAbord: (id: string, enabled: boolean, reason: string) => Promise<void>;
+  onEditDate: (id: string, date: string, reason: string) => Promise<void>;
+  onDelete: (id: string, reason: string) => Promise<void>;
+  onHistory: (incomeId: string) => void;
+}
 
 interface Props {
   group: ConsolidadorGroup;
   icon?: "route" | "consolidado";
-  onAction: (row: ConsolidadorGroupRow, action: SuggestedAction, reason: string) => Promise<void>;
+  handlers: GroupRowHandlers;
 }
 
-// Día de negocio (00:00Z): se muestra solo la fecha por su día UTC para no correrlo 7h.
+// Día de negocio (00:00Z): solo fecha por su día UTC para no correrlo 7h.
 const fmtDay = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }) : "sin fecha";
 
 const fmtStatus = (s: string | null) => (s ? s.replace(/_/g, " ") : "—");
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone: "slate" | "emerald" | "amber" | "rose" }) {
-  const tones = {
-    slate: "text-slate-800",
-    emerald: "text-emerald-700",
-    amber: "text-amber-700",
-    rose: "text-rose-700",
-  }[tone];
+  const tones = { slate: "text-slate-800", emerald: "text-emerald-700", amber: "text-amber-700", rose: "text-rose-700" }[tone];
   return (
     <div className="rounded-lg bg-slate-50 p-2.5">
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
@@ -36,20 +44,79 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
   );
 }
 
-export function GroupCard({ group, icon = "route", onAction }: Props) {
+function buildColumns(h: GroupRowHandlers): ColumnDef<ConsolidadorGroupRow>[] {
+  return [
+    {
+      id: "tracking",
+      accessorFn: (r) => r.tracking,
+      header: "Guía",
+      cell: ({ row }) => <span className="whitespace-nowrap font-medium tabular-nums text-slate-700">{row.original.tracking ?? "—"}</span>,
+    },
+    {
+      id: "status",
+      header: "Estatus",
+      cell: ({ row }) =>
+        row.original.isShipment ? (
+          <Badge variant="outline" className="whitespace-nowrap border-slate-200 bg-slate-50 font-normal text-slate-600">
+            {fmtStatus(row.original.status)}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="whitespace-nowrap border-amber-200 bg-amber-50 font-normal text-amber-700">
+            carga
+          </Badge>
+        ),
+    },
+    {
+      id: "income",
+      header: "Ingreso",
+      cell: ({ row }) =>
+        row.original.income ? (
+          <span className="whitespace-nowrap tabular-nums text-slate-700">{formatCurrency(row.original.income.cost)}</span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    },
+    {
+      id: "verdict",
+      header: "Veredicto",
+      cell: ({ row }) =>
+        row.original.isShipment ? (
+          <VerdictBadge verdict={row.original.verdict} onAction={(a, reason) => h.onVerdictAction(row.original, a, reason)} />
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-right">Acciones</div>,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const inc = row.original.income;
+        if (!inc) return <div className="text-right text-[11px] text-slate-400">sin ingreso</div>;
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial" onClick={() => h.onHistory(inc.id)}>
+              <History className="h-4 w-4 text-slate-500" />
+            </Button>
+            <RowActions
+              row={inc}
+              onEditCost={h.onEditCost}
+              onToggleSecondAbord={h.onToggleSecondAbord}
+              onEditDate={h.onEditDate}
+              onDelete={h.onDelete}
+            />
+          </div>
+        );
+      },
+    },
+  ];
+}
+
+export function GroupCard({ group, icon = "route", handlers }: Props) {
   const [open, setOpen] = useState(false);
   const { kpis, meta } = group;
   const HeadIcon = icon === "route" ? Route : PackageCheck;
-  const [busyRow, setBusyRow] = useState<string | null>(null);
-
-  const handle = async (row: ConsolidadorGroupRow, action: SuggestedAction, reason: string) => {
-    setBusyRow(row.shipmentId ?? row.tracking ?? "");
-    try {
-      await onAction(row, action, reason);
-    } finally {
-      setBusyRow(null);
-    }
-  };
+  const columns = useMemo(() => buildColumns(handlers), [handlers]);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="rounded-xl border border-slate-200 bg-white">
@@ -91,40 +158,11 @@ export function GroupCard({ group, icon = "route", onAction }: Props) {
       </div>
 
       <CollapsibleContent>
-        <div className="border-t border-slate-100">
+        <div className="border-t border-slate-100 px-2 pb-2 pt-1">
           {group.rows.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-slate-400">Este grupo no tiene envíos con guía.</p>
+            <p className="px-2 py-6 text-center text-sm text-slate-400">Este grupo no tiene guías con ingreso.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-                    <th className="px-4 py-2 font-medium">Guía</th>
-                    <th className="px-4 py-2 font-medium">Estatus</th>
-                    <th className="px-4 py-2 font-medium">Ingreso</th>
-                    <th className="px-4 py-2 font-medium">Veredicto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.rows.map((r) => (
-                    <tr key={r.shipmentId ?? r.tracking} className="border-t border-slate-100">
-                      <td className="whitespace-nowrap px-4 py-2 font-medium tabular-nums text-slate-700">{r.tracking ?? "—"}</td>
-                      <td className="px-4 py-2">
-                        <Badge variant="outline" className="whitespace-nowrap border-slate-200 bg-slate-50 font-normal text-slate-600">
-                          {fmtStatus(r.status)}
-                        </Badge>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-slate-700">
-                        {r.income ? formatCurrency(r.income.cost) : <span className="text-slate-400">—</span>}
-                      </td>
-                      <td className="px-4 py-2">
-                        <VerdictBadge verdict={r.verdict} onAction={(a, reason) => handle(r, a, reason)} busy={busyRow === (r.shipmentId ?? r.tracking)} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable columns={columns} data={group.rows} autoResetPageIndex={false} hideToolbar hideSelectionCount />
           )}
         </div>
       </CollapsibleContent>

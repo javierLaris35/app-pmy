@@ -1,9 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
-import { GroupCard } from "@/components/consolidador/group-card";
+import { useMemo, useState } from "react";
+import { GroupCard, GroupRowHandlers } from "@/components/consolidador/group-card";
+import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { useConsolidadorGroups, GroupsMode } from "@/hooks/services/consolidador/use-consolidador-groups";
-import { fixPackageStatus, deleteIncome } from "@/lib/services/consolidador";
+import {
+  fixPackageStatus,
+  deleteIncome,
+  patchIncomeCost,
+  patchSecondAbord,
+  editIncomeDate,
+} from "@/lib/services/consolidador";
 import { ConsolidadorGroupRow, SuggestedAction } from "@/lib/types/consolidador";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/lib/toast";
@@ -30,41 +37,87 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Props) {
   const { data, isLoading, mutate } = useConsolidadorGroups(mode, subsidiaryId, from, to, active);
   const groups = data?.groups ?? [];
+  const [historyId, setHistoryId] = useState<string | null>(null);
 
-  const totals = useMemo(() => {
-    return groups.reduce(
-      (acc, g) => ({
-        delivered: acc.delivered + g.kpis.delivered,
-        notDelivered: acc.notDelivered + g.kpis.notDelivered,
-        income: acc.income + g.kpis.incomeAmount,
-        anomalies: acc.anomalies + g.kpis.anomalyCount,
-      }),
-      { delivered: 0, notDelivered: 0, income: 0, anomalies: 0 },
-    );
-  }, [groups]);
+  const totals = useMemo(
+    () =>
+      groups.reduce(
+        (acc, g) => ({
+          delivered: acc.delivered + g.kpis.delivered,
+          notDelivered: acc.notDelivered + g.kpis.notDelivered,
+          income: acc.income + g.kpis.incomeAmount,
+          anomalies: acc.anomalies + g.kpis.anomalyCount,
+        }),
+        { delivered: 0, notDelivered: 0, income: 0, anomalies: 0 },
+      ),
+    [groups],
+  );
 
-  const onAction = async (row: ConsolidadorGroupRow, action: SuggestedAction, reason: string) => {
-    try {
-      if (action.kind === "fix_status" && row.shipmentId) {
-        await fixPackageStatus(row.shipmentId, action.to, reason);
-        toast.success(`Estatus corregido: ${row.tracking}`);
-      } else if (action.kind === "delete_income" && row.income) {
-        await deleteIncome(row.income.id, reason);
-        toast.success(`Cobro eliminado: ${row.tracking}`);
-      }
-      await mutate();
-      onFixed();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message ?? "No se pudo aplicar la acción");
-    }
+  const refresh = async () => {
+    await mutate();
+    onFixed();
   };
 
+  const handlers: GroupRowHandlers = useMemo(
+    () => ({
+      onVerdictAction: async (row: ConsolidadorGroupRow, action: SuggestedAction, reason: string) => {
+        try {
+          if (action.kind === "fix_status" && row.shipmentId) {
+            await fixPackageStatus(row.shipmentId, action.to, reason);
+            toast.success(`Estatus corregido: ${row.tracking}`);
+          } else if (action.kind === "delete_income" && row.income) {
+            await deleteIncome(row.income.id, reason);
+            toast.success(`Cobro eliminado: ${row.tracking}`);
+          }
+          await refresh();
+        } catch (e: any) {
+          toast.error(e?.response?.data?.message ?? "No se pudo aplicar la acción");
+        }
+      },
+      onEditCost: async (id, cost, reason) => {
+        try {
+          await patchIncomeCost(id, cost, reason);
+          await refresh();
+          toast.success("Costo actualizado");
+        } catch {
+          toast.error("No se pudo actualizar el costo");
+        }
+      },
+      onToggleSecondAbord: async (id, enabled, reason) => {
+        try {
+          await patchSecondAbord(id, enabled, reason);
+          await refresh();
+          toast.success(enabled ? "2º a bordo agregado" : "2º a bordo quitado");
+        } catch {
+          toast.error("No se pudo ajustar el 2º a bordo");
+        }
+      },
+      onEditDate: async (id, date, reason) => {
+        try {
+          await editIncomeDate(id, date, reason);
+          await refresh();
+          toast.success("Fecha actualizada");
+        } catch {
+          toast.error("No se pudo actualizar la fecha");
+        }
+      },
+      onDelete: async (id, reason) => {
+        try {
+          await deleteIncome(id, reason);
+          await refresh();
+          toast.success("Ingreso eliminado");
+        } catch {
+          toast.error("No se pudo eliminar el ingreso");
+        }
+      },
+      onHistory: (incomeId) => setHistoryId(incomeId),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mutate, onFixed],
+  );
+
   if (!subsidiaryId) {
-    return (
-      <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">
-        Selecciona una sucursal para comenzar
-      </div>
-    );
+    return <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">Selecciona una sucursal para comenzar</div>;
   }
 
   if (isLoading) {
@@ -80,7 +133,7 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
     return (
       <div className="flex flex-col items-center gap-2 rounded-md border bg-white py-16 text-center text-slate-400">
         <Icon className="h-8 w-8 opacity-40" />
-        <p className="text-sm">Sin {mode === "route" ? "rutas" : "consolidados"} con ingresos esta semana.</p>
+        <p className="text-sm">Sin {mode === "route" ? "rutas" : "consolidados"} esta semana.</p>
       </div>
     );
   }
@@ -96,9 +149,11 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
 
       <div className="flex flex-col gap-3">
         {groups.map((g) => (
-          <GroupCard key={g.id} group={g} icon={mode === "route" ? "route" : "consolidado"} onAction={onAction} />
+          <GroupCard key={g.id} group={g} icon={mode === "route" ? "route" : "consolidado"} handlers={handlers} />
         ))}
       </div>
+
+      <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
     </div>
   );
 }

@@ -135,7 +135,10 @@ export interface ConsolidadorGroupRow {
   tracking: string | null;
   shipmentId: string | null;
   status: string | null;
-  income: { id: string; cost: number } | null;
+  /** true = envío (cuenta como entrega y aplica veredicto); false = carga/recolección/etc. */
+  isShipment: boolean;
+  /** Fila de ingreso completa (para editar/historial); null si el envío no tiene ingreso. */
+  income: ConsolidadorRow | null;
   verdict: Verdict;
 }
 
