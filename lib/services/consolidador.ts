@@ -2,6 +2,7 @@ import { axiosConfig } from "../axios-config";
 import {
   AnomalyRow,
   CobrosAuditReport,
+  ConsolidadorGroupsResult,
   ConsolidadorReadResult,
   ConsolidadorRow,
   IncomeChangeLogEntry,
@@ -11,6 +12,22 @@ import {
 } from "../types/consolidador";
 
 const baseUrl = "/consolidador";
+
+/** GET: grupos de la semana POR RUTA (KPIs + guías con veredicto). */
+export const getGroupsByRoute = async (
+  subsidiaryId: string,
+  from: string,
+  to: string,
+): Promise<ConsolidadorGroupsResult> =>
+  (await axiosConfig.get<ConsolidadorGroupsResult>(`${baseUrl}/${subsidiaryId}/${from}/${to}/by-route`)).data;
+
+/** GET: grupos de la semana POR CONSOLIDADO (KPIs + guías con veredicto). */
+export const getGroupsByConsolidado = async (
+  subsidiaryId: string,
+  from: string,
+  to: string,
+): Promise<ConsolidadorGroupsResult> =>
+  (await axiosConfig.get<ConsolidadorGroupsResult>(`${baseUrl}/${subsidiaryId}/${from}/${to}/by-consolidado`)).data;
 
 /** GET: filas de income de la semana (todos los sourceType) + totales por bucket. */
 export const getConsolidadorWeek = async (

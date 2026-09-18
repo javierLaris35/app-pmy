@@ -100,8 +100,65 @@ export interface SearchBatchItem extends SearchPackageResult {
   incomeDate: string | null;
   /** Anomalías detectadas (fecha desalineada, estatus retrocedió, ingreso sin respaldo…). */
   anomalies: { code: string; label: string }[];
+  /** Veredicto inteligente del paquete (cruza estatus + consolidado + ruta + fecha del ingreso). */
+  verdict: Verdict;
   /** Secuencia de estatus del envío (status + timestamp), más reciente primero. */
   statusHistory: StatusHistoryEntry[];
+}
+
+// --- Motor de veredicto (espejo de src/consolidador/logic/package-verdict.util.ts) ---
+export type VerdictLevel = "ok" | "warn" | "danger";
+export type VerdictCode =
+  | "delivered_by_us"
+  | "fedex_delivery_doubtful"
+  | "our_delivery_ok"
+  | "no_income_ok"
+  | "date_mismatch"
+  | "income_without_support"
+  | "status_regressed"
+  | "unverified";
+export type SuggestedAction =
+  | { kind: "none" }
+  | { kind: "fix_status"; to: string }
+  | { kind: "delete_income" };
+
+export interface Verdict {
+  code: VerdictCode;
+  level: VerdictLevel;
+  title: string;
+  evidence: string[];
+  suggestedAction: SuggestedAction;
+}
+
+// --- Grupos por ruta/consolidado (espejo de consolidador.types.ts) ---
+export interface ConsolidadorGroupRow {
+  tracking: string | null;
+  shipmentId: string | null;
+  status: string | null;
+  income: { id: string; cost: number } | null;
+  verdict: Verdict;
+}
+
+export interface ConsolidadorGroupKpis {
+  delivered: number;
+  notDelivered: number;
+  incomeAmount: number;
+  incomeCount: number;
+  chargeDiscrepancy: number;
+  anomalyCount: number;
+}
+
+export interface ConsolidadorGroup {
+  id: string;
+  label: string;
+  date: string | null;
+  meta: { driver?: string | null; owner?: string | null; shipmentCount: number };
+  kpis: ConsolidadorGroupKpis;
+  rows: ConsolidadorGroupRow[];
+}
+
+export interface ConsolidadorGroupsResult {
+  groups: ConsolidadorGroup[];
 }
 
 export interface SearchBatchResult {
