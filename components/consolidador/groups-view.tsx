@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { GroupCard, GroupRowHandlers } from "@/components/consolidador/group-card";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
+import { StatusTimelineDialog } from "@/components/consolidador/status-timeline-dialog";
 import { useConsolidadorGroups, GroupsMode } from "@/hooks/services/consolidador/use-consolidador-groups";
 import {
   fixPackageStatus,
@@ -38,6 +39,7 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
   const { data, isLoading, mutate } = useConsolidadorGroups(mode, subsidiaryId, from, to, active);
   const groups = data?.groups ?? [];
   const [historyId, setHistoryId] = useState<string | null>(null);
+  const [timelineTracking, setTimelineTracking] = useState<string | null>(null);
 
   const totals = useMemo(
     () =>
@@ -111,6 +113,7 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
         }
       },
       onHistory: (incomeId) => setHistoryId(incomeId),
+      onTimeline: (tracking) => setTimelineTracking(tracking),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mutate, onFixed],
@@ -154,6 +157,7 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
       </div>
 
       <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
+      <StatusTimelineDialog open={!!timelineTracking} onOpenChange={(o) => !o && setTimelineTracking(null)} tracking={timelineTracking} />
     </div>
   );
 }

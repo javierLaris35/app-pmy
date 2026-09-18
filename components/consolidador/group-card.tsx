@@ -10,7 +10,7 @@ import { VerdictBadge } from "@/components/consolidador/verdict-badge";
 import { RowActions } from "@/components/consolidador/row-actions";
 import { formatCurrency } from "@/lib/utils";
 import { ConsolidadorGroup, ConsolidadorGroupRow, SuggestedAction } from "@/lib/types/consolidador";
-import { ChevronDown, Route, PackageCheck, User, AlertTriangle, CheckCircle2, History } from "lucide-react";
+import { ChevronDown, Route, PackageCheck, User, AlertTriangle, CheckCircle2, History, ListOrdered } from "lucide-react";
 
 export interface GroupRowHandlers {
   onVerdictAction: (row: ConsolidadorGroupRow, action: SuggestedAction, reason: string) => Promise<void>;
@@ -19,6 +19,8 @@ export interface GroupRowHandlers {
   onEditDate: (id: string, date: string, reason: string) => Promise<void>;
   onDelete: (id: string, reason: string) => Promise<void>;
   onHistory: (incomeId: string) => void;
+  /** Trazabilidad del paquete (timeline recibido→consolidado→ruta→FedEx→ingreso). */
+  onTimeline: (tracking: string) => void;
 }
 
 interface Props {
@@ -91,20 +93,29 @@ function buildColumns(h: GroupRowHandlers): ColumnDef<ConsolidadorGroupRow>[] {
       header: () => <div className="text-right">Acciones</div>,
       enableSorting: false,
       cell: ({ row }) => {
-        const inc = row.original.income;
-        if (!inc) return <div className="text-right text-[11px] text-slate-400">sin ingreso</div>;
+        const r = row.original;
+        const inc = r.income;
         return (
           <div className="flex items-center justify-end gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial" onClick={() => h.onHistory(inc.id)}>
-              <History className="h-4 w-4 text-slate-500" />
-            </Button>
-            <RowActions
-              row={inc}
-              onEditCost={h.onEditCost}
-              onToggleSecondAbord={h.onToggleSecondAbord}
-              onEditDate={h.onEditDate}
-              onDelete={h.onDelete}
-            />
+            {r.isShipment && r.tracking && (
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="Trazabilidad del paquete" onClick={() => h.onTimeline(r.tracking!)}>
+                <ListOrdered className="h-4 w-4 text-slate-500" />
+              </Button>
+            )}
+            {inc && (
+              <>
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial del ingreso" onClick={() => h.onHistory(inc.id)}>
+                  <History className="h-4 w-4 text-slate-500" />
+                </Button>
+                <RowActions
+                  row={inc}
+                  onEditCost={h.onEditCost}
+                  onToggleSecondAbord={h.onToggleSecondAbord}
+                  onEditDate={h.onEditDate}
+                  onDelete={h.onDelete}
+                />
+              </>
+            )}
           </div>
         );
       },
