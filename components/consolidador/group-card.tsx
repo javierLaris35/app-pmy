@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DataTable } from "@/components/data-table/data-table";
 import { VerdictBadge } from "@/components/consolidador/verdict-badge";
 import { RowActions } from "@/components/consolidador/row-actions";
+import { ReasonButton } from "@/components/consolidador/reason-button";
 import { formatCurrency } from "@/lib/utils";
 import { ChargeIssue, ConsolidadorGroup, ConsolidadorGroupRow, SuggestedAction } from "@/lib/types/consolidador";
 import {
@@ -200,7 +201,15 @@ function KpiTile({
   );
 }
 
-function DiscrepancyTile({ group }: { group: ConsolidadorGroup }) {
+function DiscrepancyTile({
+  group,
+  handlers,
+  rowByTracking,
+}: {
+  group: ConsolidadorGroup;
+  handlers: GroupRowHandlers;
+  rowByTracking: Map<string, ConsolidadorGroupRow>;
+}) {
   const { chargeDiscrepancy, chargeMissing, chargeExtra } = group.kpis;
   const has = chargeDiscrepancy > 0;
   const tile = (
@@ -229,19 +238,51 @@ function DiscrepancyTile({ group }: { group: ConsolidadorGroup }) {
           <span className="flex items-center gap-1 text-amber-700"><ArrowDownRight className="h-3.5 w-3.5" /> Falta cobrar {formatCurrency(chargeMissing)}</span>
           <span className="flex items-center gap-1 text-rose-700"><ArrowUpRight className="h-3.5 w-3.5" /> Cobra de más {formatCurrency(chargeExtra)}</span>
         </div>
-        <div className="max-h-64 space-y-1.5 overflow-y-auto">
-          {group.discrepancyItems.map((it, i) => (
-            <div key={i} className="flex items-start justify-between gap-2 rounded-md border border-slate-100 px-2 py-1.5 text-xs">
-              <div className="min-w-0">
-                <p className="font-medium tabular-nums text-slate-700">{it.tracking}</p>
-                <p className="text-slate-500">{it.reason}</p>
+        <div className="max-h-72 space-y-1.5 overflow-y-auto">
+          {group.discrepancyItems.map((it, i) => {
+            const row = rowByTracking.get(it.tracking);
+            const canFix =
+              it.discrepancy === "missing" ? !!row?.shipmentId : !!row?.income;
+            const fix = async (reason: string) => {
+              if (!row) return;
+              const action: SuggestedAction =
+                it.discrepancy === "missing" ? { kind: "repair_income" } : { kind: "delete_income" };
+              await handlers.onVerdictAction(row, action, reason);
+            };
+            return (
+              <div key={i} className="rounded-md border border-slate-100 px-2 py-1.5 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium tabular-nums text-slate-700">{it.tracking}</p>
+                    <p className="text-slate-500">{it.reason}</p>
+                  </div>
+                  <span className={`shrink-0 font-medium tabular-nums ${it.discrepancy === "missing" ? "text-amber-700" : "text-rose-700"}`}>
+                    {it.discrepancy === "missing" ? "+" : "−"}
+                    {formatCurrency(it.amount)}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex justify-end gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-2 text-[11px] text-slate-500"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlers.onTimeline(it.tracking);
+                    }}
+                  >
+                    <ListOrdered className="h-3 w-3" /> Ver paquete
+                  </Button>
+                  <ReasonButton
+                    size="xs"
+                    label={it.discrepancy === "missing" ? "Generar cobro" : "Eliminar cobro"}
+                    disabled={!canFix}
+                    onConfirm={fix}
+                  />
+                </div>
               </div>
-              <span className={`shrink-0 font-medium tabular-nums ${it.discrepancy === "missing" ? "text-amber-700" : "text-rose-700"}`}>
-                {it.discrepancy === "missing" ? "+" : "−"}
-                {formatCurrency(it.amount)}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </PopoverContent>
     </Popover>
@@ -254,6 +295,11 @@ export function GroupCard({ group, icon = "route", handlers, visibleRows, defaul
   const HeadIcon = icon === "route" ? Route : PackageCheck;
   const columns = useMemo(() => buildColumns(handlers, highlight), [handlers, highlight]);
   const rows = visibleRows ?? group.rows;
+  const rowByTracking = useMemo(() => {
+    const m = new Map<string, ConsolidadorGroupRow>();
+    for (const r of group.rows) if (r.tracking) m.set(r.tracking, r);
+    return m;
+  }, [group.rows]);
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -295,7 +341,7 @@ export function GroupCard({ group, icon = "route", handlers, visibleRows, defaul
           <KpiTile icon={Truck} label="Entregados" value={String(kpis.delivered)} sub={`${kpis.notDelivered} no entregados`} tone="emerald" />
           <KpiTile icon={PackageX} label="No entregados" value={String(kpis.notDelivered)} tone={kpis.notDelivered > 0 ? "amber" : "slate"} />
           <KpiTile icon={PackageCheck} label="Ingresos" value={formatCurrency(kpis.incomeAmount)} sub={`${kpis.incomeCount} ingresos`} tone="slate" />
-          <DiscrepancyTile group={group} />
+          <DiscrepancyTile group={group} handlers={handlers} rowByTracking={rowByTracking} />
         </div>
 
         <CollapsibleContent>
