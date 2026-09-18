@@ -13,10 +13,13 @@ import {
   editIncomeDate,
   repairPackageIncome,
 } from "@/lib/services/consolidador";
-import { ConsolidadorGroupRow, SuggestedAction } from "@/lib/types/consolidador";
+import { ConsolidadorGroup, ConsolidadorGroupRow, SuggestedAction } from "@/lib/types/consolidador";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/lib/toast";
-import { Loader2, Route, PackageCheck } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Loader2, Route, PackageCheck, Search, X } from "lucide-react";
 
 interface Props {
   mode: GroupsMode;
@@ -26,6 +29,26 @@ interface Props {
   active: boolean;
   onFixed: () => void;
 }
+
+type EstadoFilter = "todos" | "anomalias" | "descuadre" | "faltantes" | "ok";
+
+const VERDICT_OPTIONS: { value: string; label: string }[] = [
+  { value: "all", label: "Todos los veredictos" },
+  { value: "income_missing", label: "Falta cobrar" },
+  { value: "fedex_delivery_doubtful", label: "Cobro dudoso" },
+  { value: "delivered_by_us", label: "Lo entregamos nosotros" },
+  { value: "income_without_support", label: "Cobro sin respaldo" },
+  { value: "status_regressed", label: "Volvió a tránsito" },
+  { value: "date_mismatch", label: "Fecha no coincide" },
+];
+
+const ESTADO_OPTIONS: { value: EstadoFilter; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "anomalias", label: "Con anomalías" },
+  { value: "descuadre", label: "Con descuadre" },
+  { value: "faltantes", label: "Con faltantes de cobro" },
+  { value: "ok", label: "Todo OK" },
+];
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
@@ -38,14 +61,55 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Props) {
   const { data, isLoading, mutate } = useConsolidadorGroups(mode, subsidiaryId, from, to, active);
-  const groups = data?.groups ?? [];
+  const groups = useMemo(() => data?.groups ?? [], [data]);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [timelineTracking, setTimelineTracking] = useState<string | null>(null);
 
+  const [estado, setEstado] = useState<EstadoFilter>("todos");
+  const [query, setQuery] = useState("");
+  const [driver, setDriver] = useState("all");
+  const [verdict, setVerdict] = useState("all");
+
+  const driverOptions = useMemo(() => {
+    const set = new Set<string>();
+    groups.forEach((g) => g.meta.driver && set.add(g.meta.driver));
+    return [...set].sort();
+  }, [groups]);
+
+  // Aplica filtros: por fila (guía/veredicto) y por grupo (estado/chofer).
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const rowFilterActive = !!q || verdict !== "all";
+    const out: { group: ConsolidadorGroup; rows: ConsolidadorGroupRow[] }[] = [];
+    for (const g of groups) {
+      if (driver !== "all" && g.meta.driver !== driver) continue;
+      if (estado === "anomalias" && g.kpis.anomalyCount === 0) continue;
+      if (estado === "descuadre" && g.kpis.chargeDiscrepancy === 0) continue;
+      if (estado === "faltantes" && !(g.kpis.chargeMissing > 0 || g.rows.some((r) => r.verdict.code === "income_missing"))) continue;
+      if (estado === "ok" && !(g.kpis.anomalyCount === 0 && g.kpis.chargeDiscrepancy === 0)) continue;
+
+      let rows = g.rows;
+      if (q) rows = rows.filter((r) => (r.tracking ?? "").toLowerCase().includes(q));
+      if (verdict !== "all") rows = rows.filter((r) => r.verdict.code === verdict);
+      if (rowFilterActive && rows.length === 0) continue;
+      out.push({ group: g, rows });
+    }
+    return out;
+  }, [groups, estado, query, driver, verdict]);
+
+  const rowFilterActive = !!query.trim() || verdict !== "all";
+  const hasFilters = estado !== "todos" || !!query.trim() || driver !== "all" || verdict !== "all";
+  const clearFilters = () => {
+    setEstado("todos");
+    setQuery("");
+    setDriver("all");
+    setVerdict("all");
+  };
+
   const totals = useMemo(
     () =>
-      groups.reduce(
-        (acc, g) => ({
+      filtered.reduce(
+        (acc, { group: g }) => ({
           delivered: acc.delivered + g.kpis.delivered,
           notDelivered: acc.notDelivered + g.kpis.notDelivered,
           income: acc.income + g.kpis.incomeAmount,
@@ -53,7 +117,7 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
         }),
         { delivered: 0, notDelivered: 0, income: 0, anomalies: 0 },
       ),
-    [groups],
+    [filtered],
   );
 
   const refresh = async () => {
@@ -148,6 +212,46 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5">
+        <div className="relative min-w-[180px] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar guía…" className="h-9 pl-8" />
+        </div>
+        <Select value={estado} onValueChange={(v) => setEstado(v as EstadoFilter)}>
+          <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {ESTADO_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={verdict} onValueChange={setVerdict}>
+          <SelectTrigger className="h-9 w-[190px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {VERDICT_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {mode === "route" && driverOptions.length > 0 && (
+          <Select value={driver} onValueChange={setDriver}>
+            <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Chofer" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los choferes</SelectItem>
+              {driverOptions.map((d) => (
+                <SelectItem key={d} value={d}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {hasFilters && (
+          <Button variant="ghost" size="sm" className="h-9 gap-1 text-slate-500" onClick={clearFilters}>
+            <X className="h-4 w-4" /> Limpiar
+          </Button>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <SummaryStat label="Entregados" value={String(totals.delivered)} />
         <SummaryStat label="No entregados" value={String(totals.notDelivered)} />
@@ -155,11 +259,23 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
         <SummaryStat label="Anomalías" value={String(totals.anomalies)} />
       </div>
 
-      <div className="flex flex-col gap-3">
-        {groups.map((g) => (
-          <GroupCard key={g.id} group={g} icon={mode === "route" ? "route" : "consolidado"} handlers={handlers} />
-        ))}
-      </div>
+      {filtered.length === 0 ? (
+        <div className="rounded-md border bg-white py-12 text-center text-sm text-slate-400">Ningún {mode === "route" ? "ruta" : "consolidado"} coincide con los filtros.</div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map(({ group, rows }) => (
+            <GroupCard
+              key={group.id}
+              group={group}
+              icon={mode === "route" ? "route" : "consolidado"}
+              handlers={handlers}
+              visibleRows={rows}
+              defaultOpen={rowFilterActive}
+              highlight={query}
+            />
+          ))}
+        </div>
+      )}
 
       <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
       <StatusTimelineDialog open={!!timelineTracking} onOpenChange={(o) => !o && setTimelineTracking(null)} tracking={timelineTracking} />

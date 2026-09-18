@@ -133,6 +133,15 @@ export interface Verdict {
 }
 
 // --- Grupos por ruta/consolidado (espejo de consolidador.types.ts) ---
+export interface ChargeIssue {
+  tracking: string;
+  discrepancy: "missing" | "extra";
+  reason: string;
+  amount: number;
+  subCode: "07" | "08" | null;
+  rule: string;
+}
+
 export interface ConsolidadorGroupRow {
   tracking: string | null;
   shipmentId: string | null;
@@ -142,6 +151,7 @@ export interface ConsolidadorGroupRow {
   /** Fila de ingreso completa (para editar/historial); null si el envío no tiene ingreso. */
   income: ConsolidadorRow | null;
   verdict: Verdict;
+  chargeIssues: ChargeIssue[];
 }
 
 export interface ConsolidadorGroupKpis {
@@ -150,6 +160,8 @@ export interface ConsolidadorGroupKpis {
   incomeAmount: number;
   incomeCount: number;
   chargeDiscrepancy: number;
+  chargeMissing: number;
+  chargeExtra: number;
   anomalyCount: number;
 }
 
@@ -159,6 +171,7 @@ export interface ConsolidadorGroup {
   date: string | null;
   meta: { driver?: string | null; owner?: string | null; shipmentCount: number };
   kpis: ConsolidadorGroupKpis;
+  discrepancyItems: ChargeIssue[];
   rows: ConsolidadorGroupRow[];
 }
 
