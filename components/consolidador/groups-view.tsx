@@ -206,6 +206,7 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
       },
       onHistory: (incomeId) => setHistoryId(incomeId),
       onTimeline: (tracking) => setTimelineTracking(tracking),
+      onLocate: (tracking) => setQuery(tracking),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mutate, onFixed],

@@ -26,6 +26,7 @@ import {
   Truck,
   ArrowDownRight,
   ArrowUpRight,
+  ArrowRightToLine,
 } from "lucide-react";
 
 export interface GroupRowHandlers {
@@ -36,6 +37,8 @@ export interface GroupRowHandlers {
   onDelete: (id: string, reason: string) => Promise<void>;
   onHistory: (incomeId: string) => void;
   onTimeline: (tracking: string) => void;
+  /** Lleva a la guía en la tabla (fija el buscador de la vista en ese tracking). */
+  onLocate: (tracking: string) => void;
 }
 
 interface Props {
@@ -88,8 +91,8 @@ function buildColumns(h: GroupRowHandlers, highlight?: string): ColumnDef<Consol
   const hl = highlight?.trim().toLowerCase();
   return [
     {
-      id: "tracking",
-      accessorFn: (r) => r.tracking,
+      id: "trackingNumber",
+      accessorFn: (r) => r.tracking ?? "",
       header: "Guía",
       cell: ({ row }) => {
         const t = row.original.tracking ?? "—";
@@ -99,6 +102,7 @@ function buildColumns(h: GroupRowHandlers, highlight?: string): ColumnDef<Consol
     },
     {
       id: "status",
+      accessorFn: (r) => (r.isShipment ? r.status ?? "" : "carga"),
       header: "Estatus",
       cell: ({ row }) =>
         row.original.isShipment ? (
@@ -113,11 +117,13 @@ function buildColumns(h: GroupRowHandlers, highlight?: string): ColumnDef<Consol
     },
     {
       id: "vencimiento",
+      accessorFn: (r) => r.commitDateTime ?? "",
       header: "Vencimiento",
       cell: ({ row }) => <span className="whitespace-nowrap text-xs tabular-nums text-slate-500">{fmtCommit(row.original.commitDateTime)}</span>,
     },
     {
       id: "income",
+      accessorFn: (r) => r.income?.cost ?? -1,
       header: "Ingreso",
       cell: ({ row }) =>
         row.original.income ? (
@@ -129,6 +135,7 @@ function buildColumns(h: GroupRowHandlers, highlight?: string): ColumnDef<Consol
     {
       id: "verdict",
       header: "Veredicto",
+      enableSorting: false,
       cell: ({ row }) =>
         row.original.isShipment ? (
           <VerdictBadge verdict={row.original.verdict} onAction={(a, reason) => h.onVerdictAction(row.original, a, reason)} />
@@ -139,7 +146,27 @@ function buildColumns(h: GroupRowHandlers, highlight?: string): ColumnDef<Consol
     {
       id: "cobro",
       header: "Cobro",
-      cell: ({ row }) => <ChargeChip issues={row.original.chargeIssues} />,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const r = row.original;
+        const issues = r.chargeIssues ?? [];
+        if (!issues.length) return <span className="text-xs text-slate-300">—</span>;
+        const hasMissing = issues.some((i) => i.discrepancy === "missing");
+        const hasExtra = issues.some((i) => i.discrepancy === "extra");
+        return (
+          <div className="flex flex-col gap-1">
+            <ChargeChip issues={issues} />
+            <div className="flex gap-1">
+              {hasMissing && r.shipmentId && (
+                <ReasonButton size="xs" label="Generar cobro" onConfirm={(reason) => h.onVerdictAction(r, { kind: "repair_income" }, reason)} />
+              )}
+              {hasExtra && r.income && (
+                <ReasonButton size="xs" label="Eliminar cobro" onConfirm={(reason) => h.onVerdictAction(r, { kind: "delete_income" }, reason)} />
+              )}
+            </div>
+          </div>
+        );
+      },
     },
     {
       id: "actions",
@@ -261,7 +288,18 @@ function DiscrepancyTile({
                     {formatCurrency(it.amount)}
                   </span>
                 </div>
-                <div className="mt-1.5 flex justify-end gap-1.5">
+                <div className="mt-1.5 flex flex-wrap justify-end gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-2 text-[11px] text-slate-500"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlers.onLocate(it.tracking);
+                    }}
+                  >
+                    <ArrowRightToLine className="h-3 w-3" /> Ver en tabla
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -271,7 +309,7 @@ function DiscrepancyTile({
                       handlers.onTimeline(it.tracking);
                     }}
                   >
-                    <ListOrdered className="h-3 w-3" /> Ver paquete
+                    <ListOrdered className="h-3 w-3" /> Trazabilidad
                   </Button>
                   <ReasonButton
                     size="xs"
@@ -349,7 +387,7 @@ export function GroupCard({ group, icon = "route", handlers, visibleRows, defaul
             {rows.length === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-slate-400">Sin guías que coincidan.</p>
             ) : (
-              <DataTable columns={columns} data={rows} autoResetPageIndex={false} hideToolbar hideSelectionCount />
+              <DataTable columns={columns} data={rows} autoResetPageIndex={false} hideSelectionCount />
             )}
           </div>
         </CollapsibleContent>
