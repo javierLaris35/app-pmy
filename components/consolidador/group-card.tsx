@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
@@ -329,6 +329,10 @@ function DiscrepancyTile({
 
 export function GroupCard({ group, icon = "route", handlers, visibleRows, defaultOpen, highlight }: Props) {
   const [open, setOpen] = useState(!!defaultOpen);
+  // Al activarse un filtro por fila (búsqueda/veredicto o "Ver en tabla"), abre el grupo.
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
   const { kpis, meta } = group;
   const HeadIcon = icon === "route" ? Route : PackageCheck;
   const columns = useMemo(() => buildColumns(handlers, highlight), [handlers, highlight]);
