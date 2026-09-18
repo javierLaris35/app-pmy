@@ -148,6 +148,8 @@ export interface ConsolidadorGroupRow {
   status: string | null;
   /** true = envío (cuenta como entrega y aplica veredicto); false = carga/recolección/etc. */
   isShipment: boolean;
+  /** Fecha de vencimiento (compromiso de entrega FedEx, commitDateTime). */
+  commitDateTime: string | null;
   /** Fila de ingreso completa (para editar/historial); null si el envío no tiene ingreso. */
   income: ConsolidadorRow | null;
   verdict: Verdict;

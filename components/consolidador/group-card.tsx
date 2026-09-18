@@ -53,6 +53,10 @@ const fmtDay = (iso: string | null) =>
 
 const fmtStatus = (s: string | null) => (s ? s.replace(/_/g, " ") : "—");
 
+// Vencimiento (commitDateTime): instante real → fecha + hora local.
+const fmtCommit = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+
 function ChargeChip({ issues }: { issues: ChargeIssue[] }) {
   if (!issues?.length) return <span className="text-xs text-slate-300">—</span>;
   return (
@@ -105,6 +109,11 @@ function buildColumns(h: GroupRowHandlers, highlight?: string): ColumnDef<Consol
             carga
           </Badge>
         ),
+    },
+    {
+      id: "vencimiento",
+      header: "Vencimiento",
+      cell: ({ row }) => <span className="whitespace-nowrap text-xs tabular-nums text-slate-500">{fmtCommit(row.original.commitDateTime)}</span>,
     },
     {
       id: "income",
