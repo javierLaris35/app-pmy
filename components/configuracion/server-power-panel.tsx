@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +65,7 @@ function fmt(iso: string | null): string {
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "America/Hermosillo",
     });
   } catch {
     return "—";
@@ -195,17 +196,17 @@ export function ServerPowerPanel() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <Panel>
+        <PanelHeader>
+          <PanelTitle className="flex items-center gap-2">
             <Power className="h-5 w-5" /> Programación de energía
-          </CardTitle>
-          <CardDescription>
+          </PanelTitle>
+          <PanelDescription>
             El servidor se suspende y se enciende solo según este horario. Recibirás un correo
             cuando se suspenda y cuando despierte.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+          </PanelDescription>
+        </PanelHeader>
+        <PanelContent className="space-y-6">
           {/* Activado */}
           <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2">
             <div className="space-y-0.5">
@@ -315,15 +316,15 @@ export function ServerPowerPanel() {
               Enviar correo de prueba
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
       {/* Estado */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Estado</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <Panel>
+        <PanelHeader>
+          <PanelTitle className="text-base">Estado</PanelTitle>
+        </PanelHeader>
+        <PanelContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-md bg-muted/40 px-3 py-2">
               <p className="text-xs text-muted-foreground">Próximo apagado</p>
@@ -353,21 +354,21 @@ export function ServerPowerPanel() {
               <span>Último error al aplicar: {status.lastApplyError}</span>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
       {/* Suspender ahora */}
-      <Card className="border-destructive/30">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+      <Panel className="border-destructive/30">
+        <PanelHeader>
+          <PanelTitle className="text-base flex items-center gap-2">
             <PowerOff className="h-5 w-5 text-destructive" /> Suspender ahora
-          </CardTitle>
-          <CardDescription>
+          </PanelTitle>
+          <PanelDescription>
             Suspende el servidor de inmediato. Despertará solo a la hora configurada
             (<b>{wakeTime}</b>). Durante la suspensión el sistema no estará disponible.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </PanelDescription>
+        </PanelHeader>
+        <PanelContent>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={suspending}>
@@ -398,8 +399,8 @@ export function ServerPowerPanel() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
       <Separator className="opacity-0" />
     </div>
