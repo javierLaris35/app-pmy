@@ -26,10 +26,8 @@ import {
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import { SubsidiaryMetricsGridLegacy } from "./subsidiary-metrics-legacy"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -69,6 +67,8 @@ export interface SubsidiaryMetrics {
   totalRevenue: number
   /** Desglose del ingreso contable por tipo (misma regla que la tabla de ingresos). */
   revenueBreakdown?: RevenueBreakdown
+  /** Paquetes FACTURADOS (los que explican el dinero; anclados a la fecha de cobro). */
+  billed?: BilledStats
   totalExpenses: number
   averageEfficiency: number
   totalProfit: number
@@ -80,16 +80,28 @@ export interface SubsidiaryMetrics {
     totalProfit: number
     revenueBreakdown?: RevenueBreakdown
     expenseBreakdown?: Record<string, number>
+    billed?: BilledStats
   }
 }
 
-/** Ingreso contable por tipo. La suma de los cinco == totalRevenue. */
+/** Ingreso contable por tipo EXPLÍCITO (nada agrupado en "otros"). La suma == totalRevenue. */
 export interface RevenueBreakdown {
   fedex: number
   dhl: number
   cargas: number
   collections: number
-  transfers: number
+  tyco: number
+  aeropuerto: number
+  especial: number
+}
+
+/** Paquetes facturados (los que suman al ingreso). total = delivered+dex07+dex08+other. */
+export interface BilledStats {
+  total: number
+  delivered: number
+  dex07: number
+  dex08: number
+  other: number
 }
 
 /** Moneda MXN — helper a nivel de módulo para reusar en las tarjetas y su desglose. */
@@ -109,15 +121,27 @@ const EXPENSE_PALETTE = ["#ef4444", "#f97316", "#eab308", "#8b5cf6", "#0ea5e9", 
 /**
  * Panel de composición sobre superficie blanca (legible dentro de una tarjeta con
  * degradado). Barra apilada (el TODO) + renglones con % y monto, ordenados de mayor a
- * menor; el excedente sobre 6 categorías se agrupa en "Otros". La suma == total de la
- * tarjeta, así el desglose SIEMPRE cuadra con el número grande de arriba.
+ * menor. La suma == total de la tarjeta, así el desglose SIEMPRE cuadra con el número
+ * grande de arriba.
+ *
+ * @param maxRows máximo de renglones antes de agrupar el excedente (default 6). Pasar un
+ *   número grande evita cualquier agrupación (p. ej. ingresos: todos los tipos explícitos).
+ * @param overflowLabel etiqueta del renglón agrupado cuando hay excedente ("Otras
+ *   categorías" en gastos). Nunca se usa para tipos de paquete.
  */
-function CompositionPanel({ items }: { items: CompItem[] }) {
-  const MAX = 6
+function CompositionPanel({
+  items,
+  maxRows = 6,
+  overflowLabel = "Otras categorías",
+}: {
+  items: CompItem[]
+  maxRows?: number
+  overflowLabel?: string
+}) {
   const sorted = [...items].filter((i) => i.value !== 0).sort((a, b) => b.value - a.value)
   const shown: CompItem[] =
-    sorted.length > MAX
-      ? [...sorted.slice(0, MAX), { label: "Otros", value: sorted.slice(MAX).reduce((s, i) => s + i.value, 0), color: "#94a3b8" }]
+    sorted.length > maxRows
+      ? [...sorted.slice(0, maxRows), { label: overflowLabel, value: sorted.slice(maxRows).reduce((s, i) => s + i.value, 0), color: "#94a3b8" }]
       : sorted
   const total = shown.reduce((s, i) => s + i.value, 0)
   const pct = (v: number) => (total > 0 ? (v / total) * 100 : 0)
@@ -160,6 +184,8 @@ function KpiStatCard({
   gradient,
   items,
   footer,
+  panelHeader,
+  panelMaxRows,
 }: {
   label: string
   value: number
@@ -167,6 +193,10 @@ function KpiStatCard({
   gradient: string
   items?: CompItem[]
   footer?: React.ReactNode
+  /** Contenido opcional arriba del desglose (p. ej. "paquetes facturados"). */
+  panelHeader?: React.ReactNode
+  /** Máx. renglones antes de agrupar (ingresos: alto → todos los tipos explícitos). */
+  panelMaxRows?: number
 }) {
   const [open, setOpen] = React.useState(false)
   const hasBreakdown = !!items && items.some((i) => i.value !== 0)
@@ -212,7 +242,8 @@ function KpiStatCard({
         >
           <div className="overflow-hidden">
             <div className="bg-white p-4">
-              <CompositionPanel items={items!} />
+              {panelHeader}
+              <CompositionPanel items={items!} maxRows={panelMaxRows} />
             </div>
           </div>
         </div>
@@ -260,7 +291,7 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
   ]
 
   return (
-    <Card className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-0 shadow-sm transition-shadow hover:shadow-md">
+    <Card className="overflow-hidden rounded-2xl border-none bg-white p-0 shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-lg">
       {/* Franja de encabezado: sucursal + efectividad */}
       <div className={`flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5 ${lvl.band}`}>
         <div className="flex min-w-0 items-center gap-2">
@@ -282,7 +313,7 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
               {total.toLocaleString()}
             </div>
             <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Paquetes · declarado
+              Paquetes registrados
             </div>
           </div>
           <div
@@ -320,13 +351,13 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
 
         {/* Desglose DEX (solo 07/03/08; el resto vive en "Otros") */}
         {subsidiary.undeliveredPackages > 0 && (
-          <div className="rounded-xl border border-rose-200/60 bg-rose-50/60 p-2.5">
+          <div className="rounded-xl bg-rose-50/70 p-2.5">
             <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-rose-600">
               <AlertCircleIcon className="h-3.5 w-3.5" /> Desglose DEX
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-rose-900/80">
               {([["07", dd.code07], ["03", dd.code03], ["08", dd.code08]] as const).map(([k, v]) => (
-                <div key={k} className="flex justify-between rounded-md border border-slate-200 bg-white px-2 py-1">
+                <div key={k} className="flex justify-between rounded-lg bg-white px-2 py-1 shadow-sm">
                   <span className="text-slate-400">{k}</span>
                   <span className="tabular-nums">{v}</span>
                 </div>
@@ -357,6 +388,20 @@ function SubsidiaryCard({ subsidiary, canSeeRevenue }: { subsidiary: SubsidiaryM
             </div>
           )}
         </div>
+
+        {/* Explicación de facturados: aclara que el ingreso NO sale solo de los entregados
+            de arriba, sino de los paquetes cobrados en estas fechas (algunos entraron antes). */}
+        {canSeeRevenue && subsidiary.billed && subsidiary.billed.total > 0 && (
+          <div className="rounded-xl bg-emerald-50/70 p-3 text-[11px] leading-relaxed text-slate-600">
+            <span className="font-bold text-emerald-700">{subsidiary.billed.total.toLocaleString()} paquetes cobrados</span>
+            {" "}generan el ingreso ({subsidiary.billed.delivered.toLocaleString()} entregados
+            {subsidiary.billed.dex07 > 0 ? ` · ${subsidiary.billed.dex07} DEX07` : ""}
+            {subsidiary.billed.dex08 > 0 ? ` · ${subsidiary.billed.dex08} DEX08` : ""}).
+            <span className="mt-1 block text-slate-400">
+              Arriba se muestran los {total.toLocaleString()} paquetes registrados en el periodo; se cobran los que se entregaron en estas fechas, aunque hayan llegado antes.
+            </span>
+          </div>
+        )}
 
         {/* Pie: consolidados + cargas + detalles */}
         <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-[13px]">
@@ -398,13 +443,35 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: 
     ? [
         { label: "FedEx", value: summary.revenueBreakdown.fedex, color: "#3b82f6" },
         { label: "DHL", value: summary.revenueBreakdown.dhl, color: "#f59e0b" },
-        { label: "Cargas", value: summary.revenueBreakdown.cargas, color: "#64748b" },
+        { label: "Cargas (F2)", value: summary.revenueBreakdown.cargas, color: "#64748b" },
         { label: "Recolecciones", value: summary.revenueBreakdown.collections, color: "#14b8a6" },
-        { label: "Traslados", value: summary.revenueBreakdown.transfers, color: "#6366f1" },
+        { label: "Tyco", value: summary.revenueBreakdown.tyco, color: "#6366f1" },
+        { label: "Aéreo", value: summary.revenueBreakdown.aeropuerto, color: "#0ea5e9" },
+        { label: "Traslados especiales", value: summary.revenueBreakdown.especial, color: "#a855f7" },
       ]
     : undefined
   const expenseItems: CompItem[] = Object.entries(summary?.expenseBreakdown || {})
     .map(([label, value], i) => ({ label, value: Number(value) || 0, color: EXPENSE_PALETTE[i % EXPENSE_PALETTE.length] }))
+
+  // Encabezado "paquetes facturados" del card de Ingresos: explica el dinero (Σ costos de N
+  // paquetes anclados a la fecha de COBRO), para que se entienda por qué no cuadra con los
+  // "entregados" del conteo operativo por consolidado.
+  const billed = summary?.billed
+  const billedHeader = billed && billed.total > 0 ? (
+    <div className="mb-3 rounded-lg bg-slate-50 px-3 py-2.5">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-semibold text-slate-600">Paquetes facturados</span>
+        <span className="text-sm font-extrabold tabular-nums text-slate-900">{billed.total.toLocaleString()}</span>
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">
+        {billed.delivered.toLocaleString()} entregados · {billed.dex07} DEX07 · {billed.dex08} DEX08
+        {billed.other ? ` · ${billed.other} otros` : ""}
+      </p>
+      <p className="mt-1.5 text-[10px] leading-snug text-slate-400">
+        Son los paquetes cobrados en estas fechas; puede diferir de los paquetes registrados en el periodo.
+      </p>
+    </div>
+  ) : undefined
 
 
   return (
@@ -421,6 +488,8 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: 
               Icon={Banknote}
               gradient="bg-gradient-to-br from-green-500 to-emerald-700"
               items={revenueItems}
+              panelHeader={billedHeader}
+              panelMaxRows={99}
             />
           )}
 
@@ -468,7 +537,12 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: 
       {/* 2. CONTROLES DE VISTA Y CONTENIDO ESPECÍFICO POR SUCURSAL */}
       <Tabs defaultValue="cards" className="w-full">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-bold text-slate-800 sm:text-2xl">Métricas por Sucursal</h2>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800 sm:text-2xl">Métricas por Sucursal</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Los paquetes son los registrados en el periodo; el ingreso corresponde a los paquetes cobrados en estas fechas.
+            </p>
+          </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {headerExtra}
             <TabsList className="grid w-full grid-cols-3 border border-slate-200 bg-slate-100/50 backdrop-blur-sm sm:w-[360px]">
@@ -641,46 +715,6 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: 
 /** Memoizado: solo re-renderiza si cambia `data` (ref estable vía SWR keepPreviousData). */
 const SubsidiaryMetricsGridNew = React.memo(SubsidiaryMetricsGridImpl)
 
-// ── Preferencia de diseño de tarjetas ────────────────────────────────────────
-// Persistida por navegador (localStorage). Arranca en "nuevo", salvo que
-// NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS=1 fije "clásico" como default.
-// El diseño anterior vive congelado en `subsidiary-metrics-legacy.tsx`.
-const DESIGN_STORAGE_KEY = "dashboardCardsDesign"
-const DEFAULT_LEGACY = process.env.NEXT_PUBLIC_DASHBOARD_LEGACY_CARDS === "1"
-
 export function SubsidiaryMetricsGrid(props: Props) {
-  const [legacy, setLegacy] = React.useState(DEFAULT_LEGACY)
-
-  // Lee la preferencia guardada tras el montaje (evita desajuste de hidratación).
-  React.useEffect(() => {
-    try {
-      const v = window.localStorage.getItem(DESIGN_STORAGE_KEY)
-      if (v === "legacy" || v === "new") setLegacy(v === "legacy")
-    } catch {
-      /* localStorage no disponible: se queda con el default */
-    }
-  }, [])
-
-  const setDesign = (useLegacy: boolean) => {
-    setLegacy(useLegacy)
-    try {
-      window.localStorage.setItem(DESIGN_STORAGE_KEY, useLegacy ? "legacy" : "new")
-    } catch {
-      /* noop */
-    }
-  }
-
-  const designSwitch = (
-    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
-      <span className="text-xs font-semibold text-slate-600">{legacy ? "Diseño clásico" : "Diseño nuevo"}</span>
-      <Switch
-        checked={!legacy}
-        onCheckedChange={(on) => setDesign(!on)}
-        aria-label="Alternar entre el diseño nuevo y el clásico de las tarjetas"
-      />
-    </div>
-  )
-
-  const Grid = legacy ? SubsidiaryMetricsGridLegacy : SubsidiaryMetricsGridNew
-  return <Grid {...props} headerExtra={designSwitch} />
+  return <SubsidiaryMetricsGridNew {...props} />
 }

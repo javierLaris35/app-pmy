@@ -52,6 +52,8 @@ export type Subsidiary = {
   allowRouteClosureWithOtherStatus?: boolean
   /** Cobros: sumar el segundo abordo (secondAbordAmount) al costo de cargas F2/31.5 normales. */
   chargeSecondAbord?: boolean
+  /** Cobros: solo la primera carga del día genera cobro; las demás del mismo día se registran en $0. */
+  chargeOnlyFirstOfDay?: boolean
 }
 
 export type Zone = {

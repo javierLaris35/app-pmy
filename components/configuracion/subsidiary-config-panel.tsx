@@ -30,7 +30,8 @@ type FlagKey =
   | "chargeDelivered"
   | "generateDhlIncomeOnDelivery"
   | "countTransfersAsIncome"
-  | "chargeSecondAbord";
+  | "chargeSecondAbord"
+  | "chargeOnlyFirstOfDay";
 
 const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "monitorFedexCode67", label: "Monitorear 67", hint: "Alerta si falta el código 67 (recepción FedEx)" },
@@ -52,6 +53,7 @@ const INCOME_FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "generateDhlIncomeOnDelivery", label: "Ingreso DHL al entregar", hint: "Genera el ingreso DHL al detectar la entrega, no solo en cierre de ruta." },
   { key: "countTransfersAsIncome", label: "Traslados cuentan", hint: "Tyco / aeropuerto / traslado especial cuentan como ingreso en finanzas." },
   { key: "chargeSecondAbord", label: "Cobrar 2do abordo (F2/31.5)", hint: "Suma el Monto 2do Abordo de la sucursal al costo de las cargas F2/31.5 normales (no aplica a 1.5 ton ni al sobreprecio de domingo/festivo)." },
+  { key: "chargeOnlyFirstOfDay", label: "Solo cobrar la 1ra carga del día", hint: "Para consolidados de tipo carga: solo la primera carga del día cobra; las demás del mismo día se registran igual pero con ingreso $0. Apagado = todas cobran (histórico)." },
 ];
 
 const toBool = (v: any): boolean =>
