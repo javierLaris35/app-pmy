@@ -35,6 +35,7 @@ const GeocodePanel = dynamic(() => import("@/components/configuracion/geocode-pa
 const ServerStatsPanel = dynamic(() => import("@/components/configuracion/server-stats-panel").then((m) => m.ServerStatsPanel), { ssr: false, loading: PanelFallback })
 const ServerLogsPanel = dynamic(() => import("@/components/configuracion/server-logs-panel").then((m) => m.ServerLogsPanel), { ssr: false, loading: PanelFallback })
 const ServerBackupPanel = dynamic(() => import("@/components/configuracion/server-backup-panel").then((m) => m.ServerBackupPanel), { ssr: false, loading: PanelFallback })
+const ServerPowerPanel = dynamic(() => import("@/components/configuracion/server-power-panel").then((m) => m.ServerPowerPanel), { ssr: false, loading: PanelFallback })
 const WhatsappConfigPanel = dynamic(() => import("@/components/configuracion/whatsapp-config-panel").then((m) => m.WhatsappConfigPanel), { ssr: false, loading: PanelFallback })
 const PlantillasPanel = dynamic(() => import("@/components/configuracion/plantillas/plantillas-panel").then((m) => m.PlantillasPanel), { ssr: false, loading: PanelFallback })
 const BrandingPanel = dynamic(() => import("@/components/configuracion/branding-panel").then((m) => m.BrandingPanel), { ssr: false, loading: PanelFallback })
@@ -140,10 +141,12 @@ function ConfiguracionPage() {
                   <TabsTrigger value="metricas">Métricas</TabsTrigger>
                   <TabsTrigger value="logs">Logs en vivo</TabsTrigger>
                   {isSuper && <TabsTrigger value="respaldo">Respaldo</TabsTrigger>}
+                  {isSuper && <TabsTrigger value="energia">Energía</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="metricas"><ServerStatsPanel /></TabsContent>
                 <TabsContent value="logs"><ServerLogsPanel /></TabsContent>
                 {isSuper && <TabsContent value="respaldo"><ServerBackupPanel /></TabsContent>}
+                {isSuper && <TabsContent value="energia"><ServerPowerPanel /></TabsContent>}
               </Tabs>
             )}
 
