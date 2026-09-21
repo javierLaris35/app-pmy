@@ -52,6 +52,31 @@ export function formatDateToShortDate(dateStr: string): string {
   return formatter.format(utcDate);
 }
 
+/**
+ * Formatea un "día flotante" a DD/MM/YYYY. Un día flotante es una fecha SIN hora real,
+ * guardada como medianoche UTC (`YYYY-MM-DDT00:00:00.000Z`) — p. ej. `transfer.transferDate`,
+ * que nace de un <input type="date"> serializado con `new Date(str).toISOString()`.
+ *
+ * A diferencia de `formatDateToShortDate`, NO convierte a America/Hermosillo: un valor a
+ * 00:00Z convertido a Hermosillo (UTC-7) caería en el día ANTERIOR (off-by-one). Como este
+ * valor no tiene hora real y representa el día calendario que el usuario eligió, se muestra
+ * por su día calendario UTC — que es exactamente ese día (y lo correcto para Hermosillo).
+ */
+export function formatFloatingDayToShortDate(dateStr: string | Date): string {
+  if (!dateStr) return '';
+
+  const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+
+  const formatter = new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'UTC',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  return formatter.format(date);
+}
+
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
 
