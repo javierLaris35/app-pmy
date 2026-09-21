@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Eye } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { formatDate, formatDateToShortDate, formatFloatingDayToShortDate } from "@/utils/date.utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -75,19 +74,21 @@ export function TransferDetailDialog({ transfer }: { transfer: Transfer }) {
           <Row
             label="Fecha del traslado"
             value={
+              // transferDate = día flotante (00:00Z): se muestra por su día calendario, sin
+              // convertir a zona (convertirlo correría al día anterior). Fallback viejo: createdAt
+              // es instante real → su día en Hermosillo.
               transfer.transferDate
-                ? format(new Date(transfer.transferDate), "dd/MM/yyyy", { locale: es })
+                ? formatFloatingDayToShortDate(transfer.transferDate)
                 : transfer.createdAt
-                  ? format(new Date(transfer.createdAt), "dd/MM/yyyy", { locale: es })
+                  ? formatDateToShortDate(transfer.createdAt)
                   : "—"
             }
           />
           <Row
             label="Capturado"
             value={
-              transfer.createdAt
-                ? format(new Date(transfer.createdAt), "dd/MM/yyyy HH:mm", { locale: es })
-                : "—"
+              // "Capturado" = instante real de creación → fecha y hora en Hermosillo.
+              transfer.createdAt ? formatDate(transfer.createdAt) : "—"
             }
           />
           <Row label="Origen" value={transfer.origin?.name || "—"} />

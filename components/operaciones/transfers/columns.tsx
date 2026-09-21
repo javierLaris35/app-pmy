@@ -1,6 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table"
 import type { Transfer } from "@/lib/types"
 import { TransferDetailDialog } from "./transfer-detail-dialog"
+import { formatDateToShortDate, formatFloatingDayToShortDate } from "@/utils/date.utils"
 
 // Etiquetas legibles para los valores reales del catálogo (minúscula).
 const TYPE_LABEL: Record<string, string> = {
@@ -18,9 +19,14 @@ export const columns: ColumnDef<Transfer>[] = [
     // la tengan caen a createdAt como respaldo para no mostrar vacío.
     accessorFn: (row) => row.transferDate ?? row.createdAt,
     cell: ({ row }) => {
-      const value = row.original.transferDate ?? row.original.createdAt
-      if (!value) return "—"
-      return new Date(value).toLocaleDateString()
+      const t = row.original
+      // transferDate es un "día flotante" (medianoche UTC): se muestra por su día calendario
+      // tal cual. NO se convierte a Hermosillo porque un 00:00Z convertido a UTC-7 caería en
+      // el día ANTERIOR (bug previo con toLocaleDateString, que además usaba la zona del navegador).
+      if (t.transferDate) return formatFloatingDayToShortDate(t.transferDate)
+      // Registros viejos sin transferDate: createdAt es un instante real → su día en Hermosillo.
+      if (t.createdAt) return formatDateToShortDate(t.createdAt)
+      return "—"
     },
   },
   {
