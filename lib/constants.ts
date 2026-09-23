@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal, ClipboardList, Scale, FileText, BookOpen } from "lucide-react"
 import { ElementType } from "react";
 import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
@@ -190,20 +190,12 @@ export const sidebarMenu = {
       icon: Truck,
       isActive: false,
       items: [
-        {
-          name: "Programación",
-          url: "/programacion-mtto",
-          icon: PenToolIcon,
-          roles: allowedPageRoles.mttoVehiculos.programacion,
-          isActive: false
-        },
-        {
-          name: "Historial",
-          url: "/historial-mtto",
-          icon: HistoryIcon,
-          roles: allowedPageRoles.mttoVehiculos.historial,
-          isActive: false
-        },
+        { name: "Programación", url: "/programacion-mtto", icon: PenToolIcon, roles: allowedPageRoles.mttoVehiculos.programacion, isActive: false },
+        { name: "Solicitudes", url: "/mtto/solicitudes", icon: ClipboardList, roles: allowedPageRoles.mttoVehiculos.solicitudes, isActive: false },
+        { name: "Bandeja de cotizaciones", url: "/mtto/cotizaciones", icon: Scale, roles: allowedPageRoles.mttoVehiculos.solicitudes, isActive: false },
+        { name: "Órdenes de compra", url: "/mtto/ordenes", icon: FileText, roles: allowedPageRoles.mttoVehiculos.ordenes, isActive: false },
+        { name: "Historial", url: "/historial-mtto", icon: HistoryIcon, roles: allowedPageRoles.mttoVehiculos.historial, isActive: false },
+        { name: "Catálogos", url: "/mtto/catalogos", icon: BookOpen, roles: allowedPageRoles.mttoVehiculos.catalogos, isActive: false },
       ]
     },
     {
