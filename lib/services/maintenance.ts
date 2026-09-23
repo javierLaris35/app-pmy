@@ -1,5 +1,6 @@
 import { axiosConfig } from "../axios-config";
 import type {
+  BoardCard,
   ContactChannel,
   HistoryResponse,
   MaintenanceQuote,
@@ -101,8 +102,12 @@ export const uploadQuoteAttachment = async (quoteId: string, file: File) => {
 };
 export const getQuoteAttachmentBlob = async (quoteId: string) =>
   (await axiosConfig.get<Blob>(`${base}/requests/quotes/${quoteId}/attachment`, { responseType: "blob" })).data;
-export const convertQuote = async (quoteId: string) =>
-  (await axiosConfig.post<PurchaseOrder>(`${base}/requests/quotes/${quoteId}/convert`)).data;
+/** Elegir cotización ganadora: crea la orden y (por defecto) la manda a autorización. */
+export const convertQuote = async (quoteId: string, submit = true) =>
+  (await axiosConfig.post<PurchaseOrder>(`${base}/requests/quotes/${quoteId}/convert`, undefined, { params: { submit } })).data;
+
+export const getBoard = async (subsidiaryId: string) =>
+  (await axiosConfig.get<BoardCard[]>(`${base}/requests/board/${subsidiaryId}`)).data;
 
 // ---------------- Órdenes de compra ----------------
 export interface PurchaseOrderPatch {

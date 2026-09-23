@@ -42,7 +42,7 @@ export function PoAuthorizationTray() {
           <ul className="divide-y">
             {items.map((o) => (
               <li key={o.id}>
-                <Link href={`/mtto/ordenes/detalle?id=${o.id}`} onClick={() => setOpen(false)} className="block px-4 py-3 hover:bg-muted/50">
+                <Link href={`/mtto/expediente?id=${o.requestId}`} onClick={() => setOpen(false)} className="block px-4 py-3 hover:bg-muted/50">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-sm font-medium">{o.folio}</span>
                     <span className="text-sm font-semibold tabular-nums">{formatMoney(o.total)}</span>

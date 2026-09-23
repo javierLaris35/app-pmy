@@ -10,7 +10,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { withAuth } from "@/hoc/withAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, FileSearch, Settings2, Wrench } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, FileSearch, Gauge, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSchedule } from "@/hooks/services/maintenance/use-maintenance";
 import { formatKms, LIGHT_LABEL, MaintenanceLight, MaintenanceVehicle, ScheduleRow } from "@/lib/types/maintenance";
@@ -111,7 +111,7 @@ function ProgramacionMttoPage() {
                 <Settings2 className="h-4 w-4" /> Programar
               </Button>
               {openRequest ? (
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => router.push(`/mtto/solicitudes/detalle?id=${openRequest.id}`)}>
+                <Button size="sm" variant="outline" className="gap-1" onClick={() => router.push(`/mtto/expediente?id=${openRequest.id}`)}>
                   <FileSearch className="h-4 w-4" /> {openRequest.folio}
                 </Button>
               ) : (
@@ -119,9 +119,9 @@ function ProgramacionMttoPage() {
                   size="sm"
                   variant="outline"
                   className="gap-1"
-                  onClick={() => router.push(`/mtto/solicitudes?nueva=1&vehicleId=${vehicle.id}&subsidiaryId=${subsidiaryId}`)}
+                  onClick={() => router.push(`/mtto/tablero?nuevo=1&vehicleId=${vehicle.id}&subsidiaryId=${subsidiaryId}`)}
                 >
-                  <ClipboardPlus className="h-4 w-4" /> Nueva solicitud
+                  <ClipboardPlus className="h-4 w-4" /> Iniciar mantenimiento
                 </Button>
               )}
             </div>
@@ -136,9 +136,9 @@ function ProgramacionMttoPage() {
     <AppLayout>
       <div className="flex min-h-screen flex-col gap-4 p-4 md:p-5">
         <OperationHeader
-          icon={Wrench}
-          title="Programación de mantenimiento"
-          description="Unidades por atender según km recorridos y fecha programada"
+          icon={Gauge}
+          title="Unidades"
+          description="Cuándo le toca servicio a cada unidad, por kilómetros recorridos o por fecha"
           actions={
             <SucursalSelector
               value={subsidiaryId}
@@ -153,7 +153,7 @@ function ProgramacionMttoPage() {
               key={light}
               role="button"
               onClick={() => setFilter((f) => (f === light ? null : light))}
-              className={cn("cursor-pointer transition hover:shadow-md", filter === light && "ring-2 ring-primary")}
+              className={cn("cursor-pointer rounded-xl shadow-sm transition hover:-translate-y-0.5 hover:shadow-md", filter === light && "ring-2 ring-primary")}
             >
               <CardContent className="flex items-center gap-3 p-4">
                 <div className={cn("rounded-lg p-2", tone)}><Icon className="h-5 w-5" /></div>

@@ -68,9 +68,9 @@ function HistorialMttoPage() {
       { id: "supplier", header: "Proveedor", cell: ({ row }) => row.original.supplierName },
       {
         id: "folio",
-        header: "Orden",
+        header: "Mantenimiento",
         cell: ({ row }) => (
-          <Link href={`/mtto/ordenes/detalle?id=${row.original.poId}`} className="font-mono text-sm text-primary hover:underline">{row.original.folio}</Link>
+          <Link href={`/mtto/expediente?id=${row.original.requestId}`} className="font-mono text-sm text-primary hover:underline">{row.original.folio}</Link>
         ),
       },
       {
@@ -119,7 +119,7 @@ function HistorialMttoPage() {
         <OperationHeader
           icon={HistoryIcon}
           title="Historial de mantenimiento"
-          description="Servicios realizados por unidad y lo que se ha gastado"
+          description="Servicios terminados por unidad y cuánto se ha gastado"
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <SucursalSelector
@@ -144,7 +144,7 @@ function HistorialMttoPage() {
           <>
             <div className="grid gap-3 md:grid-cols-3">
               {kpis.map(({ label, value, icon: Icon, tone }) => (
-                <Card key={label}>
+                <Card key={label} className="rounded-xl shadow-sm">
                   <CardContent className="flex items-center gap-3 p-4">
                     <div className={`rounded-lg p-2 ${tone}`}><Icon className="h-5 w-5" /></div>
                     <div className="min-w-0">

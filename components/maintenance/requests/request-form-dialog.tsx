@@ -47,11 +47,11 @@ export function RequestFormDialog({ open, onOpenChange, subsidiaryId, request, d
     try {
       const body = { kmsAtRequest: kms === "" ? null : Number(kms), description: description.trim(), priority };
       const saved = request ? await updateRequest(request.id, body) : await createRequest({ vehicleId, ...body });
-      toast.success(request ? "Solicitud actualizada" : `Solicitud ${saved.folio} creada`);
+      toast.success(request ? "Mantenimiento actualizado" : `Mantenimiento ${saved.folio} creado`);
       onSaved(saved);
       onOpenChange(false);
     } catch (e) {
-      toast.error(apiError(e, "No se pudo guardar la solicitud"));
+      toast.error(apiError(e, "No se pudo guardar"));
     } finally {
       setSaving(false);
     }
@@ -61,8 +61,8 @@ export function RequestFormDialog({ open, onOpenChange, subsidiaryId, request, d
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{request ? `Editar solicitud ${request.folio}` : "Nueva solicitud de mantenimiento"}</DialogTitle>
-          <DialogDescription>Describe qué necesita la unidad; después podrás capturar las cotizaciones de los proveedores.</DialogDescription>
+          <DialogTitle>{request ? `Editar ${request.folio}` : "Nuevo mantenimiento"}</DialogTitle>
+          <DialogDescription>Paso 1 de 5. Describe qué necesita la unidad; en el siguiente paso capturas las cotizaciones.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
           <div className="grid gap-1.5">

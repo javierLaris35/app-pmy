@@ -13,10 +13,11 @@ interface Props {
   quotes: MaintenanceQuote[];
   /** Si se pasa, muestra "Elegir y crear orden" por proveedor. */
   onChoose?: (quote: MaintenanceQuote) => Promise<unknown>;
+  chooseLabel?: string;
 }
 
 /** Comparativo lado a lado: columnas = proveedores, filas = conceptos (agrupados por servicio o descripción). */
-export function QuoteComparison({ quotes, onChoose }: Props) {
+export function QuoteComparison({ quotes, onChoose, chooseLabel = "Elegir" }: Props) {
   const { rows, cheapestId } = useMemo(() => {
     const keyOf = (i: MaintenanceQuote["items"][number]) => i.serviceId || i.description.trim().toLowerCase();
     const map = new Map<string, { label: string; byQuote: Record<string, { qty: number; amount: number }> }>();
@@ -94,12 +95,12 @@ export function QuoteComparison({ quotes, onChoose }: Props) {
                 <TableCell key={q.id} className="text-right">
                   <ConfirmAction
                     title={`¿Elegir a ${q.supplier?.name ?? "este proveedor"}?`}
-                    description={`Se creará la orden de compra en borrador por ${formatMoney(q.total)} y las demás cotizaciones quedarán descartadas.`}
-                    confirmLabel="Elegir y crear orden"
+                    description={`Se crea la orden de compra por ${formatMoney(q.total)} y se manda a autorización. Las demás cotizaciones quedan como no elegidas.`}
+                    confirmLabel={chooseLabel}
                     onConfirm={() => onChoose(q)}
                     trigger={
                       <Button size="sm" className="gap-1">
-                        <FileCheck2 className="h-4 w-4" /> Elegir
+                        <FileCheck2 className="h-4 w-4" /> {chooseLabel}
                       </Button>
                     }
                   />

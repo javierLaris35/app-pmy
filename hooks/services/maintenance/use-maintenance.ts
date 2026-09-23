@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import {
+  getBoard,
   getMaintenanceHistory,
   getMaintenanceServices,
   getPendingAuthorizations,
@@ -88,4 +89,12 @@ export function useMaintenanceHistory(subsidiaryId: string, params: { from?: str
     () => getMaintenanceHistory(subsidiaryId, params),
   );
   return { history: data, isLoading, mutate };
+}
+
+export function useBoard(subsidiaryId: string) {
+  const { data, isLoading, mutate } = useSWR(subsidiaryId ? ["mtto-board", subsidiaryId] : null, () => getBoard(subsidiaryId), {
+    refreshInterval: 60000,
+    keepPreviousData: true,
+  });
+  return { cards: data ?? [], isLoading, mutate };
 }

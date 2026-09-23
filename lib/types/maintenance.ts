@@ -7,6 +7,34 @@ export type RequestStatus = "abierta" | "en_cotizacion" | "orden_generada" | "co
 export type RequestPriority = "baja" | "media" | "alta";
 export type QuoteStatus = "capturada" | "ganadora" | "descartada";
 export type PoStatus = "borrador" | "pendiente" | "autorizada" | "rechazada" | "enviada" | "completada" | "cancelada";
+export type ExpedienteStage = "cotizando" | "por_autorizar" | "en_taller" | "terminado" | "cancelado";
+export type ExpedienteStep = "solicitud" | "cotizaciones" | "autorizacion" | "envio" | "cierre" | "terminado";
+export type WaitingOn = "captura" | "autorizador" | "proveedor" | null;
+
+/** Etapa + paso activo + qué sigue (calculado en el backend por `expedienteStage`). */
+export interface ExpedienteProgress {
+  stage: ExpedienteStage;
+  step: ExpedienteStep;
+  nextStep: string;
+  waitingOn: WaitingOn;
+  rejected: boolean;
+}
+
+/** Tarjeta del tablero: un mantenimiento. */
+export interface BoardCard extends ExpedienteProgress {
+  id: string;
+  folio: string;
+  vehicle: MaintenanceVehicle;
+  description: string;
+  priority: RequestPriority;
+  status: RequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  createdByName: string | null;
+  quotesCount: number;
+  bestTotal: number | null;
+  purchaseOrder: { id: string; folio: string; status: PoStatus; total: number; supplierName: string | null } | null;
+}
 
 export interface ServiceCategory {
   id: string;
@@ -109,9 +137,10 @@ export interface PurchaseOrderSummary {
   id: string;
   folio: string;
   status: PoStatus;
+  rejectionReason?: string | null;
 }
 
-export interface MaintenanceRequest {
+export interface MaintenanceRequest extends Partial<ExpedienteProgress> {
   id: string;
   folio: string;
   vehicleId: string;
@@ -186,6 +215,7 @@ export interface PurchaseOrder {
 
 export interface HistoryRow {
   poId: string;
+  requestId: string;
   folio: string;
   completedAt: string;
   completedKms: number | null;
@@ -208,6 +238,22 @@ export interface HistoryResponse {
   byVehicle: HistoryByVehicle[];
   legacy: Array<{ vehicle: MaintenanceVehicle; lastMaintenanceDate: string | null }>;
 }
+
+export const STAGE_LABEL: Record<ExpedienteStage, string> = {
+  cotizando: "Cotizando",
+  por_autorizar: "Por autorizar",
+  en_taller: "En taller",
+  terminado: "Terminado",
+  cancelado: "Cancelado",
+};
+
+export const STEPS: Array<{ key: Exclude<ExpedienteStep, "terminado">; label: string }> = [
+  { key: "solicitud", label: "Solicitud" },
+  { key: "cotizaciones", label: "Cotizaciones" },
+  { key: "autorizacion", label: "Autorización" },
+  { key: "envio", label: "Envío al proveedor" },
+  { key: "cierre", label: "Cierre" },
+];
 
 export const LIGHT_LABEL: Record<MaintenanceLight, string> = {
   vencido: "Vencido",
