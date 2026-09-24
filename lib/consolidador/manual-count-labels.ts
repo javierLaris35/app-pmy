@@ -7,6 +7,7 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
   ERROR_SISTEMA: "Error del sistema",
   ERROR_CONTEO: "Error de conteo",
   REGLA: "Regla (no cobra)",
+  OTRO_DIA: "Entregado otro día",
 };
 
 export const VERDICT_TONE: Record<Verdict, string> = {
@@ -14,6 +15,7 @@ export const VERDICT_TONE: Record<Verdict, string> = {
   ERROR_SISTEMA: "border-rose-200 bg-rose-50 text-rose-700",
   ERROR_CONTEO: "border-amber-200 bg-amber-50 text-amber-700",
   REGLA: "border-sky-200 bg-sky-50 text-sky-700",
+  OTRO_DIA: "border-violet-200 bg-violet-50 text-violet-700",
 };
 
 export const CAUSE_LABEL: Record<Cause, string> = {
@@ -31,6 +33,7 @@ export const CAUSE_LABEL: Record<Cause, string> = {
   ERROR_CONTEO: "Conteo distinto",
   REGLA_NO_COBRA: "Por regla no cobra",
   F2_INFORMATIVO: "Carga F2",
+  ENTREGADO_OTRO_DIA: "Se entregó otro día",
 };
 
 /** Causas que son errores del sistema (las que pueden ir al prompt). */

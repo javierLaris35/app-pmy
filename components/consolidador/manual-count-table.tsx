@@ -45,6 +45,17 @@ const columns: ColumnDef<DiagnosisRow>[] = [
     cell: ({ getValue }) => <Mark v={String(getValue())} />,
   },
   {
+    id: "deliveredDay",
+    accessorFn: (r) => r.deliveredDay ?? "",
+    header: "Entregado el",
+    cell: ({ row }) => {
+      const d = row.original.deliveredDay;
+      if (!d) return <span className="text-slate-400">—</span>;
+      const [, m, dd] = d.split("-");
+      return <span className="tabular-nums text-slate-700">{`${dd}/${m}`}</span>;
+    },
+  },
+  {
     accessorKey: "verdict",
     header: "Resultado",
     filterFn: inArray,
