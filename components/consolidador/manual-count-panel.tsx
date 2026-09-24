@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { AlertTriangle, FileSpreadsheet, Loader2, Scale, Sparkles, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -11,11 +11,11 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { ManualCountTable } from "@/components/consolidador/manual-count-table";
 import { ManualCountPromptDialog, errorText } from "@/components/consolidador/manual-count-prompt-dialog";
-import { diagnoseManualCount, prefetchManualCountFedex } from "@/lib/services/consolidador";
+import { diagnoseManualCount, prefetchManualCountFedex, repairPackageIncome } from "@/lib/services/consolidador";
 import { countListTokens, findConflicts, parseList, parseSheetRows } from "@/lib/consolidador/manual-count-parse";
 import { exportManualCountToExcel } from "@/lib/consolidador/manual-count-export";
 import { VERDICT_LABEL, VERDICT_TONE } from "@/lib/consolidador/manual-count-labels";
-import type { ManualCountReport, ManualLists, Mark } from "@/lib/types/manual-count";
+import type { DiagnosisRow, ManualCountReport, ManualLists, Mark } from "@/lib/types/manual-count";
 import { MARKS, VERDICTS } from "@/lib/types/manual-count";
 import { toast } from "@/lib/toast";
 
@@ -106,6 +106,25 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
       setProgress(null);
     }
   };
+
+  // Genera (o corrige) el cobro con la regla del sistema y vuelve a comparar para ver el resultado.
+  const repair = useCallback(
+    async (row: DiagnosisRow, reason: string) => {
+      if (!row.shipmentId || !sentLists) return;
+      try {
+        const res = await repairPackageIncome(row.shipmentId, reason);
+        if (!res.created) {
+          toast.error(res.reason ?? "No se generó el cobro");
+          return;
+        }
+        toast.success(`Cobro generado: ${row.trackingNumber}`);
+        setReport(await diagnoseManualCount(subsidiaryId, report?.day ?? dayInWeek, sentLists));
+      } catch (e: any) {
+        toast.error(errorText(e, "No se pudo generar el cobro. Intenta de nuevo."));
+      }
+    },
+    [subsidiaryId, sentLists, report?.day, dayInWeek],
+  );
 
   if (!subsidiaryId) {
     return (
@@ -229,7 +248,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
             </div>
           </div>
 
-          <ManualCountTable rows={report.rows} />
+          <ManualCountTable rows={report.rows} onRepair={repair} />
           <ManualCountPromptDialog open={promptOpen} onOpenChange={setPromptOpen} report={report} lists={sentLists} />
         </>
       )}

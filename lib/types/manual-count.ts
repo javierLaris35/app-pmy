@@ -57,6 +57,8 @@ export interface DiagnosisRow {
   chain: ChainStep[];
   cost: number | null;
   incomeIds: string[];
+  /** Envío vigente de la guía (para "Generar cobro"); null en cargas F2 o si no existe. */
+  shipmentId: string | null;
 }
 
 export interface ManualCountTotals {

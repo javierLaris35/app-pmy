@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 import type { Cause, DiagnosisRow, Verdict } from "@/lib/types/manual-count";
 import { VERDICTS } from "@/lib/types/manual-count";
 import { CAUSE_LABEL, VERDICT_LABEL, VERDICT_TONE, outcomeLabel } from "@/lib/consolidador/manual-count-labels";
+import { ReasonButton } from "@/components/consolidador/reason-button";
+
+/** ¿Se puede generar/corregir el cobro desde aquí? Debía cobrar y no está cobrado ese código. */
+export const canRepair = (r: DiagnosisRow) =>
+  !!r.shipmentId && !!r.expected && !r.charged.includes(r.expected) && (r.cause === "COBRO_FALTANTE" || r.cause === "COBRO_DE_MAS");
 
 const inArray: FilterFn<DiagnosisRow> = (row, columnId, value: string[]) =>
   !value?.length || value.includes(String(row.getValue(columnId) ?? ""));
@@ -27,7 +32,8 @@ const StatusText = ({ v }: { v: string }) => {
   );
 };
 
-const columns: ColumnDef<DiagnosisRow>[] = [
+function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<void>): ColumnDef<DiagnosisRow>[] {
+  return [
   {
     id: "expand",
     header: "",
@@ -87,7 +93,17 @@ const columns: ColumnDef<DiagnosisRow>[] = [
       </div>
     ),
   },
-];
+  {
+    id: "actions",
+    header: "",
+    enableSorting: false,
+    cell: ({ row }) =>
+      onRepair && canRepair(row.original) ? (
+        <ReasonButton size="xs" label="Generar cobro" onConfirm={(reason) => onRepair(row.original, reason)} />
+      ) : null,
+  },
+  ];
+}
 
 function ChainDetail({ row }: { row: DiagnosisRow }) {
   return (
@@ -109,7 +125,8 @@ function ChainDetail({ row }: { row: DiagnosisRow }) {
   );
 }
 
-export function ManualCountTable({ rows }: { rows: DiagnosisRow[] }) {
+export function ManualCountTable({ rows, onRepair }: { rows: DiagnosisRow[]; onRepair?: (r: DiagnosisRow, reason: string) => Promise<void> }) {
+  const columns = React.useMemo(() => buildColumns(onRepair), [onRepair]);
   const causesPresent = [...new Set(rows.map((r) => r.cause).filter((c): c is Cause => !!c))];
   const verdictsPresent = VERDICTS.filter((v: Verdict) => rows.some((r) => r.verdict === v));
   return (
