@@ -21,11 +21,7 @@ describe("parseList", () => {
 
 describe("countListTokens", () => {
   it("cuenta las guías pegadas incluyendo repetidas (para avisar cuántas se quitaron)", () => {
-    expect(countListTokens("111122223333
-222233334444
-111122223333
-Guía
-")).toBe(3);
+    expect(countListTokens("111122223333\n222233334444\n111122223333\nGuía\n")).toBe(3);
   });
 });
 
