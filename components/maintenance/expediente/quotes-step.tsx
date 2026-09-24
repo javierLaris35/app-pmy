@@ -1,52 +1,45 @@
 "use client";
 
-import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
+import { Paperclip, Pencil, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { deleteQuote, getQuoteAttachmentBlob, openBlob } from "@/lib/services/maintenance";
 import { formatMoney, MaintenanceQuote, MaintenanceRequest } from "@/lib/types/maintenance";
 import { apiError, ConfirmAction } from "../shared/confirm-action";
-import { QuoteFormDialog } from "../requests/quote-form-dialog";
 import { QuoteComparison } from "../requests/quote-comparison";
 
 const fmtDate = (d?: string | null) => (d ? new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es-MX") : "—");
 
-/** Paso 2: capturar cotizaciones y elegir la mejor (elegir = mandar a autorizar). */
-export function QuotesStep({ request, editable, onChanged, onChoose }: {
+/**
+ * Paso 2: cotizaciones y comparativo (elegir = mandar a autorizar). "Agregar cotización" vive en el
+ * header de la pantalla; aquí quedan las acciones por fila (ver archivo, editar, eliminar).
+ */
+export function QuotesStep({ request, editable, onChanged, onChoose, onEdit }: {
   request: MaintenanceRequest;
   /** false cuando ya hay orden (se muestran solo como consulta). */
   editable: boolean;
   onChanged: () => void;
   onChoose?: (q: MaintenanceQuote) => Promise<unknown>;
+  onEdit: (q: MaintenanceQuote) => void;
 }) {
   const quotes = request.quotes ?? [];
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<MaintenanceQuote | null>(null);
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
-        <div>
-          <CardTitle className="text-base">Cotizaciones</CardTitle>
-          <CardDescription>
-            {editable
-              ? "Captura lo que cotizó cada proveedor. Te recomendamos al menos dos para comparar."
-              : "Cotizaciones capturadas para este mantenimiento."}
-          </CardDescription>
-        </div>
-        {editable && (
-          <Button size="sm" variant={quotes.length ? "outline" : "default"} className="shrink-0 gap-1" onClick={() => { setEditing(null); setOpen(true); }}>
-            <Plus className="h-4 w-4" /> Agregar cotización
-          </Button>
-        )}
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Cotizaciones</CardTitle>
+        <CardDescription>
+          {editable
+            ? "Captura lo que cotizó cada proveedor con \"Agregar cotización\" (arriba). Te recomendamos al menos dos para comparar."
+            : "Cotizaciones capturadas para este mantenimiento."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {quotes.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            Aún no hay cotizaciones. Pide precio a tus proveedores y captúralas aquí.
+            Aún no hay cotizaciones. Pide precio a tus proveedores y captúralas con &quot;Agregar cotización&quot;.
           </div>
         ) : (
           <>
@@ -74,7 +67,7 @@ export function QuotesStep({ request, editable, onChanged, onChoose }: {
                     )}
                     {editable && (
                       <>
-                        <Button size="icon" variant="ghost" aria-label="Editar cotización" onClick={() => { setEditing(q); setOpen(true); }}>
+                        <Button size="icon" variant="ghost" aria-label="Editar cotización" onClick={() => onEdit(q)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <ConfirmAction
@@ -102,7 +95,6 @@ export function QuotesStep({ request, editable, onChanged, onChoose }: {
           </>
         )}
       </CardContent>
-      {editable && <QuoteFormDialog open={open} onOpenChange={setOpen} request={request} quote={editing} onSaved={onChanged} />}
     </Card>
   );
 }

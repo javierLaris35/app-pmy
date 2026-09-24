@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil, PlusCircle, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useMaintenanceServices, useServiceCategories } from "@/hooks/services/maintenance/use-maintenance";
 import { deleteMaintenanceService } from "@/lib/services/maintenance";
@@ -13,11 +13,15 @@ import { formatMoney, MaintenanceServiceItem, UNIT_LABEL } from "@/lib/types/mai
 import { ServiceFormDialog } from "./service-form-dialog";
 import { apiError, ConfirmAction } from "../shared/confirm-action";
 
-export function ServicesTab() {
+/** `createSignal` lo incrementa el header de la pantalla ("Nuevo …") para abrir el alta. */
+export function ServicesTab({ createSignal = 0 }: { createSignal?: number }) {
   const { services, mutate } = useMaintenanceServices({ includeInactive: true });
   const { categories } = useServiceCategories();
   const [editing, setEditing] = useState<MaintenanceServiceItem | null>(null);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (createSignal > 0) { setEditing(null); setOpen(true); }
+  }, [createSignal]);
 
   const columns = useMemo<ColumnDef<MaintenanceServiceItem>[]>(
     () => [
@@ -87,11 +91,6 @@ export function ServicesTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2">
-          <PlusCircle className="h-4 w-4" /> Nuevo servicio
-        </Button>
-      </div>
       <DataTable columns={columns} data={services} searchKey="name" filters={[{ columnId: "category", title: "Categoría", options: categoryOptions }]} />
       <ServiceFormDialog open={open} onOpenChange={setOpen} service={editing} categories={categories} onSaved={() => mutate()} />
     </div>

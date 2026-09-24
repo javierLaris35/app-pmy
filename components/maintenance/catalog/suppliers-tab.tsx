@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageCircle, Pencil, PlusCircle, Trash2 } from "lucide-react";
+import { Mail, MessageCircle, Pencil, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useSuppliers } from "@/hooks/services/maintenance/use-maintenance";
 import { deleteSupplier } from "@/lib/services/maintenance";
@@ -13,10 +13,14 @@ import { Supplier } from "@/lib/types/maintenance";
 import { SupplierFormDialog } from "./supplier-form-dialog";
 import { apiError, ConfirmAction } from "../shared/confirm-action";
 
-export function SuppliersTab() {
+/** `createSignal` lo incrementa el header de la pantalla ("Nuevo …") para abrir el alta. */
+export function SuppliersTab({ createSignal = 0 }: { createSignal?: number }) {
   const { suppliers, mutate } = useSuppliers(true);
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (createSignal > 0) { setEditing(null); setOpen(true); }
+  }, [createSignal]);
 
   const columns = useMemo<ColumnDef<Supplier>[]>(
     () => [
@@ -97,11 +101,6 @@ export function SuppliersTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2">
-          <PlusCircle className="h-4 w-4" /> Nuevo proveedor
-        </Button>
-      </div>
       <DataTable columns={columns} data={suppliers} searchKey="name" />
       <SupplierFormDialog open={open} onOpenChange={setOpen} supplier={editing} onSaved={() => mutate()} />
     </div>

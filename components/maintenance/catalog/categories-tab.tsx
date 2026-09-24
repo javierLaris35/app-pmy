@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Pencil, PlusCircle } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useServiceCategories } from "@/hooks/services/maintenance/use-maintenance";
 import { createServiceCategory, updateServiceCategory } from "@/lib/services/maintenance";
@@ -82,10 +82,14 @@ function CategoryFormDialog({ open, onOpenChange, category, onSaved }: {
   );
 }
 
-export function CategoriesTab() {
+/** `createSignal` lo incrementa el header de la pantalla ("Nuevo …") para abrir el alta. */
+export function CategoriesTab({ createSignal = 0 }: { createSignal?: number }) {
   const { categories, mutate } = useServiceCategories();
   const [editing, setEditing] = useState<ServiceCategory | null>(null);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (createSignal > 0) { setEditing(null); setOpen(true); }
+  }, [createSignal]);
 
   const columns = useMemo<ColumnDef<ServiceCategory>[]>(
     () => [
@@ -117,11 +121,6 @@ export function CategoriesTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2">
-          <PlusCircle className="h-4 w-4" /> Nueva categoría
-        </Button>
-      </div>
       <DataTable columns={columns} data={categories} searchKey="name" />
       <CategoryFormDialog open={open} onOpenChange={setOpen} category={editing} onSaved={() => mutate()} />
     </div>
