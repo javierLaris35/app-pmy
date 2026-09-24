@@ -26,14 +26,20 @@ function cleanToken(v: unknown): string | null {
 
 const uniq = (list: string[]) => [...new Set(list)];
 
+const tokens = (text: string) =>
+  (text ?? "")
+    .split(/[\s,;]+/)
+    .map(cleanToken)
+    .filter((t): t is string => !!t);
+
+/** Cuántas guías se pegaron, contando las repetidas (para avisar cuántas se quitaron). */
+export function countListTokens(text: string): number {
+  return tokens(text).length;
+}
+
 /** Texto pegado (líneas, tabs, comas o espacios) → guías únicas en orden. */
 export function parseList(text: string): string[] {
-  return uniq(
-    (text ?? "")
-      .split(/[\s,;]+/)
-      .map(cleanToken)
-      .filter((t): t is string => !!t),
-  );
+  return uniq(tokens(text));
 }
 
 const norm = (v: unknown) =>

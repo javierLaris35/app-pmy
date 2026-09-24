@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findConflicts, parseList, parseSheetRows } from "./manual-count-parse";
+import { countListTokens, findConflicts, parseList, parseSheetRows } from "./manual-count-parse";
 
 describe("parseList", () => {
   it("separa por saltos, tabs, comas y espacios; quita duplicados y vacíos", () => {
@@ -16,6 +16,16 @@ describe("parseList", () => {
 
   it("ignora texto que no es guía (encabezados)", () => {
     expect(parseList("Guía\nPOD\n540148275693")).toEqual(["540148275693"]);
+  });
+});
+
+describe("countListTokens", () => {
+  it("cuenta las guías pegadas incluyendo repetidas (para avisar cuántas se quitaron)", () => {
+    expect(countListTokens("111122223333
+222233334444
+111122223333
+Guía
+")).toBe(3);
   });
 });
 

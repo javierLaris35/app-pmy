@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ManualCountTable } from "@/components/consolidador/manual-count-table";
 import { ManualCountPromptDialog, errorText } from "@/components/consolidador/manual-count-prompt-dialog";
 import { diagnoseManualCount, prefetchManualCountFedex } from "@/lib/services/consolidador";
-import { findConflicts, parseList, parseSheetRows } from "@/lib/consolidador/manual-count-parse";
+import { countListTokens, findConflicts, parseList, parseSheetRows } from "@/lib/consolidador/manual-count-parse";
 import { exportManualCountToExcel } from "@/lib/consolidador/manual-count-export";
 import { VERDICT_LABEL, VERDICT_TONE } from "@/lib/consolidador/manual-count-labels";
 import type { ManualCountReport, ManualLists, Mark } from "@/lib/types/manual-count";
@@ -144,7 +144,12 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
             <div key={b.key} className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <Label htmlFor={`mc-${b.key}`} className="text-sm">{b.label}</Label>
-                <span className="text-xs tabular-nums text-slate-500">{lists[b.key].length} guías</span>
+                <span className="text-xs tabular-nums text-slate-500">
+                  {lists[b.key].length} guías
+                  {countListTokens(texts[b.key]) > lists[b.key].length && (
+                    <span className="text-amber-700"> · {countListTokens(texts[b.key]) - lists[b.key].length} repetidas quitadas</span>
+                  )}
+                </span>
               </div>
               <Textarea
                 id={`mc-${b.key}`}
