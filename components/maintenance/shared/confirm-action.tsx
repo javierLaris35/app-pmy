@@ -63,8 +63,33 @@ export function ConfirmAction({ trigger, title, description, confirmLabel = "Con
   );
 }
 
-/** Mensaje de error legible de una respuesta axios. */
+const LIST_LABEL: Record<string, string> = { contacts: "Contacto", items: "Concepto", rows: "Concepto" };
+/** Mensajes técnicos por defecto de class-validator (en inglés). */
+const TECH_RE = /\b(must|should|property|constraint)\b/i;
+
+/**
+ * Traduce un mensaje de validación del servidor a lenguaje simple:
+ * "contacts.0.Correo no válido" → "Contacto 1: Correo no válido". Mensajes técnicos en inglés
+ * (class-validator por defecto) se reemplazan por uno genérico entendible.
+ */
+export function humanizeApiMessage(msg: string): string {
+  let m = String(msg ?? "").trim();
+  let prefix = "";
+  const list = m.match(/^(\w+)\.(\d+)\.(.*)$/);
+  if (list) {
+    prefix = `${LIST_LABEL[list[1]] ?? "Renglón"} ${Number(list[2]) + 1}: `;
+    m = list[3];
+    if (TECH_RE.test(m)) m = "revisa el dato capturado";
+  }
+  if (TECH_RE.test(m)) m = "revisa los datos capturados";
+  return prefix + m.charAt(0).toUpperCase() + m.slice(1);
+}
+
+/** Mensaje de error legible de una respuesta axios (sin rutas técnicas ni inglés). */
 export const apiError = (e: any, fallback: string): string => {
-  const m = e?.response?.data?.message;
-  return Array.isArray(m) ? m.join(". ") : m || fallback;
+  if (!e?.response) return "No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.";
+  const m = e.response.data?.message;
+  if (e.response.status >= 500) return `${fallback}. Intenta de nuevo; si sigue pasando, avisa a Sistemas.`;
+  const list = (Array.isArray(m) ? m : m ? [m] : []).map(humanizeApiMessage);
+  return list.length ? [...new Set(list)].join(" · ") : fallback;
 };

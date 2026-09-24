@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Loader2, Mail, MessageCircle } from "lucide-react";
 import { ContactChannel, formatKms, formatMoney, PurchaseOrder } from "@/lib/types/maintenance";
+import { FieldError, invalidClass } from "../shared/field-error";
 
 /** Motivo obligatorio (rechazar / cancelar). */
 export function ReasonDialog({
@@ -189,6 +190,14 @@ export function CompleteOrderDialog({
   }, [open, order.total, currentKms]);
 
   const lower = currentKms !== null && kms !== "" && Number(kms) < currentKms;
+  const [tried, setTried] = useState(false);
+  useEffect(() => { if (open) setTried(false); }, [open]);
+  const allErrors: Record<string, string> = {
+    ...(!date ? { date: "Indica la fecha en que se hizo el servicio." } : {}),
+    ...(kms === "" || Number(kms) < 0 || Number(kms) > 1_000_000 ? { kms: "Escribe el km que marcaba la unidad." } : {}),
+    ...(amount === "" || Number.isNaN(Number(amount)) || Number(amount) < 0 ? { amount: "Escribe cuánto se pagó (0 o más)." } : {}),
+  };
+  const errors = tried ? allErrors : {};
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,11 +210,13 @@ export function CompleteOrderDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>Fecha del servicio</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={invalidClass(errors.date)} />
+              <FieldError message={errors.date} />
             </div>
             <div className="grid gap-1.5">
               <Label>Km al servicio</Label>
-              <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} />
+              <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} className={invalidClass(errors.kms)} />
+              <FieldError message={errors.kms} />
             </div>
           </div>
           {lower && (
@@ -216,7 +227,8 @@ export function CompleteOrderDialog({
           )}
           <div className="grid gap-1.5">
             <Label>Monto final pagado (con IVA)</Label>
-            <Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={invalidClass(errors.amount)} />
+            <FieldError message={errors.amount} />
             <p className="text-xs text-muted-foreground">Autorizado: {formatMoney(order.total)}. Este monto es el que se registra como gasto.</p>
           </div>
           <div className="grid gap-1.5">
@@ -227,8 +239,10 @@ export function CompleteOrderDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
           <Button
-            disabled={!date || kms === "" || amount === "" || busy}
+            disabled={busy}
             onClick={async () => {
+              setTried(true);
+              if (Object.keys(allErrors).length) return;
               setBusy(true);
               try {
                 await onComplete({ completedAt: date, completedKms: Number(kms), finalAmount: Number(amount), nextMaintenanceDate: nextDate || null });

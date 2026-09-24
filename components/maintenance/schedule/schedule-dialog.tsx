@@ -11,6 +11,7 @@ import { toast } from "@/lib/toast";
 import { updateVehicleSchedule } from "@/lib/services/maintenance";
 import { formatKms, MaintenanceVehicle, vehicleLabel } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
+import { FieldError, invalidClass } from "../shared/field-error";
 
 const INTERVALS = [5000, 7500, 10000];
 const toDay = (d?: string | null) => (d ? new Date(d).toISOString().slice(0, 10) : "");
@@ -43,9 +44,19 @@ export function ScheduleDialog({ vehicle, onOpenChange, onSaved }: Props) {
   }, [vehicle]);
 
   const intervalValue = interval === "otro" ? Number(customInterval) : Number(interval);
+  const [tried, setTried] = useState(false);
+  useEffect(() => { if (vehicle) setTried(false); }, [vehicle]);
+  const allErrors: Record<string, string> = {
+    ...(!(intervalValue >= 500) ? { interval: "El intervalo debe ser de al menos 500 km." } : {}),
+    ...(kms !== "" && (Number(kms) < 0 || Number(kms) > 1_000_000) ? { kms: "Km no válido." } : {}),
+    ...(lastKms !== "" && kms !== "" && Number(lastKms) > Number(kms) ? { lastKms: "El km del último servicio no puede ser mayor al km actual." } : {}),
+  };
+  const errors = tried ? allErrors : {};
 
   const save = async () => {
     if (!vehicle) return;
+    setTried(true);
+    if (Object.keys(allErrors).length) return;
     setSaving(true);
     try {
       await updateVehicleSchedule(vehicle.id, {
@@ -75,7 +86,8 @@ export function ScheduleDialog({ vehicle, onOpenChange, onSaved }: Props) {
         <div className="grid gap-4 py-2">
           <div className="grid gap-1.5">
             <Label>Km actual</Label>
-            <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} />
+            <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} className={invalidClass(errors.kms)} />
+            <FieldError message={errors.kms} />
             <p className="text-xs text-muted-foreground">
               Se actualiza solo con las salidas a ruta y cierres. Corrígelo aquí si está mal (registrado: {formatKms(vehicle?.kms)}).
             </p>
@@ -94,14 +106,16 @@ export function ScheduleDialog({ vehicle, onOpenChange, onSaved }: Props) {
             {interval === "otro" && (
               <div className="grid gap-1.5">
                 <Label>Km</Label>
-                <Input type="number" min={500} value={customInterval} onChange={(e) => setCustomInterval(e.target.value)} />
+                <Input type="number" min={500} value={customInterval} onChange={(e) => setCustomInterval(e.target.value)} className={invalidClass(errors.interval)} />
+                <FieldError message={errors.interval} />
               </div>
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>Último servicio (km)</Label>
-              <Input type="number" min={0} value={lastKms} onChange={(e) => setLastKms(e.target.value)} placeholder="Sin registro" />
+              <Input type="number" min={0} value={lastKms} onChange={(e) => setLastKms(e.target.value)} placeholder="Sin registro" className={invalidClass(errors.lastKms)} />
+              <FieldError message={errors.lastKms} />
             </div>
             <div className="grid gap-1.5">
               <Label>Último servicio (fecha)</Label>
@@ -116,7 +130,7 @@ export function ScheduleDialog({ vehicle, onOpenChange, onSaved }: Props) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={save} disabled={saving || !(intervalValue >= 500)}>
+          <Button onClick={save} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>

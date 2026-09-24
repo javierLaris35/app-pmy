@@ -15,6 +15,8 @@ import { toast } from "@/lib/toast";
 import { createSupplier, updateSupplier } from "@/lib/services/maintenance";
 import { ContactChannel, Supplier, SupplierContact } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
+import { FieldError, invalidClass } from "../shared/field-error";
+import { FieldErrors, firstError, hasErrors, validateSupplier } from "@/lib/maintenance-validation";
 
 const emptyContact = (): SupplierContact => ({ name: "", position: "", email: "", phone: "", whatsapp: "", preferredChannel: "email" });
 
@@ -34,6 +36,8 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
   const [contacts, setContacts] = useState<SupplierContact[]>([emptyContact()]);
   const [defaultIdx, setDefaultIdx] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [tried, setTried] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -45,7 +49,14 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
     const list = supplier?.contacts?.length ? supplier.contacts.map((c) => ({ ...c })) : [emptyContact()];
     setContacts(list);
     setDefaultIdx(Math.max(0, list.findIndex((c) => c.isDefault)));
+    setErrors({});
+    setTried(false);
   }, [open, supplier]);
+
+  // Tras el primer intento de guardar, revalida en vivo para que el mensaje desaparezca al corregir.
+  useEffect(() => {
+    if (tried) setErrors(validateSupplier({ name, rfc, contacts }));
+  }, [tried, name, rfc, contacts]);
 
   const patch = (i: number, p: Partial<SupplierContact>) => setContacts((cs) => cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
   const remove = (i: number) => {
@@ -53,9 +64,14 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
     setDefaultIdx((d) => (d === i ? 0 : d > i ? d - 1 : d));
   };
 
-  const valid = name.trim().length >= 2 && contacts.length > 0 && contacts.every((c) => c.name.trim().length >= 2);
-
   const save = async () => {
+    const e = validateSupplier({ name, rfc, contacts });
+    setTried(true);
+    setErrors(e);
+    if (hasErrors(e)) {
+      toast.error(`Revisa los campos marcados: ${firstError(e)}`);
+      return;
+    }
     setSaving(true);
     const body = {
       name: name.trim(),
@@ -97,11 +113,13 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="grid gap-1.5 sm:col-span-2">
                 <Label>Razón social / nombre</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Taller Mecánico del Yaqui" />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Taller Mecánico del Yaqui" className={invalidClass(errors.name)} />
+                <FieldError message={errors.name} />
               </div>
               <div className="grid gap-1.5">
                 <Label>RFC</Label>
-                <Input value={rfc} onChange={(e) => setRfc(e.target.value.toUpperCase())} maxLength={20} />
+                <Input value={rfc} onChange={(e) => setRfc(e.target.value.toUpperCase())} maxLength={13} placeholder="Opcional" className={invalidClass(errors.rfc)} />
+                <FieldError message={errors.rfc} />
               </div>
             </div>
             <div className="grid gap-1.5">
@@ -144,11 +162,11 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
                     )}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Input value={c.name} onChange={(e) => patch(i, { name: e.target.value })} placeholder="Nombre" />
+                    <div className="grid gap-1"><Input value={c.name} onChange={(e) => patch(i, { name: e.target.value })} placeholder="Nombre" className={invalidClass(errors[`contacts.${i}.name`])} /><FieldError message={errors[`contacts.${i}.name`]} /></div>
                     <Input value={c.position ?? ""} onChange={(e) => patch(i, { position: e.target.value })} placeholder="Puesto (opcional)" />
-                    <Input type="email" value={c.email ?? ""} onChange={(e) => patch(i, { email: e.target.value })} placeholder="Correo" />
-                    <Input value={c.phone ?? ""} onChange={(e) => patch(i, { phone: e.target.value })} placeholder="Teléfono" />
-                    <Input value={c.whatsapp ?? ""} onChange={(e) => patch(i, { whatsapp: e.target.value })} placeholder="WhatsApp (10 dígitos)" />
+                    <div className="grid gap-1"><Input type="email" value={c.email ?? ""} onChange={(e) => patch(i, { email: e.target.value })} placeholder="Correo (nombre@empresa.com)" className={invalidClass(errors[`contacts.${i}.email`])} /><FieldError message={errors[`contacts.${i}.email`]} /></div>
+                    <div className="grid gap-1"><Input value={c.phone ?? ""} onChange={(e) => patch(i, { phone: e.target.value })} placeholder="Teléfono (10 dígitos)" inputMode="tel" className={invalidClass(errors[`contacts.${i}.phone`])} /><FieldError message={errors[`contacts.${i}.phone`]} /></div>
+                    <div className="grid gap-1"><Input value={c.whatsapp ?? ""} onChange={(e) => patch(i, { whatsapp: e.target.value })} placeholder="WhatsApp (10 dígitos)" inputMode="tel" className={invalidClass(errors[`contacts.${i}.whatsapp`])} /><FieldError message={errors[`contacts.${i}.whatsapp`]} /></div>
                     <Select value={c.preferredChannel} onValueChange={(v) => patch(i, { preferredChannel: v as ContactChannel })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -164,7 +182,7 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
         </ScrollArea>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={save} disabled={!valid || saving}>
+          <Button onClick={save} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>

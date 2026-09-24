@@ -21,6 +21,8 @@ import { deviationPct, itemAmount, totals } from "@/lib/maintenance-money";
 import { ServicePicker } from "./service-picker";
 import { SupplierFormDialog } from "../catalog/supplier-form-dialog";
 import { apiError } from "../shared/confirm-action";
+import { FieldError, invalidClass } from "../shared/field-error";
+import { firstError, hasErrors, validateQuote } from "@/lib/maintenance-validation";
 
 interface Row extends QuoteItem {
   key: string;
@@ -51,6 +53,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
   const [file, setFile] = useState<File | null>(null);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [tried, setTried] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -62,13 +65,21 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
       ? quote.items.map((i) => ({ ...i, key: crypto.randomUUID(), quantity: Number(i.quantity), unitPrice: Number(i.unitPrice) }))
       : [newRow()]);
     setFile(null);
+    setTried(false);
   }, [open, quote]);
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
   const t = useMemo(() => totals(rows), [rows]);
-  const valid = supplierId && quoteDate && rows.length > 0 && rows.every((r) => r.description.trim().length >= 2 && r.quantity > 0 && r.unitPrice >= 0);
+  // Errores por campo: se muestran tras el primer intento de guardar y se actualizan en vivo.
+  const allErrors = useMemo(() => validateQuote({ supplierId, quoteDate, validUntil, rows }), [supplierId, quoteDate, validUntil, rows]);
+  const errors = tried ? allErrors : {};
 
   const save = async () => {
+    setTried(true);
+    if (hasErrors(allErrors)) {
+      toast.error(`Revisa los campos marcados: ${firstError(allErrors)}`);
+      return;
+    }
     setSaving(true);
     try {
       const body = {
@@ -119,7 +130,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                   <Label>Proveedor</Label>
                   <div className="flex gap-2">
                     <Select value={supplierId} onValueChange={setSupplierId}>
-                      <SelectTrigger><SelectValue placeholder="Elige el proveedor" /></SelectTrigger>
+                      <SelectTrigger className={invalidClass(errors.supplierId)}><SelectValue placeholder="Elige el proveedor" /></SelectTrigger>
                       <SelectContent>
                         {suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                       </SelectContent>
@@ -128,14 +139,17 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                       <PlusCircle className="h-4 w-4" />
                     </Button>
                   </div>
+                  <FieldError message={errors.supplierId} />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Fecha</Label>
-                  <Input type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} />
+                  <Input type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} className={invalidClass(errors.quoteDate)} />
+                  <FieldError message={errors.quoteDate} />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Vigente hasta</Label>
-                  <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+                  <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className={invalidClass(errors.validUntil)} />
+                  <FieldError message={errors.validUntil} />
                 </div>
               </div>
 
@@ -152,7 +166,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((r) => {
+                    {rows.map((r, i) => {
                       const dev = deviationPct(r.unitPrice, r.referencePrice);
                       return (
                         <TableRow key={r.key} className="align-top">
@@ -166,8 +180,10 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                                 value={r.description}
                                 onChange={(e) => patch(r.key, { description: e.target.value })}
                                 placeholder="Descripción del servicio o refacción"
+                                className={invalidClass(errors[`rows.${i}.description`])}
                               />
                             </div>
+                            <FieldError message={errors[`rows.${i}.description`]} className="mt-1" />
                             {r.referencePrice !== null && r.referencePrice !== undefined && (
                               <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>Referencia: {formatMoney(r.referencePrice)}</span>
@@ -180,10 +196,12 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                             )}
                           </TableCell>
                           <TableCell>
-                            <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })} />
+                            <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })} className={invalidClass(errors[`rows.${i}.quantity`])} />
+                            <FieldError message={errors[`rows.${i}.quantity`]} className="mt-1" />
                           </TableCell>
                           <TableCell>
-                            <Input type="number" min={0} step="0.01" value={r.unitPrice} onChange={(e) => patch(r.key, { unitPrice: Number(e.target.value) })} />
+                            <Input type="number" min={0} step="0.01" value={r.unitPrice} onChange={(e) => patch(r.key, { unitPrice: Number(e.target.value) })} className={invalidClass(errors[`rows.${i}.unitPrice`])} />
+                            <FieldError message={errors[`rows.${i}.unitPrice`]} className="mt-1" />
                           </TableCell>
                           <TableCell>
                             <Select value={String(r.taxRate ?? 0.16)} onValueChange={(v) => patch(r.key, { taxRate: Number(v) })}>
@@ -246,7 +264,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
           </ScrollArea>
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-            <Button onClick={save} disabled={!valid || saving}>
+            <Button onClick={save} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Guardar cotización
             </Button>

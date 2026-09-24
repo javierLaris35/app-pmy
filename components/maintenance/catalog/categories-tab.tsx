@@ -15,6 +15,7 @@ import { useServiceCategories } from "@/hooks/services/maintenance/use-maintenan
 import { createServiceCategory, updateServiceCategory } from "@/lib/services/maintenance";
 import { ServiceCategory } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
+import { FieldError, invalidClass } from "../shared/field-error";
 
 function CategoryFormDialog({ open, onOpenChange, category, onSaved }: {
   open: boolean;
@@ -26,15 +27,20 @@ function CategoryFormDialog({ open, onOpenChange, category, onSaved }: {
   const [sortOrder, setSortOrder] = useState("");
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tried, setTried] = useState(false);
+  const nameError = tried && name.trim().length < 2 ? "Escribe el nombre de la categoría." : undefined;
 
   useEffect(() => {
     if (!open) return;
+    setTried(false);
     setName(category?.name ?? "");
     setSortOrder(category ? String(category.sortOrder) : "");
     setActive(category?.active ?? true);
   }, [open, category]);
 
   const save = async () => {
+    setTried(true);
+    if (name.trim().length < 2) return;
     setSaving(true);
     const body = { name: name.trim(), active, ...(sortOrder !== "" ? { sortOrder: Number(sortOrder) } : {}) };
     try {
@@ -59,7 +65,8 @@ function CategoryFormDialog({ open, onOpenChange, category, onSaved }: {
         <div className="grid gap-4 py-2">
           <div className="grid gap-1.5">
             <Label>Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Frenos" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Frenos" className={invalidClass(nameError)} />
+            <FieldError message={nameError} />
           </div>
           <div className="grid gap-1.5">
             <Label>Orden en la lista</Label>
@@ -72,7 +79,7 @@ function CategoryFormDialog({ open, onOpenChange, category, onSaved }: {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={save} disabled={name.trim().length < 2 || saving}>
+          <Button onClick={save} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>

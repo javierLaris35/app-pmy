@@ -13,6 +13,7 @@ import { useVehiclesBySubsidiary } from "@/hooks/services/vehicles/use-vehicles"
 import { createRequest, updateRequest } from "@/lib/services/maintenance";
 import { formatKms, MaintenanceRequest, PRIORITY_LABEL, RequestPriority } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
+import { FieldError, invalidClass } from "../shared/field-error";
 
 interface Props {
   open: boolean;
@@ -30,6 +31,7 @@ export function RequestFormDialog({ open, onOpenChange, subsidiaryId, request, d
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<RequestPriority>("media");
   const [saving, setSaving] = useState(false);
+  const [tried, setTried] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -37,12 +39,23 @@ export function RequestFormDialog({ open, onOpenChange, subsidiaryId, request, d
     setKms(request?.kmsAtRequest ? String(request.kmsAtRequest) : "");
     setDescription(request?.description ?? "");
     setPriority(request?.priority ?? "media");
+    setTried(false);
   }, [open, request, defaultVehicleId]);
 
   const selected = vehicles.find((v) => v.id === vehicleId);
-  const valid = vehicleId && description.trim().length >= 3;
+  const allErrors: Record<string, string> = {
+    ...(!vehicleId ? { vehicleId: "Elige la unidad que necesita mantenimiento." } : {}),
+    ...(kms !== "" && (Number(kms) < 0 || Number(kms) > 1_000_000) ? { kms: "Km no válido." } : {}),
+    ...(description.trim().length < 3 ? { description: "Describe qué necesita la unidad." } : {}),
+  };
+  const errors = tried ? allErrors : {};
 
   const save = async () => {
+    setTried(true);
+    if (Object.keys(allErrors).length) {
+      toast.error(`Revisa los campos marcados: ${Object.values(allErrors)[0]}`);
+      return;
+    }
     setSaving(true);
     try {
       const body = { kmsAtRequest: kms === "" ? null : Number(kms), description: description.trim(), priority };
@@ -68,7 +81,7 @@ export function RequestFormDialog({ open, onOpenChange, subsidiaryId, request, d
           <div className="grid gap-1.5">
             <Label>Unidad</Label>
             <Select value={vehicleId} onValueChange={setVehicleId} disabled={!!request}>
-              <SelectTrigger><SelectValue placeholder={subsidiaryId ? "Elige la unidad" : "Primero elige una sucursal"} /></SelectTrigger>
+              <SelectTrigger className={invalidClass(errors.vehicleId)}><SelectValue placeholder={subsidiaryId ? "Elige la unidad" : "Primero elige una sucursal"} /></SelectTrigger>
               <SelectContent>
                 {vehicles.map((v) => (
                   <SelectItem key={v.id} value={v.id!}>
@@ -77,12 +90,14 @@ export function RequestFormDialog({ open, onOpenChange, subsidiaryId, request, d
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={errors.vehicleId} />
             {selected && <p className="text-xs text-muted-foreground">Km registrado: {formatKms(selected.kms)}</p>}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>Km actuales</Label>
-              <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} placeholder="Opcional" />
+              <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} placeholder="Opcional" className={invalidClass(errors.kms)} />
+              <FieldError message={errors.kms} />
             </div>
             <div className="grid gap-1.5">
               <Label>Prioridad</Label>
@@ -98,12 +113,13 @@ export function RequestFormDialog({ open, onOpenChange, subsidiaryId, request, d
           </div>
           <div className="grid gap-1.5">
             <Label>¿Qué necesita?</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Ej. Ruido en frenos delanteros y toca servicio de 10,000 km" />
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Ej. Ruido en frenos delanteros y toca servicio de 10,000 km" className={invalidClass(errors.description)} />
+            <FieldError message={errors.description} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={save} disabled={!valid || saving}>
+          <Button onClick={save} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>

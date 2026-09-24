@@ -13,6 +13,7 @@ import { createMaintenanceService, updateMaintenanceService } from "@/lib/servic
 import { MaintenanceServiceItem, ServiceCategory, ServiceUnit, UNIT_LABEL } from "@/lib/types/maintenance";
 import { VehicleTypeEnum } from "@/lib/types";
 import { apiError } from "../shared/confirm-action";
+import { FieldError, invalidClass } from "../shared/field-error";
 
 const ALL = "__all__";
 
@@ -32,6 +33,7 @@ export function ServiceFormDialog({ open, onOpenChange, service, categories, onS
   const [vehicleType, setVehicleType] = useState<string>(ALL);
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tried, setTried] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -41,11 +43,22 @@ export function ServiceFormDialog({ open, onOpenChange, service, categories, onS
     setPrice(service ? String(service.referencePrice) : "");
     setVehicleType(service?.vehicleType ?? ALL);
     setActive(service?.active ?? true);
+    setTried(false);
   }, [open, service, categories]);
 
-  const valid = name.trim().length >= 2 && categoryId && price !== "" && Number(price) >= 0;
+  const allErrors: Record<string, string> = {
+    ...(name.trim().length < 2 ? { name: "Escribe el nombre del servicio." } : {}),
+    ...(!categoryId ? { categoryId: "Elige una categoría." } : {}),
+    ...(price === "" || Number.isNaN(Number(price)) || Number(price) < 0 ? { price: "Escribe un precio de referencia (0 o más)." } : {}),
+  };
+  const errors = tried ? allErrors : {};
 
   const save = async () => {
+    setTried(true);
+    if (Object.keys(allErrors).length) {
+      toast.error(`Revisa los campos marcados: ${Object.values(allErrors)[0]}`);
+      return;
+    }
     setSaving(true);
     const body = {
       name: name.trim(),
@@ -77,19 +90,21 @@ export function ServiceFormDialog({ open, onOpenChange, service, categories, onS
         <div className="grid gap-4 py-2">
           <div className="grid gap-1.5">
             <Label>Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Cambio de aceite y filtro" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Cambio de aceite y filtro" className={invalidClass(errors.name)} />
+            <FieldError message={errors.name} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>Categoría</Label>
               <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger><SelectValue placeholder="Elige una categoría" /></SelectTrigger>
+                <SelectTrigger className={invalidClass(errors.categoryId)}><SelectValue placeholder="Elige una categoría" /></SelectTrigger>
                 <SelectContent>
                   {categories.filter((c) => c.active || c.id === categoryId).map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError message={errors.categoryId} />
             </div>
             <div className="grid gap-1.5">
               <Label>Unidad</Label>
@@ -106,7 +121,8 @@ export function ServiceFormDialog({ open, onOpenChange, service, categories, onS
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>Precio de referencia (sin IVA)</Label>
-              <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
+              <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" className={invalidClass(errors.price)} />
+              <FieldError message={errors.price} />
             </div>
             <div className="grid gap-1.5">
               <Label>Tipo de vehículo</Label>
@@ -131,7 +147,7 @@ export function ServiceFormDialog({ open, onOpenChange, service, categories, onS
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={save} disabled={!valid || saving}>
+          <Button onClick={save} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>
