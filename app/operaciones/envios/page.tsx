@@ -9,7 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Eye, FileText, Upload, Send, ClipboardPaste } from "lucide-react"
+import { Eye, FileText, Upload, Send, ClipboardPaste, MoreHorizontal } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { columns } from "./columns"
@@ -143,13 +149,13 @@ function ShipmentsPage() {
         <OperationHeader
           icon={Send}
           title="Envíos"
-          description="Administra los paquetes a enviar de las diferentes empresas (FedEx & DHL)"
+          description="Paquetes por enviar de FedEx y DHL"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               {/* admin + superadmin (incluye el typo histórico "superamin", igual
                   que SUPER_ROLES en lib/access/permissions.ts). */}
               {(["admin", "superadmin", "superamin"] as string[]).includes(String(user?.role ?? "")) && (
-                <div className="w-full sm:w-[220px]">
+                <div className="w-56">
                   <SucursalSelector
                     value={effectiveSubsidiaryId ?? ""}
                     onValueChange={(val) =>
@@ -163,32 +169,33 @@ function ShipmentsPage() {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="icon" variant="outline" onClick={() => setIsUploadModalOpen(true)} aria-label="Importar FedEx">
+                  <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => setIsUploadModalOpen(true)} aria-label="Importar FedEx">
                     <Upload className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Importar FedEx</TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="icon" variant="outline" onClick={() => setIsDhlTextModalOpen(true)} aria-label="Importar DHL">
-                    <FileText className="h-4 w-4" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <MoreHorizontal className="h-4 w-4" /> Más acciones
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Importar DHL</TooltipContent>
-              </Tooltip>
-
-              {showPaste && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" className="gap-1 border-amber-300 text-amber-600" onClick={() => (PASTE_AS_PAGE ? router.push("/operaciones/importar-pegar") : setIsPasteModalOpen(true))}>
-                      <ClipboardPaste className="h-4 w-4" /> Pegar
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Pegar datos FedEx (experimental)</TooltipContent>
-                </Tooltip>
-              )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setIsDhlTextModalOpen(true)}>
+                    <FileText className="mr-2 h-4 w-4" /> Importar DHL
+                  </DropdownMenuItem>
+                  {showPaste && (
+                    <DropdownMenuItem
+                      className="text-amber-600 focus:text-amber-700"
+                      onClick={() => (PASTE_AS_PAGE ? router.push("/operaciones/importar-pegar") : setIsPasteModalOpen(true))}
+                    >
+                      <ClipboardPaste className="mr-2 h-4 w-4" /> Pegar datos FedEx (experimental)
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           }
         />

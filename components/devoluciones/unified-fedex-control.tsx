@@ -118,15 +118,15 @@ export default function UpdatedFedExControl() {
           description="Historial de salidas de devoluciones y recolecciones"
           subsidiaryName={selectedSucursalName}
           actions={
-            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-              <div className="w-full sm:w-[250px]">
+            <div className="flex items-center gap-2">
+              <div className="w-56">
                 <SucursalSelector
                   value={selectedSucursalId ?? ""}
                   returnObject={true}
                   onValueChange={(s) => handleSucursalChange(s as Subsidiary)}
                 />
               </div>
-              <Button onClick={() => setIsUnifiedDialogOpen(true)} disabled={!selectedSucursalId}>
+              <Button size="sm" onClick={() => setIsUnifiedDialogOpen(true)} disabled={!selectedSucursalId}>
                 <FileText className="mr-2 h-4 w-4" />
                 Iniciar proceso
               </Button>

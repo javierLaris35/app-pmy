@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal, Wrench, KanbanSquare, Gauge, Store } from "lucide-react"
 import { ElementType } from "react";
 import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
@@ -185,25 +185,15 @@ export const sidebarMenu = {
       ]
     },
     {
-      title: "Mtto. Vehículos",
+      title: "Mantenimiento",
       url: "#",
-      icon: Truck,
+      icon: Wrench,
       isActive: false,
       items: [
-        {
-          name: "Programación",
-          url: "/programacion-mtto",
-          icon: PenToolIcon,
-          roles: allowedPageRoles.mttoVehiculos.programacion,
-          isActive: false
-        },
-        {
-          name: "Historial",
-          url: "/historial-mtto",
-          icon: HistoryIcon,
-          roles: allowedPageRoles.mttoVehiculos.historial,
-          isActive: false
-        },
+        { name: "Tablero", url: "/mtto/tablero", icon: KanbanSquare, roles: allowedPageRoles.mttoVehiculos.solicitudes, isActive: false },
+        { name: "Unidades", url: "/programacion-mtto", icon: Gauge, roles: allowedPageRoles.mttoVehiculos.programacion, isActive: false },
+        { name: "Historial", url: "/historial-mtto", icon: HistoryIcon, roles: allowedPageRoles.mttoVehiculos.historial, isActive: false },
+        { name: "Proveedores y servicios", url: "/mtto/proveedores", icon: Store, roles: allowedPageRoles.mttoVehiculos.catalogos, isActive: false },
       ]
     },
     {

@@ -5,7 +5,7 @@ import type { ColumnDef, PaginationState, Row } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { saveAs } from "file-saver";
 import {
-  Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap, Truck,
+  Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap, Truck, MoreHorizontal, Building2,
 } from "lucide-react";
 import { runDevTracking, sendDex03Test } from "@/lib/services/shipments";
 import { runDhlSyncCron } from "@/lib/services/dhl-tracking";
@@ -26,6 +26,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+  DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { DataTable } from "@/components/data-table/data-table";
 import { toast } from "@/lib/toast";
@@ -269,43 +273,67 @@ function AuditoriaPage() {
           title="Auditoría"
           description="Historial de actividad del sistema · solo superadmin"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <ToggleGroup type="single" value={range} onValueChange={onRangeChange} className="rounded-lg border p-0.5">
-                {Object.keys(RANGES).map((k) => (
-                  <ToggleGroupItem key={k} value={k} className="h-8 px-3 text-xs">
-                    {k === "hoy" ? "Hoy" : k}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              <Input type="date" value={dateFrom} onChange={(e) => { setRange(""); setDateFrom(e.target.value); }} className="h-9 w-[140px]" />
-              <Input type="date" value={dateTo} onChange={(e) => { setRange(""); setDateTo(e.target.value); }} className="h-9 w-[140px]" />
-              <Button size="sm" variant="outline" onClick={handleDevTracking} disabled={devRunning} title="Probar tracking FedEx (dev · 60 guías)">
-                {devRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">FedEx</span>
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleDhlTracking} disabled={dhlRunning} title="Probar tracking DHL (API oficial)">
-                {dhlRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">DHL</span>
-              </Button>
-              <select
-                value={dex03Sub}
-                onChange={(e) => setDex03Sub(e.target.value)}
-                title="Sucursal para el correo DEX03 de prueba"
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              >
-                <option value="">Sucursal (DEX03)…</option>
-                {(subsidiaries || []).map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              <Button size="sm" variant="outline" onClick={handleSendDex03} disabled={dex03Running || !dex03Sub} title="Enviar correo DEX03 de la sucursal (prueba, mismo flujo del cron)">
-                {dex03Running ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">DEX03</span>
-              </Button>
-              <Button size="icon" variant="outline" className="h-9 w-9" onClick={refreshAll} aria-label="Actualizar"><RefreshCw className="h-4 w-4" /></Button>
+            <div className="flex items-center gap-2">
+              <Button size="icon" variant="outline" className="h-9 w-9" onClick={refreshAll} aria-label="Actualizar" title="Actualizar"><RefreshCw className="h-4 w-4" /></Button>
               <Button size="sm" onClick={handleExport} disabled={exporting}>
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">Excel</span>
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <MoreHorizontal className="h-4 w-4" /><span className="hidden sm:inline">Más acciones</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel>Pruebas</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={handleDevTracking} disabled={devRunning}>
+                    {devRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                    Probar rastreo FedEx (60 guías)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={handleDhlTracking} disabled={dhlRunning}>
+                    {dhlRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Truck className="mr-2 h-4 w-4" />}
+                    Probar rastreo DHL
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Building2 className="mr-2 h-4 w-4" />
+                      <span className="truncate">
+                        Sucursal DEX03: {(subsidiaries || []).find((s: any) => s.id === dex03Sub)?.name || "elegir…"}
+                      </span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
+                      <DropdownMenuRadioGroup value={dex03Sub} onValueChange={setDex03Sub}>
+                        {(subsidiaries || []).map((s: any) => (
+                          <DropdownMenuRadioItem key={s.id} value={s.id} onSelect={(e) => e.preventDefault()}>
+                            {s.name}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem onSelect={handleSendDex03} disabled={dex03Running || !dex03Sub}>
+                    {dex03Running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                    Enviar correo DEX03 de prueba
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           }
         />
+
+        {/* Filtros de consulta */}
+        <div className="flex flex-wrap items-center gap-2">
+          <ToggleGroup type="single" value={range} onValueChange={onRangeChange} className="rounded-lg border p-0.5">
+            {Object.keys(RANGES).map((k) => (
+              <ToggleGroupItem key={k} value={k} className="h-8 px-3 text-xs">
+                {k === "hoy" ? "Hoy" : k}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <Input type="date" value={dateFrom} onChange={(e) => { setRange(""); setDateFrom(e.target.value); }} className="h-9 w-[140px]" aria-label="Desde" />
+          <Input type="date" value={dateTo} onChange={(e) => { setRange(""); setDateTo(e.target.value); }} className="h-9 w-[140px]" aria-label="Hasta" />
+        </div>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

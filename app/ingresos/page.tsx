@@ -121,6 +121,7 @@ function IngresosPage() {
           actions={
             <Button
               variant="outline"
+              size="sm"
               className="bg-white shadow-sm border-slate-200"
               onClick={() => exportIncomesToExcel(incomes)}
               disabled={incomes.length === 0 || isLoading}

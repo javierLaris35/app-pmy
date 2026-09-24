@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import type { Row } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,7 +17,7 @@ import { Plus, Trash2Icon, PencilIcon, Route as RouteIcon } from "lucide-react"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { columns } from "./columns"
 import { useRoutesBySubsidiary, useSaveRoute } from "@/hooks/services/routes/use-routes"
-import { Route, Subsidiary } from "@/lib/types"
+import { Route, StatusEnum, Subsidiary } from "@/lib/types"
 import { RouteForm } from "@/components/modals/route-form"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
@@ -103,7 +104,7 @@ function RoutesPage() {
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) =>
+          cell: ({ row }: { row: Row<Route> }) =>
             isAdmin ? (
               <div className="flex gap-2">
                 <Button
@@ -155,18 +156,18 @@ function RoutesPage() {
           subsidiaryName={selectedSubsidiary?.name || user?.subsidiary?.name}
           actions={
             isAdmin && (
-              <>
-                <div className="w-[220px]">
+              <div className="flex items-center gap-2">
+                <div className="w-56">
                   <SucursalSelector
                     value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
                     onValueChange={(subsidiary) => setSelectedSubsidiary(subsidiary as Subsidiary)}
                     returnObject
                   />
                 </div>
-                <Button onClick={openNewDialog} className="whitespace-nowrap">
+                <Button size="sm" onClick={openNewDialog} className="whitespace-nowrap">
                   <Plus className="mr-2 h-4 w-4" /> Nueva Ruta
                 </Button>
-              </>
+              </div>
             )
           }
         />
@@ -190,9 +191,9 @@ function RoutesPage() {
           </DialogHeader>
 
           <RouteForm
-            defaultValues={editingRoute ?? { name: "", status: "ACTIVE" }}
+            defaultValues={editingRoute ?? { name: "", status: StatusEnum.ACTIVE }}
             onSubmit={handleSubmit}
-            subsidiary={effectiveSubsidiary}
+            subsidiary={(effectiveSubsidiary ?? undefined) as { id: string; name: string } | undefined}
           />
         </DialogContent>
       </Dialog>

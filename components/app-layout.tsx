@@ -7,6 +7,7 @@ import { AppSidebar } from "./app-sidebar"
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "./ui/sidebar"
 import { NotificationBell } from "./notifications/notification-bell"
 import { ApprovalTray } from "./approvals/approval-tray"
+import { PoAuthorizationTray } from "./maintenance/po-authorization-tray"
 import { NotificationPush } from "./notifications/notification-push"
 import { useAuthStore } from "@/store/auth.store"
 import { usePageHeaderStore } from "@/store/page-header.store"
@@ -297,6 +298,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </Tooltip>
 
               <ApprovalTray />
+              <PoAuthorizationTray />
               <NotificationBell />
             </div>
           </div>

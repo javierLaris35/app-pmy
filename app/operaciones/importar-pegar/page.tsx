@@ -28,13 +28,13 @@ function PasteImportPage() {
         <OperationHeader
           icon={ClipboardPaste}
           title="Pegar datos FedEx"
-          description="Copia desde Excel (con encabezados) y pega aquí. Mismo mapeo y validaciones que el import por archivo."
+          description="Copia desde Excel con encabezados y pégalo aquí"
           actions={
             <div className="flex items-center gap-2">
-              <Button variant="ghost" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => helpRef.current?.()}>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => helpRef.current?.()}>
                 <HelpCircle className="h-4 w-4" /> Cómo funciona
               </Button>
-              <Button variant="outline" className="gap-1.5" onClick={() => router.back()}>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => router.back()}>
                 <ArrowLeft className="h-4 w-4" /> Volver
               </Button>
             </div>

@@ -36,6 +36,11 @@ export const allowedPageRoles = {
     mttoVehiculos: {
         programacion: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
         historial: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
+        solicitudes: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
+        ordenes: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
+        catalogos: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
+        // Se concede por usuario (Edgardo Lugo); el rol legacy solo cubre superadmin.
+        autorizar: [UserRoleEnum.SUPERADMIN],
     },
     configuracion: [UserRoleEnum.SUPERADMIN],
     // Auditoría: EXCLUSIVO superadmin (incluye variante histórica 'superamin').
