@@ -11,6 +11,7 @@ import {
   SearchPackageResult,
   WarehouseKpi,
 } from "../types/consolidador";
+import { Cause, ManualCountReport, ManualLists } from "../types/manual-count";
 
 const baseUrl = "/consolidador";
 
@@ -121,3 +122,29 @@ export const reassignIncomeSubsidiary = async (incomeId: string, subsidiaryId: s
 /** PATCH: cambia la fecha del ingreso (YYYY-MM-DD). */
 export const editIncomeDate = async (incomeId: string, date: string, reason: string) =>
   (await axiosConfig.patch(`${baseUrl}/income/${incomeId}/date`, { date, reason })).data;
+
+// ───────────── Conteo manual vs sistema (solo superadmin) ─────────────
+
+/** POST: consulta FedEx en vivo para un bloque de ≤25 guías (precalienta la caché del backend). */
+export const prefetchManualCountFedex = async (
+  subsidiaryId: string,
+  trackingNumbers: string[],
+): Promise<{ done: number; failed: number }> =>
+  (await axiosConfig.post(`${baseUrl}/${subsidiaryId}/manual-count/fedex`, { trackingNumbers })).data;
+
+/** POST: diagnóstico del conteo manual del día contra FedEx + sistema + ingresos. */
+export const diagnoseManualCount = async (
+  subsidiaryId: string,
+  day: string,
+  lists: ManualLists,
+): Promise<ManualCountReport> =>
+  (await axiosConfig.post<ManualCountReport>(`${baseUrl}/${subsidiaryId}/${day}/manual-count`, lists, { timeout: 180_000 })).data;
+
+/** POST: prompt para corregir en Claude Code los errores del sistema de las causas elegidas. */
+export const getManualCountPrompt = async (
+  subsidiaryId: string,
+  day: string,
+  lists: ManualLists,
+  causes: Cause[],
+): Promise<{ prompt: string }> =>
+  (await axiosConfig.post(`${baseUrl}/${subsidiaryId}/${day}/manual-count/prompt`, { ...lists, causes }, { timeout: 180_000 })).data;

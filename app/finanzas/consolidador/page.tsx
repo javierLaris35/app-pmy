@@ -16,6 +16,8 @@ import { GroupsView } from "@/components/consolidador/groups-view";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { AnomaliesDialog } from "@/components/consolidador/anomalies-dialog";
 import { CobrosAuditPanel } from "@/components/consolidador/cobros-audit-panel";
+import { ManualCountPanel } from "@/components/consolidador/manual-count-panel";
+import { useAuthStore } from "@/store/auth.store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
@@ -26,7 +28,7 @@ import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
 import { SlidersHorizontal, Loader2, PlusCircle, History, AlertTriangle } from "lucide-react";
 
-type TabKey = "por-ruta" | "por-consolidado" | "ingresos" | "buscar" | "auditoria";
+type TabKey = "por-ruta" | "por-consolidado" | "ingresos" | "buscar" | "auditoria" | "conteo";
 
 function ConsolidadorPage() {
   const [subsidiaryId, setSubsidiaryId] = useState<string>("");
@@ -38,6 +40,9 @@ function ConsolidadorPage() {
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("por-ruta");
+  // "Conteo manual vs sistema" es solo para superadmin (expone detalle interno y prompt).
+  const role = String(useAuthStore((s) => s.user)?.role ?? "").toLowerCase();
+  const isGlobal = ["superadmin", "superamin", "owner"].includes(role);
 
   // Consulta filtrada (server: consolidado/ruta) → tabla plana + KPIs.
   const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
@@ -222,6 +227,7 @@ function ConsolidadorPage() {
             <TabsTrigger value="ingresos">Ingresos</TabsTrigger>
             <TabsTrigger value="buscar">Buscar paquete</TabsTrigger>
             <TabsTrigger value="auditoria">Auditoría de cobros</TabsTrigger>
+            {isGlobal && <TabsTrigger value="conteo">Conteo manual</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="por-ruta" className="mt-4">
@@ -250,6 +256,12 @@ function ConsolidadorPage() {
           <TabsContent value="auditoria" className="mt-4">
             <CobrosAuditPanel subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "auditoria"} onFixed={() => mutate()} />
           </TabsContent>
+
+          {isGlobal && (
+            <TabsContent value="conteo" className="mt-4">
+              <ManualCountPanel subsidiaryId={subsidiaryId} from={week.from} to={week.to} />
+            </TabsContent>
+          )}
         </Tabs>
 
         <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} defaultTracking={addDefaultTracking} onSubmit={handleAddIncome} />
