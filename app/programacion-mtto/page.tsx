@@ -138,12 +138,14 @@ function ProgramacionMttoPage() {
         <OperationHeader
           icon={Gauge}
           title="Unidades"
-          description="Cuándo le toca servicio a cada unidad, por kilómetros recorridos o por fecha"
+          description="Próximo servicio por kilómetros o fecha"
           actions={
-            <SucursalSelector
-              value={subsidiaryId}
-              onValueChange={(val) => setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? "")}
-            />
+            <div className="w-56">
+              <SucursalSelector
+                value={subsidiaryId}
+                onValueChange={(val) => setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? "")}
+              />
+            </div>
           }
         />
 

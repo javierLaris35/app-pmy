@@ -119,21 +119,13 @@ function HistorialMttoPage() {
         <OperationHeader
           icon={HistoryIcon}
           title="Historial de mantenimiento"
-          description="Servicios terminados por unidad y cuánto se ha gastado"
+          description="Servicios terminados y gasto por unidad"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="w-56">
               <SucursalSelector
                 value={subsidiaryId}
                 onValueChange={(val) => { setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? ""); setVehicleId(ALL); }}
               />
-              <Select value={vehicleId} onValueChange={setVehicleId} disabled={!subsidiaryId}>
-                <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Todas las unidades</SelectItem>
-                  {vehicles.map((v) => <SelectItem key={v.id} value={v.id!}>{[v.name || v.code, v.plateNumber].filter(Boolean).join(" · ")}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <DateRangePicker value={range} onChange={setRange} />
             </div>
           }
         />
@@ -142,6 +134,16 @@ function HistorialMttoPage() {
           <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Elige una sucursal para ver su historial.</CardContent></Card>
         ) : (
           <>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={vehicleId} onValueChange={setVehicleId}>
+                <SelectTrigger className="h-9 w-[220px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todas las unidades</SelectItem>
+                  {vehicles.map((v) => <SelectItem key={v.id} value={v.id!}>{[v.name || v.code, v.plateNumber].filter(Boolean).join(" · ")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <DateRangePicker value={range} onChange={setRange} />
+            </div>
             <div className="grid gap-3 md:grid-cols-3">
               {kpis.map(({ label, value, icon: Icon, tone }) => (
                 <Card key={label} className="rounded-xl shadow-sm">

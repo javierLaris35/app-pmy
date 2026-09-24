@@ -53,15 +53,17 @@ function TableroContent() {
       <OperationHeader
         icon={KanbanSquare}
         title="Tablero de mantenimiento"
-        description="Cada tarjeta es un mantenimiento: avanza de izquierda a derecha"
+        description="Seguimiento de cada mantenimiento por etapa"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <SucursalSelector
-              value={subsidiaryId}
-              onValueChange={(val) => setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? "")}
-            />
-            <Button onClick={() => { setDefaultVehicleId(undefined); setOpen(true); }} disabled={!subsidiaryId} className="gap-2">
-              <Plus className="h-4 w-4" /> Nuevo mantenimiento
+          <div className="flex items-center gap-2">
+            <div className="w-56">
+              <SucursalSelector
+                value={subsidiaryId}
+                onValueChange={(val) => setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? "")}
+              />
+            </div>
+            <Button size="sm" onClick={() => { setDefaultVehicleId(undefined); setOpen(true); }} disabled={!subsidiaryId}>
+              <Plus className="mr-1.5 h-4 w-4" /> Nuevo mantenimiento
             </Button>
           </div>
         }

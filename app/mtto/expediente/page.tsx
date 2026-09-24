@@ -7,14 +7,21 @@ import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Ban, ClipboardList, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Ban, ClipboardList, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/lib/toast";
 import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
 import { useMaintenanceRequest, usePendingAuthorizations, usePurchaseOrder } from "@/hooks/services/maintenance/use-maintenance";
 import { cancelPurchaseOrder, cancelRequest, convertQuote, deleteRequest } from "@/lib/services/maintenance";
 import { ExpedienteProgress, formatKms, formatMoney, MaintenanceQuote, PRIORITY_LABEL, vehicleLabel } from "@/lib/types/maintenance";
-import { apiError, ConfirmAction } from "@/components/maintenance/shared/confirm-action";
+import { apiError } from "@/components/maintenance/shared/confirm-action";
 import { StageBadge } from "@/components/maintenance/board/board-views";
 import { ExpedienteStepper } from "@/components/maintenance/expediente/expediente-stepper";
 import { QuotesStep } from "@/components/maintenance/expediente/quotes-step";
@@ -33,6 +40,7 @@ function ExpedienteContent() {
   const { mutate: mutateTray } = usePendingAuthorizations(canAuthorize);
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   if (isError || !request) {
@@ -77,35 +85,40 @@ function ExpedienteContent() {
     <div className="flex min-h-screen flex-col gap-4 p-4 md:p-5">
       <OperationHeader
         icon={ClipboardList}
-        title={`${request.folio} · ${request.vehicle?.name || request.vehicle?.code || request.vehicle?.plateNumber || ""}`}
-        description={request.vehicle?.plateNumber ? `Placas ${request.vehicle.plateNumber}` : undefined}
+        title={`Mantenimiento ${request.folio}`}
+        description={vehicleLabel(request.vehicle)}
         titleAccessory={<StageBadge stage={progress.stage} />}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost" className="gap-1" onClick={() => router.push("/mtto/tablero")}>
-              <ArrowLeft className="h-4 w-4" /> Tablero
-            </Button>
-            {canCancel && (
-              <Button variant="outline" className="gap-1 text-destructive" onClick={() => setCancelOpen(true)}>
-                <Ban className="h-4 w-4" /> Cancelar
-              </Button>
-            )}
-            {!hasOrder && !closed && (
-              <ConfirmAction
-                destructive
-                title="¿Eliminar este mantenimiento?"
-                description="Se elimina junto con sus cotizaciones. Úsalo solo si se capturó por error."
-                confirmLabel="Eliminar"
-                onConfirm={async () => {
-                  try { await deleteRequest(request.id); toast.success("Mantenimiento eliminado"); router.push("/mtto/tablero"); }
-                  catch (e) { toast.error(apiError(e, "No se pudo eliminar")); }
-                }}
-                trigger={<Button variant="ghost" size="icon" className="text-destructive" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></Button>}
-              />
-            )}
-          </div>
-        }
       />
+
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/mtto/tablero")}>
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> Volver al tablero
+        </Button>
+        {(canCancel || (!hasOrder && !closed)) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <MoreHorizontal className="mr-1.5 h-4 w-4" /> Más acciones
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {canCancel && (
+                <DropdownMenuItem onSelect={() => setCancelOpen(true)}>
+                  <Ban className="mr-2 h-4 w-4" /> Cancelar mantenimiento
+                </DropdownMenuItem>
+              )}
+              {!hasOrder && !closed && (
+                <>
+                  {canCancel && <DropdownMenuSeparator />}
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteOpen(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar (capturado por error)
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
 
       <ExpedienteStepper progress={progress} />
 
@@ -147,6 +160,26 @@ function ExpedienteContent() {
         </aside>
       </div>
 
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este mantenimiento?</AlertDialogTitle>
+            <AlertDialogDescription>Se elimina junto con sus cotizaciones. Úsalo solo si se capturó por error.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                try { await deleteRequest(request.id); toast.success("Mantenimiento eliminado"); router.push("/mtto/tablero"); }
+                catch (e) { toast.error(apiError(e, "No se pudo eliminar")); }
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <RequestFormDialog open={editOpen} onOpenChange={setEditOpen} subsidiaryId={request.subsidiaryId} request={request} onSaved={() => refresh()} />
       <ReasonDialog
         open={cancelOpen}
