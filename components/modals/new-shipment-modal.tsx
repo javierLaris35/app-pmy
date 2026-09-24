@@ -49,7 +49,7 @@ export function NewShipmentDialog() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon" aria-label="Nuevo envío">
+            <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Nuevo envío">
               <Package className="h-4 w-4" />
             </Button>
           </DialogTrigger>

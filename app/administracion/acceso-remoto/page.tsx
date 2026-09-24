@@ -50,15 +50,9 @@ function AccesoRemotoPage() {
         <OperationHeader
           icon={MonitorCheck}
           title="Acceso Remoto"
-          description="Escritorio (VNC) y terminal (SSH) del servidor · exclusivo superadmin"
+          description="Escritorio y terminal del servidor · solo superadmin"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Tabs value={protocol} onValueChange={(v) => changeProtocol(v as RemoteProtocol)}>
-                <TabsList>
-                  <TabsTrigger value="vnc">Escritorio</TabsTrigger>
-                  <TabsTrigger value="ssh">Terminal</TabsTrigger>
-                </TabsList>
-              </Tabs>
+            <div className="flex items-center gap-2">
               {connectionToken ? (
                 <>
                   <Button variant="outline" size="sm" onClick={goFullscreen} className="gap-1">
@@ -77,7 +71,16 @@ function AccesoRemotoPage() {
           }
         />
 
-        <div ref={stageRef} className="h-[calc(100vh-170px)] w-full overflow-hidden rounded-lg bg-black">
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs value={protocol} onValueChange={(v) => changeProtocol(v as RemoteProtocol)}>
+            <TabsList>
+              <TabsTrigger value="vnc">Escritorio</TabsTrigger>
+              <TabsTrigger value="ssh">Terminal</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        <div ref={stageRef} className="h-[calc(100vh-220px)] w-full overflow-hidden rounded-lg bg-black">
           {connectionToken && token ? (
             <RemoteDesktop
               authToken={token}

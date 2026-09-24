@@ -248,9 +248,9 @@ export default function ZonesPage() {
       <OperationHeader
         icon={MapPin}
         title="Gestión de Zonas"
-        description="Agrupa sucursales por zona. Arrastra una sucursal a una zona para asignarla."
+        description="Agrupa sucursales por zona arrastrándolas"
         actions={
-          <Button onClick={() => { setFormData({ name: "", description: "" }); setShowCreateModal(true) }}>
+          <Button size="sm" onClick={() => { setFormData({ name: "", description: "" }); setShowCreateModal(true) }}>
             <Plus className="w-4 h-4 mr-2" />
             Nueva Zona
           </Button>

@@ -228,7 +228,7 @@ function SucursalesPage() {
           title="Catálogo de Sucursales"
           description="Administra las sucursales de la empresa"
           actions={
-            <Button onClick={openNewSucursalDialog}>
+            <Button size="sm" onClick={openNewSucursalDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Nueva Sucursal
             </Button>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import type { Row } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -96,7 +97,7 @@ function VehiclesPage() {
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) =>
+          cell: ({ row }: { row: Row<Driver> }) =>
             isAdmin ? (
               <div className="flex gap-2">
                 <Button
@@ -152,8 +153,8 @@ function VehiclesPage() {
           subsidiaryName={selectedSubsidiary?.name || user?.subsidiary?.name}
           actions={
             isAdmin && (
-              <>
-                <div className="w-[220px]">
+              <div className="flex items-center gap-2">
+                <div className="w-56">
                   <SucursalSelector
                     value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
                     onValueChange={(subsidiary) =>
@@ -162,10 +163,10 @@ function VehiclesPage() {
                     returnObject
                   />
                 </div>
-                <Button onClick={openNewDialog}>
+                <Button size="sm" onClick={openNewDialog}>
                   <Plus className="mr-2 h-4 w-4" /> Nuevo Chofer
                 </Button>
-              </>
+              </div>
             )
           }
         />
@@ -191,9 +192,9 @@ function VehiclesPage() {
             <DialogDescription>Completa la información del chofer</DialogDescription>
           </DialogHeader>
           <DriverForm
-            defaultValues={editingDriver}
+            defaultValues={editingDriver ?? undefined}
             onSubmit={handleSubmit}
-            subsidiary={selectedSubsidiary || user?.subsidiary}
+            subsidiary={(selectedSubsidiary || user?.subsidiary) as { id: string; name: string } | undefined}
           />
         </DialogContent>
       </Dialog>

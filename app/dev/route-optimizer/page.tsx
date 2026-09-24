@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
-import { Route as RouteIcon, MapPin, Fuel, Clock, Navigation, ScanLine, AlertTriangle, Loader2, FlaskConical, RotateCcw, Package, Truck, Gauge, ChevronRight, X, Trash2, Crosshair, Move, Locate } from "lucide-react"
+import { Route as RouteIcon, MapPin, Fuel, Clock, Navigation, ScanLine, AlertTriangle, Loader2, FlaskConical, RotateCcw, Package, Truck, Gauge, ChevronRight, X, Trash2, Crosshair, Move, Locate, MoreHorizontal } from "lucide-react"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
@@ -387,11 +388,27 @@ function RouteOptimizerContent() {
           description="Escanea paquetes y traza la mejor ruta"
           titleAccessory={<Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-700">experimental</Badge>}
           actions={
-            <div className="hidden items-center gap-2 lg:flex">
-              <div className="w-44"><SucursalSelector value={subsidiaryId} onValueChange={(v) => setSubsidiaryId(v as string)} /></div>
-              <Button variant="outline" size="sm" onClick={addDemoStops}>Demo</Button>
-              <Button variant="outline" size="sm" onClick={handleRegeocode}><Locate className="mr-1.5 h-4 w-4" />Re-ubicar</Button>
-              <Button variant="ghost" size="sm" onClick={handleReset}><RotateCcw className="mr-1.5 h-4 w-4" />Reiniciar</Button>
+            <div className="flex items-center gap-2">
+              <div className="w-56"><SucursalSelector value={subsidiaryId} onValueChange={(v) => setSubsidiaryId(v as string)} /></div>
+              <Button variant="outline" size="sm" onClick={handleRegeocode} className="gap-1.5">
+                <Locate className="h-4 w-4" /><span className="hidden sm:inline">Re-ubicar</span>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <MoreHorizontal className="h-4 w-4" /><span className="hidden sm:inline">Más acciones</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={addDemoStops}>
+                    <Package className="mr-2 h-4 w-4" />Cargar paradas de prueba
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={handleReset}>
+                    <RotateCcw className="mr-2 h-4 w-4" />Reiniciar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           }
         />
@@ -399,16 +416,6 @@ function RouteOptimizerContent() {
         {/* ---- Escáner ---- */}
         <Card className="rounded-xl border-border/60 shadow-sm">
           <CardContent className="space-y-3 p-3 sm:p-4">
-            {/* Toolbar móvil (en desktop estos controles van en el header) */}
-            <div className="flex flex-col gap-2 lg:hidden">
-              <SucursalSelector value={subsidiaryId} onValueChange={(v) => setSubsidiaryId(v as string)} />
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 rounded-lg" onClick={addDemoStops}>Demo</Button>
-                <Button variant="outline" size="sm" className="flex-1 rounded-lg" onClick={handleRegeocode}><Locate className="mr-1.5 h-4 w-4" />Re-ubicar</Button>
-                <Button variant="ghost" size="sm" className="flex-1 rounded-lg" onClick={handleReset}><RotateCcw className="mr-1.5 h-4 w-4" />Reiniciar</Button>
-              </div>
-            </div>
-
             <div className="relative">
               <ScanLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input

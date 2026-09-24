@@ -180,22 +180,25 @@ function ConsolidadorPage() {
           description="Concilia ingresos por sucursal y semana"
           actions={
             <div className="flex items-center gap-2">
-              <SucursalSelector
-                value={subsidiaryId}
-                onValueChange={(val) => {
-                  const id = typeof val === "string" ? val : (val as Subsidiary).id;
-                  setSubsidiaryId(id ?? "");
-                }}
-              />
+              <div className="w-56">
+                <SucursalSelector
+                  value={subsidiaryId}
+                  onValueChange={(val) => {
+                    const id = typeof val === "string" ? val : (val as Subsidiary).id;
+                    setSubsidiaryId(id ?? "");
+                  }}
+                />
+              </div>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setAnomaliesOpen(true)}
                 disabled={!subsidiaryId}
                 className="gap-2 border-amber-300 bg-white text-amber-700 hover:bg-amber-50"
               >
                 <AlertTriangle className="h-4 w-4" /> Anomalías
               </Button>
-              <Button onClick={() => { setAddDefaultTracking(undefined); setAddOpen(true); }} disabled={!subsidiaryId} className="gap-2">
+              <Button onClick={() => { setAddDefaultTracking(undefined); setAddOpen(true); }} disabled={!subsidiaryId} size="sm" className="gap-2">
                 <PlusCircle className="h-4 w-4" /> Agregar ingreso
               </Button>
             </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import type { Row } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -55,7 +56,7 @@ function VehiclesPage() {
 
   useEffect(() => {
     if (!selectedSubsidiary && user?.subsidiary) {
-      setSelectedSubsidiary(user.subsidiary)
+      setSelectedSubsidiary(user.subsidiary as { id: string; name: string })
     }
   }, [user, selectedSubsidiary])
 
@@ -90,7 +91,7 @@ function VehiclesPage() {
       ...(editingVehicle?.id && { id: editingVehicle.id }),
       subsidiary: effectiveSubsidiary, // ✅ Asignamos la sucursal
     }
-    await save(payload)
+    await save(payload as Vehicles)
     setIsDialogOpen(false)
     mutate()
   }
@@ -99,7 +100,7 @@ function VehiclesPage() {
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) =>
+          cell: ({ row }: { row: Row<Vehicles> }) =>
             isAdmin ? (
               <div className="flex gap-2">
                 <Button
@@ -113,7 +114,7 @@ function VehiclesPage() {
                 <Button
                   variant="destructive"
                   className="h-8 w-8 p-0"
-                  onClick={() => openDeleteDialog(row.original.id)}
+                  onClick={() => row.original.id && openDeleteDialog(row.original.id)}
                   disabled={isSaving}
                 >
                   <Trash2Icon className="h-4 w-4" />
@@ -137,8 +138,8 @@ function VehiclesPage() {
           subsidiaryName={selectedSubsidiary?.name || user?.subsidiary?.name}
           actions={
             isAdmin && (
-              <>
-                <div className="w-[220px]">
+              <div className="flex items-center gap-2">
+                <div className="w-56">
                   <SucursalSelector
                     value={selectedSubsidiary?.id || user?.subsidiary?.id || ""}
                     onValueChange={(subsidiary) =>
@@ -147,10 +148,10 @@ function VehiclesPage() {
                     returnObject
                   />
                 </div>
-                <Button onClick={openNewDialog} className="whitespace-nowrap">
+                <Button size="sm" onClick={openNewDialog} className="whitespace-nowrap">
                   <Plus className="mr-2 h-4 w-4" /> Nuevo Vehículo
                 </Button>
-              </>
+              </div>
             )
           }
         />
@@ -180,9 +181,9 @@ function VehiclesPage() {
             <p>Completa la información del vehículo</p>
           </DialogHeader>
           <VehicleForm
-            defaultValues={editingVehicle}
+            defaultValues={editingVehicle ?? undefined}
             onSubmit={handleSubmit}
-            subsidiary={effectiveSubsidiary} // ✅ Pasamos la sucursal
+            subsidiary={(effectiveSubsidiary ?? undefined) as { id: string; name: string } | undefined} // ✅ Pasamos la sucursal
           />
         </DialogContent>
       </Dialog>

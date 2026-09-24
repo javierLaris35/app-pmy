@@ -23,6 +23,7 @@ import { withAuth } from "@/hoc/withAuth";
 import { columns } from "./columns";
 import { useAuthStore } from "@/store/auth.store";
 import { formatShortDate, formatDate } from "@/utils/date.utils";
+import type { Consolidated } from "@/lib/types";
 
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -76,8 +77,8 @@ function ConsolidatedWithKpis() {
   let totalHighValue = 0; let totalCobros = 0; let totalOcurre = 0; let totalPodPlusDexs = 0; let totalPendMov = 0;
   let totalMontoCobros = 0;
 
-  consolidateds.forEach(c => {
-    const counts = c.shipmentCounts || {};
+  consolidateds.forEach((c: Consolidated) => {
+    const counts = c.shipmentCounts || ({} as Partial<NonNullable<Consolidated["shipmentCounts"]>>);
     totalShipments += counts.total || 0;
     totalPOD += counts.entregado || 0;
     totalDEX03 += counts.dex03 || 0;
@@ -145,7 +146,7 @@ function ConsolidatedWithKpis() {
     // Acumuladores para la fila de TOTAL.
     const t = { normal: 0, hv: 0, cobros: 0, f2: 0, totalCarga: 0, pod: 0, dex07: 0, dex03: 0, dex08: 0, ocurre: 0, podDexs: 0, ptes: 0 };
 
-    consolidateds.forEach(c => {
+    consolidateds.forEach((c: Consolidated) => {
       const k = c.shipmentCounts || ({} as NonNullable<typeof c.shipmentCounts>);
       const row = {
         normal: k.countNormal || 0,
@@ -202,7 +203,7 @@ function ConsolidatedWithKpis() {
       { header: "Fecha Compromiso", key: "commitDateTime", width: 18 },
       { header: "Carrier", key: "carrier", width: 12 }
     ];
-    consolidateds.forEach(c => {
+    consolidateds.forEach((c: Consolidated) => {
       c.pendingShipments?.forEach((p: any) => {
         wsPendientes.addRow({
           cId: c.consNumber,
@@ -230,7 +231,7 @@ function ConsolidatedWithKpis() {
     } else if (scopeMode === "sucursal") {
       const subName =
         subsidiaries.find((s) => s.id === effectiveSubsidiaryId)?.name ||
-        consolidateds.find((c) => c.subsidiary?.id === effectiveSubsidiaryId)?.subsidiary?.name;
+        consolidateds.find((c: Consolidated) => c.subsidiary?.id === effectiveSubsidiaryId)?.subsidiary?.name;
       scopeLabel = subName ? sanitize(subName) : "Sucursal";
     }
     saveAs(new Blob([buffer]), `Reporte_Consolidados_${scopeLabel}_${dateRange.from}_al_${dateRange.to}.xlsx`);
@@ -242,12 +243,12 @@ function ConsolidatedWithKpis() {
         <OperationHeader
           icon={Layers3}
           title="Consolidados"
-          description="Resumen de consolidaciones y cuadre de operaciones"
+          description="Resumen y cuadre de consolidados"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 bg-slate-900 text-white" onClick={handleExportExcel}>
+                  <Button variant="outline" size="icon" className="h-9 w-9 bg-slate-900 text-white" onClick={handleExportExcel} aria-label="Exportar a Excel">
                     <FileDown className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
@@ -256,45 +257,48 @@ function ConsolidatedWithKpis() {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="secondary" size="icon" className="h-9 w-9 bg-emerald-500 text-white" onClick={handleUpdateFedexStatus}>
+                  <Button variant="secondary" size="icon" className="h-9 w-9 bg-emerald-500 text-white" onClick={handleUpdateFedexStatus} aria-label="Actualizar estatus de FedEx">
                     <RefreshCcwIcon className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Actualizar estatus de FedEx</TooltipContent>
               </Tooltip>
-
-              {/* Alcance del reporte: sucursal / zona / todas */}
-              <Select value={scopeMode} onValueChange={(v) => setScopeMode(v as typeof scopeMode)}>
-                <SelectTrigger className="h-9 w-[140px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sucursal">Por sucursal</SelectItem>
-                  <SelectItem value="zona">Por zona</SelectItem>
-                  {isGlobal && <SelectItem value="todas">Todas las sucursales</SelectItem>}
-                </SelectContent>
-              </Select>
-
-              {scopeMode === "sucursal" && (
-                <div className="w-[190px]">
-                  <SucursalSelector value={selectedSucursalId} onValueChange={(v) => setSelectedSucursalId(v as string)} />
-                </div>
-              )}
-
-              {scopeMode === "zona" && (
-                <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
-                  <SelectTrigger className="h-9 w-[190px]"><SelectValue placeholder="Seleccionar zona..." /></SelectTrigger>
-                  <SelectContent>
-                    {zones.map((z) => (
-                      <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-
-              <Input id="fromDate" type="date" className="h-9 w-[150px]" value={dateRange.from} onChange={(e) => handleDateChange('from', e.target.value)} />
-              <Input id="toDate" type="date" className="h-9 w-[150px]" value={dateRange.to} onChange={(e) => handleDateChange('to', e.target.value)} min={dateRange.from} />
             </div>
           }
         />
+
+        {/* Filtros de consulta: alcance (sucursal / zona / todas) y rango de fechas */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Alcance del reporte: sucursal / zona / todas */}
+          <Select value={scopeMode} onValueChange={(v) => setScopeMode(v as typeof scopeMode)}>
+            <SelectTrigger className="h-9 w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sucursal">Por sucursal</SelectItem>
+              <SelectItem value="zona">Por zona</SelectItem>
+              {isGlobal && <SelectItem value="todas">Todas las sucursales</SelectItem>}
+            </SelectContent>
+          </Select>
+
+          {scopeMode === "sucursal" && (
+            <div className="w-56">
+              <SucursalSelector value={selectedSucursalId ?? ""} onValueChange={(v) => setSelectedSucursalId(v as string)} />
+            </div>
+          )}
+
+          {scopeMode === "zona" && (
+            <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
+              <SelectTrigger className="h-9 w-[190px]"><SelectValue placeholder="Seleccionar zona..." /></SelectTrigger>
+              <SelectContent>
+                {zones.map((z) => (
+                  <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Input id="fromDate" type="date" className="h-9 w-[150px]" value={dateRange.from} onChange={(e) => handleDateChange('from', e.target.value)} />
+          <Input id="toDate" type="date" className="h-9 w-[150px]" value={dateRange.to} onChange={(e) => handleDateChange('to', e.target.value)} min={dateRange.from} />
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="bg-slate-900 p-4 rounded-xl text-white shadow-sm border border-slate-700">

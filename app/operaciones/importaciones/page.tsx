@@ -64,29 +64,33 @@ function ImportacionesPage() {
         <OperationHeader
           icon={FileSpreadsheet}
           title="Importaciones"
-          description="Archivos originales subidos a FedEx (evidencia de lo que se cargó)"
+          description="Archivos originales que se subieron de FedEx"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-[190px]">
-                <SucursalSelector value={subsidiaryId ?? ""} onValueChange={(v) => setSubsidiaryId(v as string)} />
-              </div>
-              <Select value={kind} onValueChange={setKind}>
-                <SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los tipos</SelectItem>
-                  {(Object.keys(IMPORT_KIND_LABEL) as ImportFileKind[]).map((k) => (
-                    <SelectItem key={k} value={k}>{IMPORT_KIND_LABEL[k]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input type="date" className="h-9 w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
-              <Input type="date" className="h-9 w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} min={from} />
-              <Button variant="outline" size="icon" className="h-9 w-9" onClick={load}>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} aria-label="Actualizar lista">
                 <RefreshCcw className="h-4 w-4" />
               </Button>
             </div>
           }
         />
+
+        {/* Filtros de consulta */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-56">
+            <SucursalSelector value={subsidiaryId ?? ""} onValueChange={(v) => setSubsidiaryId(v as string)} />
+          </div>
+          <Select value={kind} onValueChange={setKind}>
+            <SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los tipos</SelectItem>
+              {(Object.keys(IMPORT_KIND_LABEL) as ImportFileKind[]).map((k) => (
+                <SelectItem key={k} value={k}>{IMPORT_KIND_LABEL[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input type="date" className="h-9 w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <Input type="date" className="h-9 w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} min={from} />
+        </div>
 
         <div className="rounded-xl border">
           <Table>
