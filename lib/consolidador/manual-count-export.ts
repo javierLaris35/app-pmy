@@ -10,8 +10,8 @@ export async function exportManualCountToExcel(report: ManualCountReport): Promi
   ws.columns = [
     { header: "Guía", key: "tn", width: 18 },
     { header: "Contó", key: "manual", width: 10 },
-    { header: "FedEx dice", key: "fedex", width: 12 },
-    { header: "Sistema", key: "system", width: 12 },
+    { header: "FedEx dice", key: "fedex", width: 34 },
+    { header: "Sistema", key: "system", width: 26 },
     { header: "Cobrado", key: "charged", width: 12 },
     { header: "Debía cobrar", key: "expected", width: 13 },
     { header: "Entregado el", key: "deliveredDay", width: 13 },
@@ -26,8 +26,8 @@ export async function exportManualCountToExcel(report: ManualCountReport): Promi
     ws.addRow({
       tn: r.trackingNumber,
       manual: r.manual ? outcomeLabel(r.manual) : "—",
-      fedex: outcomeLabel(r.fedexSays),
-      system: outcomeLabel(r.systemSays),
+      fedex: r.fedexLabel,
+      system: r.systemLabel,
       charged: r.charged.map(outcomeLabel).join(" + ") || "—",
       expected: r.expected ? outcomeLabel(r.expected) : "No cobra",
       deliveredDay: r.deliveredDay ?? "",

@@ -43,6 +43,10 @@ export interface DiagnosisRow {
   manual: Mark | null;
   fedexSays: DayOutcome;
   systemSays: DayOutcome;
+  /** Qué dice FedEx, exacto y en llano (p. ej. "OD · En vehículo de FedEx para entrega"). */
+  fedexLabel: string;
+  /** Qué tiene el sistema, exacto y en llano (p. ej. "En ruta", "Devuelto a FedEx"). */
+  systemLabel: string;
   charged: Mark[];
   expected: Mark | null;
   deliveredDay: string | null; // día real de entrega según FedEx (o el ingreso POD), si ya se entregó

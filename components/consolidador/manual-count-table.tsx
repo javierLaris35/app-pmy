@@ -17,6 +17,16 @@ const Mark = ({ v }: { v: string }) => (
   <span className={v === "—" ? "text-slate-400" : "font-medium text-slate-700"}>{v}</span>
 );
 
+/** Estatus exacto (POD/DEX o el estatus real en llano); lo que no es desenlace va en gris. */
+const StatusText = ({ v }: { v: string }) => {
+  const isOutcome = v === "POD" || v === "DEX07" || v === "DEX08";
+  return (
+    <span className={`inline-block max-w-[13rem] text-sm leading-tight ${isOutcome ? "font-medium text-slate-700" : "text-slate-500"}`}>
+      {v}
+    </span>
+  );
+};
+
 const columns: ColumnDef<DiagnosisRow>[] = [
   {
     id: "expand",
@@ -36,8 +46,8 @@ const columns: ColumnDef<DiagnosisRow>[] = [
   },
   { accessorKey: "trackingNumber", header: "Guía", cell: ({ row }) => <span className="font-mono text-sm">{row.original.trackingNumber}</span> },
   { id: "manual", accessorFn: (r) => (r.manual ? outcomeLabel(r.manual) : "—"), header: "Contó", cell: ({ getValue }) => <Mark v={String(getValue())} /> },
-  { id: "fedex", accessorFn: (r) => outcomeLabel(r.fedexSays), header: "FedEx dice", cell: ({ getValue }) => <Mark v={String(getValue())} /> },
-  { id: "system", accessorFn: (r) => outcomeLabel(r.systemSays), header: "Sistema", cell: ({ getValue }) => <Mark v={String(getValue())} /> },
+  { id: "fedex", accessorFn: (r) => r.fedexLabel, header: "FedEx dice", cell: ({ getValue }) => <StatusText v={String(getValue())} /> },
+  { id: "system", accessorFn: (r) => r.systemLabel, header: "Sistema", cell: ({ getValue }) => <StatusText v={String(getValue())} /> },
   {
     id: "charged",
     accessorFn: (r) => r.charged.map(outcomeLabel).join(" + ") || "—",
