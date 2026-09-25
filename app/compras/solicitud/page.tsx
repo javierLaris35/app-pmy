@@ -242,7 +242,7 @@ function SolicitudContent() {
           {orders.length > 0 && <OrdersStrip orders={orders} activeId={activeOrderId} onSelect={setActiveOrderId} />}
           {order && <OrderStep order={order} canAuthorize={canAuthorize} draft={draft} />}
           {activeOrderId && !order && <Card><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>}
-          <RequestItemsCard items={request.items ?? []} />
+          <RequestItemsCard items={request.items ?? []} services={request.services ?? []} description={request.description} />
           {!reviewing && progress.stage !== "rechazada" && (isPurchaser || hasQuotes) && (
             <QuotesStep
               request={request}
@@ -260,8 +260,7 @@ function SolicitudContent() {
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Solicitud</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <p className="whitespace-pre-wrap">{request.description}</p>
-              <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1.5 border-t pt-3">
+              <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1.5">
                 <dt className="text-muted-foreground">Tipo</dt><dd>{REQUEST_TYPE_LABEL[request.type]}</dd>
                 <dt className="text-muted-foreground">Sucursal</dt><dd>{request.subsidiary?.name ?? "—"}</dd>
                 {request.vehicle && (

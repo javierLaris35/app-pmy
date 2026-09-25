@@ -6,43 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Package, Plus, ShoppingCart, Sparkles, Trash2, Truck, Wrench, Hammer } from "lucide-react";
+import { Hammer, Loader2, Plus, ShoppingCart, Trash2, Truck, Wrench } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useVehiclesBySubsidiary } from "@/hooks/services/vehicles/use-vehicles";
-import { useUnits, useVehicleSpec } from "@/hooks/services/maintenance/use-maintenance";
+import { useServiceTemplates, useUnits } from "@/hooks/services/maintenance/use-maintenance";
 import { createRequest, updateRequest } from "@/lib/services/maintenance";
 import {
   formatKms, MaintenanceRequest, PRIORITY_LABEL, REQUEST_TYPE_LABEL, RequestPriority, RequestType, TYPES_REQUIRING_VEHICLE,
 } from "@/lib/types/maintenance";
 import { Subsidiary } from "@/lib/types";
+import { hasErrors, firstError, validateRequest } from "@/lib/maintenance-validation";
 import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
-import { ProductPicker } from "./product-picker";
+import { SearchableMultiSelect, SearchableSelect } from "../shared/searchable-select";
 
-const NONE = "__none__";
 const TYPE_ICON: Record<RequestType, React.ComponentType<{ className?: string }>> = {
   mantenimiento: Wrench, servicio: Truck, reparacion: Hammer, compra: ShoppingCart,
 };
 
-interface Row {
-  key: string;
-  id?: string;
-  productId: string | null;
-  categoryId: string | null;
-  description: string;
-  quantity: number;
-  unitId: string | null;
-  notes: string;
-  fromCatalog?: string | null;
-}
-
-const newRow = (): Row => ({ key: crypto.randomUUID(), productId: null, categoryId: null, description: "", quantity: 1, unitId: null, notes: "" });
+interface Row { key: string; id?: string; description: string; quantity: number; unitId: string | null; notes: string }
+const newRow = (): Row => ({ key: crypto.randomUUID(), description: "", quantity: 1, unitId: null, notes: "" });
 
 interface Props {
   open: boolean;
@@ -53,7 +40,12 @@ interface Props {
   onSaved: (r: MaintenanceRequest) => void;
 }
 
-/** Nueva solicitud / editar: tipo, sucursal, unidad (según el tipo), renglones y sugerencias de la ficha de la unidad. */
+/**
+ * Nueva solicitud / editar.
+ * - Mantenimiento, servicio o reparación: unidad + servicios predefinidos y/o "qué le pasa". Quien pide no
+ *   tiene que saber de piezas: Compras las ve (con sugerencias) al cotizar.
+ * - Compra: para qué + renglones de texto libre.
+ */
 export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidiaryId, defaultVehicleId, onSaved }: Props) {
   const [type, setType] = useState<RequestType>("mantenimiento");
   const [subsidiaryId, setSubsidiaryId] = useState("");
@@ -61,26 +53,25 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
   const [kms, setKms] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<RequestPriority>("media");
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [rows, setRows] = useState<Row[]>([newRow()]);
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
   const { vehicles } = useVehiclesBySubsidiary(subsidiaryId);
   const { units } = useUnits();
-  const { spec } = useVehicleSpec(vehicleId || null);
+  const { services } = useServiceTemplates();
 
   useEffect(() => {
     if (!open) return;
-    setType(request?.type ?? (defaultVehicleId ? "mantenimiento" : "mantenimiento"));
+    setType(request?.type ?? "mantenimiento");
     setSubsidiaryId(request?.subsidiary?.id ?? defaultSubsidiaryId ?? "");
     setVehicleId(request?.vehicleId ?? defaultVehicleId ?? "");
     setKms(request?.kmsAtRequest ? String(request.kmsAtRequest) : "");
     setDescription(request?.description ?? "");
     setPriority(request?.priority ?? "media");
+    setServiceIds(request?.services?.map((s) => s.id) ?? []);
     setRows(request?.items?.length
-      ? request.items.map((i) => ({
-          key: crypto.randomUUID(), id: i.id, productId: i.productId ?? null, categoryId: i.categoryId ?? null, description: i.description,
-          quantity: Number(i.quantity), unitId: i.unitId ?? null, notes: i.notes ?? "", fromCatalog: i.product?.name ?? null,
-        }))
+      ? request.items.map((i) => ({ key: crypto.randomUUID(), id: i.id, description: i.description, quantity: Number(i.quantity), unitId: i.unitId ?? null, notes: i.notes ?? "" }))
       : [newRow()]);
     setTried(false);
   }, [open, request, defaultSubsidiaryId, defaultVehicleId]);
@@ -88,54 +79,44 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
   const needsVehicle = TYPES_REQUIRING_VEHICLE.includes(type);
   const selected = vehicles.find((v) => v.id === vehicleId);
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
-  /** Reemplaza el primer renglón vacío o agrega uno nuevo. */
-  const addRow = (r: Omit<Row, "key">) => setRows((rs) => {
-    const emptyIdx = rs.findIndex((x) => !x.description.trim());
-    const row = { ...r, key: crypto.randomUUID() };
-    return emptyIdx >= 0 ? rs.map((x, i) => (i === emptyIdx ? row : x)) : [...rs, row];
-  });
 
-  const suggestions = useMemo(
-    () => spec.filter((s) => !rows.some((r) => (s.productId && r.productId === s.productId) || (!s.productId && r.categoryId === s.categoryId))),
-    [spec, rows],
-  );
-  const addSuggestion = (s: (typeof spec)[number]) => addRow({
-    productId: s.productId ?? null, categoryId: s.categoryId, description: s.product?.name ?? s.category?.name ?? "",
-    quantity: Number(s.quantity), unitId: s.unitId ?? s.product?.unitId ?? null, notes: s.notes ?? "", fromCatalog: s.product?.name ?? null,
-  });
+  const vehicleOptions = useMemo(() => vehicles.map((v) => ({
+    value: v.id!, label: [v.name || v.code, v.plateNumber].filter(Boolean).join(" · "), hint: [v.brand, v.model].filter(Boolean).join(" ") || undefined,
+  })), [vehicles]);
+  const serviceOptions = useMemo(() => services
+    .filter((s) => !s.vehicleType || !selected?.type || s.vehicleType === selected.type || serviceIds.includes(s.id))
+    .map((s) => ({ value: s.id, label: s.name, hint: s.description ?? undefined })), [services, selected, serviceIds]);
+  const unitOptions = useMemo(() => units.filter((u) => u.active).map((u) => ({ value: u.id, label: u.name, hint: u.abbreviation ?? undefined })), [units]);
 
-  const allErrors = useMemo(() => {
-    const e: Record<string, string> = {};
-    if (!subsidiaryId) e.subsidiaryId = "Elige la sucursal.";
-    if (needsVehicle && !vehicleId) e.vehicleId = `Para ${REQUEST_TYPE_LABEL[type].toLowerCase()} elige la unidad.`;
-    if (kms !== "" && (Number(kms) < 0 || Number(kms) > 1_000_000)) e.kms = "Km no válido.";
-    if (description.trim().length < 3) e.description = "Describe para qué se necesita.";
-    const filled = rows.filter((r) => r.description.trim());
-    if (!filled.length) e.rows = "Agrega al menos un renglón: qué se necesita y cuánto.";
-    rows.forEach((r, i) => {
-      if (!r.description.trim() && rows.length > 1) e[`rows.${i}.description`] = "Describe el renglón o quítalo.";
-      if (r.description.trim() && !(Number(r.quantity) > 0)) e[`rows.${i}.quantity`] = "Cantidad mayor a 0.";
-    });
-    return e;
-  }, [subsidiaryId, needsVehicle, vehicleId, type, kms, description, rows]);
+  const allErrors = useMemo(() => validateRequest({
+    needsVehicle, typeLabel: REQUEST_TYPE_LABEL[type], subsidiaryId, vehicleId, kms, description, serviceIds, rows,
+  }), [needsVehicle, type, subsidiaryId, vehicleId, kms, description, serviceIds, rows]);
   const errors = tried ? allErrors : {};
 
   const save = async () => {
     setTried(true);
-    if (Object.keys(allErrors).length) {
-      toast.error(`Revisa los campos marcados: ${Object.values(allErrors)[0]}`);
+    if (hasErrors(allErrors)) {
+      toast.error(`Revisa los campos marcados: ${firstError(allErrors)}`);
       return;
     }
     setSaving(true);
+    // Si solo eligió servicios, la descripción se arma con sus nombres (el backend la pide).
+    const chosenNames = services.filter((s) => serviceIds.includes(s.id)).map((s) => s.name);
+    const text = description.trim() || chosenNames.join(", ");
     const items = rows.filter((r) => r.description.trim()).map((r) => ({
       ...(r.id ? { id: r.id } : {}),
-      productId: r.productId, categoryId: r.categoryId, description: r.description.trim(), quantity: Number(r.quantity),
-      unitId: r.unitId, notes: r.notes.trim() || null,
+      description: r.description.trim(), quantity: Number(r.quantity), unitId: r.unitId, notes: r.notes.trim() || null,
     }));
     try {
       const body = {
-        type, vehicleId: needsVehicle || vehicleId ? vehicleId || null : null, kmsAtRequest: kms === "" ? null : Number(kms),
-        description: description.trim(), priority, items,
+        type,
+        vehicleId: vehicleId || null,
+        kmsAtRequest: kms === "" ? null : Number(kms),
+        description: text,
+        priority,
+        serviceTemplateIds: needsVehicle ? serviceIds : [],
+        // En mantenimiento no se capturan piezas; los renglones de solicitudes viejas se conservan como estaban.
+        ...(needsVehicle ? (request ? {} : { items: [] }) : { items }),
       };
       const saved = request ? await updateRequest(request.id, body) : await createRequest({ ...body, subsidiaryId });
       toast.success(request ? "Solicitud actualizada" : `Solicitud ${saved.folio} enviada a Compras`);
@@ -150,7 +131,7 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{request ? `Editar ${request.folio}` : "Nueva solicitud"}</DialogTitle>
           <DialogDescription>Le llega a Compras para revisarla y cotizar. Te avisamos cuando avance.</DialogDescription>
@@ -172,7 +153,7 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
               </ToggleGroup>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="grid gap-1.5">
                 <Label>Sucursal</Label>
                 {request ? (
@@ -188,125 +169,104 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
               </div>
               <div className="grid gap-1.5">
                 <Label>Unidad {needsVehicle ? "" : <span className="font-normal text-muted-foreground">(opcional)</span>}</Label>
-                <Select value={vehicleId || NONE} onValueChange={(v) => setVehicleId(v === NONE ? "" : v)}>
-                  <SelectTrigger className={invalidClass(errors.vehicleId)}><SelectValue placeholder="Elige la unidad" /></SelectTrigger>
-                  <SelectContent>
-                    {!needsVehicle && <SelectItem value={NONE}>No es para una unidad</SelectItem>}
-                    {vehicles.map((v) => (
-                      <SelectItem key={v.id} value={v.id!}>{[v.name || v.code, v.plateNumber].filter(Boolean).join(" · ")}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={vehicleId || null}
+                  onChange={(v) => setVehicleId(v ?? "")}
+                  options={vehicleOptions}
+                  placeholder="Buscar unidad"
+                  searchPlaceholder="Nombre, número o placas…"
+                  emptyText={subsidiaryId ? "No hay unidades con ese nombre en la sucursal." : "Primero elige la sucursal."}
+                  allowClear={!needsVehicle}
+                  clearLabel="No es para una unidad"
+                  invalid={!!errors.vehicleId}
+                />
                 <FieldError message={errors.vehicleId} />
                 {selected && <p className="text-xs text-muted-foreground">Km registrado: {formatKms(selected.kms)}</p>}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label>Km actuales</Label>
-                  <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} placeholder="Opcional" disabled={!vehicleId} className={invalidClass(errors.kms)} />
-                  <FieldError message={errors.kms} />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>Prioridad</Label>
-                  <Select value={priority} onValueChange={(v) => setPriority(v as RequestPriority)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(PRIORITY_LABEL) as RequestPriority[]).map((p) => <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label>Km actuales <span className="font-normal text-muted-foreground">(opcional)</span></Label>
+                <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} placeholder="Lo que marca el tablero" disabled={!vehicleId} className={invalidClass(errors.kms)} />
+                <FieldError message={errors.kms} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Prioridad</Label>
+                <Select value={priority} onValueChange={(v) => setPriority(v as RequestPriority)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(PRIORITY_LABEL) as RequestPriority[]).map((p) => <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="grid gap-1.5">
-              <Label>¿Para qué se necesita?</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-                placeholder="Ej. Ruido en llanta delantera derecha; toca servicio de 10,000 km" className={invalidClass(errors.description)} />
-              <FieldError message={errors.description} />
-            </div>
-
-            {vehicleId && suggestions.length > 0 && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="flex items-center gap-1.5 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> Lo que lleva esta unidad</p>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => suggestions.forEach(addSuggestion)}>Agregar todo</Button>
+            {needsVehicle ? (
+              <>
+                <div className="grid gap-1.5">
+                  <Label>¿Qué servicio necesita? <span className="font-normal text-muted-foreground">(uno o varios)</span></Label>
+                  <SearchableMultiSelect
+                    values={serviceIds}
+                    onChange={setServiceIds}
+                    options={serviceOptions}
+                    placeholder="Buscar servicio (ej. servicio de 10,000 km, frenos…)"
+                    searchPlaceholder="Escribe para buscar…"
+                    emptyText="No está en la lista; descríbelo abajo."
+                  />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {suggestions.map((s) => (
-                    <button key={s.id} type="button" onClick={() => addSuggestion(s)}
-                      className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs hover:border-primary hover:text-primary">
-                      <Plus className="h-3 w-3" />
-                      {s.product?.name ?? s.category?.name} · {Number(s.quantity)} {s.unit?.abbreviation ?? s.unit?.name ?? ""}
-                    </button>
-                  ))}
+                <div className="grid gap-1.5">
+                  <Label>¿Qué necesita o qué le pasa?</Label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+                    placeholder="Ej. Rechina al frenar y se jala a la derecha; tira aceite abajo del motor"
+                    className={invalidClass(errors.description)} />
+                  <FieldError message={errors.description} />
+                  <p className="text-xs text-muted-foreground">No necesitas saber qué piezas lleva: Compras lo revisa al cotizar.</p>
                 </div>
-              </div>
-            )}
-
-            <div className="rounded-lg border">
-              <div className="flex items-center justify-between border-b px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">Renglones</p>
-                  <p className="text-xs text-muted-foreground">Elige del catálogo o escríbelo a mano.</p>
+              </>
+            ) : (
+              <>
+                <div className="grid gap-1.5">
+                  <Label>¿Para qué se necesita?</Label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+                    placeholder="Ej. Sillas para la oficina de Hermosillo" className={invalidClass(errors.description)} />
+                  <FieldError message={errors.description} />
                 </div>
-                <div className="flex gap-2">
-                  <ProductPicker label="Del catálogo" onPick={(p) => addRow({
-                    productId: p.id, categoryId: p.categoryId ?? null, description: p.name, quantity: 1, unitId: p.unitId ?? null, notes: "", fromCatalog: p.name,
-                  })} />
-                  <Button type="button" size="sm" variant="outline" onClick={() => setRows((rs) => [...rs, newRow()])}>
-                    <Plus className="mr-1.5 h-4 w-4" /> Renglón libre
-                  </Button>
-                </div>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Qué se necesita</TableHead>
-                    <TableHead className="w-24">Cantidad</TableHead>
-                    <TableHead className="w-40">Unidad</TableHead>
-                    <TableHead className="w-[26%]">Notas</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>¿Qué se necesita y cuánto?</Label>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setRows((rs) => [...rs, newRow()])}>
+                      <Plus className="mr-1.5 h-4 w-4" /> Agregar renglón
+                    </Button>
+                  </div>
                   {rows.map((r, i) => (
-                    <TableRow key={r.key} className="align-top">
-                      <TableCell>
-                        <Input value={r.description} placeholder="Ej. Balatas delanteras"
-                          onChange={(e) => patch(r.key, { description: e.target.value, ...(r.fromCatalog && e.target.value !== r.fromCatalog ? { productId: null, fromCatalog: null } : {}) })}
-                          className={invalidClass(errors[`rows.${i}.description`])} />
-                        {r.productId && <Badge variant="outline" className="mt-1 gap-1 text-[10px]"><Package className="h-3 w-3" /> Del catálogo</Badge>}
-                        <FieldError message={errors[`rows.${i}.description`]} className="mt-1" />
-                      </TableCell>
-                      <TableCell>
-                        <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
-                          className={invalidClass(errors[`rows.${i}.quantity`])} />
-                        <FieldError message={errors[`rows.${i}.quantity`]} className="mt-1" />
-                      </TableCell>
-                      <TableCell>
-                        <Select value={r.unitId ?? NONE} onValueChange={(v) => patch(r.key, { unitId: v === NONE ? null : v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE}>—</SelectItem>
-                            {units.filter((u) => u.active).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Input value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })} placeholder="Marca, medida, color…" />
-                      </TableCell>
-                      <TableCell>
+                    <div key={r.key} className="rounded-lg border p-3">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_100px_160px_auto] md:items-start">
+                        <div className="grid gap-1">
+                          <Input value={r.description} placeholder="Ej. Silla ejecutiva negra" onChange={(e) => patch(r.key, { description: e.target.value })}
+                            className={invalidClass(errors[`rows.${i}.description`])} aria-label="Qué se necesita" />
+                          <FieldError message={errors[`rows.${i}.description`]} />
+                        </div>
+                        <div className="grid gap-1">
+                          <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
+                            className={invalidClass(errors[`rows.${i}.quantity`])} aria-label="Cantidad" />
+                          <FieldError message={errors[`rows.${i}.quantity`]} />
+                        </div>
+                        <SearchableSelect value={r.unitId} onChange={(v) => patch(r.key, { unitId: v })} options={unitOptions}
+                          allowClear clearLabel="Presentación" searchPlaceholder="Buscar presentación…" />
                         <Button type="button" size="icon" variant="ghost" className="text-destructive" disabled={rows.length === 1}
                           onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label="Quitar renglón">
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                      <Textarea value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })} rows={1} className="mt-2"
+                        placeholder="Notas: marca, medida, color… (opcional)" />
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-              {errors.rows && <FieldError message={errors.rows} className="px-3 pb-3" />}
-            </div>
+                  <FieldError message={errors.rows} />
+                </div>
+              </>
+            )}
           </div>
         </ScrollArea>
         <DialogFooter>

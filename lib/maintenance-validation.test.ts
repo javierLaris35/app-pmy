@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMxPhone, validateQuote, validateServiceTemplate, validateSupplier } from "./maintenance-validation";
+import { isMxPhone, validateQuote, validateRequest, validateServiceTemplate, validateSupplier } from "./maintenance-validation";
 
 const contact = (over = {}) => ({ name: "Juan Pérez", email: "juan@taller.com", phone: "", whatsapp: "", preferredChannel: "email" as const, ...over });
 
@@ -52,5 +52,20 @@ describe("validateServiceTemplate", () => {
       "rows.1.quantity": "Cantidad mayor a 0.", "rows.2.categoryId": "Ya está en la receta.",
     });
     expect(validateServiceTemplate({ name: "Afinación", rows: [] })).toEqual({});
+  });
+});
+
+describe("validateRequest", () => {
+  const base = { needsVehicle: true, typeLabel: "Mantenimiento", subsidiaryId: "s1", vehicleId: "v1", kms: "", description: "", serviceIds: [] as string[], rows: [] };
+  it("con unidad: basta un servicio o contar qué le pasa", () => {
+    expect(validateRequest({ ...base, serviceIds: ["t1"] })).toEqual({});
+    expect(validateRequest({ ...base, description: "Rechina al frenar" })).toEqual({});
+    expect(validateRequest(base).description).toMatch(/Elige un servicio/);
+    expect(validateRequest({ ...base, vehicleId: "" }).vehicleId).toBe("Para mantenimiento elige la unidad.");
+  });
+  it("compra: para qué y al menos un renglón con cantidad", () => {
+    const c = { ...base, needsVehicle: false, typeLabel: "Compra", vehicleId: "" };
+    expect(Object.keys(validateRequest(c))).toEqual(["description", "rows"]);
+    expect(validateRequest({ ...c, description: "Sillas oficina", rows: [{ description: "Silla", quantity: 0 }] })).toEqual({ "rows.0.quantity": "Cantidad mayor a 0." });
   });
 });

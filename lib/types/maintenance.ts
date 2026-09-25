@@ -260,6 +260,8 @@ export interface MaintenanceRequest extends Partial<ExpedienteProgress> {
   quotesCount?: number;
   minTotal?: number | null;
   purchaseOrder?: PurchaseOrderSummary | null;
+  /** Servicios predefinidos elegidos al pedir. */
+  services?: Array<{ id: string; name: string }>;
 }
 
 export interface PurchaseOrderItem {

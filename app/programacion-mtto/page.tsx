@@ -126,7 +126,7 @@ function ProgramacionMttoPage() {
                   className="gap-1"
                   onClick={() => router.push(`/compras/solicitudes?nueva=1&vehicleId=${vehicle.id}&subsidiaryId=${subsidiaryId}`)}
                 >
-                  <ClipboardPlus className="h-4 w-4" /> Nueva solicitud
+                  <ClipboardPlus className="h-4 w-4" /> Solicitar servicio
                 </Button>
               )}
             </div>

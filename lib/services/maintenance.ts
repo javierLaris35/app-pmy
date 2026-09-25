@@ -90,7 +90,9 @@ export interface RequestPayload {
   kmsAtRequest?: number | null;
   description: string;
   priority: RequestPriority;
-  items: RequestItemPayload[];
+  /** Obligatorios en compras; en mantenimiento van vacíos (Compras ve las piezas al cotizar). */
+  items?: RequestItemPayload[];
+  serviceTemplateIds?: string[];
 }
 export interface QuotePayload {
   supplierId: string;

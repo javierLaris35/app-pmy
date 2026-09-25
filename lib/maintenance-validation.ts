@@ -100,3 +100,37 @@ export function validateServiceTemplate(v: { name: string; rows: Array<{ categor
   });
   return e;
 }
+
+export interface RequestFormValues {
+  needsVehicle: boolean;
+  typeLabel: string;
+  subsidiaryId: string;
+  vehicleId: string;
+  kms: string;
+  description: string;
+  serviceIds: string[];
+  rows: Array<{ description: string; quantity: number }>;
+}
+
+/**
+ * Nueva solicitud v4. Con unidad: unidad + (algún servicio o "qué le pasa"). Compra: para qué + al menos
+ * un renglón con cantidad.
+ */
+export function validateRequest(v: RequestFormValues): FieldErrors {
+  const e: FieldErrors = {};
+  if (!v.subsidiaryId) e.subsidiaryId = "Elige la sucursal.";
+  if (v.needsVehicle && !v.vehicleId) e.vehicleId = `Para ${v.typeLabel.toLowerCase()} elige la unidad.`;
+  if (v.kms !== "" && (Number(v.kms) < 0 || Number(v.kms) > 1_000_000 || Number.isNaN(Number(v.kms)))) e.kms = "Km no válido.";
+  if (v.needsVehicle) {
+    if (!v.serviceIds.length && v.description.trim().length < 3) e.description = "Elige un servicio o cuenta qué le pasa a la unidad.";
+  } else {
+    if (v.description.trim().length < 3) e.description = "Describe para qué se necesita.";
+    const filled = v.rows.filter((r) => r.description.trim());
+    if (!filled.length) e.rows = "Agrega al menos un renglón: qué se necesita y cuánto.";
+    v.rows.forEach((r, i) => {
+      if (!r.description.trim() && v.rows.length > 1) e[`rows.${i}.description`] = "Describe el renglón o quítalo.";
+      if (r.description.trim() && !(Number(r.quantity) > 0)) e[`rows.${i}.quantity`] = "Cantidad mayor a 0.";
+    });
+  }
+  return e;
+}
