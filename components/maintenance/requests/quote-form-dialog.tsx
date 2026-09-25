@@ -206,7 +206,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
                     emptyText="No está. Agrégalo con el botón de la derecha."
                     error={errors.supplierId}
                   />
-                  <Button type="button" variant="outline" className="mt-2 h-11 rounded-xl" onClick={() => setNewSupplierOpen(true)}>
+                  <Button type="button" variant="outline" className="h-12 rounded-xl" onClick={() => setNewSupplierOpen(true)}>
                     <PlusCircle className="mr-1.5 h-4 w-4" /> Nuevo
                   </Button>
                 </div>
@@ -258,7 +258,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
                       >
                         <div className="flex items-start gap-2">
                           {!r.requestItemId && !r.requestNeedId && (
-                            <div className="pt-2">
+                            <div className="pt-1.5">
                               <ProductPicker onPick={(p) => patch(r.key, {
                                 productId: p.id, description: p.name,
                                 unitPrice: Number(supplierPrice(p, supplierId)?.price ?? bestOffer(p)?.price ?? 0), referencePrice: null,
@@ -304,7 +304,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
                           </SwitchField>
                         </div>
                         {errors[`rows.${i}.iepsRate`] && <p className="px-1 text-xs text-destructive">{errors[`rows.${i}.iepsRate`]}</p>}
-                        <div className="flex items-center gap-3 rounded-xl border-[1.5px] border-input px-3 py-2">
+                        <div className="flex min-h-12 items-center gap-3 rounded-xl border border-[hsl(var(--field-border))] px-3.5 py-2">
                           <span className="text-sm font-medium">Calidad</span>
                           <StarRating value={r.quality} onChange={(v) => patch(r.key, { quality: v })} size="md" />
                           <span className="text-xs text-muted-foreground">{r.quality ? `${r.quality} de 5` : "Sin calificar"}</span>
@@ -318,7 +318,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
 
               <FormSection title="Notas y archivo" columns={2}>
                 <TextareaField label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Tiempo de entrega, garantía, condiciones…" />
-                <label className="mt-2 flex min-h-[88px] cursor-pointer items-center gap-3 rounded-xl border-[1.5px] border-dashed border-input p-3 text-sm text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5">
+                <label className="flex min-h-[88px] cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--field-border))] p-3.5 text-sm text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5">
                   <Paperclip className="h-5 w-5 shrink-0" />
                   <span className="min-w-0">
                     <span className="block font-medium text-foreground">Archivo del proveedor</span>
