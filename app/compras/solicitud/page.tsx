@@ -36,10 +36,12 @@ import { selectionSummary } from "@/lib/compras-comparison";
 import { activeOrders, pickActiveOrder } from "@/lib/compras-orders";
 import { apiError } from "@/components/maintenance/shared/confirm-action";
 import { StageBadge } from "@/components/maintenance/board/board-views";
-import { ExpedienteStepper } from "@/components/maintenance/expediente/expediente-stepper";
+import { ExpedienteHeader } from "@/components/maintenance/expediente/expediente-header";
 import { QuotesStep } from "@/components/maintenance/expediente/quotes-step";
 import { OrderStep, orderPhase } from "@/components/maintenance/expediente/order-step";
-import { OrdersStrip } from "@/components/maintenance/expediente/orders-strip";
+import { OrderProgressList } from "@/components/maintenance/expediente/order-progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { defaultExpedienteTab, ExpedienteTab } from "@/lib/compras-expediente";
 import { ExpedienteActivity } from "@/components/maintenance/expediente/expediente-activity";
 import { RequestItemsCard } from "@/components/maintenance/expediente/request-items-card";
 import { NeedsCard } from "@/components/maintenance/expediente/needs-card";
@@ -50,7 +52,6 @@ import { RfqDialog } from "@/components/maintenance/requests/rfq-dialog";
 import { CompleteOrderDialog, ReasonDialog, SendOrderDialog } from "@/components/maintenance/orders/order-dialogs";
 
 type DialogKey = null | "quote" | "rfq" | "generate" | "edit" | "cancel" | "cancelOrder" | "delete" | "reject" | "rejectRequest" | "send" | "complete" | "discard";
-const personName = (p?: { name?: string; lastName?: string } | null) => [p?.name, p?.lastName].filter(Boolean).join(" ") || "—";
 
 function SolicitudContent() {
   const router = useRouter();
@@ -61,6 +62,8 @@ function SolicitudContent() {
   const { request, isLoading, isError, mutate } = useMaintenanceRequest(id);
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  /** null = todavía no se elige (se usa la pestaña por defecto según etapa y rol). */
+  const [tab, setTab] = useState<ExpedienteTab | null>(null);
   const orders = request?.orders ?? [];
   useEffect(() => {
     if (!request) return;
@@ -213,6 +216,17 @@ function SolicitudContent() {
 
   const close = (o: boolean) => { if (!o) setDialog(null); };
   const liveTotal = live.reduce((a, o) => a + Number(o.total), 0);
+  const canSeeQuotes = (isPurchaser || canAuthorize) && !reviewing && progress.stage !== "rechazada";
+  const ordersNeedingMe = orders.filter((o) =>
+    (canAuthorize && o.status === "pendiente") || (isPurchaser && (o.status === "autorizada" || o.status === "enviada" || (o.status === "borrador" && !!o.rejectionReason))));
+  const tabs: Array<{ key: ExpedienteTab; label: string; count?: number; attention?: boolean }> = [
+    { key: "solicitud", label: "Solicitud" },
+    ...(canSeeQuotes ? [{ key: "cotizar" as const, label: "Cotizar", count: request.quotes?.length ?? 0, attention: quotesEditable && progress.stage === "cotizando" }] : []),
+    { key: "ordenes", label: "Órdenes", count: orders.length, attention: ordersNeedingMe.length > 0 },
+    { key: "historial", label: "Historial" },
+  ];
+  const fallbackTab = defaultExpedienteTab(progress.stage, { isPurchaser, canAuthorize, hasOrders: orders.length > 0 });
+  const currentTab: ExpedienteTab = tab && tabs.some((t) => t.key === tab) ? tab : tabs.some((t) => t.key === fallbackTab) ? fallbackTab : "solicitud";
 
   return (
     <div className="flex min-h-screen flex-col gap-4 p-4 md:p-5">
@@ -230,26 +244,36 @@ function SolicitudContent() {
         </Button>
       </div>
 
-      <ExpedienteStepper progress={progress} />
+      <ExpedienteHeader request={request} progress={progress} totalLabel={hasOrder ? formatMoney(liveTotal) : null} />
 
-      {progress.stage === "rechazada" && (
-        <Alert variant="destructive">
-          <XCircle className="h-4 w-4" />
-          <AlertTitle>Compras rechazó la solicitud</AlertTitle>
-          <AlertDescription>{request.rejectionReason}</AlertDescription>
-        </Alert>
-      )}
+      <Tabs value={currentTab} onValueChange={(v) => setTab(v as ExpedienteTab)} className="w-full">
+        <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b bg-transparent p-0">
+          {tabs.map((t) => (
+            <TabsTrigger key={t.key} value={t.key}
+              className="relative -mb-px gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2.5 text-sm font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
+              {t.label}
+              {t.count !== undefined && <span className="rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">{t.count}</span>}
+              {t.attention && <span className="h-2 w-2 rounded-full bg-amber-500" aria-label="Requiere atención" />}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-4">
-          {orders.length > 0 && <OrdersStrip orders={orders} activeId={activeOrderId} onSelect={setActiveOrderId} />}
-          {order && <OrderStep order={order} canAuthorize={canAuthorize} draft={draft} />}
-          {activeOrderId && !order && <Card><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>}
-          <RequestItemsCard items={request.items ?? []} services={request.services ?? []} description={request.description} />
-          {needsVisible && (needs.length > 0 || quotesEditable || needsLoading) && (
-            <NeedsCard requestId={request.id} needs={needs} editable={quotesEditable} loading={needsLoading && !needs.length} onChanged={refresh} />
+        <TabsContent value="solicitud" className="mt-4 space-y-4">
+          {progress.stage === "rechazada" && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertTitle>Compras rechazó la solicitud</AlertTitle>
+              <AlertDescription>{request.rejectionReason}</AlertDescription>
+            </Alert>
           )}
-          {!reviewing && progress.stage !== "rechazada" && (isPurchaser || hasQuotes) && (
+          <RequestItemsCard items={request.items ?? []} services={request.services ?? []} description={request.description} />
+        </TabsContent>
+
+        {canSeeQuotes && (
+          <TabsContent value="cotizar" className="mt-4 space-y-4">
+            {needsVisible && (needs.length > 0 || quotesEditable || needsLoading) && (
+              <NeedsCard requestId={request.id} needs={needs} editable={quotesEditable} loading={needsLoading && !needs.length} onChanged={refresh} />
+            )}
             <QuotesStep
               request={request}
               comparison={comparison}
@@ -259,38 +283,29 @@ function SolicitudContent() {
               onEdit={(q) => { setEditingQuote(q); setDialog("quote"); }}
               dispatches={isPurchaser ? dispatches : undefined}
             />
-          )}
-        </div>
+          </TabsContent>
+        )}
 
-        <aside className="space-y-4">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Solicitud</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1.5">
-                <dt className="text-muted-foreground">Tipo</dt><dd>{REQUEST_TYPE_LABEL[request.type]}</dd>
-                <dt className="text-muted-foreground">Sucursal</dt><dd>{request.subsidiary?.name ?? "—"}</dd>
-                {request.vehicle && (
-                  <>
-                    <dt className="text-muted-foreground">Unidad</dt><dd>{vehicleLabel(request.vehicle)}</dd>
-                    <dt className="text-muted-foreground">Km</dt><dd className="tabular-nums">{formatKms(request.kmsAtRequest ?? request.vehicle?.kms)}</dd>
-                  </>
-                )}
-                <dt className="text-muted-foreground">Prioridad</dt><dd>{PRIORITY_LABEL[request.priority]}</dd>
-                <dt className="text-muted-foreground">Pidió</dt><dd>{personName(request.createdBy)}</dd>
-                {request.reviewedBy && <><dt className="text-muted-foreground">Revisó</dt><dd>{personName(request.reviewedBy)}</dd></>}
-                {hasOrder && (
-                  <>
-                    <dt className="text-muted-foreground">{live.length === 1 ? "Proveedor" : "Proveedores"}</dt>
-                    <dd>{[...new Set(live.map((o) => o.supplierName).filter(Boolean))].join(", ")}</dd>
-                    <dt className="text-muted-foreground">Monto</dt><dd className="font-semibold tabular-nums">{formatMoney(liveTotal)}</dd>
-                  </>
-                )}
-              </dl>
-            </CardContent>
-          </Card>
+        <TabsContent value="ordenes" className="mt-4 space-y-4">
+          {orders.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center text-sm text-muted-foreground">
+                Aún no hay órdenes de compra. Se generan desde la pestaña Cotizar, una por proveedor elegido.
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <OrderProgressList orders={orders} activeId={activeOrderId} onSelect={setActiveOrderId} />
+              {order && <OrderStep order={order} canAuthorize={canAuthorize} draft={draft} />}
+              {activeOrderId && !order && <Card><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>}
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="historial" className="mt-4">
           <ExpedienteActivity request={request} order={order} dispatches={isPurchaser || canAuthorize ? dispatches : undefined} />
-        </aside>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       <QuoteFormDialog open={dialog === "quote"} onOpenChange={close} request={request} quote={editingQuote} needs={needs} onSaved={() => refresh()} />
       <RfqDialog open={dialog === "rfq"} onOpenChange={close} request={request} onSent={() => mutateDispatches()} />
@@ -330,7 +345,7 @@ function SolicitudContent() {
             <AlertDialogCancel>Volver</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => guarded(() => run(
-                async () => { const out = await generateOrders(request.id); setActiveOrderId(out[0]?.id ?? null); },
+                async () => { const out = await generateOrders(request.id); setActiveOrderId(out[0]?.id ?? null); setTab("ordenes"); },
                 summary.groups.length === 1 ? "Orden mandada a autorización" : "Órdenes mandadas a autorización", "No se pudieron generar las órdenes",
               ))}
             >
