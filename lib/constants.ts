@@ -191,7 +191,7 @@ export const sidebarMenu = {
       isActive: false,
       items: [
         { name: "Mis solicitudes", url: "/compras/solicitudes", icon: ClipboardList, isActive: false },
-        { name: "Tablero de compras", url: "/compras/tablero", icon: KanbanSquare, roles: allowedPageRoles.mttoVehiculos.revisar, isActive: false },
+        { name: "Tablero", url: "/compras/tablero", icon: KanbanSquare, roles: allowedPageRoles.mttoVehiculos.solicitudes, isActive: false },
         { name: "Catálogos", url: "/compras/catalogos", icon: BookOpen, roles: allowedPageRoles.mttoVehiculos.catalogos, isActive: false },
       ]
     },
