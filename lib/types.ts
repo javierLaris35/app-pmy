@@ -292,8 +292,15 @@ export type AddShipmentDto = {
   consNumber?: string
   isPartOfCharge?: boolean
   isHighValue?: boolean
+  shipmentType?: "fedex" | "dhl"
+  /** Alta manual: paquete normal o carga (F2 → charge_shipment). */
+  kind?: "shipment" | "charge"
+  /** DHL: ID de pieza (JD…) opcional. */
+  dhlUniqueId?: string
+  exceptionCode?: string
   subsidiary?: {
     id: string
+    name?: string
   }
 }
 
@@ -739,6 +746,8 @@ export enum PaymentTypeEnum {
 export interface PackageInfoForUnloading {
   id?: string,
   trackingNumber: string,
+  /** DHL: ID de pieza (JD…); identidad única de la pieza. */
+  dhlUniqueId?: string,
   commitDateTime?: string,
   consNumber?: string,
   consolidated?: Consolidated,
@@ -756,6 +765,8 @@ export interface PackageInfoForUnloading {
   isValid: boolean,
   reason?: string,
   isPendingValidation?: boolean,
+  /** Escaneado sin conexión o cuya validación falló: se revalida al reconectar. */
+  isOffline?: boolean,
   payment?: {
     amount: string
     type: PaymentTypeEnum
@@ -813,7 +824,8 @@ export interface SearchShipmentDto {
         name: string;
         address: string;
         phoneNumber: string;
-        zipCode: string
+        zipCode: string;
+        city?: string
   }
   prority: Priority
   status: string
@@ -862,7 +874,8 @@ export interface UnloadingResponse {
 export interface UnloadingFormData {
   id?: string;
   vehicle?: Vehicles;
-  subsidiary?: Subsidiary;
+  // El backend solo lee id/name de la sucursal.
+  subsidiary?: Pick<Subsidiary, 'id'> & Partial<Pick<Subsidiary, 'name'>>;
   shipments?: string[];
   missingTrackings: string[];
   unScannedTrackings: string[];

@@ -6,13 +6,20 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
   Image,
 } from '@react-pdf/renderer';
 import { format, toZonedTime } from 'date-fns-tz';
 import { PackageInfo, Vehicles } from '@/lib/types';
 
-Font.register({ family: 'Helvetica', src: undefined }); // Uses built-in Helvetica
+// Helvetica es fuente integrada de react-pdf: no requiere Font.register.
+
+type MissingPackageInfo = {
+  trackingNumber: string;
+  recipientName?: string | null;
+  recipientAddress?: string | null;
+  recipientPhone?: string | null;
+  recipientZip?: string | null;
+};
 
 const styles = StyleSheet.create({
   page: {
@@ -114,14 +121,17 @@ export const UnloadingPDFReport = ({
   unScannedPackages,
   unloadingTrackigNumber,
 }: {
-  vehicle: Vehicles;
+  vehicle?: Vehicles | null;
   packages: PackageInfo[];
-  missingPackages?: MissingPackageInfo[];
+  // El detalle histórico solo guarda las guías (string); el formulario manda objetos.
+  missingPackages?: (MissingPackageInfo | string)[];
   unScannedPackages?: string[];
   subsidiaryName: string;
   unloadingTrackigNumber: string;
 }) => {
-  const packagesMissing = missingPackages ?? [];
+  const packagesMissing: MissingPackageInfo[] = (missingPackages ?? []).map((m) =>
+    typeof m === 'string' ? { trackingNumber: m } : m
+  );
   const packagesUnScanned = unScannedPackages ?? [];
 
   const timeZone = 'America/Hermosillo';
@@ -149,7 +159,7 @@ export const UnloadingPDFReport = ({
 
             <View style={styles.row}>
               <Text style={styles.cell}>Unidad:</Text>
-              <Text>{vehicle.name}</Text>
+              <Text>{vehicle?.name ?? "-"}</Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.cell}>No. Paquetes:</Text>
@@ -196,9 +206,9 @@ export const UnloadingPDFReport = ({
 
         {packages.map((pkg, i) => {
           const icons = `${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
-          const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
-          const commitDate = format(zoned, 'dd/MM/yyyy', { timeZone });
-          const commitTime = format(zoned, 'HH:mm', { timeZone });
+          const zoned = pkg.commitDateTime ? toZonedTime(new Date(pkg.commitDateTime), timeZone) : null;
+          const commitDate = zoned ? format(zoned, 'dd/MM/yyyy', { timeZone }) : '';
+          const commitTime = zoned ? format(zoned, 'HH:mm', { timeZone }) : '';
           const recipientName = pkg.recipientName ?? '';
           const recipientAddress = pkg.recipientAddress ?? '';
           const recipientZip = pkg.recipientZip ?? '';
@@ -213,7 +223,7 @@ export const UnloadingPDFReport = ({
               <Text style={{ width: 185 }}>{truncate(recipientAddress, 38)}</Text>
               <Text style={{ width: 40 }}>{recipientZip}</Text>
               <Text style={{ width: 55 }}>
-                {pkg.payment?.amount != null ? `${pkg.payment.type} ${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(pkg.payment.amount)}` : ''}
+                {pkg.payment?.amount != null ? `${pkg.payment.type} ${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(pkg.payment.amount))}` : ''}
               </Text>
               <Text style={{ width: 55 }}>{commitDate}</Text>
               <Text style={{ width: 45 }}>{commitTime}</Text>

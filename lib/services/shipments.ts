@@ -1,6 +1,7 @@
 import { format, toZonedTime } from 'date-fns-tz';
 import { axiosConfig } from "../axios-config";
 import { AddShipmentDto, SearchShipmentDto, Shipment } from "../types";
+import type { CreatedManualShipment } from "@/lib/manual-shipment";
 import { ParsedDhlShipment } from '@/components/import-components/import-dhl-text-modal';
 
 const url = '/shipments'
@@ -87,7 +88,8 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     const response = await axiosConfig.post<{
       ok: boolean
       message: string
-      shipment?: Shipment
+      isCharge?: boolean
+      shipment?: CreatedManualShipment
     }>('/shipments/add-shipment', shipmentData);
     return response.data;
   }

@@ -27,6 +27,8 @@ import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useAuthStore } from "@/store/auth.store";
 import { validateTrackingNumbers, saveUnloading, uploadPDFile, getUnloadingSessionInit, validateOne, getUnloadingConsolidatedByConsNumber } from "@/lib/services/unloadings";
+import type { CreatedManualShipment } from "@/lib/manual-shipment";
+import { variantOf } from "@/components/scanner/scan-normalize";
 import { Consolidateds, ConsolidatedDetails, ConsolidatedInitItem, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, UnloadingSessionInit, ValidatedUnloadingOne, ValidTrackingAndConsolidateds } from "@/lib/types";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -613,12 +615,12 @@ export default function UnloadingForm({
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
-  const safeArray = <T,>(arr: T[] | undefined | null | any): T[] => {
+  const safeArray = <T,>(arr: T[] | undefined | null): T[] => {
     if (Array.isArray(arr)) return arr;
     return [];
   };
 
-  const safeObject = <T extends object>(obj: T | undefined | null | any): T => {
+  const safeObject = <T extends object>(obj: T | undefined | null): T => {
     if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj;
     return {} as T;
   };
@@ -677,7 +679,7 @@ export default function UnloadingForm({
   }, [checkPackageNeedsData]);
 
   useEffect(() => {
-    setPackagesNeedingData(findPackagesNeedingData(safeShipments));
+    setPackagesNeedingData(findPackagesNeedingData(safeShipments as unknown as Shipment[]));
   }, [safeShipments, findPackagesNeedingData]);
 
   const handleSavePackageData = useCallback((trackingNumber: string, data: { recipientName: string; recipientAddress: string; recipientPhone: string }) => {
@@ -735,34 +737,50 @@ export default function UnloadingForm({
     }
   }, [setScannedPackages, setSurplusTrackings, toast]);
 
-  const handleCreateShipment = useCallback((formData: any) => {
-    try {
-      setSurplusTrackings(prev => prev.filter(t => t !== formData.trackingNumber));
-
-      let priority = "media";
-      if (formData.priority === "URGENTE" || formData.priority === "ALTA") priority = "alta";
-      else if (formData.priority === "BAJA") priority = "baja";
-
-      const newShipment: PackageInfoForUnloading = {
-        id: `created-${Date.now()}`,
-        trackingNumber: formData.trackingNumber,
-        recipientName: formData.recipientName || undefined,
-        recipientAddress: formData.recipientAddress || undefined,
-        recipientPhone: formData.recipientPhone || undefined,
-        recipientCity: formData.recipientCity || undefined,
-        recipientZip: formData.recipientZip || undefined,
-        commitDateTime: formData.commitDateTime || undefined,
-        shipmentType: formData.shipmentType,
-        priority: priority as any,
-        isHighValue: formData.isHighValue || false,
-        isValid: true,
-      };
-
-      setShipments(prev => [...prev, newShipment]);
-      toast({ title: "Shipment creado", description: `Se creó el shipment ${formData.trackingNumber} exitosamente.` });
-    } catch (error) {
-      toast({ title: "Error", description: "Hubo un problema al crear el shipment", variant: "destructive" });
+  // Alta manual de un sobrante (guía que no venía en la carga). El backend ya
+  // creó el shipment/carga; aquí se REEMPLAZA la fila inválida del código
+  // escaneado por la válida (antes se agregaba un duplicado) usando el id real
+  // del backend (antes `created-<fecha>`, que rompía "Procesar"), se saca de
+  // Sobrantes y se refleja en el escáner. DHL-aware (JD/JJD).
+  const handleCreateShipment = useCallback((created: CreatedManualShipment, originalCode: string) => {
+    if (!created?.id) {
+      toast({ title: "Paquete sin id", description: "El servidor no devolvió el id del paquete. Vuelve a escanearlo.", variant: "destructive" });
+      return;
     }
+
+    const up = (c?: string | null) => String(c ?? "").trim().toUpperCase();
+    const withVariants = (c?: string | null) => (up(c) ? [up(c), variantOf(up(c))] : []);
+    const createdKey = up(created.dhlUniqueId || created.trackingNumber);
+    const drop = new Set([...withVariants(originalCode), ...withVariants(createdKey)]);
+    const sameAsScanned = withVariants(originalCode).includes(createdKey);
+
+    const newShipment: PackageInfoForUnloading = {
+      id: created.id,
+      trackingNumber: created.trackingNumber,
+      dhlUniqueId: created.dhlUniqueId || undefined,
+      recipientName: created.recipientName || undefined,
+      recipientAddress: created.recipientAddress || undefined,
+      recipientPhone: created.recipientPhone || undefined,
+      recipientCity: created.recipientCity || undefined,
+      recipientZip: created.recipientZip || undefined,
+      commitDateTime: created.commitDateTime || undefined,
+      shipmentType: created.shipmentType,
+      priority: (created.priority ?? "media") as Priority,
+      isHighValue: !!created.isHighValue,
+      isCharge: created.isCharge,
+      isValid: true,
+    };
+
+    setShipments(prev => [
+      ...prev.filter(p => !drop.has(up(pieceKey(p))) && !drop.has(up(p.trackingNumber))),
+      newShipment,
+    ]);
+    setSurplusTrackings(prev => prev.filter(t => !drop.has(up(t))));
+
+    // Escáner: si se registró el mismo código escaneado, se marca válido en su
+    // lugar; si se capturó otra guía, se quita el código escaneado erróneo.
+    if (sameAsScanned) barScannerInputRef.current?.updateValidatedPackages([newShipment as unknown as PackageInfo]);
+    else if (originalCode) barScannerInputRef.current?.removeByTracking(originalCode);
   }, [setShipments, setSurplusTrackings, toast]);
 
   const updateMissingPackages = useCallback((currentShipments: PackageInfoForUnloading[], currentConsolidateds: Consolidateds | null) => {
@@ -1443,7 +1461,7 @@ export default function UnloadingForm({
     const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
     try { window.open(blobUrl, '_blank'); } catch(e){}
     const currentDate = new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
-    unloadingSaved.shipments = validShipments;
+    unloadingSaved.shipments = validShipments as unknown as Unloading['shipments'];
     const fileName = `${unloadingSaved?.subsidiary?.name}--Desembarque--${unloadingSaved?.subsidiary?.name}_${currentDate.replace(/\//g, "-")}.pdf`;
     const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
     const excelBuffer = await generateUnloadingExcelClient(unloadingSaved, false);
@@ -1451,7 +1469,7 @@ export default function UnloadingForm({
     const excelFileName = `${unloadingSaved?.subsidiary?.name}--Desembarque--${currentDate.replace(/\//g, "-")}.xlsx`;
     const excelFile = new File([excelBlob], excelFileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const onProgress = (percent: number) => { console.log(`Upload progress: ${percent}%`); };
-    await uploadPDFile(pdfFile, excelFile, unloadingSaved?.subsidiary?.name, unloadingSaved?.id, onProgress);
+    await uploadPDFile(pdfFile, excelFile, unloadingSaved?.subsidiary?.name ?? "", unloadingSaved?.id, onProgress);
   }, [validShipments, missingPackages, surplusTrackings, selectedUnidad]);
 
   const handleUnloading = useCallback(async () => {
@@ -1583,7 +1601,7 @@ export default function UnloadingForm({
                 <Label className="text-base font-medium flex items-center gap-2">
                   <PackageCheckIcon className="h-4 w-4" /> Unidad
                 </Label>
-                <UnidadSelector selectedUnidad={selectedUnidad} onSelectionChange={setSelectedUnidad} disabled={isLoading} />
+                <UnidadSelector selectedUnidad={selectedUnidad ?? undefined} onSelectionChange={(u) => setSelectedUnidad(u ?? null)} disabled={isLoading} />
               </div>
               <Separator />
               <ConsolidateDetails
@@ -1720,8 +1738,7 @@ export default function UnloadingForm({
         subsidiaryId={selectedSubsidiaryId} 
         subsidiaryName={selectedSubsidiaryName} 
         onCorrect={handleCorrectTracking} 
-        onCreate={handleCreateShipment} 
-        handleValidatePackages={handleValidatePackages} />
+        onCreate={handleCreateShipment} />
       <ExpirationAlertModal isOpen={expirationAlertOpen} onClose={handleNextExpiring} packages={expiringPackages} currentIndex={currentExpiringIndex} onNext={handleNextExpiring} onPrevious={handlePreviousExpiring} />
     </>
   );
