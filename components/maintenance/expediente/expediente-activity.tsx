@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { MaintenanceRequest, PurchaseOrder } from "@/lib/types/maintenance";
+import { MaintenanceRequest, PurchaseOrder, RequestDispatch } from "@/lib/types/maintenance";
 
 const fmt = (d?: string | null) =>
   d ? new Date(d).toLocaleString("es-MX", { timeZone: "America/Hermosillo", dateStyle: "medium", timeStyle: "short" }) : "";
@@ -9,10 +9,18 @@ const who = (p?: { name?: string; lastName?: string } | null) => [p?.name, p?.la
 interface Event { at: string; title: string; detail?: string; tone?: "ok" | "warn" | "error" }
 
 /** Línea de tiempo del expediente (qué pasó y quién). */
-export function ExpedienteActivity({ request, order }: { request: MaintenanceRequest; order?: PurchaseOrder }) {
-  const events: Event[] = [{ at: request.createdAt, title: "Mantenimiento registrado", detail: who(request.createdBy) }];
+export function ExpedienteActivity({ request, order, dispatches }: { request: MaintenanceRequest; order?: PurchaseOrder; dispatches?: RequestDispatch[] }) {
+  const events: Event[] = [{ at: request.createdAt, title: "Solicitud registrada", detail: who(request.createdBy) }];
   for (const q of request.quotes ?? []) {
     events.push({ at: (q as any).createdAt ?? request.createdAt, title: `Cotización de ${q.supplier?.name ?? "proveedor"}`, detail: undefined });
+  }
+  for (const d of dispatches ?? []) {
+    events.push({
+      at: d.sentAt,
+      title: `Cotización pedida a ${d.supplier?.name ?? "proveedor"}${d.status === "error" ? " (falló)" : ""}`,
+      detail: d.status === "error" ? d.error ?? d.destination : `${d.channel === "email" ? "Correo" : "WhatsApp"} · ${d.destination}`,
+      tone: d.status === "error" ? "error" : undefined,
+    });
   }
   if (order) {
     events.push({ at: order.createdAt, title: `Orden ${order.folio} mandada a autorización`, detail: who(order.createdBy) });

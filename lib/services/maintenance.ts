@@ -1,6 +1,7 @@
 import { axiosConfig } from "../axios-config";
 import type {
   BoardCard,
+  Comparison,
   ContactChannel,
   HistoryResponse,
   MaintenanceQuote,
@@ -11,7 +12,9 @@ import type {
   PurchaseOrderDispatch,
   PurchaseOrderItem,
   QuoteItem,
+  RequestDispatch,
   RequestPriority,
+  RfqResult,
   RequestType,
   ScheduleRow,
   ServiceCategory,
@@ -119,9 +122,30 @@ export const uploadQuoteAttachment = async (quoteId: string, file: File) => {
 };
 export const getQuoteAttachmentBlob = async (quoteId: string) =>
   (await axiosConfig.get<Blob>(`${base}/requests/quotes/${quoteId}/attachment`, { responseType: "blob" })).data;
-/** Elegir cotización ganadora: crea la orden y (por defecto) la manda a autorización. */
-export const convertQuote = async (quoteId: string, submit = true) =>
-  (await axiosConfig.post<PurchaseOrder>(`${base}/requests/quotes/${quoteId}/convert`, undefined, { params: { submit } })).data;
+export interface GeneratedOrder { id: string; folio: string; supplierId: string; total: number }
+/** "Generar orden con esta cotización": todo lo que cubre ese proveedor en una orden, a autorización. */
+export const convertQuote = async (quoteId: string) =>
+  (await axiosConfig.post<GeneratedOrder[]>(`${base}/requests/quotes/${quoteId}/convert`)).data;
+
+// ---------------- Comparativo por partida y pedir cotización ----------------
+
+export const getComparison = async (requestId: string) =>
+  (await axiosConfig.get<Comparison>(`${base}/requests/${requestId}/comparison`)).data;
+export const saveSelection = async (requestId: string, selections: Array<{ requestItemId: string; quoteItemId: string | null }>) =>
+  (await axiosConfig.put<Comparison>(`${base}/requests/${requestId}/selection`, { selections })).data;
+/** Una orden por proveedor elegido; todas van a autorización. */
+export const generateOrders = async (requestId: string) =>
+  (await axiosConfig.post<GeneratedOrder[]>(`${base}/requests/${requestId}/generate-orders`)).data;
+export const getComparisonPdf = async (requestId: string) =>
+  (await axiosConfig.get<Blob>(`${base}/requests/${requestId}/comparison-pdf`, { responseType: "blob" })).data;
+export const getRfqPdf = async (requestId: string, supplierId?: string) =>
+  (await axiosConfig.get<Blob>(`${base}/requests/${requestId}/rfq-pdf`, { params: { supplierId }, responseType: "blob" })).data;
+export const sendRfq = async (
+  requestId: string,
+  body: { targets: Array<{ supplierId: string; contactId?: string; channel?: ContactChannel }>; notes?: string },
+) => (await axiosConfig.post<RfqResult[]>(`${base}/requests/${requestId}/rfq`, body)).data;
+export const getRequestDispatches = async (requestId: string) =>
+  (await axiosConfig.get<RequestDispatch[]>(`${base}/requests/${requestId}/dispatches`)).data;
 
 export const getBoard = async (params: { subsidiaryId?: string; type?: string } = {}) =>
   (await axiosConfig.get<BoardCard[]>(`${base}/requests/board`, { params })).data;
@@ -172,7 +196,7 @@ export const getPurchaseOrderDispatches = async (id: string) =>
   (await axiosConfig.get<PurchaseOrderDispatch[]>(`${base}/purchase-orders/${id}/dispatches`)).data;
 export const completePurchaseOrder = async (
   id: string,
-  body: { completedAt: string; completedKms: number; finalAmount?: number; nextMaintenanceDate?: string | null },
+  body: { completedAt: string; completedKms?: number; finalAmount?: number; nextMaintenanceDate?: string | null },
 ) => (await axiosConfig.post<PurchaseOrder>(`${base}/purchase-orders/${id}/complete`, body)).data;
 
 // ---------------- Historial ----------------

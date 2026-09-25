@@ -31,4 +31,15 @@ describe("validateQuote", () => {
     expect(e["rows.0.description"]).toBeTruthy();
     expect(e.validUntil).toBeTruthy();
   });
+  it("días de entrega y tasa de IEPS", () => {
+    const e = validateQuote({
+      supplierId: "s", quoteDate: "2026-09-24",
+      rows: [
+        { description: "Aceite", quantity: 1, unitPrice: 10, availability: "sobre_pedido", leadTimeDays: 1.5 },
+        { description: "Balero", quantity: 1, unitPrice: 10, iepsEnabled: true, iepsRate: 0 },
+        { description: "Filtro", quantity: 1, unitPrice: 10, availability: "sobre_pedido", leadTimeDays: null, iepsEnabled: true, iepsRate: 0.08 },
+      ],
+    });
+    expect(Object.keys(e)).toEqual(["rows.0.leadTimeDays", "rows.1.iepsRate"]);
+  });
 });

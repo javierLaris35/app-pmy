@@ -121,13 +121,27 @@ export interface ScheduleRow {
   openRequest: { id: string; folio: string; status: RequestStatus } | null;
 }
 
+export type Availability = "si" | "no" | "sobre_pedido";
+
+export const AVAILABILITY_LABEL: Record<Availability, string> = { si: "En existencia", no: "Sin existencia", sobre_pedido: "Sobre pedido" };
+
 export interface QuoteItem {
   id?: string;
+  /** Renglón de la solicitud que cotiza esta partida. */
+  requestItemId?: string | null;
+  productId?: string | null;
+  product?: { id: string; name: string; brand?: string | null; partNumber?: string | null } | null;
   serviceId?: string | null;
   service?: MaintenanceServiceItem | null;
   description: string;
   quantity: number;
   unitPrice: number;
+  availability?: Availability;
+  leadTimeDays?: number | null;
+  ivaEnabled?: boolean;
+  iepsEnabled?: boolean;
+  iepsRate?: number;
+  quality?: number | null;
   taxRate?: number;
   amount?: number;
   referencePrice?: number | null;
@@ -144,10 +158,62 @@ export interface MaintenanceQuote {
   notes?: string | null;
   attachmentName?: string | null;
   subtotal: number;
+  ieps?: number;
   tax: number;
   total: number;
   status: QuoteStatus;
   items: QuoteItem[];
+}
+
+// ---------------- Comparativo por partida ----------------
+
+export interface ComparisonCell {
+  quoteItemId: string;
+  unitPrice: number;
+  quantity: number;
+  amount: number;
+  total: number;
+  availability: Availability | string;
+  leadTimeDays: number | null;
+  quality: number | null;
+}
+
+export interface ComparisonRow {
+  requestItemId: string;
+  description: string;
+  quantity: number;
+  /** quoteId → lo que cotizó ese proveedor. */
+  cells: Record<string, ComparisonCell>;
+  bestQuoteItemId: string | null;
+  selectedQuoteItemId: string | null;
+}
+
+export interface Comparison {
+  quotes: Array<{ id: string; supplierId: string; supplierName: string; total: number; covered: number }>;
+  rows: ComparisonRow[];
+  units: Record<string, string | null>;
+}
+
+export interface RfqResult {
+  supplierId: string;
+  supplierName: string;
+  ok: boolean;
+  channel?: ContactChannel;
+  destination?: string;
+  error?: string;
+}
+
+export interface RequestDispatch {
+  id: string;
+  supplierId: string;
+  supplier?: { id: string; name: string } | null;
+  channel: ContactChannel;
+  destination: string;
+  status: "enviado" | "error";
+  kind: string;
+  error?: string | null;
+  sentByName?: string | null;
+  sentAt: string;
 }
 
 export interface PurchaseOrderSummary {
@@ -199,9 +265,14 @@ export interface MaintenanceRequest extends Partial<ExpedienteProgress> {
 export interface PurchaseOrderItem {
   id?: string;
   serviceId?: string | null;
+  requestItemId?: string | null;
+  productId?: string | null;
   description: string;
   quantity: number;
   unitPrice: number;
+  ivaEnabled?: boolean;
+  iepsEnabled?: boolean;
+  iepsRate?: number;
   taxRate?: number;
   amount?: number;
   approved: boolean;
@@ -228,8 +299,8 @@ export interface PurchaseOrder {
   supplier?: Supplier;
   contactId?: string | null;
   contact?: SupplierContact | null;
-  vehicleId: string;
-  vehicle?: MaintenanceVehicle;
+  vehicleId: string | null;
+  vehicle?: MaintenanceVehicle | null;
   subsidiaryId: string;
   subsidiary?: { id: string; name: string };
   status: PoStatus;
@@ -238,6 +309,7 @@ export interface PurchaseOrder {
   authorizedBy?: { id: string; name?: string; lastName?: string } | null;
   authorizedAt?: string | null;
   subtotal: number;
+  ieps?: number;
   tax: number;
   total: number;
   completedAt?: string | null;

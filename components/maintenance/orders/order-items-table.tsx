@@ -5,10 +5,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMoney, PurchaseOrderItem } from "@/lib/types/maintenance";
-import { itemAmount, totals } from "@/lib/maintenance-money";
+import { IEPS_RATES, itemAmount, ivaOn, pctLabel, totals } from "@/lib/maintenance-money";
+
+/** "IVA", "IVA + IEPS 8%", "Sin impuestos". */
+export const taxLabel = (it: PurchaseOrderItem) =>
+  [ivaOn(it) && "IVA", it.iepsEnabled && `IEPS ${pctLabel(Number(it.iepsRate ?? 0))}`].filter(Boolean).join(" + ") || "Sin impuestos";
 
 export type ItemsMode = "view" | "edit" | "authorize";
 
@@ -38,6 +44,7 @@ export function OrderItemsTable({ items, mode, onChange }: Props) {
             <TableHead>Concepto</TableHead>
             <TableHead className="w-28 text-right">Cant.</TableHead>
             <TableHead className="w-36 text-right">P. unitario</TableHead>
+            <TableHead className={mode === "edit" ? "w-44" : "w-32"}>Impuestos</TableHead>
             <TableHead className="w-36 text-right">Importe</TableHead>
             {mode === "edit" && <TableHead className="w-10" />}
           </TableRow>
@@ -75,6 +82,24 @@ export function OrderItemsTable({ items, mode, onChange }: Props) {
                     formatMoney(it.unitPrice)
                   )}
                 </TableCell>
+                <TableCell className={cn("text-sm", off && "text-muted-foreground")}>
+                  {mode === "edit" ? (
+                    <div className="grid gap-1.5">
+                      <label className="flex items-center gap-2"><Switch checked={ivaOn(it)} onCheckedChange={(v) => patch(idx, { ivaEnabled: v, taxRate: v ? 0.16 : 0 })} /> IVA</label>
+                      <div className="flex items-center gap-2">
+                        <Switch checked={!!it.iepsEnabled} onCheckedChange={(v) => patch(idx, { iepsEnabled: v, iepsRate: v ? Number(it.iepsRate) || IEPS_RATES[0] : it.iepsRate })} /> IEPS
+                        {it.iepsEnabled && (
+                          <Select value={String(it.iepsRate ?? IEPS_RATES[0])} onValueChange={(v) => patch(idx, { iepsRate: Number(v) })}>
+                            <SelectTrigger className="h-7 w-20"><SelectValue /></SelectTrigger>
+                            <SelectContent>{IEPS_RATES.map((r) => <SelectItem key={r} value={String(r)}>{pctLabel(r)}</SelectItem>)}</SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    taxLabel(it)
+                  )}
+                </TableCell>
                 <TableCell className={cn("text-right tabular-nums", off && "text-muted-foreground line-through")}>
                   {formatMoney(itemAmount(it))}
                 </TableCell>
@@ -95,7 +120,7 @@ export function OrderItemsTable({ items, mode, onChange }: Props) {
         <div>
           {mode === "edit" && (
             <Button type="button" variant="outline" size="sm" className="gap-1"
-              onClick={() => onChange?.([...items, { description: "", quantity: 1, unitPrice: 0, taxRate: 0.16, approved: true }])}>
+              onClick={() => onChange?.([...items, { description: "", quantity: 1, unitPrice: 0, taxRate: 0.16, ivaEnabled: true, iepsEnabled: false, iepsRate: 0, approved: true }])}>
               <Plus className="h-4 w-4" /> Agregar partida
             </Button>
           )}
@@ -105,6 +130,7 @@ export function OrderItemsTable({ items, mode, onChange }: Props) {
         </div>
         <dl className="grid min-w-[220px] grid-cols-2 gap-x-6 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Subtotal</dt><dd className="text-right tabular-nums">{formatMoney(t.subtotal)}</dd>
+          {t.ieps > 0 && <><dt className="text-muted-foreground">IEPS</dt><dd className="text-right tabular-nums">{formatMoney(t.ieps)}</dd></>}
           <dt className="text-muted-foreground">IVA</dt><dd className="text-right tabular-nums">{formatMoney(t.tax)}</dd>
           <dt className="font-semibold">Total</dt><dd className="text-right font-semibold tabular-nums">{formatMoney(t.total)}</dd>
         </dl>

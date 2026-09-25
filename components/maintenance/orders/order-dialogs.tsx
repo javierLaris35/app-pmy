@@ -171,7 +171,7 @@ export function CompleteOrderDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   order: PurchaseOrder;
-  onComplete: (body: { completedAt: string; completedKms: number; finalAmount: number; nextMaintenanceDate: string | null }) => Promise<void>;
+  onComplete: (body: { completedAt: string; completedKms?: number; finalAmount: number; nextMaintenanceDate: string | null }) => Promise<void>;
 }) {
   const [date, setDate] = useState(todayHmo());
   const [kms, setKms] = useState("");
@@ -179,6 +179,8 @@ export function CompleteOrderDialog({
   const [nextDate, setNextDate] = useState("");
   const [busy, setBusy] = useState(false);
   const currentKms = order.vehicle?.kms ?? null;
+  /** Compras sin unidad: no se pide km ni próximo servicio. */
+  const withVehicle = !!order.vehicleId;
 
   useEffect(() => {
     if (!open) return;
@@ -194,7 +196,7 @@ export function CompleteOrderDialog({
   useEffect(() => { if (open) setTried(false); }, [open]);
   const allErrors: Record<string, string> = {
     ...(!date ? { date: "Indica la fecha en que se hizo el servicio." } : {}),
-    ...(kms === "" || Number(kms) < 0 || Number(kms) > 1_000_000 ? { kms: "Escribe el km que marcaba la unidad." } : {}),
+    ...(withVehicle && (kms === "" || Number(kms) < 0 || Number(kms) > 1_000_000) ? { kms: "Escribe el km que marcaba la unidad." } : {}),
     ...(amount === "" || Number.isNaN(Number(amount)) || Number(amount) < 0 ? { amount: "Escribe cuánto se pagó (0 o más)." } : {}),
   };
   const errors = tried ? allErrors : {};
@@ -204,20 +206,24 @@ export function CompleteOrderDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Completar orden {order.folio}</DialogTitle>
-          <DialogDescription>Confirma que el servicio se realizó. Se actualiza la unidad y se registra el gasto de la sucursal.</DialogDescription>
+          <DialogDescription>
+            {withVehicle
+              ? "Confirma que el servicio se realizó. Se actualiza la unidad y se registra el gasto de la sucursal."
+              : "Confirma que ya se recibió lo comprado. Se registra el gasto de la sucursal."}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label>Fecha del servicio</Label>
+              <Label>{withVehicle ? "Fecha del servicio" : "Fecha en que se recibió"}</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={invalidClass(errors.date)} />
               <FieldError message={errors.date} />
             </div>
-            <div className="grid gap-1.5">
+            {withVehicle && <div className="grid gap-1.5">
               <Label>Km al servicio</Label>
               <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} className={invalidClass(errors.kms)} />
               <FieldError message={errors.kms} />
-            </div>
+            </div>}
           </div>
           {lower && (
             <Alert>
@@ -231,10 +237,12 @@ export function CompleteOrderDialog({
             <FieldError message={errors.amount} />
             <p className="text-xs text-muted-foreground">Autorizado: {formatMoney(order.total)}. Este monto es el que se registra como gasto.</p>
           </div>
-          <div className="grid gap-1.5">
-            <Label>Próximo servicio (fecha, opcional)</Label>
-            <Input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
-          </div>
+          {withVehicle && (
+            <div className="grid gap-1.5">
+              <Label>Próximo servicio (fecha, opcional)</Label>
+              <Input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
@@ -245,7 +253,10 @@ export function CompleteOrderDialog({
               if (Object.keys(allErrors).length) return;
               setBusy(true);
               try {
-                await onComplete({ completedAt: date, completedKms: Number(kms), finalAmount: Number(amount), nextMaintenanceDate: nextDate || null });
+                await onComplete({
+                  completedAt: date, finalAmount: Number(amount),
+                  ...(withVehicle ? { completedKms: Number(kms), nextMaintenanceDate: nextDate || null } : { nextMaintenanceDate: null }),
+                });
                 onOpenChange(false);
               } catch { /* el error ya se mostró; el diálogo sigue abierto */ } finally { setBusy(false); }
             }}

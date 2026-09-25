@@ -15,7 +15,7 @@ import {
   getSuppliers,
 } from "@/lib/services/maintenance";
 import type { PoStatus } from "@/lib/types/maintenance";
-import { getMyRequests, getProductCategories, getProducts, getUnits, getVehicleSpec } from "@/lib/services/maintenance";
+import { getComparison, getMyRequests, getProductCategories, getProducts, getRequestDispatches, getUnits, getVehicleSpec } from "@/lib/services/maintenance";
 import type { ProductKind } from "@/lib/types/compras";
 
 export function useServiceCategories() {
@@ -128,4 +128,16 @@ export function useProductCategories(kind?: ProductKind) {
 export function useProducts(params: { kind?: ProductKind; includeInactive?: boolean } = {}) {
   const { data, isLoading, mutate } = useSWR(["compras-products", params.kind, params.includeInactive], () => getProducts(params));
   return { products: data ?? [], isLoading, mutate };
+}
+
+/** Comparativo por partida (renglón × proveedor). */
+export function useComparison(requestId?: string | null, enabled = true) {
+  const { data, isLoading, mutate } = useSWR(requestId && enabled ? ["compras-comparison", requestId] : null, () => getComparison(requestId!));
+  return { comparison: data, isLoading, mutate };
+}
+
+/** Bitácora de "Pedir cotización" (solo Compras/autorizador). */
+export function useRequestDispatches(requestId?: string | null, enabled = true) {
+  const { data, isLoading, mutate } = useSWR(requestId && enabled ? ["compras-rfq-log", requestId] : null, () => getRequestDispatches(requestId!));
+  return { dispatches: data ?? [], isLoading, mutate };
 }

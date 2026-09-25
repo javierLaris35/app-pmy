@@ -58,6 +58,10 @@ export interface QuoteRowValues {
   description: string;
   quantity: number;
   unitPrice: number;
+  availability?: string;
+  leadTimeDays?: number | null;
+  iepsEnabled?: boolean;
+  iepsRate?: number;
 }
 
 export function validateQuote(v: { supplierId: string; quoteDate: string; validUntil?: string; rows: QuoteRowValues[] }): FieldErrors {
@@ -70,6 +74,11 @@ export function validateQuote(v: { supplierId: string; quoteDate: string; validU
     if (r.description.trim().length < 2) e[`rows.${i}.description`] = "Describe el concepto.";
     if (!(Number(r.quantity) > 0)) e[`rows.${i}.quantity`] = "La cantidad debe ser mayor a 0.";
     if (!(Number(r.unitPrice) >= 0) || Number.isNaN(Number(r.unitPrice))) e[`rows.${i}.unitPrice`] = "Precio no válido.";
+    const days = r.leadTimeDays;
+    if (r.availability === "sobre_pedido" && days !== null && days !== undefined && (!Number.isInteger(Number(days)) || Number(days) < 0 || Number(days) > 365)) {
+      e[`rows.${i}.leadTimeDays`] = "Días de entrega: número entero de 0 a 365.";
+    }
+    if (r.iepsEnabled && !(Number(r.iepsRate) > 0)) e[`rows.${i}.iepsRate`] = "Elige la tasa de IEPS.";
   });
   return e;
 }

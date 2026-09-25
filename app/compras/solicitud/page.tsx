@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -16,32 +16,39 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  ArrowLeft, Ban, CheckCircle2, ClipboardList, Loader2, MoreHorizontal, Pencil, Plus, RotateCcw, Send, ShieldCheck, Trash2, XCircle,
+  ArrowLeft, Ban, CheckCircle2, ClipboardList, FilePlus2, Loader2, MailQuestion, MoreHorizontal, Pencil, Plus, RotateCcw, Send,
+  ShieldCheck, Trash2, XCircle,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
-import { useMaintenanceRequest, usePendingAuthorizations, usePurchaseOrder } from "@/hooks/services/maintenance/use-maintenance";
 import {
-  approveRequest, authorizePurchaseOrder, cancelPurchaseOrder, cancelRequest, completePurchaseOrder, convertQuote, deletePurchaseOrder,
-  deleteRequest, rejectPurchaseOrder, rejectRequest, sendPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder,
+  useComparison, useMaintenanceRequest, usePendingAuthorizations, usePurchaseOrder, useRequestDispatches,
+} from "@/hooks/services/maintenance/use-maintenance";
+import {
+  approveRequest, authorizePurchaseOrder, cancelPurchaseOrder, cancelRequest, completePurchaseOrder, deletePurchaseOrder,
+  deleteRequest, generateOrders, rejectPurchaseOrder, rejectRequest, sendPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder,
 } from "@/lib/services/maintenance";
 import {
   ExpedienteProgress, formatKms, formatMoney, MaintenanceQuote, PRIORITY_LABEL, REQUEST_TYPE_LABEL, vehicleLabel,
 } from "@/lib/types/maintenance";
+import { selectionSummary } from "@/lib/compras-comparison";
+import { activeOrders, pickActiveOrder } from "@/lib/compras-orders";
 import { apiError } from "@/components/maintenance/shared/confirm-action";
 import { StageBadge } from "@/components/maintenance/board/board-views";
 import { ExpedienteStepper } from "@/components/maintenance/expediente/expediente-stepper";
 import { QuotesStep } from "@/components/maintenance/expediente/quotes-step";
 import { OrderStep, orderPhase } from "@/components/maintenance/expediente/order-step";
+import { OrdersStrip } from "@/components/maintenance/expediente/orders-strip";
 import { ExpedienteActivity } from "@/components/maintenance/expediente/expediente-activity";
 import { RequestItemsCard } from "@/components/maintenance/expediente/request-items-card";
 import { useOrderDraft } from "@/components/maintenance/expediente/use-order-draft";
 import { RequestFormDialog } from "@/components/maintenance/requests/request-form-dialog";
 import { QuoteFormDialog } from "@/components/maintenance/requests/quote-form-dialog";
+import { RfqDialog } from "@/components/maintenance/requests/rfq-dialog";
 import { CompleteOrderDialog, ReasonDialog, SendOrderDialog } from "@/components/maintenance/orders/order-dialogs";
 
-type DialogKey = null | "quote" | "edit" | "cancel" | "delete" | "reject" | "rejectRequest" | "send" | "complete" | "requote";
+type DialogKey = null | "quote" | "rfq" | "generate" | "edit" | "cancel" | "cancelOrder" | "delete" | "reject" | "rejectRequest" | "send" | "complete" | "discard";
 const personName = (p?: { name?: string; lastName?: string } | null) => [p?.name, p?.lastName].filter(Boolean).join(" ") || "—";
 
 function SolicitudContent() {
@@ -51,8 +58,21 @@ function SolicitudContent() {
   const canAuthorize = hasPermission(user, "mttoVehiculos.autorizar");
   const isPurchaser = hasPermission(user, "mttoVehiculos.revisar");
   const { request, isLoading, isError, mutate } = useMaintenanceRequest(id);
-  const { order, mutate: mutateOrder } = usePurchaseOrder(request?.purchaseOrder?.id);
+
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const orders = request?.orders ?? [];
+  useEffect(() => {
+    if (!request) return;
+    if (!activeOrderId || !orders.some((o) => o.id === activeOrderId)) setActiveOrderId(pickActiveOrder(orders, { canAuthorize, isPurchaser }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
+
+  const { order, mutate: mutateOrder } = usePurchaseOrder(activeOrderId);
   const { mutate: mutateTray } = usePendingAuthorizations(canAuthorize);
+  const stageNow = request?.stage ?? "por_revisar";
+  const hasQuotes = (request?.quotes?.length ?? 0) > 0;
+  const { comparison, mutate: mutateComparison } = useComparison(request?.id, hasQuotes && !["por_revisar", "rechazada"].includes(stageNow));
+  const { dispatches, mutate: mutateDispatches } = useRequestDispatches(request?.id, (isPurchaser || canAuthorize) && stageNow !== "por_revisar");
   const draft = useOrderDraft(order);
   const [dialog, setDialog] = useState<DialogKey>(null);
   const [editingQuote, setEditingQuote] = useState<MaintenanceQuote | null>(null);
@@ -71,7 +91,9 @@ function SolicitudContent() {
     rejected: !!request.rejected,
   };
   const isOwner = !!user?.id && (request.createdBy?.id === user.id);
-  const hasOrder = !!request.purchaseOrder;
+  const live = activeOrders(orders);
+  const hasOrder = live.length > 0;
+  const multi = orders.length > 1;
   const closed = ["terminado", "cancelado", "rechazada"].includes(progress.stage);
   const reviewing = progress.stage === "por_revisar";
   const phase = order ? orderPhase(order.status) : null;
@@ -79,16 +101,18 @@ function SolicitudContent() {
   const authorizing = phase === "autorizacion" && canAuthorize;
   const quotesEditable = isPurchaser && !hasOrder && !closed && !reviewing;
   const canEdit = !closed && !hasOrder && (isPurchaser || (isOwner && reviewing));
-  const canCancel = !closed && (isPurchaser || (isOwner && reviewing)) && (!order || ["borrador", "autorizada", "enviada"].includes(order.status));
+  const canCancel = !closed && !hasOrder && (isPurchaser || (isOwner && reviewing));
+  const canCancelOrder = isPurchaser && !!order && (order.status === "autorizada" || order.status === "enviada");
   const canDelete = !hasOrder && !closed && (isPurchaser || (isOwner && reviewing));
+  const summary = selectionSummary(comparison);
+  const of = order && multi ? ` ${order.folio}` : "";
 
-  const refresh = async () => { await Promise.all([mutate(), mutateOrder()]); mutateTray(); };
+  const refresh = async () => { await Promise.all([mutate(), mutateOrder(), mutateComparison(), mutateDispatches()]); mutateTray(); };
   const run = async (fn: () => Promise<unknown>, ok: string, fallback: string) => {
     try { await fn(); toast.success(ok); await refresh(); } catch (e) { toast.error(apiError(e, fallback)); throw e; }
   };
   const guarded = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn(); } catch { /* toast ya mostrado */ } finally { setBusy(false); } };
 
-  const choose = (q: MaintenanceQuote) => run(() => convertQuote(q.id, true), "Orden mandada a autorización", "No se pudo generar la orden").catch(() => undefined);
   const authorize = () => guarded(async () => {
     if (draft.metaChanged) await updatePurchaseOrder(order!.id, { notes: draft.notes.trim() || null, contactId: draft.contactId || null });
     await run(
@@ -100,10 +124,6 @@ function SolicitudContent() {
     await updatePurchaseOrder(order!.id, { items: draft.items, notes: draft.notes.trim() || null, contactId: draft.contactId || null });
     await run(() => submitPurchaseOrder(order!.id), "Mandada otra vez a autorización", "No se pudo mandar");
   });
-  const cancelAll = (reason: string, notify: boolean) => run(
-    () => (order && (order.status === "autorizada" || order.status === "enviada") ? cancelPurchaseOrder(order.id, reason, notify) : cancelRequest(request.id)),
-    "Solicitud cancelada", "No se pudo cancelar",
-  );
 
   // ---- Barra de tareas: acción del paso activo + "Más acciones" ----
   let primary: React.ReactNode = null;
@@ -118,38 +138,51 @@ function SolicitudContent() {
       </>
     );
   } else if (quotesEditable) {
-    primary = <Button size="sm" onClick={() => { setEditingQuote(null); setDialog("quote"); }}><Plus className="mr-1.5 h-4 w-4" /> Agregar cotización</Button>;
+    primary = (
+      <>
+        <Button size="sm" variant="outline" onClick={() => setDialog("rfq")}><MailQuestion className="mr-1.5 h-4 w-4" /> Pedir cotización</Button>
+        <Button size="sm" variant={summary.groups.length ? "outline" : "default"} onClick={() => { setEditingQuote(null); setDialog("quote"); }}>
+          <Plus className="mr-1.5 h-4 w-4" /> Agregar cotización
+        </Button>
+        {summary.groups.length > 0 && (
+          <Button size="sm" onClick={() => setDialog("generate")}>
+            <FilePlus2 className="mr-1.5 h-4 w-4" /> Generar {summary.groups.length === 1 ? "orden" : `${summary.groups.length} órdenes`}
+          </Button>
+        )}
+      </>
+    );
   } else if (rejectedDraft && isPurchaser) {
     primary = (
       <Button size="sm" onClick={resubmit} disabled={busy}>
-        {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />} Mandar otra vez a autorizar
+        {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />} Mandar otra vez a autorizar{of}
       </Button>
     );
   } else if (authorizing) {
     primary = (
       <>
-        <Button size="sm" variant="outline" onClick={() => setDialog("reject")} disabled={busy}><XCircle className="mr-1.5 h-4 w-4" /> Rechazar orden</Button>
+        <Button size="sm" variant="outline" onClick={() => setDialog("reject")} disabled={busy}><XCircle className="mr-1.5 h-4 w-4" /> Rechazar{of}</Button>
         <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={authorize} disabled={busy || !draft.items.some((i) => i.approved)}>
-          {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />} Autorizar orden
+          {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />} Autorizar{of || " orden"}
         </Button>
       </>
     );
   } else if (phase === "envio" && isPurchaser) {
-    primary = <Button size="sm" onClick={() => setDialog("send")}><Send className="mr-1.5 h-4 w-4" /> Enviar al proveedor</Button>;
+    primary = <Button size="sm" onClick={() => setDialog("send")}><Send className="mr-1.5 h-4 w-4" /> Enviar{of} al proveedor</Button>;
   } else if (phase === "cierre" && isPurchaser) {
     primary = (
       <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setDialog("complete")}>
-        <CheckCircle2 className="mr-1.5 h-4 w-4" /> Recibir y cerrar
+        <CheckCircle2 className="mr-1.5 h-4 w-4" /> Recibir y cerrar{of}
       </Button>
     );
   }
 
   const moreItems = [
     canEdit && { key: "edit", label: "Editar solicitud", icon: Pencil, onSelect: () => setDialog("edit") },
-    rejectedDraft && isPurchaser && { key: "requote", label: "Elegir otra cotización", icon: RotateCcw, onSelect: () => setDialog("requote") },
-    phase === "cierre" && isPurchaser && { key: "resend", label: "Reenviar al proveedor", icon: Send, onSelect: () => setDialog("send") },
+    rejectedDraft && isPurchaser && { key: "discard", label: `Descartar${of || " la orden"} y volver a elegir`, icon: RotateCcw, onSelect: () => setDialog("discard") },
+    phase === "cierre" && isPurchaser && { key: "resend", label: `Reenviar${of} al proveedor`, icon: Send, onSelect: () => setDialog("send") },
   ].filter(Boolean) as Array<{ key: string; label: string; icon: React.ComponentType<{ className?: string }>; onSelect: () => void }>;
-  const hasMore = moreItems.length > 0 || canCancel || canDelete;
+  const hasDanger = canCancel || canCancelOrder || canDelete;
+  const hasMore = moreItems.length > 0 || hasDanger;
 
   const headerActions = primary || hasMore ? (
     <div className="flex items-center gap-2">
@@ -159,9 +192,10 @@ function SolicitudContent() {
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline"><MoreHorizontal className="mr-1.5 h-4 w-4" /> Más acciones</Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
             {moreItems.map((m) => <DropdownMenuItem key={m.key} onSelect={m.onSelect}><m.icon className="mr-2 h-4 w-4" /> {m.label}</DropdownMenuItem>)}
-            {(canCancel || canDelete) && moreItems.length > 0 && <DropdownMenuSeparator />}
+            {hasDanger && moreItems.length > 0 && <DropdownMenuSeparator />}
+            {canCancelOrder && <DropdownMenuItem onSelect={() => setDialog("cancelOrder")}><Ban className="mr-2 h-4 w-4" /> Cancelar{of || " la orden"}</DropdownMenuItem>}
             {canCancel && <DropdownMenuItem onSelect={() => setDialog("cancel")}><Ban className="mr-2 h-4 w-4" /> Cancelar solicitud</DropdownMenuItem>}
             {canDelete && (
               <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDialog("delete")}>
@@ -175,6 +209,7 @@ function SolicitudContent() {
   ) : undefined;
 
   const close = (o: boolean) => { if (!o) setDialog(null); };
+  const liveTotal = live.reduce((a, o) => a + Number(o.total), 0);
 
   return (
     <div className="flex min-h-screen flex-col gap-4 p-4 md:p-5">
@@ -204,12 +239,20 @@ function SolicitudContent() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-4">
-          {hasOrder && order && progress.stage !== "cancelado" && <OrderStep order={order} canAuthorize={canAuthorize} draft={draft} />}
-          {hasOrder && !order && <Card><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>}
+          {orders.length > 0 && <OrdersStrip orders={orders} activeId={activeOrderId} onSelect={setActiveOrderId} />}
+          {order && <OrderStep order={order} canAuthorize={canAuthorize} draft={draft} />}
+          {activeOrderId && !order && <Card><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>}
           <RequestItemsCard items={request.items ?? []} />
-          {!reviewing && progress.stage !== "rechazada" && (isPurchaser || (request.quotes?.length ?? 0) > 0) && (
-            <QuotesStep request={request} editable={quotesEditable} onChanged={refresh} onChoose={choose}
-              onEdit={(q) => { setEditingQuote(q); setDialog("quote"); }} />
+          {!reviewing && progress.stage !== "rechazada" && (isPurchaser || hasQuotes) && (
+            <QuotesStep
+              request={request}
+              comparison={comparison}
+              onComparisonChange={(c) => mutateComparison(c, false)}
+              editable={quotesEditable}
+              onChanged={refresh}
+              onEdit={(q) => { setEditingQuote(q); setDialog("quote"); }}
+              dispatches={isPurchaser ? dispatches : undefined}
+            />
           )}
         </div>
 
@@ -230,20 +273,22 @@ function SolicitudContent() {
                 <dt className="text-muted-foreground">Prioridad</dt><dd>{PRIORITY_LABEL[request.priority]}</dd>
                 <dt className="text-muted-foreground">Pidió</dt><dd>{personName(request.createdBy)}</dd>
                 {request.reviewedBy && <><dt className="text-muted-foreground">Revisó</dt><dd>{personName(request.reviewedBy)}</dd></>}
-                {order && (
+                {hasOrder && (
                   <>
-                    <dt className="text-muted-foreground">Proveedor</dt><dd>{order.supplier?.name}</dd>
-                    <dt className="text-muted-foreground">Monto</dt><dd className="font-semibold tabular-nums">{formatMoney(order.finalAmount ?? order.total)}</dd>
+                    <dt className="text-muted-foreground">{live.length === 1 ? "Proveedor" : "Proveedores"}</dt>
+                    <dd>{[...new Set(live.map((o) => o.supplierName).filter(Boolean))].join(", ")}</dd>
+                    <dt className="text-muted-foreground">Monto</dt><dd className="font-semibold tabular-nums">{formatMoney(liveTotal)}</dd>
                   </>
                 )}
               </dl>
             </CardContent>
           </Card>
-          <ExpedienteActivity request={request} order={order} />
+          <ExpedienteActivity request={request} order={order} dispatches={isPurchaser || canAuthorize ? dispatches : undefined} />
         </aside>
       </div>
 
       <QuoteFormDialog open={dialog === "quote"} onOpenChange={close} request={request} quote={editingQuote} onSaved={() => refresh()} />
+      <RfqDialog open={dialog === "rfq"} onOpenChange={close} request={request} onSent={() => mutateDispatches()} />
       <RequestFormDialog open={dialog === "edit"} onOpenChange={close} request={request} onSaved={() => refresh()} />
       <ReasonDialog
         open={dialog === "rejectRequest"} onOpenChange={close}
@@ -254,9 +299,42 @@ function SolicitudContent() {
       <ReasonDialog
         open={dialog === "cancel"} onOpenChange={close}
         title={`Cancelar ${request.folio}`} description="La solicitud queda cancelada y ya no se puede continuar."
-        confirmLabel="Cancelar solicitud" destructive withNotifySupplier={order?.status === "enviada"}
-        onConfirm={cancelAll}
+        confirmLabel="Cancelar solicitud" destructive
+        onConfirm={() => run(() => cancelRequest(request.id), "Solicitud cancelada", "No se pudo cancelar")}
       />
+
+      <AlertDialog open={dialog === "generate"} onOpenChange={close}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Generar {summary.groups.length === 1 ? "la orden" : `${summary.groups.length} órdenes`} de compra?</AlertDialogTitle>
+            <AlertDialogDescription>Se crea una orden por proveedor con lo que elegiste en el comparativo y se mandan a autorización.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="divide-y rounded-lg border text-sm">
+            {summary.groups.map((g) => (
+              <li key={g.quoteId} className="flex items-center justify-between gap-3 px-3 py-2">
+                <span><span className="font-medium">{g.supplierName}</span> · {g.count} {g.count === 1 ? "concepto" : "conceptos"}</span>
+                <span className="font-semibold tabular-nums">{formatMoney(g.total)}</span>
+              </li>
+            ))}
+            <li className="flex items-center justify-between px-3 py-2 font-semibold"><span>Total</span><span className="tabular-nums">{formatMoney(summary.total)}</span></li>
+          </ul>
+          {summary.skipped > 0 && (
+            <p className="text-xs text-muted-foreground">{summary.skipped} {summary.skipped === 1 ? "renglón no se va" : "renglones no se van"} a comprar.</p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => guarded(() => run(
+                async () => { const out = await generateOrders(request.id); setActiveOrderId(out[0]?.id ?? null); },
+                summary.groups.length === 1 ? "Orden mandada a autorización" : "Órdenes mandadas a autorización", "No se pudieron generar las órdenes",
+              ))}
+            >
+              Generar y mandar a autorizar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {order && (
         <>
           <ReasonDialog
@@ -265,18 +343,27 @@ function SolicitudContent() {
             confirmLabel="Rechazar orden" destructive
             onConfirm={(reason) => run(() => rejectPurchaseOrder(order.id, reason), "Orden rechazada", "No se pudo rechazar")}
           />
+          <ReasonDialog
+            open={dialog === "cancelOrder"} onOpenChange={close}
+            title={`Cancelar ${order.folio}`}
+            description={live.length > 1 ? "Solo se cancela esta orden; las demás siguen su curso." : "Si no quedan órdenes, la solicitud regresa a cotizaciones."}
+            confirmLabel="Cancelar orden" destructive withNotifySupplier={order.status === "enviada"}
+            onConfirm={(reason, notify) => run(() => cancelPurchaseOrder(order.id, reason, notify), "Orden cancelada", "No se pudo cancelar")}
+          />
           <SendOrderDialog open={dialog === "send"} onOpenChange={close} order={order}
             onSend={(body) => run(() => sendPurchaseOrder(order.id, body), "Orden enviada al proveedor", "No se pudo enviar")} />
           <CompleteOrderDialog open={dialog === "complete"} onOpenChange={close} order={order}
             onComplete={(body) => run(() => completePurchaseOrder(order.id, body), "Recibido: se registró el gasto", "No se pudo cerrar")} />
         </>
       )}
-      <AlertDialog open={dialog === "requote" || dialog === "delete"} onOpenChange={close}>
+      <AlertDialog open={dialog === "discard" || dialog === "delete"} onOpenChange={close}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{dialog === "requote" ? "¿Regresar a cotizaciones?" : "¿Eliminar esta solicitud?"}</AlertDialogTitle>
+            <AlertDialogTitle>{dialog === "discard" ? `¿Descartar ${order?.folio ?? "la orden"}?` : "¿Eliminar esta solicitud?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              {dialog === "requote" ? "Se descarta esta orden para elegir otra cotización." : "Se elimina junto con sus cotizaciones. Úsalo solo si se capturó por error."}
+              {dialog === "discard"
+                ? live.length > 1 ? "Se descarta solo esta orden; las demás siguen su curso." : "Se descarta la orden y la solicitud regresa a cotizaciones para elegir de nuevo."
+                : "Se elimina junto con sus cotizaciones. Úsalo solo si se capturó por error."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -284,15 +371,15 @@ function SolicitudContent() {
             <AlertDialogAction
               className={dialog === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
               onClick={async () => {
-                if (dialog === "requote" && order) {
-                  await run(() => deletePurchaseOrder(order.id), "Puedes elegir otra cotización", "No se pudo regresar").catch(() => undefined);
+                if (dialog === "discard" && order) {
+                  await run(() => deletePurchaseOrder(order.id), "Orden descartada", "No se pudo descartar").catch(() => undefined);
                 } else {
                   try { await deleteRequest(request.id); toast.success("Solicitud eliminada"); router.push(isPurchaser ? "/compras/tablero" : "/compras/solicitudes"); }
                   catch (e) { toast.error(apiError(e, "No se pudo eliminar")); }
                 }
               }}
             >
-              {dialog === "requote" ? "Regresar a cotizaciones" : "Eliminar"}
+              {dialog === "discard" ? "Descartar orden" : "Eliminar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
