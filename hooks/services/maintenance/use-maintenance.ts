@@ -15,7 +15,7 @@ import {
   getSuppliers,
 } from "@/lib/services/maintenance";
 import type { PoStatus } from "@/lib/types/maintenance";
-import { getComparison, getServiceTemplates, getMyRequests, getProductCategories, getProducts, getRequestDispatches, getUnits, getVehicleSpec } from "@/lib/services/maintenance";
+import { getComparison, getNeeds, getServiceTemplates, getMyRequests, getProductCategories, getProducts, getRequestDispatches, getUnits, getVehicleSpec } from "@/lib/services/maintenance";
 import type { ProductKind } from "@/lib/types/compras";
 
 export function useServiceCategories() {
@@ -146,4 +146,10 @@ export function useRequestDispatches(requestId?: string | null, enabled = true) 
 export function useServiceTemplates(includeInactive = false) {
   const { data, isLoading, mutate } = useSWR(["mtto-service-templates", includeInactive], () => getServiceTemplates(includeInactive));
   return { services: data ?? [], isLoading, mutate };
+}
+
+/** "Lo que se necesita" con sus 4 sugerencias (solo Compras / quien autoriza). */
+export function useNeeds(requestId?: string | null, enabled = true) {
+  const { data, isLoading, mutate } = useSWR(requestId && enabled ? ["compras-needs", requestId] : null, () => getNeeds(requestId!));
+  return { needs: data?.needs ?? [], isLoading, mutate };
 }

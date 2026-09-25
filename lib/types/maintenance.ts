@@ -129,6 +129,8 @@ export interface QuoteItem {
   id?: string;
   /** Renglón de la solicitud que cotiza esta partida. */
   requestItemId?: string | null;
+  /** Necesidad ("Lo que se necesita") que cotiza esta partida. */
+  requestNeedId?: string | null;
   productId?: string | null;
   product?: { id: string; name: string; brand?: string | null; partNumber?: string | null } | null;
   serviceId?: string | null;
@@ -162,6 +164,8 @@ export interface MaintenanceQuote {
   tax: number;
   total: number;
   status: QuoteStatus;
+  /** Armada desde sugerencias con precio del catálogo: falta confirmarla con el proveedor. */
+  fromCatalog?: boolean;
   items: QuoteItem[];
 }
 
@@ -179,7 +183,9 @@ export interface ComparisonCell {
 }
 
 export interface ComparisonRow {
+  /** Id del renglón o de la necesidad (según kind). */
   requestItemId: string;
+  kind?: "item" | "need";
   description: string;
   quantity: number;
   /** quoteId → lo que cotizó ese proveedor. */
@@ -416,3 +422,43 @@ export const formatMoney = (n?: number | null) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(n ?? 0));
 
 export const formatKms = (n?: number | null) => (n === null || n === undefined ? "—" : `${Number(n).toLocaleString("es-MX")} km`);
+
+// ---------------- Lo que se necesita (sugerencias) ----------------
+
+export type OfferLabel = "mas_comprado" | "mejor_precio" | "mejor_calidad" | "mejor_relacion";
+
+export const OFFER_LABEL: Record<OfferLabel, string> = {
+  mas_comprado: "Más comprado",
+  mejor_precio: "Mejor precio",
+  mejor_calidad: "Mejor calidad",
+  mejor_relacion: "Mejor calidad-precio",
+};
+
+export interface RankedOffer {
+  offerId: string;
+  productId: string;
+  productName: string;
+  brand: string | null;
+  supplierId: string;
+  supplierName: string;
+  unitName: string | null;
+  price: number;
+  quality: number | null;
+  purchases: number;
+  /** Vacío = "Otra opción". */
+  labels: OfferLabel[];
+}
+
+export type NeedSource = "receta" | "ficha" | "palabra" | "manual";
+
+export interface NeedView {
+  id: string;
+  category: { id: string; name: string; kind: string };
+  product: { id: string; name: string; brand: string | null } | null;
+  quantity: number;
+  unit: { id: string; name: string; abbreviation: string | null } | null;
+  source: NeedSource;
+  sourceLabel: string;
+  suggestions: RankedOffer[];
+  inQuote: { quoteId: string; quoteItemId: string; supplierId: string; supplierName: string; offerProductId: string | null } | null;
+}

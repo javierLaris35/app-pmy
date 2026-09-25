@@ -23,7 +23,7 @@ import { toast } from "@/lib/toast";
 import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
 import {
-  useComparison, useMaintenanceRequest, usePendingAuthorizations, usePurchaseOrder, useRequestDispatches,
+  useComparison, useMaintenanceRequest, useNeeds, usePendingAuthorizations, usePurchaseOrder, useRequestDispatches,
 } from "@/hooks/services/maintenance/use-maintenance";
 import {
   approveRequest, authorizePurchaseOrder, cancelPurchaseOrder, cancelRequest, completePurchaseOrder, deletePurchaseOrder,
@@ -42,6 +42,7 @@ import { OrderStep, orderPhase } from "@/components/maintenance/expediente/order
 import { OrdersStrip } from "@/components/maintenance/expediente/orders-strip";
 import { ExpedienteActivity } from "@/components/maintenance/expediente/expediente-activity";
 import { RequestItemsCard } from "@/components/maintenance/expediente/request-items-card";
+import { NeedsCard } from "@/components/maintenance/expediente/needs-card";
 import { useOrderDraft } from "@/components/maintenance/expediente/use-order-draft";
 import { RequestFormDialog } from "@/components/maintenance/requests/request-form-dialog";
 import { QuoteFormDialog } from "@/components/maintenance/requests/quote-form-dialog";
@@ -72,6 +73,8 @@ function SolicitudContent() {
   const stageNow = request?.stage ?? "por_revisar";
   const hasQuotes = (request?.quotes?.length ?? 0) > 0;
   const { comparison, mutate: mutateComparison } = useComparison(request?.id, hasQuotes && !["por_revisar", "rechazada"].includes(stageNow));
+  const needsVisible = (isPurchaser || canAuthorize) && !["por_revisar", "rechazada", "cancelado"].includes(stageNow);
+  const { needs, isLoading: needsLoading, mutate: mutateNeeds } = useNeeds(request?.id, needsVisible);
   const { dispatches, mutate: mutateDispatches } = useRequestDispatches(request?.id, (isPurchaser || canAuthorize) && stageNow !== "por_revisar");
   const draft = useOrderDraft(order);
   const [dialog, setDialog] = useState<DialogKey>(null);
@@ -107,7 +110,7 @@ function SolicitudContent() {
   const summary = selectionSummary(comparison);
   const of = order && multi ? ` ${order.folio}` : "";
 
-  const refresh = async () => { await Promise.all([mutate(), mutateOrder(), mutateComparison(), mutateDispatches()]); mutateTray(); };
+  const refresh = async () => { await Promise.all([mutate(), mutateOrder(), mutateComparison(), mutateDispatches(), mutateNeeds()]); mutateTray(); };
   const run = async (fn: () => Promise<unknown>, ok: string, fallback: string) => {
     try { await fn(); toast.success(ok); await refresh(); } catch (e) { toast.error(apiError(e, fallback)); throw e; }
   };
@@ -243,6 +246,9 @@ function SolicitudContent() {
           {order && <OrderStep order={order} canAuthorize={canAuthorize} draft={draft} />}
           {activeOrderId && !order && <Card><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>}
           <RequestItemsCard items={request.items ?? []} services={request.services ?? []} description={request.description} />
+          {needsVisible && (needs.length > 0 || quotesEditable || needsLoading) && (
+            <NeedsCard requestId={request.id} needs={needs} editable={quotesEditable} loading={needsLoading && !needs.length} onChanged={refresh} />
+          )}
           {!reviewing && progress.stage !== "rechazada" && (isPurchaser || hasQuotes) && (
             <QuotesStep
               request={request}
@@ -286,7 +292,7 @@ function SolicitudContent() {
         </aside>
       </div>
 
-      <QuoteFormDialog open={dialog === "quote"} onOpenChange={close} request={request} quote={editingQuote} onSaved={() => refresh()} />
+      <QuoteFormDialog open={dialog === "quote"} onOpenChange={close} request={request} quote={editingQuote} needs={needs} onSaved={() => refresh()} />
       <RfqDialog open={dialog === "rfq"} onOpenChange={close} request={request} onSent={() => mutateDispatches()} />
       <RequestFormDialog open={dialog === "edit"} onOpenChange={close} request={request} onSaved={() => refresh()} />
       <ReasonDialog

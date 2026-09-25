@@ -17,7 +17,7 @@ import { toast } from "@/lib/toast";
 import { useProducts, useSuppliers } from "@/hooks/services/maintenance/use-maintenance";
 import { createQuote, updateQuote, uploadQuoteAttachment } from "@/lib/services/maintenance";
 import { getCompanySettings } from "@/lib/services/company-settings";
-import { Availability, AVAILABILITY_LABEL, formatMoney, MaintenanceQuote, MaintenanceRequest, QuoteItem } from "@/lib/types/maintenance";
+import { Availability, AVAILABILITY_LABEL, formatMoney, MaintenanceQuote, MaintenanceRequest, NeedView, QuoteItem } from "@/lib/types/maintenance";
 import { bestOffer, Product } from "@/lib/types/compras";
 import { deviationPct, IEPS_RATES, lineTaxes, pctLabel, totals } from "@/lib/maintenance-money";
 import { ProductPicker } from "./product-picker";
@@ -32,6 +32,8 @@ interface Row extends QuoteItem {
   key: string;
   /** Número del renglón de la solicitud (para mostrar "Renglón 2"). */
   rowNumber?: number;
+  /** Nombre de la necesidad ("Lo que se necesita") que cotiza. */
+  needName?: string;
 }
 
 const base = (): Omit<Row, "key" | "description"> => ({
@@ -40,14 +42,18 @@ const base = (): Omit<Row, "key" | "description"> => ({
 const extraRow = (): Row => ({ key: crypto.randomUUID(), description: "", requestItemId: null, productId: null, ...base() });
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Hermosillo" });
 
-/** Renglones de la solicitud como partidas iniciales de la cotización. */
-function rowsFromRequest(request: MaintenanceRequest): Row[] {
-  const items = request.items ?? [];
-  if (!items.length) return [extraRow()];
-  return items.map((it, idx) => ({
+/** Renglones de la solicitud + "Lo que se necesita" como partidas iniciales de la cotización. */
+function rowsFromRequest(request: MaintenanceRequest, needs: NeedView[]): Row[] {
+  const items: Row[] = (request.items ?? []).map((it, idx) => ({
     key: crypto.randomUUID(), rowNumber: idx + 1, requestItemId: it.id ?? null, productId: it.productId ?? null,
     description: it.description, ...base(), quantity: Number(it.quantity),
   }));
+  const fromNeeds: Row[] = needs.map((n) => ({
+    key: crypto.randomUUID(), requestItemId: null, requestNeedId: n.id, needName: n.category.name, productId: n.product?.id ?? null,
+    description: n.product ? [n.product.name, n.product.brand].filter(Boolean).join(" · ") : n.category.name, ...base(), quantity: Number(n.quantity),
+  }));
+  const all = [...items, ...fromNeeds];
+  return all.length ? all : [extraRow()];
 }
 
 interface Props {
@@ -55,10 +61,12 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   request: MaintenanceRequest;
   quote?: MaintenanceQuote | null;
+  /** "Lo que se necesita" (para precargar una cotización nueva). */
+  needs?: NeedView[];
   onSaved: () => void;
 }
 
-export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }: Props) {
+export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = [], onSaved }: Props) {
   const { suppliers, mutate: mutateSuppliers } = useSuppliers();
   const { products } = useProducts();
   const { data: company } = useSWR("company-settings", getCompanySettings);
@@ -86,12 +94,14 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
     setRows(quote?.items?.length
       ? quote.items.map((i) => ({
         ...i, key: crypto.randomUUID(), rowNumber: i.requestItemId ? rowNumberOf.get(i.requestItemId) : undefined,
+        needName: i.requestNeedId ? needs.find((n) => n.id === i.requestNeedId)?.category.name ?? "Pieza/insumo" : undefined,
         quantity: Number(i.quantity), unitPrice: Number(i.unitPrice), iepsRate: Number(i.iepsRate ?? 0),
         ivaEnabled: i.ivaEnabled ?? Number(i.taxRate ?? 0.16) > 0, availability: i.availability ?? "si",
       }))
-      : rowsFromRequest(request));
+      : rowsFromRequest(request, needs));
     setFile(null);
     setTried(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, quote, request, rowNumberOf]);
 
   // Referencia del catálogo (mejor precio conocido) y, al elegir proveedor, su último precio como punto de partida.
@@ -134,6 +144,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
         notes: notes.trim() || null,
         items: rows.map((r) => ({
           requestItemId: r.requestItemId || null,
+          requestNeedId: r.requestNeedId || null,
           productId: r.productId || null,
           description: r.description.trim(),
           quantity: Number(r.quantity),
@@ -155,6 +166,14 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
         }
       }
       toast.success(quote ? "Cotización actualizada" : "Cotización agregada");
+      // El precio capturado se guarda en el catálogo: se avisa cuando cambió respecto a lo que había.
+      const supplierName = suppliers.find((s) => s.id === supplierId)?.name ?? "el proveedor";
+      const changed = rows.flatMap((r) => {
+        const p = r.productId ? productById.get(r.productId) : undefined;
+        const before = supplierPrice(p, supplierId);
+        return p && before && Number(before.price) !== Number(r.unitPrice) ? [`${p.name} con ${supplierName} a ${formatMoney(r.unitPrice)}`] : [];
+      });
+      if (changed.length) toast.info(`Se actualizó el precio de ${changed.slice(0, 3).join("; ")}${changed.length > 3 ? ` y ${changed.length - 3} más` : ""}.`);
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -249,7 +268,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                         <TableRow key={r.key} className="align-top">
                           <TableCell>
                             <div className="flex gap-2">
-                              {!r.requestItemId && (
+                              {!r.requestItemId && !r.requestNeedId && (
                                 <ProductPicker onPick={(p) => patch(r.key, {
                                   productId: p.id, description: p.name,
                                   unitPrice: Number(supplierPrice(p, supplierId)?.price ?? bestOffer(p)?.price ?? 0), referencePrice: null,
@@ -265,6 +284,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                             <FieldError message={errors[`rows.${i}.description`]} className="mt-1" />
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               {r.rowNumber ? <Badge variant="outline" className="h-5 text-[10px]">Renglón {r.rowNumber}</Badge>
+                                : r.requestNeedId ? <Badge variant="outline" className="h-5 border-violet-200 bg-violet-50 text-[10px] text-violet-700">Necesidad: {r.needName ?? "pieza/insumo"}</Badge>
                                 : <Badge variant="outline" className="h-5 border-sky-200 bg-sky-50 text-[10px] text-sky-700">Extra</Badge>}
                               {ref !== null && <span>Referencia: {formatMoney(ref)}</span>}
                               {dev !== null && dev > threshold && (

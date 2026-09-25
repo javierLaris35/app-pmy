@@ -68,6 +68,9 @@ export function QuotesStep({ request, comparison, onComparisonChange, editable, 
                       {q.supplier?.name}
                       {q.status === "ganadora" && <Badge className="h-5 text-[10px]">Con orden</Badge>}
                       {q.status === "descartada" && <Badge variant="outline" className="h-5 text-[10px] text-muted-foreground">No elegida</Badge>}
+                      {q.fromCatalog && (
+                        <Badge variant="outline" className="h-5 border-amber-300 bg-amber-50 text-[10px] text-amber-800">Precio del catálogo: confírmalo con el proveedor</Badge>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {q.items.length} {q.items.length === 1 ? "concepto" : "conceptos"} · {fmtDate(q.quoteDate)}

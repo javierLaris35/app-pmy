@@ -2,6 +2,7 @@ import { axiosConfig } from "../axios-config";
 import type {
   BoardCard,
   Comparison,
+  NeedView,
   ContactChannel,
   HistoryResponse,
   MaintenanceQuote,
@@ -259,3 +260,16 @@ export const saveServiceTemplate = async (body: ServiceTemplatePayload, id?: str
     : await axiosConfig.post<ServiceTemplate>(`${base}/catalog/service-templates`, body)).data;
 export const deleteServiceTemplate = async (id: string) =>
   (await axiosConfig.delete<{ ok: boolean; deactivated: boolean }>(`${base}/catalog/service-templates/${id}`)).data;
+
+// ---------------- Lo que se necesita (sugerencias) ----------------
+
+export const getNeeds = async (requestId: string) =>
+  (await axiosConfig.get<{ needs: NeedView[] }>(`${base}/requests/${requestId}/needs`)).data;
+export const addNeed = async (requestId: string, body: { categoryId: string; quantity: number; unitId?: string | null }) =>
+  (await axiosConfig.post<{ needs: NeedView[] }>(`${base}/requests/${requestId}/needs`, body)).data;
+export const recalculateNeeds = async (requestId: string) =>
+  (await axiosConfig.post<{ needs: NeedView[] }>(`${base}/requests/${requestId}/needs/recalculate`)).data;
+export const dismissNeed = async (needId: string) => (await axiosConfig.delete(`${base}/requests/needs/${needId}`)).data;
+/** Elegir una sugerencia: la pone en la cotización de ese proveedor con el precio del catálogo. */
+export const pickNeedOffer = async (needId: string, offerId: string) =>
+  (await axiosConfig.post<{ quoteId: string }>(`${base}/requests/needs/${needId}/pick`, { offerId })).data;
