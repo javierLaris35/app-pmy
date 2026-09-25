@@ -70,7 +70,7 @@ function HistorialMttoPage() {
         id: "folio",
         header: "Mantenimiento",
         cell: ({ row }) => (
-          <Link href={`/mtto/expediente?id=${row.original.requestId}`} className="font-mono text-sm text-primary hover:underline">{row.original.folio}</Link>
+          <Link href={`/compras/solicitud?id=${row.original.requestId}`} className="font-mono text-sm text-primary hover:underline">{row.original.folio}</Link>
         ),
       },
       {

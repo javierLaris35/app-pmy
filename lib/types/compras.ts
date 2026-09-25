@@ -48,3 +48,17 @@ export const KIND_PLURAL: Record<ProductKind, string> = { pieza: "Piezas", insum
 /** Mejor oferta (precio más bajo) de un producto. */
 export const bestOffer = (p: Product): ProductOffer | undefined =>
   [...(p.offers ?? [])].sort((a, b) => Number(a.price) - Number(b.price))[0];
+
+/** Renglón de la ficha técnica de una unidad (pieza o insumo que lleva). */
+export interface VehicleSpecItem {
+  id: string;
+  vehicleId: string;
+  categoryId: string;
+  category?: ProductCategory;
+  productId?: string | null;
+  product?: Product | null;
+  quantity: number;
+  unitId?: string | null;
+  unit?: UnitOfMeasure | null;
+  notes?: string | null;
+}

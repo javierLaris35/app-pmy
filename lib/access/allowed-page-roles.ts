@@ -41,6 +41,8 @@ export const allowedPageRoles = {
         catalogos: [UserRoleEnum.ADMIN, UserRoleEnum.SUPERADMIN],
         // Se concede por usuario (Edgardo Lugo); el rol legacy solo cubre superadmin.
         autorizar: [UserRoleEnum.SUPERADMIN],
+        // Compras (Gerardo) por user_permission; el rol legacy solo cubre superadmin.
+        revisar: [UserRoleEnum.SUPERADMIN],
     },
     configuracion: [UserRoleEnum.SUPERADMIN],
     // Auditoría: EXCLUSIVO superadmin (incluye variante histórica 'superamin').

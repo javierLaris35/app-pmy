@@ -9,6 +9,8 @@ import {
 } from "@/lib/types/maintenance";
 
 const REQUEST_CLASS: Record<RequestStatus, string> = {
+  por_revisar: "border-amber-200 bg-amber-50 text-amber-700",
+  rechazada: "border-rose-200 bg-rose-50 text-rose-700",
   abierta: "border-sky-200 bg-sky-50 text-sky-700",
   en_cotizacion: "border-violet-200 bg-violet-50 text-violet-700",
   orden_generada: "border-amber-200 bg-amber-50 text-amber-700",

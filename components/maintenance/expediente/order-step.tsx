@@ -8,16 +8,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileDown, Mail, MessageCircle, Undo2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { getPurchaseOrderPdf, openBlob } from "@/lib/services/maintenance";
-import { ExpedienteProgress, formatKms, formatMoney, PurchaseOrder } from "@/lib/types/maintenance";
+import { formatKms, formatMoney, PurchaseOrder } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
 import { ItemsMode, OrderItemsTable } from "../orders/order-items-table";
 import type { OrderDraft } from "./use-order-draft";
+
+export type OrderPhase = "borrador" | "autorizacion" | "envio" | "cierre" | "terminado" | "cancelada";
+/** Fase de una orden según su estado. */
+export const orderPhase = (status: string): OrderPhase =>
+  status === "pendiente" ? "autorizacion" : status === "autorizada" ? "envio" : status === "enviada" ? "cierre"
+    : status === "completada" ? "terminado" : status === "cancelada" ? "cancelada" : "borrador";
 
 const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString("es-MX", { timeZone: "America/Hermosillo", dateStyle: "long" }) : "—");
 
 interface Props {
   order: PurchaseOrder;
-  progress: ExpedienteProgress;
   canAuthorize: boolean;
   draft: OrderDraft;
 }
@@ -26,9 +31,11 @@ interface Props {
  * Pasos 3–5 (y el regreso por rechazo): la orden de compra dentro del expediente.
  * Solo contenido; las acciones (autorizar, enviar, cerrar…) viven en el header de la pantalla.
  */
-export function OrderStep({ order, progress, canAuthorize, draft }: Props) {
-  const rejectedDraft = progress.rejected && order.status === "borrador";
-  const authorizing = progress.step === "autorizacion" && canAuthorize;
+export function OrderStep({ order, canAuthorize, draft }: Props) {
+  /** Fase de ESTA orden (una solicitud puede tener varias órdenes, cada una en su fase). */
+  const phase = orderPhase(order.status);
+  const rejectedDraft = order.status === "borrador" && !!order.rejectionReason;
+  const authorizing = phase === "autorizacion" && canAuthorize;
   const editable = rejectedDraft || authorizing;
   const mode: ItemsMode = authorizing ? "authorize" : rejectedDraft ? "edit" : "view";
   const contacts = order.supplier?.contacts ?? [];
@@ -36,16 +43,16 @@ export function OrderStep({ order, progress, canAuthorize, draft }: Props) {
   const pdf = async () => { try { openBlob(await getPurchaseOrderPdf(order.id)); } catch (e) { toast.error(apiError(e, "No se pudo generar el PDF")); } };
 
   const title = rejectedDraft ? "Corregir la orden"
-    : progress.step === "autorizacion" ? (canAuthorize ? "Autorizar la orden" : "Orden en autorización")
-    : progress.step === "envio" ? "Orden autorizada, lista para enviar"
-    : progress.step === "cierre" ? "Orden en el taller"
+    : phase === "autorizacion" ? (canAuthorize ? "Autorizar la orden" : "Orden en autorización")
+    : phase === "envio" ? "Orden autorizada, lista para enviar"
+    : phase === "cierre" ? "Orden en el taller"
     : `Orden ${order.folio}`;
 
   const description = rejectedDraft ? "Ajusta los conceptos y vuelve a mandarla desde la barra de arriba, o elige otra cotización."
     : authorizing ? "Palomea lo que apruebas y usa Autorizar arriba. Al proveedor solo le llega lo aprobado."
-    : progress.step === "autorizacion" ? "Quien autoriza puede aprobar todo o solo algunos conceptos."
-    : progress.step === "envio" ? "Se manda el PDF solo con lo autorizado, por el medio que prefiera el proveedor."
-    : progress.step === "cierre" ? "Cuando la unidad salga del taller, cierra el servicio para registrar el gasto."
+    : phase === "autorizacion" ? "Quien autoriza puede aprobar todo o solo algunos conceptos."
+    : phase === "envio" ? "Se manda el PDF solo con lo autorizado, por el medio que prefiera el proveedor."
+    : phase === "cierre" ? "Cuando la unidad salga del taller, cierra el servicio para registrar el gasto."
     : "Resumen de lo autorizado.";
 
   return (
@@ -98,7 +105,7 @@ export function OrderStep({ order, progress, canAuthorize, draft }: Props) {
           )}
         </div>
 
-        {progress.stage === "terminado" && (
+        {order.status === "completada" && (
           <div className="grid gap-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-sm sm:grid-cols-3">
             <div><p className="text-xs text-emerald-800/70">Servicio realizado</p><p className="font-medium">{fmtDate(order.completedAt)}</p></div>
             <div><p className="text-xs text-emerald-800/70">Km</p><p className="font-medium tabular-nums">{formatKms(order.completedKms)}</p></div>

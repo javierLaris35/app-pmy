@@ -12,12 +12,13 @@ import type {
   PurchaseOrderItem,
   QuoteItem,
   RequestPriority,
+  RequestType,
   ScheduleRow,
   ServiceCategory,
   Supplier,
   SupplierContact,
 } from "../types/maintenance";
-import type { Product, ProductCategory, ProductKind, ProductOffer, UnitOfMeasure } from "../types/compras";
+import type { Product, ProductCategory, ProductKind, ProductOffer, UnitOfMeasure, VehicleSpecItem } from "../types/compras";
 
 const base = "maintenance";
 
@@ -70,11 +71,23 @@ export const updateVehicleSchedule = async (vehicleId: string, body: SchedulePay
   (await axiosConfig.patch(`${base}/schedule/vehicle/${vehicleId}`, body)).data;
 
 // ---------------- Solicitudes y cotizaciones ----------------
+export interface RequestItemPayload {
+  id?: string;
+  productId?: string | null;
+  categoryId?: string | null;
+  description: string;
+  quantity: number;
+  unitId?: string | null;
+  notes?: string | null;
+}
 export interface RequestPayload {
-  vehicleId: string;
+  type: RequestType;
+  subsidiaryId: string;
+  vehicleId?: string | null;
   kmsAtRequest?: number | null;
   description: string;
   priority: RequestPriority;
+  items: RequestItemPayload[];
 }
 export interface QuotePayload {
   supplierId: string;
@@ -110,8 +123,25 @@ export const getQuoteAttachmentBlob = async (quoteId: string) =>
 export const convertQuote = async (quoteId: string, submit = true) =>
   (await axiosConfig.post<PurchaseOrder>(`${base}/requests/quotes/${quoteId}/convert`, undefined, { params: { submit } })).data;
 
-export const getBoard = async (subsidiaryId: string) =>
-  (await axiosConfig.get<BoardCard[]>(`${base}/requests/board/${subsidiaryId}`)).data;
+export const getBoard = async (params: { subsidiaryId?: string; type?: string } = {}) =>
+  (await axiosConfig.get<BoardCard[]>(`${base}/requests/board`, { params })).data;
+export const getMyRequests = async (type?: string) =>
+  (await axiosConfig.get<BoardCard[]>(`${base}/requests/mine`, { params: { type } })).data;
+export const approveRequest = async (id: string) => (await axiosConfig.post<MaintenanceRequest>(`${base}/requests/${id}/approve`)).data;
+export const rejectRequest = async (id: string, reason: string) =>
+  (await axiosConfig.post<MaintenanceRequest>(`${base}/requests/${id}/reject`, { reason })).data;
+
+export interface VehicleSpecItemPayload {
+  categoryId: string;
+  productId?: string | null;
+  quantity: number;
+  unitId?: string | null;
+  notes?: string | null;
+}
+export const getVehicleSpec = async (vehicleId: string) =>
+  (await axiosConfig.get<VehicleSpecItem[]>(`${base}/schedule/vehicle/${vehicleId}/spec`)).data;
+export const saveVehicleSpec = async (vehicleId: string, items: VehicleSpecItemPayload[]) =>
+  (await axiosConfig.put<VehicleSpecItem[]>(`${base}/schedule/vehicle/${vehicleId}/spec`, { items })).data;
 
 // ---------------- Órdenes de compra ----------------
 export interface PurchaseOrderPatch {

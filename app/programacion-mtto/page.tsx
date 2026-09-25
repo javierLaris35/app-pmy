@@ -10,13 +10,14 @@ import { DataTable } from "@/components/data-table/data-table";
 import { withAuth } from "@/hoc/withAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, FileSearch, Gauge, Settings2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, FileSearch, Gauge, Package, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSchedule } from "@/hooks/services/maintenance/use-maintenance";
 import { formatKms, LIGHT_LABEL, MaintenanceLight, MaintenanceVehicle, ScheduleRow } from "@/lib/types/maintenance";
 import { Subsidiary } from "@/lib/types";
 import { LightBadge } from "@/components/maintenance/shared/light-badge";
 import { ScheduleDialog } from "@/components/maintenance/schedule/schedule-dialog";
+import { VehicleSpecDialog } from "@/components/maintenance/schedule/vehicle-spec-dialog";
 
 const KPI: Array<{ light: MaintenanceLight; icon: React.ComponentType<{ className?: string }>; tone: string }> = [
   { light: "vencido", icon: AlertTriangle, tone: "text-rose-600 bg-rose-50" },
@@ -32,6 +33,7 @@ function ProgramacionMttoPage() {
   const [subsidiaryId, setSubsidiaryId] = useState("");
   const [filter, setFilter] = useState<MaintenanceLight | null>(null);
   const [editing, setEditing] = useState<MaintenanceVehicle | null>(null);
+  const [specOf, setSpecOf] = useState<MaintenanceVehicle | null>(null);
   const { rows, isLoading, mutate } = useSchedule(subsidiaryId);
 
   const counts = useMemo(() => {
@@ -110,8 +112,11 @@ function ProgramacionMttoPage() {
               <Button size="sm" variant="ghost" className="gap-1" onClick={() => setEditing(vehicle)}>
                 <Settings2 className="h-4 w-4" /> Programar
               </Button>
+              <Button size="sm" variant="ghost" className="gap-1" onClick={() => setSpecOf(vehicle)}>
+                <Package className="h-4 w-4" /> Ficha
+              </Button>
               {openRequest ? (
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => router.push(`/mtto/expediente?id=${openRequest.id}`)}>
+                <Button size="sm" variant="outline" className="gap-1" onClick={() => router.push(`/compras/solicitud?id=${openRequest.id}`)}>
                   <FileSearch className="h-4 w-4" /> {openRequest.folio}
                 </Button>
               ) : (
@@ -119,9 +124,9 @@ function ProgramacionMttoPage() {
                   size="sm"
                   variant="outline"
                   className="gap-1"
-                  onClick={() => router.push(`/mtto/tablero?nuevo=1&vehicleId=${vehicle.id}&subsidiaryId=${subsidiaryId}`)}
+                  onClick={() => router.push(`/compras/solicitudes?nueva=1&vehicleId=${vehicle.id}&subsidiaryId=${subsidiaryId}`)}
                 >
-                  <ClipboardPlus className="h-4 w-4" /> Iniciar mantenimiento
+                  <ClipboardPlus className="h-4 w-4" /> Nueva solicitud
                 </Button>
               )}
             </div>
@@ -175,6 +180,7 @@ function ProgramacionMttoPage() {
         )}
 
         <ScheduleDialog vehicle={editing} onOpenChange={(o) => !o && setEditing(null)} onSaved={() => mutate()} />
+        <VehicleSpecDialog vehicle={specOf} onOpenChange={(o) => !o && setSpecOf(null)} />
       </div>
     </AppLayout>
   );

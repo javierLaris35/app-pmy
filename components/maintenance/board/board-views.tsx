@@ -6,40 +6,46 @@ import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BoardCard, ExpedienteStage, formatMoney, PRIORITY_LABEL, STAGE_LABEL, vehicleLabel } from "@/lib/types/maintenance";
-import { ExpedienteCard, relativeTime } from "./expediente-card";
+import {
+  BoardCard, ExpedienteStage, formatMoney, PRIORITY_LABEL, REQUEST_TYPE_LABEL, STAGE_LABEL, vehicleLabel,
+} from "@/lib/types/maintenance";
+import { ExpedienteCard, relativeTime, TYPE_CLASS } from "./expediente-card";
 
 export const BOARD_COLUMNS: Array<{ stage: ExpedienteStage; n: number; dot: string; hint: string }> = [
-  { stage: "cotizando", n: 1, dot: "bg-violet-400", hint: "Capturar y comparar cotizaciones" },
-  { stage: "por_autorizar", n: 2, dot: "bg-amber-400", hint: "Esperando autorización" },
-  { stage: "en_taller", n: 3, dot: "bg-blue-500", hint: "Enviar al proveedor y cerrar" },
-  { stage: "terminado", n: 4, dot: "bg-emerald-500", hint: "Últimos 60 días" },
+  { stage: "por_revisar", n: 1, dot: "bg-amber-400", hint: "Compras revisa y autoriza" },
+  { stage: "cotizando", n: 2, dot: "bg-violet-400", hint: "Pedir y comparar cotizaciones" },
+  { stage: "por_autorizar", n: 3, dot: "bg-orange-400", hint: "Autorización de órdenes" },
+  { stage: "en_proceso", n: 4, dot: "bg-blue-500", hint: "Enviar al proveedor y recibir" },
+  { stage: "terminado", n: 5, dot: "bg-emerald-500", hint: "Últimos 60 días" },
 ];
 
-export type BoardView = "activos" | "mi_accion" | "rechazados" | "alta" | "terminados" | "cancelados";
+/** Quién soy para las vistas "Requieren mi acción". */
+export interface ViewerRole { purchaser: boolean; authorizer: boolean }
 
-export const BOARD_VIEWS: Array<{ key: BoardView; label: string; test: (c: BoardCard, canAuthorize: boolean) => boolean }> = [
-  { key: "activos", label: "Todos los activos", test: (c) => c.stage !== "cancelado" },
+export type BoardView = "activas" | "mi_accion" | "rechazadas_oc" | "alta" | "terminadas" | "cerradas";
+
+export const BOARD_VIEWS: Array<{ key: BoardView; label: string; test: (c: BoardCard, r: ViewerRole) => boolean }> = [
+  { key: "activas", label: "Todas las activas", test: (c) => !["cancelado", "rechazada"].includes(c.stage) },
   {
     key: "mi_accion",
     label: "Requieren mi acción",
-    test: (c, canAuthorize) => (canAuthorize && c.waitingOn === "autorizador") || (!canAuthorize && c.waitingOn === "captura"),
+    test: (c, r) => (r.purchaser && c.waitingOn === "compras") || (r.authorizer && c.waitingOn === "autorizador"),
   },
-  { key: "rechazados", label: "Rechazados", test: (c) => c.rejected },
-  { key: "alta", label: "Prioridad alta", test: (c) => c.priority === "alta" && c.stage !== "terminado" && c.stage !== "cancelado" },
-  { key: "terminados", label: "Terminados", test: (c) => c.stage === "terminado" },
-  { key: "cancelados", label: "Cancelados", test: (c) => c.stage === "cancelado" },
+  { key: "rechazadas_oc", label: "Órdenes rechazadas", test: (c) => c.rejected },
+  { key: "alta", label: "Prioridad alta", test: (c) => c.priority === "alta" && !["terminado", "cancelado", "rechazada"].includes(c.stage) },
+  { key: "terminadas", label: "Terminadas", test: (c) => c.stage === "terminado" },
+  { key: "cerradas", label: "Rechazadas y canceladas", test: (c) => c.stage === "cancelado" || c.stage === "rechazada" },
 ];
 
 /** Rail de vistas con contadores (como el Tablero de Soporte). */
-export function BoardViewsRail({ cards, active, canAuthorize, onChange }: {
-  cards: BoardCard[]; active: BoardView; canAuthorize: boolean; onChange: (v: BoardView) => void;
+export function BoardViewsRail({ cards, active, role, onChange, views = BOARD_VIEWS }: {
+  cards: BoardCard[]; active: BoardView; role: ViewerRole; onChange: (v: BoardView) => void; views?: typeof BOARD_VIEWS;
 }) {
   return (
     <aside className="w-full shrink-0 space-y-0.5 md:w-52">
       <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">Vistas</p>
-      {BOARD_VIEWS.map((v) => {
-        const n = cards.filter((c) => v.test(c, canAuthorize)).length;
+      {views.map((v) => {
+        const n = cards.filter((c) => v.test(c, role)).length;
         const on = active === v.key;
         return (
           <button
@@ -61,9 +67,12 @@ export function BoardViewsRail({ cards, active, canAuthorize, onChange }: {
 
 /** Kanban por etapa (sin arrastrar: la etapa cambia con las acciones del expediente). */
 export function BoardKanban({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: BoardCard) => void }) {
-  const cancelled = cards.filter((c) => c.stage === "cancelado");
-  const columns = cancelled.length === cards.length && cards.length > 0
-    ? [{ stage: "cancelado" as ExpedienteStage, n: 0, dot: "bg-slate-400", hint: "" }]
+  const onlyClosed = cards.length > 0 && cards.every((c) => c.stage === "cancelado" || c.stage === "rechazada");
+  const columns = onlyClosed
+    ? [
+        { stage: "rechazada" as ExpedienteStage, n: 0, dot: "bg-rose-400", hint: "" },
+        { stage: "cancelado" as ExpedienteStage, n: 0, dot: "bg-slate-400", hint: "" },
+      ]
     : BOARD_COLUMNS;
   return (
     <div className="flex gap-4 overflow-x-auto pb-2">
@@ -85,9 +94,7 @@ export function BoardKanban({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c:
             <div className="min-h-[140px] flex-1 space-y-3 rounded-lg p-1">
               {list.map((c) => <ExpedienteCard key={c.id} card={c} onOpen={onOpen} />)}
               {list.length === 0 && (
-                <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground/70">
-                  Sin mantenimientos
-                </div>
+                <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground/70">Sin solicitudes</div>
               )}
             </div>
           </div>
@@ -98,10 +105,12 @@ export function BoardKanban({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c:
 }
 
 const STAGE_BADGE: Record<ExpedienteStage, string> = {
+  por_revisar: "border-amber-200 bg-amber-50 text-amber-700",
   cotizando: "border-violet-200 bg-violet-50 text-violet-700",
-  por_autorizar: "border-amber-200 bg-amber-50 text-amber-700",
-  en_taller: "border-blue-200 bg-blue-50 text-blue-700",
+  por_autorizar: "border-orange-200 bg-orange-50 text-orange-700",
+  en_proceso: "border-blue-200 bg-blue-50 text-blue-700",
   terminado: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  rechazada: "border-rose-200 bg-rose-50 text-rose-700",
   cancelado: "border-slate-200 bg-slate-50 text-slate-500",
 };
 
@@ -117,22 +126,26 @@ export function BoardList({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: B
         accessorKey: "folio",
         header: "Folio",
         cell: ({ row }) => (
-          <button onClick={() => onOpen(row.original)} className="font-mono text-sm font-medium text-primary hover:underline">
-            {row.original.folio}
-          </button>
+          <button onClick={() => onOpen(row.original)} className="font-mono text-sm font-medium text-primary hover:underline">{row.original.folio}</button>
         ),
       },
       {
         id: "search",
-        accessorFn: (c) => `${c.folio} ${vehicleLabel(c.vehicle)} ${c.description}`,
-        header: "Unidad",
+        accessorFn: (c) => `${c.folio} ${vehicleLabel(c.vehicle)} ${c.description} ${c.subsidiary?.name ?? ""}`,
+        header: "Solicitud",
         cell: ({ row }) => (
           <div className="max-w-[320px]">
-            <p className="font-medium">{vehicleLabel(row.original.vehicle)}</p>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className={cn("h-5 rounded-md border-0 px-1.5 text-[10px]", TYPE_CLASS[row.original.type])}>
+                {REQUEST_TYPE_LABEL[row.original.type]}
+              </Badge>
+              {row.original.vehicle && <span className="text-sm font-medium">{vehicleLabel(row.original.vehicle)}</span>}
+            </div>
             <p className="truncate text-xs text-muted-foreground">{row.original.description}</p>
           </div>
         ),
       },
+      { id: "subsidiary", header: "Sucursal", cell: ({ row }) => row.original.subsidiary?.name ?? "—" },
       { id: "stage", header: "Etapa", cell: ({ row }) => <StageBadge stage={row.original.stage} /> },
       { id: "next", header: "Qué sigue", cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.nextStep}</span> },
       { id: "priority", header: "Prioridad", cell: ({ row }) => PRIORITY_LABEL[row.original.priority] },
@@ -140,7 +153,8 @@ export function BoardList({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: B
         id: "amount",
         header: () => <div className="text-right">Monto</div>,
         cell: ({ row }) => {
-          const a = row.original.purchaseOrder?.total ?? row.original.bestTotal;
+          const act = row.original.orders.filter((o) => o.status !== "cancelada");
+          const a = act.length ? act.reduce((s, o) => s + Number(o.total), 0) : row.original.bestTotal;
           return <div className="text-right tabular-nums">{a !== null && a !== undefined ? formatMoney(a) : "—"}</div>;
         },
       },
@@ -151,17 +165,13 @@ export function BoardList({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: B
   return <DataTable columns={columns} data={cards} searchKey="search" />;
 }
 
-export function BoardEmpty({ onCreate }: { onCreate?: () => void }) {
+export function BoardEmpty({ title, text, onCreate, createLabel }: { title: string; text: string; onCreate?: () => void; createLabel?: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
       <ClipboardList className="mb-3 h-10 w-10 text-muted-foreground/50" />
-      <p className="font-medium">Empieza tu primer mantenimiento</p>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        Registra qué necesita una unidad; después capturas las cotizaciones, se autoriza y se envía al proveedor.
-      </p>
-      {onCreate && (
-        <button onClick={onCreate} className="mt-4 text-sm font-medium text-primary hover:underline">Nuevo mantenimiento</button>
-      )}
+      <p className="font-medium">{title}</p>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{text}</p>
+      {onCreate && <button onClick={onCreate} className="mt-4 text-sm font-medium text-primary hover:underline">{createLabel ?? "Nueva solicitud"}</button>}
     </div>
   );
 }

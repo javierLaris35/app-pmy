@@ -15,7 +15,7 @@ import {
   getSuppliers,
 } from "@/lib/services/maintenance";
 import type { PoStatus } from "@/lib/types/maintenance";
-import { getProductCategories, getProducts, getUnits } from "@/lib/services/maintenance";
+import { getMyRequests, getProductCategories, getProducts, getUnits, getVehicleSpec } from "@/lib/services/maintenance";
 import type { ProductKind } from "@/lib/types/compras";
 
 export function useServiceCategories() {
@@ -93,12 +93,24 @@ export function useMaintenanceHistory(subsidiaryId: string, params: { from?: str
   return { history: data, isLoading, mutate };
 }
 
-export function useBoard(subsidiaryId: string) {
-  const { data, isLoading, mutate } = useSWR(subsidiaryId ? ["mtto-board", subsidiaryId] : null, () => getBoard(subsidiaryId), {
+/** Tablero de compras (todas las sucursales para Compras; filtros opcionales). */
+export function useBoard(params: { subsidiaryId?: string; type?: string } = {}, enabled = true) {
+  const { data, isLoading, mutate } = useSWR(enabled ? ["compras-board", params.subsidiaryId, params.type] : null, () => getBoard(params), {
     refreshInterval: 60000,
     keepPreviousData: true,
   });
   return { cards: data ?? [], isLoading, mutate };
+}
+
+/** Mis solicitudes (cualquier usuario). */
+export function useMyRequests(type?: string) {
+  const { data, isLoading, mutate } = useSWR(["compras-mine", type], () => getMyRequests(type), { refreshInterval: 60000, keepPreviousData: true });
+  return { cards: data ?? [], isLoading, mutate };
+}
+
+export function useVehicleSpec(vehicleId?: string | null) {
+  const { data, isLoading, mutate } = useSWR(vehicleId ? ["compras-spec", vehicleId] : null, () => getVehicleSpec(vehicleId!));
+  return { spec: data ?? [], isLoading, mutate };
 }
 
 // ---------------- Compras: catálogos v3 ----------------

@@ -3,13 +3,15 @@
 export type MaintenanceLight = "vencido" | "proximo" | "al_dia" | "sin_datos";
 export type ServiceUnit = "servicio" | "pieza" | "litro" | "juego";
 export type ContactChannel = "email" | "whatsapp";
-export type RequestStatus = "abierta" | "en_cotizacion" | "orden_generada" | "completada" | "cancelada";
+export type RequestStatus = "por_revisar" | "rechazada" | "abierta" | "en_cotizacion" | "orden_generada" | "completada" | "cancelada";
+export type RequestType = "mantenimiento" | "servicio" | "reparacion" | "compra";
 export type RequestPriority = "baja" | "media" | "alta";
 export type QuoteStatus = "capturada" | "ganadora" | "descartada";
 export type PoStatus = "borrador" | "pendiente" | "autorizada" | "rechazada" | "enviada" | "completada" | "cancelada";
-export type ExpedienteStage = "cotizando" | "por_autorizar" | "en_taller" | "terminado" | "cancelado";
-export type ExpedienteStep = "solicitud" | "cotizaciones" | "autorizacion" | "envio" | "cierre" | "terminado";
-export type WaitingOn = "captura" | "autorizador" | "proveedor" | null;
+export type ExpedienteStage = "por_revisar" | "cotizando" | "por_autorizar" | "en_proceso" | "terminado" | "rechazada" | "cancelado";
+export type ExpedienteStep = "solicitud" | "revision" | "cotizaciones" | "ordenes" | "cierre" | "terminado";
+/** compras = Gerardo; autorizador = Edgardo. */
+export type WaitingOn = "compras" | "autorizador" | "proveedor" | null;
 
 /** Etapa + paso activo + qué sigue (calculado en el backend por `expedienteStage`). */
 export interface ExpedienteProgress {
@@ -20,11 +22,24 @@ export interface ExpedienteProgress {
   rejected: boolean;
 }
 
-/** Tarjeta del tablero: un mantenimiento. */
+export interface OrderSummary {
+  id: string;
+  folio: string;
+  status: PoStatus;
+  total: number;
+  supplierName: string | null;
+  rejectionReason?: string | null;
+}
+
+/** Tarjeta del tablero: una solicitud. */
 export interface BoardCard extends ExpedienteProgress {
   id: string;
   folio: string;
-  vehicle: MaintenanceVehicle;
+  type: RequestType;
+  subsidiary: { id: string; name: string } | null;
+  itemsCount: number;
+  orders: OrderSummary[];
+  vehicle: MaintenanceVehicle | null;
   description: string;
   priority: RequestPriority;
   status: RequestStatus;
@@ -33,7 +48,6 @@ export interface BoardCard extends ExpedienteProgress {
   createdByName: string | null;
   quotesCount: number;
   bestTotal: number | null;
-  purchaseOrder: { id: string; folio: string; status: PoStatus; total: number; supplierName: string | null } | null;
 }
 
 export interface ServiceCategory {
@@ -143,11 +157,32 @@ export interface PurchaseOrderSummary {
   rejectionReason?: string | null;
 }
 
+export interface RequestItem {
+  id?: string;
+  productId?: string | null;
+  product?: { id: string; name: string; brand?: string | null; partNumber?: string | null } | null;
+  categoryId?: string | null;
+  category?: { id: string; name: string; kind: string } | null;
+  description: string;
+  quantity: number;
+  unitId?: string | null;
+  unit?: { id: string; name: string; abbreviation?: string | null } | null;
+  notes?: string | null;
+  selectedQuoteItemId?: string | null;
+}
+
 export interface MaintenanceRequest extends Partial<ExpedienteProgress> {
   id: string;
   folio: string;
-  vehicleId: string;
-  vehicle?: MaintenanceVehicle;
+  type: RequestType;
+  vehicleId: string | null;
+  vehicle?: MaintenanceVehicle | null;
+  subsidiary?: { id: string; name: string } | null;
+  items?: RequestItem[];
+  orders?: OrderSummary[];
+  reviewedBy?: { id: string; name?: string; lastName?: string } | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
   subsidiaryId: string;
   kmsAtRequest?: number | null;
   description: string;
@@ -243,20 +278,31 @@ export interface HistoryResponse {
 }
 
 export const STAGE_LABEL: Record<ExpedienteStage, string> = {
+  por_revisar: "Por revisar",
   cotizando: "Cotizando",
   por_autorizar: "Por autorizar",
-  en_taller: "En taller",
+  en_proceso: "En proceso",
   terminado: "Terminado",
-  cancelado: "Cancelado",
+  rechazada: "Rechazada",
+  cancelado: "Cancelada",
 };
 
 export const STEPS: Array<{ key: Exclude<ExpedienteStep, "terminado">; label: string }> = [
   { key: "solicitud", label: "Solicitud" },
+  { key: "revision", label: "Revisión de compras" },
   { key: "cotizaciones", label: "Cotizaciones" },
-  { key: "autorizacion", label: "Autorización" },
-  { key: "envio", label: "Envío al proveedor" },
-  { key: "cierre", label: "Cierre" },
+  { key: "ordenes", label: "Órdenes de compra" },
+  { key: "cierre", label: "Recepción y cierre" },
 ];
+
+export const REQUEST_TYPE_LABEL: Record<RequestType, string> = {
+  mantenimiento: "Mantenimiento",
+  servicio: "Servicio",
+  reparacion: "Reparación",
+  compra: "Compra de equipo/material",
+};
+/** Tipos que requieren unidad. */
+export const TYPES_REQUIRING_VEHICLE: RequestType[] = ["mantenimiento", "servicio", "reparacion"];
 
 export const LIGHT_LABEL: Record<MaintenanceLight, string> = {
   vencido: "Vencido",
@@ -266,6 +312,8 @@ export const LIGHT_LABEL: Record<MaintenanceLight, string> = {
 };
 
 export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
+  por_revisar: "Por revisar",
+  rechazada: "Rechazada",
   abierta: "Abierta",
   en_cotizacion: "En cotización",
   orden_generada: "Con orden de compra",
