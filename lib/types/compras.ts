@@ -13,6 +13,8 @@ export interface ProductCategory {
   id: string;
   name: string;
   kind: ProductKind;
+  /** Sinónimos separados por coma. */
+  keywords?: string | null;
   sortOrder: number;
   active: boolean;
 }
@@ -61,4 +63,24 @@ export interface VehicleSpecItem {
   unitId?: string | null;
   unit?: UnitOfMeasure | null;
   notes?: string | null;
+}
+
+/** Servicio predefinido de mantenimiento (receta opcional de piezas/insumos). */
+export interface ServiceTemplateItem {
+  id?: string;
+  categoryId: string;
+  category?: ProductCategory;
+  quantity: number;
+  unitId?: string | null;
+  unit?: UnitOfMeasure | null;
+}
+
+export interface ServiceTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  vehicleType?: string | null;
+  keywords?: string | null;
+  active: boolean;
+  items: ServiceTemplateItem[];
 }

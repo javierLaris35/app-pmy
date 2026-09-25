@@ -5,8 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { saveVehicleSpec } from "@/lib/services/maintenance";
@@ -14,8 +14,7 @@ import { useProductCategories, useProducts, useUnits, useVehicleSpec } from "@/h
 import { MaintenanceVehicle, vehicleLabel } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
-
-const NONE = "__none__";
+import { SearchableSelect, SearchOption } from "../shared/searchable-select";
 
 interface Row { key: string; categoryId: string; productId: string | null; quantity: number; unitId: string | null; notes: string }
 
@@ -35,8 +34,9 @@ export function VehicleSpecDialog({ vehicle, onOpenChange }: { vehicle: Maintena
     setTried(false);
   }, [vehicle, spec]);
 
-  const piezas = useMemo(() => categories.filter((c) => c.kind === "pieza" && c.active), [categories]);
-  const insumos = useMemo(() => categories.filter((c) => c.kind === "insumo" && c.active), [categories]);
+  const categoryOptions = useMemo<SearchOption[]>(() => categories
+    .filter((c) => c.active && (c.kind === "pieza" || c.kind === "insumo"))
+    .map((c) => ({ value: c.id, label: c.name, group: c.kind === "pieza" ? "Piezas" : "Insumos", hint: c.keywords ?? undefined })), [categories]);
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
   const errs = useMemo(() => {
     const e: Record<string, string> = {};
@@ -78,70 +78,69 @@ export function VehicleSpecDialog({ vehicle, onOpenChange }: { vehicle: Maintena
               Aún no hay piezas ni insumos. Agrega lo que lleva la unidad (ej. Aceite 10W-30 · 5 litros, Llanta carga ×4).
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[28%]">Pieza o insumo</TableHead>
-                  <TableHead className="w-[26%]">Producto preferido</TableHead>
-                  <TableHead className="w-24">Cantidad</TableHead>
-                  <TableHead className="w-36">Unidad</TableHead>
-                  <TableHead>Notas</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r, i) => {
-                  const options = products.filter((p) => p.categoryId === r.categoryId);
-                  return (
-                    <TableRow key={r.key} className="align-top">
-                      <TableCell>
-                        <Select value={r.categoryId || undefined} onValueChange={(v) => patch(r.key, { categoryId: v, productId: null })}>
-                          <SelectTrigger className={invalidClass(errors[`${i}.categoryId`])}><SelectValue placeholder="Elige" /></SelectTrigger>
-                          <SelectContent className="max-h-80">
-                            <SelectGroup><SelectLabel>Piezas</SelectLabel>{piezas.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectGroup>
-                            <SelectGroup><SelectLabel>Insumos</SelectLabel>{insumos.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectGroup>
-                          </SelectContent>
-                        </Select>
-                        <FieldError message={errors[`${i}.categoryId`]} className="mt-1" />
-                      </TableCell>
-                      <TableCell>
-                        <Select value={r.productId ?? NONE} onValueChange={(v) => {
+            <div className="grid gap-3">
+              {rows.map((r, i) => (
+                <div key={r.key} className="rounded-lg border p-3">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_110px_160px_auto] md:items-start">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Pieza o insumo</Label>
+                      <SearchableSelect
+                        value={r.categoryId || null}
+                        onChange={(v) => patch(r.key, { categoryId: v ?? "", productId: null })}
+                        options={categoryOptions}
+                        placeholder="Buscar pieza o insumo"
+                        searchPlaceholder="Escribe para buscar…"
+                        emptyText="No está en el catálogo. Agrégala en Catálogos."
+                        invalid={!!errors[`${i}.categoryId`]}
+                      />
+                      <FieldError message={errors[`${i}.categoryId`]} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Producto preferido</Label>
+                      <SearchableSelect
+                        value={r.productId}
+                        onChange={(v) => {
                           const p = products.find((x) => x.id === v);
-                          patch(r.key, { productId: v === NONE ? null : v, ...(p?.unitId && !r.unitId ? { unitId: p.unitId } : {}) });
-                        }} disabled={!r.categoryId}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE}>Cualquiera</SelectItem>
-                            {options.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.brand ? ` · ${p.brand}` : ""}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
-                          className={invalidClass(errors[`${i}.quantity`])} />
-                        <FieldError message={errors[`${i}.quantity`]} className="mt-1" />
-                      </TableCell>
-                      <TableCell>
-                        <Select value={r.unitId ?? NONE} onValueChange={(v) => patch(r.key, { unitId: v === NONE ? null : v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE}>—</SelectItem>
-                            {units.filter((u) => u.active).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell><Input value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })} placeholder="Medida, posición…" /></TableCell>
-                      <TableCell>
-                        <Button type="button" size="icon" variant="ghost" className="text-destructive" aria-label="Quitar"
-                          onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                          patch(r.key, { productId: v, ...(p?.unitId && !r.unitId ? { unitId: p.unitId } : {}) });
+                        }}
+                        options={products.filter((p) => p.categoryId === r.categoryId).map((p) => ({
+                          value: p.id, label: p.name, hint: [p.brand, p.partNumber && `No. ${p.partNumber}`].filter(Boolean).join(" · ") || undefined,
+                        }))}
+                        allowClear clearLabel="Cualquiera"
+                        searchPlaceholder="Buscar producto, marca o número de parte…"
+                        emptyText="No hay productos de esta pieza en el catálogo."
+                        disabled={!r.categoryId}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Cantidad</Label>
+                      <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
+                        className={invalidClass(errors[`${i}.quantity`])} />
+                      <FieldError message={errors[`${i}.quantity`]} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Presentación</Label>
+                      <SearchableSelect
+                        value={r.unitId}
+                        onChange={(v) => patch(r.key, { unitId: v })}
+                        options={units.filter((u) => u.active).map((u) => ({ value: u.id, label: u.name, hint: u.abbreviation ?? undefined }))}
+                        allowClear clearLabel="—"
+                        searchPlaceholder="Buscar presentación…"
+                      />
+                    </div>
+                    <Button type="button" size="icon" variant="ghost" className="text-destructive md:mt-6" aria-label="Quitar"
+                      onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-1.5">
+                    <Label className="text-xs text-muted-foreground">Notas</Label>
+                    <Textarea value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })} rows={2}
+                      placeholder="Medida, posición, especificación… (ej. 245/75 R16 carga E, delantera izquierda)" />
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </ScrollArea>
         <DialogFooter className="sm:justify-between">

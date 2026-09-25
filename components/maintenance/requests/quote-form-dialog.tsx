@@ -23,6 +23,7 @@ import { deviationPct, IEPS_RATES, lineTaxes, pctLabel, totals } from "@/lib/mai
 import { ProductPicker } from "./product-picker";
 import { SupplierFormDialog } from "../catalog/supplier-form-dialog";
 import { StarRating } from "../shared/star-rating";
+import { SearchableSelect } from "../shared/searchable-select";
 import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
 import { firstError, hasErrors, validateQuote } from "@/lib/maintenance-validation";
@@ -179,12 +180,15 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, onSaved }:
                 <div className="grid gap-1.5 md:col-span-2">
                   <Label>Proveedor</Label>
                   <div className="flex gap-2">
-                    <Select value={supplierId} onValueChange={setSupplierId}>
-                      <SelectTrigger className={invalidClass(errors.supplierId)}><SelectValue placeholder="Elige el proveedor" /></SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={supplierId || null}
+                      onChange={(v) => setSupplierId(v ?? "")}
+                      options={suppliers.map((s) => ({ value: s.id, label: s.name, hint: s.rfc ?? undefined }))}
+                      placeholder="Elige el proveedor"
+                      searchPlaceholder="Buscar proveedor…"
+                      emptyText="No está. Agrégalo con el botón +"
+                      invalid={!!errors.supplierId}
+                    />
                     <Button type="button" variant="outline" size="icon" onClick={() => setNewSupplierOpen(true)} title="Nuevo proveedor" aria-label="Nuevo proveedor">
                       <PlusCircle className="h-4 w-4" />
                     </Button>
