@@ -155,14 +155,17 @@ export const saveSelection = async (requestId: string, selections: Array<{ reque
 /** Una orden por proveedor elegido; todas van a autorización. */
 export const generateOrders = async (requestId: string) =>
   (await axiosConfig.post<GeneratedOrder[]>(`${base}/requests/${requestId}/generate-orders`)).data;
-export const getComparisonPdf = async (requestId: string) =>
-  (await getBlob(`${base}/requests/${requestId}/comparison-pdf`)).data;
-export const getRfqPdf = async (requestId: string, supplierId?: string) =>
-  (await getBlob(`${base}/requests/${requestId}/rfq-pdf`, { params: { supplierId } })).data;
+/** Manda la solicitud de cotización; `pdfs` = PDF generado en el navegador por proveedor (supplierId → archivo). */
 export const sendRfq = async (
   requestId: string,
   body: { targets: Array<{ supplierId: string; contactId?: string; channel?: ContactChannel }>; notes?: string },
-) => (await axiosConfig.post<RfqResult[]>(`${base}/requests/${requestId}/rfq`, body)).data;
+  pdfs: Record<string, Blob> = {},
+) => {
+  const fd = new FormData();
+  fd.append("payload", JSON.stringify(body));
+  for (const [supplierId, blob] of Object.entries(pdfs)) fd.append(`pdf_${supplierId}`, blob, `cotizacion-${supplierId}.pdf`);
+  return (await axiosConfig.post<RfqResult[]>(`${base}/requests/${requestId}/rfq`, fd, { headers: { "Content-Type": "multipart/form-data" } })).data;
+};
 export const getRequestDispatches = async (requestId: string) =>
   (await axiosConfig.get<RequestDispatch[]>(`${base}/requests/${requestId}/dispatches`)).data;
 
@@ -207,10 +210,14 @@ export const rejectPurchaseOrder = async (id: string, reason: string) =>
 export const cancelPurchaseOrder = async (id: string, reason: string, notifySupplier: boolean) =>
   (await axiosConfig.post<PurchaseOrder>(`${base}/purchase-orders/${id}/cancel`, { reason, notifySupplier })).data;
 export const deletePurchaseOrder = async (id: string) => (await axiosConfig.delete(`${base}/purchase-orders/${id}`)).data;
-export const getPurchaseOrderPdf = async (id: string) =>
-  (await getBlob(`${base}/purchase-orders/${id}/pdf`)).data;
-export const sendPurchaseOrder = async (id: string, body: { channel?: ContactChannel; contactId?: string }) =>
-  (await axiosConfig.post<PurchaseOrder>(`${base}/purchase-orders/${id}/send`, body)).data;
+/** Envía la orden al proveedor adjuntando el PDF generado en el navegador (no depende del servidor). */
+export const sendPurchaseOrder = async (id: string, body: { channel?: ContactChannel; contactId?: string }, pdf?: Blob) => {
+  const fd = new FormData();
+  if (body.channel) fd.append("channel", body.channel);
+  if (body.contactId) fd.append("contactId", body.contactId);
+  if (pdf) fd.append("pdf", pdf, "orden.pdf");
+  return (await axiosConfig.post<PurchaseOrder>(`${base}/purchase-orders/${id}/send`, fd, { headers: { "Content-Type": "multipart/form-data" } })).data;
+};
 export const getPurchaseOrderDispatches = async (id: string) =>
   (await axiosConfig.get<PurchaseOrderDispatch[]>(`${base}/purchase-orders/${id}/dispatches`)).data;
 export const completePurchaseOrder = async (

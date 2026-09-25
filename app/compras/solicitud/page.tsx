@@ -50,6 +50,7 @@ import { useOrderDraft } from "@/components/maintenance/expediente/use-order-dra
 import { RequestFormDialog } from "@/components/maintenance/requests/request-form-dialog";
 import { QuoteFormDialog } from "@/components/maintenance/requests/quote-form-dialog";
 import { RfqDialog } from "@/components/maintenance/requests/rfq-dialog";
+import { purchaseOrderPdfBlob } from "@/components/maintenance/pdf/render-compras-pdf";
 import { CompleteOrderDialog, ReasonDialog, SendOrderDialog } from "@/components/maintenance/orders/order-dialogs";
 
 type DialogKey = null | "quote" | "rfq" | "generate" | "edit" | "cancel" | "cancelOrder" | "delete" | "reject" | "rejectRequest" | "send" | "complete" | "discard";
@@ -318,7 +319,7 @@ function SolicitudContent() {
       </Tabs>
 
       <QuoteFormDialog open={dialog === "quote"} onOpenChange={close} request={request} quote={editingQuote} needs={needs} onSaved={() => refresh()} />
-      <RfqDialog open={dialog === "rfq"} onOpenChange={close} request={request} onSent={() => mutateDispatches()} />
+      <RfqDialog open={dialog === "rfq"} onOpenChange={close} request={request} needs={needs} onSent={() => mutateDispatches()} />
       <RequestFormDialog open={dialog === "edit"} onOpenChange={close} request={request} onSaved={() => refresh()} />
       <ReasonDialog
         open={dialog === "rejectRequest"} onOpenChange={close}
@@ -402,7 +403,7 @@ function SolicitudContent() {
             onConfirm={(reason, notify) => run(() => cancelPurchaseOrder(order.id, reason, notify), "Orden cancelada", "No se pudo cancelar")}
           />
           <SendOrderDialog open={dialog === "send"} onOpenChange={close} order={order}
-            onSend={(body) => run(() => sendPurchaseOrder(order.id, body), "Orden enviada al proveedor", "No se pudo enviar")} />
+            onSend={(body) => run(async () => sendPurchaseOrder(order.id, body, await purchaseOrderPdfBlob(order)), "Orden enviada al proveedor", "No se pudo enviar")} />
           <CompleteOrderDialog open={dialog === "complete"} onOpenChange={close} order={order}
             onComplete={(body) => run(() => completePurchaseOrder(order.id, body), "Recibido: se registró el gasto", "No se pudo cerrar")} />
         </>

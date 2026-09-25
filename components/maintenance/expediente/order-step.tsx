@@ -7,7 +7,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileDown, Mail, MessageCircle, Undo2 } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { getPurchaseOrderPdf, openBlob } from "@/lib/services/maintenance";
+import { openBlob } from "@/lib/services/maintenance";
+import { purchaseOrderPdfBlob } from "../pdf/render-compras-pdf";
 import { formatKms, formatMoney, PurchaseOrder } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
 import { ItemsMode, OrderItemsTable } from "../orders/order-items-table";
@@ -40,7 +41,9 @@ export function OrderStep({ order, canAuthorize, draft }: Props) {
   const mode: ItemsMode = authorizing ? "authorize" : rejectedDraft ? "edit" : "view";
   const contacts = order.supplier?.contacts ?? [];
   const contact = contacts.find((c) => c.id === order.contactId);
-  const pdf = async () => { try { openBlob(await getPurchaseOrderPdf(order.id)); } catch (e) { toast.error(apiError(e, "No se pudo generar el PDF")); } };
+  const pdf = async () => {
+    try { openBlob(await purchaseOrderPdfBlob(order)); } catch { toast.error("No se pudo generar el PDF de la orden. Intenta de nuevo."); }
+  };
 
   const title = rejectedDraft ? "Corregir la orden"
     : phase === "autorizacion" ? (canAuthorize ? "Autorizar la orden" : "Orden en autorización")

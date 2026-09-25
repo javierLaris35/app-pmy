@@ -12,8 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, FileDown, Loader2, Send, XCircle } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProducts, useSuppliers } from "@/hooks/services/maintenance/use-maintenance";
-import { getRfqPdf, openBlob, sendRfq } from "@/lib/services/maintenance";
-import { ContactChannel, MaintenanceRequest, RfqResult, Supplier } from "@/lib/types/maintenance";
+import { openBlob, sendRfq } from "@/lib/services/maintenance";
+import { useAuthStore } from "@/store/auth.store";
+import { rfqPdfBlob } from "../pdf/render-compras-pdf";
+import { ContactChannel, MaintenanceRequest, NeedView, RfqResult, Supplier } from "@/lib/types/maintenance";
 import { channelsOf } from "@/lib/supplier-channels";
 import { apiError } from "../shared/confirm-action";
 
@@ -30,11 +32,15 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   request: MaintenanceRequest;
+  /** "Lo que se necesita": también va en el PDF (las solicitudes de mantenimiento no traen renglones). */
+  needs?: NeedView[];
   onSent: () => void;
 }
 
 /** "Pedir cotización": manda el PDF con la lista de conceptos a los proveedores elegidos. */
-export function RfqDialog({ open, onOpenChange, request, onSent }: Props) {
+export function RfqDialog({ open, onOpenChange, request, needs = [], onSent }: Props) {
+  const user = useAuthStore((st) => st.user);
+  const sender = { name: [user?.name, user?.lastName].filter(Boolean).join(" ") || user?.email || "Compras", email: user?.email ?? null };
   const { suppliers } = useSuppliers();
   const { products } = useProducts();
   const [targets, setTargets] = useState<Record<string, Target>>({});
@@ -75,17 +81,25 @@ export function RfqDialog({ open, onOpenChange, request, onSent }: Props) {
   const chosen = sorted.filter((s) => targets[s.id]?.selected);
 
   const preview = async () => {
-    try { openBlob(await getRfqPdf(request.id, chosen[0]?.id)); } catch (e) { toast.error(apiError(e, "No se pudo generar el PDF")); }
+    const s0 = chosen[0];
+    const c0 = s0 ? s0.contacts.find((c) => c.id === targets[s0.id]?.contactId) ?? null : null;
+    try { openBlob(await rfqPdfBlob(request, needs, s0 ?? null, c0, sender, notes)); } catch { toast.error("No se pudo generar el PDF. Intenta de nuevo."); }
   };
 
   const send = async () => {
     if (!chosen.length) { toast.error("Elige al menos un proveedor."); return; }
     setBusy(true);
     try {
+      // Un PDF por proveedor (va dirigido a él), generado en el navegador.
+      const pdfs: Record<string, Blob> = {};
+      for (const s of chosen) {
+        const c = s.contacts.find((x) => x.id === targets[s.id].contactId) ?? null;
+        pdfs[s.id] = await rfqPdfBlob(request, needs, s, c, sender, notes);
+      }
       const out = await sendRfq(request.id, {
         targets: chosen.map((s) => ({ supplierId: s.id, contactId: targets[s.id].contactId || undefined, channel: targets[s.id].channel })),
         notes: notes.trim() || undefined,
-      });
+      }, pdfs);
       setResults(out);
       const ok = out.filter((r) => r.ok).length;
       if (ok === out.length) toast.success(ok === 1 ? "Se pidió la cotización" : `Se pidió cotización a ${ok} proveedores`);

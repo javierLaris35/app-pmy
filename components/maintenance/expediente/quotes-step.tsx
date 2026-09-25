@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileDown, Mail, MessageCircle, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { deleteQuote, getComparisonPdf, getQuoteAttachmentBlob, openBlob } from "@/lib/services/maintenance";
+import { deleteQuote, getQuoteAttachmentBlob, openBlob } from "@/lib/services/maintenance";
+import { useAuthStore } from "@/store/auth.store";
+import { comparisonPdfBlob } from "../pdf/render-compras-pdf";
 import { Comparison, formatMoney, MaintenanceQuote, MaintenanceRequest, RequestDispatch } from "@/lib/types/maintenance";
 import { apiError, ConfirmAction } from "../shared/confirm-action";
 import { ComparisonMatrix } from "../requests/comparison-matrix";
@@ -29,7 +31,12 @@ export function QuotesStep({ request, comparison, onComparisonChange, editable, 
   dispatches?: RequestDispatch[];
 }) {
   const quotes = request.quotes ?? [];
-  const pdf = async () => { try { openBlob(await getComparisonPdf(request.id)); } catch (e) { toast.error(apiError(e, "No se pudo generar el PDF")); } };
+  const user = useAuthStore((st) => st.user);
+  const pdf = async () => {
+    if (!comparison || !comparison.rows.length) { toast.error("Todavía no hay conceptos cotizados para comparar."); return; }
+    const preparedBy = [user?.name, user?.lastName].filter(Boolean).join(" ") || user?.email || "Compras";
+    try { openBlob(await comparisonPdfBlob(request, comparison, preparedBy)); } catch { toast.error("No se pudo generar el PDF del comparativo. Intenta de nuevo."); }
+  };
 
   return (
     <Card className="rounded-xl shadow-none">
