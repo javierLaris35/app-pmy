@@ -4,6 +4,7 @@
  * campo ANTES de mandar al servidor (el servidor valida lo mismo como red de seguridad).
  */
 import type { SupplierContact } from "@/lib/types/maintenance";
+import { isValidClabe } from "@/lib/clabe";
 
 export type FieldErrors = Record<string, string>;
 
@@ -24,6 +25,7 @@ export const isMxPhone = (v?: string | null) => {
 export interface SupplierFormValues {
   name: string;
   rfc?: string | null;
+  clabe?: string | null;
   contacts: SupplierContact[];
 }
 
@@ -32,6 +34,9 @@ export function validateSupplier(v: SupplierFormValues): FieldErrors {
   if (v.name.trim().length < 2) e.name = "Escribe el nombre o razón social del proveedor.";
   const rfc = (v.rfc ?? "").trim().toUpperCase();
   if (rfc && !RFC_RE.test(rfc)) e.rfc = "El RFC no tiene el formato correcto (12 o 13 caracteres, ej. ABC010101AB1).";
+  const clabe = (v.clabe ?? "").replace(/\s/g, "");
+  if (clabe && !/^\d{18}$/.test(clabe)) e.clabe = "La CLABE debe tener 18 dígitos.";
+  else if (clabe && !isValidClabe(clabe)) e.clabe = "La CLABE no es válida: revisa los dígitos (el último es de verificación).";
   if (v.contacts.length === 0) e.contacts = "Agrega al menos un contacto.";
   v.contacts.forEach((c, i) => {
     const k = `contacts.${i}`;

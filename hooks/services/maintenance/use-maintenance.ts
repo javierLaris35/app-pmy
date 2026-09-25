@@ -15,6 +15,8 @@ import {
   getSuppliers,
 } from "@/lib/services/maintenance";
 import type { PoStatus } from "@/lib/types/maintenance";
+import { getProductCategories, getProducts, getUnits } from "@/lib/services/maintenance";
+import type { ProductKind } from "@/lib/types/compras";
 
 export function useServiceCategories() {
   const { data, isLoading, mutate } = useSWR("mtto-categories", getServiceCategories);
@@ -97,4 +99,21 @@ export function useBoard(subsidiaryId: string) {
     keepPreviousData: true,
   });
   return { cards: data ?? [], isLoading, mutate };
+}
+
+// ---------------- Compras: catálogos v3 ----------------
+
+export function useUnits() {
+  const { data, isLoading, mutate } = useSWR("compras-units", getUnits);
+  return { units: data ?? [], isLoading, mutate };
+}
+
+export function useProductCategories(kind?: ProductKind) {
+  const { data, isLoading, mutate } = useSWR(["compras-categories", kind], () => getProductCategories(kind));
+  return { categories: data ?? [], isLoading, mutate };
+}
+
+export function useProducts(params: { kind?: ProductKind; includeInactive?: boolean } = {}) {
+  const { data, isLoading, mutate } = useSWR(["compras-products", params.kind, params.includeInactive], () => getProducts(params));
+  return { products: data ?? [], isLoading, mutate };
 }

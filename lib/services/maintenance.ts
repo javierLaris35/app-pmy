@@ -17,6 +17,7 @@ import type {
   Supplier,
   SupplierContact,
 } from "../types/maintenance";
+import type { Product, ProductCategory, ProductKind, ProductOffer, UnitOfMeasure } from "../types/compras";
 
 const base = "maintenance";
 
@@ -41,6 +42,9 @@ export interface SupplierPayload {
   rfc?: string | null;
   address?: string | null;
   notes?: string | null;
+  bankName?: string | null;
+  clabe?: string | null;
+  accountNumber?: string | null;
   active?: boolean;
   contacts: SupplierContact[];
 }
@@ -151,3 +155,32 @@ export function openBlob(blob: Blob) {
   window.open(url, "_blank", "noopener");
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+// ---------------- Compras: catálogos v3 ----------------
+
+export const getUnits = async () => (await axiosConfig.get<UnitOfMeasure[]>(`${base}/catalog/units`)).data;
+export const saveUnit = async (body: Partial<UnitOfMeasure>, id?: string) =>
+  (id ? await axiosConfig.patch<UnitOfMeasure>(`${base}/catalog/units/${id}`, body) : await axiosConfig.post<UnitOfMeasure>(`${base}/catalog/units`, body)).data;
+
+export const getProductCategories = async (kind?: ProductKind) =>
+  (await axiosConfig.get<ProductCategory[]>(`${base}/catalog/product-categories`, { params: { kind } })).data;
+export const saveProductCategory = async (body: Partial<ProductCategory>, id?: string) =>
+  (id
+    ? await axiosConfig.patch<ProductCategory>(`${base}/catalog/product-categories/${id}`, body)
+    : await axiosConfig.post<ProductCategory>(`${base}/catalog/product-categories`, body)).data;
+
+export interface ProductPayload {
+  name: string;
+  description?: string | null;
+  categoryId?: string | null;
+  brand?: string | null;
+  partNumber?: string | null;
+  unitId?: string | null;
+  active?: boolean;
+  offers?: Array<Pick<ProductOffer, "id" | "supplierId" | "unitId" | "price" | "quality">>;
+}
+export const getProducts = async (params: { q?: string; kind?: ProductKind; categoryId?: string; includeInactive?: boolean } = {}) =>
+  (await axiosConfig.get<Product[]>(`${base}/catalog/products`, { params })).data;
+export const saveProduct = async (body: ProductPayload, id?: string) =>
+  (id ? await axiosConfig.patch<Product>(`${base}/catalog/products/${id}`, body) : await axiosConfig.post<Product>(`${base}/catalog/products`, body)).data;
+export const deleteProduct = async (id: string) => (await axiosConfig.delete(`${base}/catalog/products/${id}`)).data;

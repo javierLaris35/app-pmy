@@ -14,6 +14,9 @@ describe("validateSupplier", () => {
   it("medio WhatsApp sin número", () =>
     expect(validateSupplier({ name: "T X", contacts: [contact({ preferredChannel: "whatsapp" })] })["contacts.0.whatsapp"]).toMatch(/Falta el WhatsApp/));
   it("RFC con formato incorrecto", () => expect(validateSupplier({ name: "T X", rfc: "123", contacts: [contact()] }).rfc).toBeTruthy());
+  it("CLABE con dígito verificador incorrecto", () =>
+    expect(validateSupplier({ name: "T X", clabe: "002010077777777772", contacts: [contact()] }).clabe).toMatch(/no es válida/));
+  it("CLABE válida", () => expect(validateSupplier({ name: "T X", clabe: "002010077777777771", contacts: [contact()] }).clabe).toBeUndefined());
   it("nombre vacío", () => expect(validateSupplier({ name: " ", contacts: [contact()] }).name).toBeTruthy());
 });
 

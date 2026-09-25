@@ -54,6 +54,16 @@ export function SuppliersTab({ createSignal = 0 }: { createSignal?: number }) {
           );
         },
       },
+      {
+        id: "bank",
+        header: "Datos bancarios",
+        cell: ({ row }) => row.original.clabe || row.original.bankName ? (
+          <div className="text-sm">
+            <p>{row.original.bankName ?? "—"}</p>
+            {row.original.clabe && <p className="font-mono text-xs text-muted-foreground">CLABE ···{row.original.clabe.slice(-4)}</p>}
+          </div>
+        ) : <span className="text-xs text-muted-foreground">Sin datos</span>,
+      },
       { id: "contacts", header: "Contactos", cell: ({ row }) => <span className="tabular-nums">{row.original.contacts?.length ?? 0}</span> },
       {
         accessorKey: "active",

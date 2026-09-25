@@ -71,6 +71,9 @@ export interface Supplier {
   rfc?: string | null;
   address?: string | null;
   notes?: string | null;
+  bankName?: string | null;
+  clabe?: string | null;
+  accountNumber?: string | null;
   active: boolean;
   contacts: SupplierContact[];
 }

@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal, Wrench, KanbanSquare, Gauge, Store } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal, ShoppingCart, KanbanSquare, Gauge, BookOpen } from "lucide-react"
 import { ElementType } from "react";
 import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
@@ -185,15 +185,15 @@ export const sidebarMenu = {
       ]
     },
     {
-      title: "Mantenimiento",
+      title: "Compras",
       url: "#",
-      icon: Wrench,
+      icon: ShoppingCart,
       isActive: false,
       items: [
         { name: "Tablero", url: "/mtto/tablero", icon: KanbanSquare, roles: allowedPageRoles.mttoVehiculos.solicitudes, isActive: false },
         { name: "Unidades", url: "/programacion-mtto", icon: Gauge, roles: allowedPageRoles.mttoVehiculos.programacion, isActive: false },
         { name: "Historial", url: "/historial-mtto", icon: HistoryIcon, roles: allowedPageRoles.mttoVehiculos.historial, isActive: false },
-        { name: "Proveedores y servicios", url: "/mtto/proveedores", icon: Store, roles: allowedPageRoles.mttoVehiculos.catalogos, isActive: false },
+        { name: "Catálogos", url: "/compras/catalogos", icon: BookOpen, roles: allowedPageRoles.mttoVehiculos.catalogos, isActive: false },
       ]
     },
     {

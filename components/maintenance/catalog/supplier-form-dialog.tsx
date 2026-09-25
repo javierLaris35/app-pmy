@@ -17,6 +17,7 @@ import { ContactChannel, Supplier, SupplierContact } from "@/lib/types/maintenan
 import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
 import { FieldErrors, firstError, hasErrors, validateSupplier } from "@/lib/maintenance-validation";
+import { bankFromClabe } from "@/lib/clabe";
 
 const emptyContact = (): SupplierContact => ({ name: "", position: "", email: "", phone: "", whatsapp: "", preferredChannel: "email" });
 
@@ -32,6 +33,9 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
   const [rfc, setRfc] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [clabe, setClabe] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
   const [active, setActive] = useState(true);
   const [contacts, setContacts] = useState<SupplierContact[]>([emptyContact()]);
   const [defaultIdx, setDefaultIdx] = useState(0);
@@ -45,6 +49,9 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
     setRfc(supplier?.rfc ?? "");
     setAddress(supplier?.address ?? "");
     setNotes(supplier?.notes ?? "");
+    setBankName(supplier?.bankName ?? "");
+    setClabe(supplier?.clabe ?? "");
+    setAccountNumber(supplier?.accountNumber ?? "");
     setActive(supplier?.active ?? true);
     const list = supplier?.contacts?.length ? supplier.contacts.map((c) => ({ ...c })) : [emptyContact()];
     setContacts(list);
@@ -55,8 +62,8 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
 
   // Tras el primer intento de guardar, revalida en vivo para que el mensaje desaparezca al corregir.
   useEffect(() => {
-    if (tried) setErrors(validateSupplier({ name, rfc, contacts }));
-  }, [tried, name, rfc, contacts]);
+    if (tried) setErrors(validateSupplier({ name, rfc, clabe, contacts }));
+  }, [tried, name, rfc, clabe, contacts]);
 
   const patch = (i: number, p: Partial<SupplierContact>) => setContacts((cs) => cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
   const remove = (i: number) => {
@@ -65,7 +72,7 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
   };
 
   const save = async () => {
-    const e = validateSupplier({ name, rfc, contacts });
+    const e = validateSupplier({ name, rfc, clabe, contacts });
     setTried(true);
     setErrors(e);
     if (hasErrors(e)) {
@@ -78,6 +85,9 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
       rfc: rfc.trim() || null,
       address: address.trim() || null,
       notes: notes.trim() || null,
+      bankName: bankName.trim() || null,
+      clabe: clabe.replace(/\s/g, "") || null,
+      accountNumber: accountNumber.trim() || null,
       active,
       contacts: contacts.map((c, i) => ({
         ...(c.id ? { id: c.id } : {}),
@@ -129,6 +139,36 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Pr
             <div className="grid gap-1.5">
               <Label>Notas</Label>
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Horarios, condiciones de pago, etc." />
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="mb-3 text-sm font-semibold">Datos bancarios</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label>CLABE</Label>
+                  <Input
+                    value={clabe}
+                    inputMode="numeric"
+                    maxLength={22}
+                    placeholder="18 dígitos"
+                    className={invalidClass(errors.clabe)}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^\d\s]/g, "");
+                      setClabe(v);
+                      const b = bankFromClabe(v);
+                      if (b && !bankName.trim()) setBankName(b);
+                    }}
+                  />
+                  <FieldError message={errors.clabe} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Banco</Label>
+                  <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Se llena con la CLABE" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Número de cuenta</Label>
+                  <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Opcional" />
+                </div>
+              </div>
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <p className="text-sm font-medium">Activo</p>
