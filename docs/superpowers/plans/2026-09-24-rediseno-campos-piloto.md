@@ -65,3 +65,30 @@ Estilo `Field` md: contenedor `relative rounded-xl border-[1.5px] border-input b
 
 ### Task 7: Cierre de etapa 1
 - [ ] Vitest de `lib/`, tsc filtrado, graphify update, memoria. Reportar y pedir aprobación visual (si el usuario inicia sesión en el navegador, capturas).
+
+---
+
+## Revisión 2 (sustituye lo pendiente de la etapa 1)
+
+### Task R1: `Field` idéntico a la maqueta A
+**Files:** Modify `components/ui/field/field.tsx`, `select-field.tsx` (SwitchField), `text-field.tsx`; `styles/globals.css` (+ `--field-border: 24 6% 83%`).
+- md: `min-h-12`, borde 1 px `hsl(var(--field-border))`, `px-3.5 gap-2.5`, etiqueta `-top-2 left-3 text-[11px]`; foco rojo + `ring-4 ring-primary/10`; sin `pt-2` en el contenedor (la cuadrícula de `FormSection` pasa a `gap-y-5`).
+- [ ] tsc; commit.
+
+### Task R2: `ChoiceCards` + Nueva solicitud
+**Files:** Create `components/ui/field/choice-cards.tsx` (`ChoiceCards<T>({ value, onChange, options: {value,label,description,icon}[], columns?: 2|4 })` sobre `RadioGroup`); Modify `request-form-dialog.tsx` (sustituye el ToggleGroup) y `lib/types/maintenance.ts` (+`REQUEST_TYPE_HINT`).
+- [ ] tsc; commit.
+
+### Task R3: Expediente con encabezado + pestañas (TDD de helpers)
+**Files:** Create `lib/compras-expediente.ts` (+test): `defaultExpedienteTab(stage, { isPurchaser, canAuthorize, hasOrders }): "solicitud"|"cotizar"|"ordenes"|"historial"`, `orderProgress(status, rejectionReason): { reached: 0..4; current: 0..3 | null; special: "devuelta"|"cancelada"|null }`, `WAITING_LABEL`.
+Create `components/maintenance/expediente/expediente-header.tsx`, `order-progress.tsx` (tarjeta de orden con su avance; sustituye `orders-strip.tsx`).
+Modify `app/compras/solicitud/page.tsx`: quita `ExpedienteStepper` y la columna lateral; `Tabs` Solicitud · Cotizar (solo Compras/autorizador) · Órdenes · Historial con contadores; pestaña inicial por `defaultExpedienteTab`; al generar órdenes cambia a Órdenes.
+- Reglas `defaultExpedienteTab`: por_revisar/rechazada → solicitud; cotizando → cotizar si Compras/autoriza, si no solicitud; por_autorizar/en_proceso/terminado → ordenes si hay órdenes; cancelado → ordenes si hay, si no solicitud.
+- Reglas `orderProgress`: borrador (sin rechazo) → reached 0, current null; borrador con rechazo → special devuelta; pendiente → reached 1, current 0; autorizada → 2/1; enviada → 3/2; completada → 4/null; cancelada → special cancelada.
+- [ ] Vitest; tsc; commit.
+
+### Task R4: Cotización con el ajuste de campos
+- [ ] Revisar espaciados con `gap-y-5` y alturas 48 px; tsc; commit.
+
+### Task R5: Revisión visual y cierre
+- [ ] Capturas (si hay sesión) escritorio y 375 px; graphify; memoria.
