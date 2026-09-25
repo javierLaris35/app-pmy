@@ -16,26 +16,30 @@ import { saveProductCategory, saveUnit } from "@/lib/services/maintenance";
 import { KIND_LABEL, ProductKind } from "@/lib/types/compras";
 import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
+import { KeywordsInput } from "../shared/keywords-input";
 
-interface SimpleRow { id: string; name: string; active: boolean; extra?: string | null }
+interface SimpleRow { id: string; name: string; active: boolean; extra?: string | null; keywords?: string | null }
 
 /** Diálogo simple nombre (+ abreviatura opcional) + activo. */
-function SimpleFormDialog({ open, onOpenChange, title, row, withAbbreviation, onSave }: {
+function SimpleFormDialog({ open, onOpenChange, title, row, withAbbreviation, withKeywords, onSave }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   title: string;
   row: SimpleRow | null;
   withAbbreviation?: boolean;
-  onSave: (v: { name: string; abbreviation?: string | null; active: boolean }) => Promise<void>;
+  /** Sinónimos para reconocerla en lo que escribe quien pide (piezas e insumos). */
+  withKeywords?: boolean;
+  onSave: (v: { name: string; abbreviation?: string | null; keywords?: string | null; active: boolean }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [abbr, setAbbr] = useState("");
   const [active, setActive] = useState(true);
+  const [keywords, setKeywords] = useState("");
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!open) return;
-    setName(row?.name ?? ""); setAbbr(row?.extra ?? ""); setActive(row?.active ?? true); setTried(false);
+    setName(row?.name ?? ""); setAbbr(row?.extra ?? ""); setActive(row?.active ?? true); setKeywords(row?.keywords ?? ""); setTried(false);
   }, [open, row]);
   const nameError = tried && !name.trim() ? "Escribe el nombre." : undefined;
 
@@ -55,6 +59,13 @@ function SimpleFormDialog({ open, onOpenChange, title, row, withAbbreviation, on
               <Input value={abbr} onChange={(e) => setAbbr(e.target.value)} maxLength={15} placeholder="Ej. L, PZA, GAL" />
             </div>
           )}
+          {withKeywords && (
+            <div className="grid gap-1.5">
+              <Label>Sinónimos</Label>
+              <KeywordsInput value={keywords} onChange={setKeywords} />
+              <p className="text-xs text-muted-foreground">Palabras con las que la gente la describe. Sirven para sugerirla en la cotización.</p>
+            </div>
+          )}
           <div className="flex items-center justify-between rounded-md border p-3">
             <p className="text-sm font-medium">Activo</p>
             <Switch checked={active} onCheckedChange={setActive} />
@@ -68,7 +79,7 @@ function SimpleFormDialog({ open, onOpenChange, title, row, withAbbreviation, on
               setTried(true);
               if (!name.trim()) return;
               setSaving(true);
-              try { await onSave({ name: name.trim(), abbreviation: withAbbreviation ? abbr.trim() || null : undefined, active }); onOpenChange(false); }
+              try { await onSave({ name: name.trim(), abbreviation: withAbbreviation ? abbr.trim() || null : undefined, keywords: withKeywords ? keywords || null : undefined, active }); onOpenChange(false); }
               catch { /* el toast ya se mostró */ }
               finally { setSaving(false); }
             }}
@@ -82,11 +93,15 @@ function SimpleFormDialog({ open, onOpenChange, title, row, withAbbreviation, on
   );
 }
 
-function SimpleTable({ rows, onEdit, extraHeader }: { rows: SimpleRow[]; onEdit: (r: SimpleRow) => void; extraHeader?: string }) {
+function SimpleTable({ rows, onEdit, extraHeader, showKeywords }: { rows: SimpleRow[]; onEdit: (r: SimpleRow) => void; extraHeader?: string; showKeywords?: boolean }) {
   const columns = useMemo<ColumnDef<SimpleRow>[]>(
     () => [
       { accessorKey: "name", header: "Nombre", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
       ...(extraHeader ? [{ id: "extra", header: extraHeader, cell: ({ row }: any) => row.original.extra ?? "—" } as ColumnDef<SimpleRow>] : []),
+      ...(showKeywords ? [{
+        id: "keywords", header: "Sinónimos",
+        cell: ({ row }: any) => <span className="line-clamp-1 text-xs text-muted-foreground">{row.original.keywords || "—"}</span>,
+      } as ColumnDef<SimpleRow>] : []),
       {
         accessorKey: "active",
         header: "Estado",
@@ -103,7 +118,7 @@ function SimpleTable({ rows, onEdit, extraHeader }: { rows: SimpleRow[]; onEdit:
         ),
       },
     ],
-    [onEdit, extraHeader],
+    [onEdit, extraHeader, showKeywords],
   );
   return <DataTable columns={columns} data={rows} searchKey="name" />;
 }
@@ -115,18 +130,20 @@ export function KindCatalogTab({ kind, createSignal = 0 }: { kind: ProductKind; 
   const [open, setOpen] = useState(false);
   useEffect(() => { if (createSignal > 0) { setEditing(null); setOpen(true); } }, [createSignal]);
   const label = KIND_LABEL[kind].toLowerCase();
+  const withKeywords = kind === "pieza" || kind === "insumo";
 
   return (
     <div className="space-y-3">
-      <SimpleTable rows={categories} onEdit={(r) => { setEditing(r); setOpen(true); }} />
+      <SimpleTable rows={categories} showKeywords={withKeywords} onEdit={(r) => { setEditing(r); setOpen(true); }} />
       <SimpleFormDialog
         open={open}
         onOpenChange={setOpen}
         title={editing ? `Editar ${label}` : `Nueva ${label === "servicio" ? "categoría de servicio" : label}`}
         row={editing}
+        withKeywords={withKeywords}
         onSave={async (v) => {
           try {
-            await saveProductCategory({ name: v.name, kind, active: v.active }, editing?.id);
+            await saveProductCategory({ name: v.name, kind, active: v.active, ...(withKeywords ? { keywords: v.keywords ?? null } : {}) }, editing?.id);
             toast.success(editing ? "Guardado" : "Agregado");
             mutate();
           } catch (e) { toast.error(apiError(e, "No se pudo guardar")); throw e; }

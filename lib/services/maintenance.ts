@@ -21,7 +21,7 @@ import type {
   Supplier,
   SupplierContact,
 } from "../types/maintenance";
-import type { Product, ProductCategory, ProductKind, ProductOffer, UnitOfMeasure, VehicleSpecItem } from "../types/compras";
+import type { Product, ProductCategory, ProductKind, ProductOffer, ServiceTemplate, UnitOfMeasure, VehicleSpecItem } from "../types/compras";
 
 const base = "maintenance";
 
@@ -238,3 +238,22 @@ export const getProducts = async (params: { q?: string; kind?: ProductKind; cate
 export const saveProduct = async (body: ProductPayload, id?: string) =>
   (id ? await axiosConfig.patch<Product>(`${base}/catalog/products/${id}`, body) : await axiosConfig.post<Product>(`${base}/catalog/products`, body)).data;
 export const deleteProduct = async (id: string) => (await axiosConfig.delete(`${base}/catalog/products/${id}`)).data;
+
+// ---------------- Mantenimiento: servicios predefinidos ----------------
+
+export interface ServiceTemplatePayload {
+  name: string;
+  description?: string | null;
+  vehicleType?: string | null;
+  keywords?: string | null;
+  active?: boolean;
+  items: Array<{ categoryId: string; quantity: number; unitId?: string | null }>;
+}
+export const getServiceTemplates = async (includeInactive = false) =>
+  (await axiosConfig.get<ServiceTemplate[]>(`${base}/catalog/service-templates`, { params: { includeInactive } })).data;
+export const saveServiceTemplate = async (body: ServiceTemplatePayload, id?: string) =>
+  (id
+    ? await axiosConfig.patch<ServiceTemplate>(`${base}/catalog/service-templates/${id}`, body)
+    : await axiosConfig.post<ServiceTemplate>(`${base}/catalog/service-templates`, body)).data;
+export const deleteServiceTemplate = async (id: string) =>
+  (await axiosConfig.delete<{ ok: boolean; deactivated: boolean }>(`${base}/catalog/service-templates/${id}`)).data;

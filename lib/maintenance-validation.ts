@@ -86,3 +86,17 @@ export function validateQuote(v: { supplierId: string; quoteDate: string; validU
 /** Primer mensaje (para el aviso general al intentar guardar). */
 export const firstError = (e: FieldErrors) => Object.values(e)[0];
 export const hasErrors = (e: FieldErrors) => Object.keys(e).length > 0;
+
+/** Servicio predefinido: nombre y, si trae receta, cada renglón con pieza/insumo, cantidad y sin repetir. */
+export function validateServiceTemplate(v: { name: string; rows: Array<{ categoryId: string; quantity: number }> }): FieldErrors {
+  const e: FieldErrors = {};
+  if (v.name.trim().length < 3) e.name = "Escribe el nombre del servicio.";
+  const seen = new Set<string>();
+  v.rows.forEach((r, i) => {
+    if (!r.categoryId) e[`rows.${i}.categoryId`] = "Elige la pieza o el insumo.";
+    else if (seen.has(r.categoryId)) e[`rows.${i}.categoryId`] = "Ya está en la receta.";
+    seen.add(r.categoryId);
+    if (!(Number(r.quantity) > 0)) e[`rows.${i}.quantity`] = "Cantidad mayor a 0.";
+  });
+  return e;
+}

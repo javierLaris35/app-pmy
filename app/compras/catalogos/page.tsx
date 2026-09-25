@@ -15,7 +15,7 @@ const TABS = {
   productos: { label: "Productos", newLabel: "Nuevo producto" },
   piezas: { label: "Piezas", newLabel: "Nueva pieza" },
   insumos: { label: "Insumos", newLabel: "Nuevo insumo" },
-  servicios: { label: "Servicios", newLabel: "Nueva categoría de servicio" },
+  servicios: { label: "Servicios de proveedor", newLabel: "Nuevo servicio de proveedor" },
   presentaciones: { label: "Presentaciones", newLabel: "Nueva presentación" },
   proveedores: { label: "Proveedores", newLabel: "Nuevo proveedor" },
 } as const;

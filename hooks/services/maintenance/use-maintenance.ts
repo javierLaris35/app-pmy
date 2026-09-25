@@ -15,7 +15,7 @@ import {
   getSuppliers,
 } from "@/lib/services/maintenance";
 import type { PoStatus } from "@/lib/types/maintenance";
-import { getComparison, getMyRequests, getProductCategories, getProducts, getRequestDispatches, getUnits, getVehicleSpec } from "@/lib/services/maintenance";
+import { getComparison, getServiceTemplates, getMyRequests, getProductCategories, getProducts, getRequestDispatches, getUnits, getVehicleSpec } from "@/lib/services/maintenance";
 import type { ProductKind } from "@/lib/types/compras";
 
 export function useServiceCategories() {
@@ -140,4 +140,10 @@ export function useComparison(requestId?: string | null, enabled = true) {
 export function useRequestDispatches(requestId?: string | null, enabled = true) {
   const { data, isLoading, mutate } = useSWR(requestId && enabled ? ["compras-rfq-log", requestId] : null, () => getRequestDispatches(requestId!));
   return { dispatches: data ?? [], isLoading, mutate };
+}
+
+/** Servicios predefinidos de mantenimiento (con receta opcional). */
+export function useServiceTemplates(includeInactive = false) {
+  const { data, isLoading, mutate } = useSWR(["mtto-service-templates", includeInactive], () => getServiceTemplates(includeInactive));
+  return { services: data ?? [], isLoading, mutate };
 }

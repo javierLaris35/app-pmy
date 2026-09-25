@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMxPhone, validateQuote, validateSupplier } from "./maintenance-validation";
+import { isMxPhone, validateQuote, validateServiceTemplate, validateSupplier } from "./maintenance-validation";
 
 const contact = (over = {}) => ({ name: "Juan Pérez", email: "juan@taller.com", phone: "", whatsapp: "", preferredChannel: "email" as const, ...over });
 
@@ -41,5 +41,16 @@ describe("validateQuote", () => {
       ],
     });
     expect(Object.keys(e)).toEqual(["rows.0.leadTimeDays", "rows.1.iepsRate"]);
+  });
+});
+
+describe("validateServiceTemplate", () => {
+  it("nombre, pieza, cantidad y sin repetir", () => {
+    const e = validateServiceTemplate({ name: "Af", rows: [{ categoryId: "", quantity: 1 }, { categoryId: "c1", quantity: 0 }, { categoryId: "c1", quantity: 1 }] });
+    expect(e).toEqual({
+      name: "Escribe el nombre del servicio.", "rows.0.categoryId": "Elige la pieza o el insumo.",
+      "rows.1.quantity": "Cantidad mayor a 0.", "rows.2.categoryId": "Ya está en la receta.",
+    });
+    expect(validateServiceTemplate({ name: "Afinación", rows: [] })).toEqual({});
   });
 });
