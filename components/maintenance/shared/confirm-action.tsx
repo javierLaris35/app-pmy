@@ -89,6 +89,8 @@ export function humanizeApiMessage(msg: string): string {
 export const apiError = (e: any, fallback: string): string => {
   if (!e?.response) return "No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.";
   const m = e.response.data?.message;
+  // 503: el servidor explica en llano qué falta (p. ej. el generador de PDF); los demás 5xx no se muestran.
+  if (e.response.status === 503 && typeof m === "string" && m.trim()) return m;
   if (e.response.status >= 500) return `${fallback}. Intenta de nuevo; si sigue pasando, avisa a Sistemas.`;
   const list = (Array.isArray(m) ? m : m ? [m] : []).map(humanizeApiMessage);
   return list.length ? [...new Set(list)].join(" · ") : fallback;

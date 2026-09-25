@@ -26,6 +26,22 @@ import type { Product, ProductCategory, ProductKind, ProductOffer, ServiceTempla
 
 const base = "maintenance";
 
+/**
+ * Descarga un archivo (PDF/imagen). Si el servidor responde error, su mensaje viene dentro del blob: se lee
+ * y se deja en `response.data` como JSON para que `apiError` lo muestre en llano.
+ */
+async function getBlob(url: string, config: Record<string, unknown> = {}) {
+  try {
+    return await axiosConfig.get<Blob>(url, { ...config, responseType: "blob" });
+  } catch (e: any) {
+    const data = e?.response?.data;
+    if (data instanceof Blob) {
+      try { e.response.data = JSON.parse(await data.text()); } catch { /* no era JSON */ }
+    }
+    throw e;
+  }
+}
+
 // ---------------- Catálogo ----------------
 export const getServiceCategories = async () => (await axiosConfig.get<ServiceCategory[]>(`${base}/catalog/categories`)).data;
 export const createServiceCategory = async (body: Partial<ServiceCategory>) =>
@@ -124,7 +140,7 @@ export const uploadQuoteAttachment = async (quoteId: string, file: File) => {
   return (await axiosConfig.post(`${base}/requests/quotes/${quoteId}/attachment`, fd, { headers: { "Content-Type": "multipart/form-data" } })).data;
 };
 export const getQuoteAttachmentBlob = async (quoteId: string) =>
-  (await axiosConfig.get<Blob>(`${base}/requests/quotes/${quoteId}/attachment`, { responseType: "blob" })).data;
+  (await getBlob(`${base}/requests/quotes/${quoteId}/attachment`)).data;
 export interface GeneratedOrder { id: string; folio: string; supplierId: string; total: number }
 /** "Generar orden con esta cotización": todo lo que cubre ese proveedor en una orden, a autorización. */
 export const convertQuote = async (quoteId: string) =>
@@ -140,9 +156,9 @@ export const saveSelection = async (requestId: string, selections: Array<{ reque
 export const generateOrders = async (requestId: string) =>
   (await axiosConfig.post<GeneratedOrder[]>(`${base}/requests/${requestId}/generate-orders`)).data;
 export const getComparisonPdf = async (requestId: string) =>
-  (await axiosConfig.get<Blob>(`${base}/requests/${requestId}/comparison-pdf`, { responseType: "blob" })).data;
+  (await getBlob(`${base}/requests/${requestId}/comparison-pdf`)).data;
 export const getRfqPdf = async (requestId: string, supplierId?: string) =>
-  (await axiosConfig.get<Blob>(`${base}/requests/${requestId}/rfq-pdf`, { params: { supplierId }, responseType: "blob" })).data;
+  (await getBlob(`${base}/requests/${requestId}/rfq-pdf`, { params: { supplierId } })).data;
 export const sendRfq = async (
   requestId: string,
   body: { targets: Array<{ supplierId: string; contactId?: string; channel?: ContactChannel }>; notes?: string },
@@ -192,7 +208,7 @@ export const cancelPurchaseOrder = async (id: string, reason: string, notifySupp
   (await axiosConfig.post<PurchaseOrder>(`${base}/purchase-orders/${id}/cancel`, { reason, notifySupplier })).data;
 export const deletePurchaseOrder = async (id: string) => (await axiosConfig.delete(`${base}/purchase-orders/${id}`)).data;
 export const getPurchaseOrderPdf = async (id: string) =>
-  (await axiosConfig.get<Blob>(`${base}/purchase-orders/${id}/pdf`, { responseType: "blob" })).data;
+  (await getBlob(`${base}/purchase-orders/${id}/pdf`)).data;
 export const sendPurchaseOrder = async (id: string, body: { channel?: ContactChannel; contactId?: string }) =>
   (await axiosConfig.post<PurchaseOrder>(`${base}/purchase-orders/${id}/send`, body)).data;
 export const getPurchaseOrderDispatches = async (id: string) =>
