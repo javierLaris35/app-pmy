@@ -54,7 +54,7 @@ export function RequestItemsCard({ items, services = [], description }: {
                     <TableCell>
                       <p className="font-medium">{i.description}</p>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                        {i.product && <Badge variant="outline" className="gap-1 text-[10px]"><Package className="h-3 w-3" /> Del catálogo</Badge>}
+                        {i.product && <Badge variant="outline" className="gap-1 text-[11px]"><Package className="h-3 w-3" /> Del catálogo</Badge>}
                         {i.category && <span>{i.category.name}</span>}
                         {i.product?.brand && <span>· {i.product.brand}</span>}
                         {i.product?.partNumber && <span>· No. {i.product.partNumber}</span>}

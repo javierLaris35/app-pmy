@@ -89,9 +89,9 @@ export function NeedsCard({ requestId, needs, editable, loading, onChanged }: {
           No se encontraron piezas ni insumos para lo que se pidió.{editable && " Agrégalos con \"Agregar\", o ponle receta al servicio en Mantenimiento → Servicios."}
         </p>
       ) : (
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-b bg-muted/40 text-left text-[10.5px] uppercase tracking-wide text-muted-foreground">
+            <tr className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
               <th className="w-[26%] px-3 py-1.5 font-semibold">Pieza o insumo</th>
               <th className="px-3 py-1.5 font-semibold">Sugerencias del catálogo</th>
               {editable && <th className="w-16 px-2 py-1.5" />}
@@ -105,13 +105,13 @@ export function NeedsCard({ requestId, needs, editable, loading, onChanged }: {
                     <div className="flex flex-wrap items-center gap-x-1.5">
                       <span className="font-semibold">{n.category.name}</span>
                       <span className="text-muted-foreground">× {qty(n.quantity)}{n.unit?.abbreviation ? ` ${n.unit.abbreviation}` : ""}</span>
-                      <span className="rounded bg-amber-100 px-1 text-[10px] text-amber-800" title={n.sourceLabel}>{SOURCE_SHORT[n.source]}</span>
+                      <span className="rounded bg-amber-100 px-1 text-[11px] text-amber-800" title={n.sourceLabel}>{SOURCE_SHORT[n.source]}</span>
                     </div>
                     {n.inQuote && <p className="flex items-center gap-1 text-[11px] text-emerald-700"><Check className="h-3 w-3" /> En cotización de {n.inQuote.supplierName}</p>}
                   </td>
                   <td className="px-3 py-1.5 align-middle">
                     {n.suggestions.length === 0 ? (
-                      <span className="text-[11.5px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         Sin precios en el catálogo{editable && <> · <button type="button" className="font-semibold text-primary hover:underline" onClick={() => setCapturing(n.id)}>Capturar precio</button></>}
                       </span>
                     ) : (
@@ -127,13 +127,13 @@ export function NeedsCard({ requestId, needs, editable, loading, onChanged }: {
                               onClick={() => pick(n, o)}
                               title={`${o.productName}${o.brand ? ` · ${o.brand}` : ""} — ${o.supplierName}${o.purchases ? ` · comprado ${o.purchases} ${o.purchases === 1 ? "vez" : "veces"}` : ""}`}
                               className={cn(
-                                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-0.5 text-[11.5px] transition",
+                                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-0.5 text-xs transition",
                                 "enabled:hover:border-primary/40 enabled:hover:bg-primary/5 disabled:cursor-default",
                                 chosen && "border-emerald-500 bg-emerald-50",
                               )}
                             >
                               {busy === `pick-${o.offerId}` ? <Loader2 className="h-3 w-3 animate-spin" /> : chosen && <Check className="h-3 w-3 text-emerald-700" />}
-                              <span className={cn("text-[9.5px] font-bold uppercase tracking-wide", chosen ? "text-emerald-700" : o.labels.length ? "text-primary" : "text-muted-foreground")}>{label}</span>
+                              <span className={cn("text-[11px] font-bold uppercase tracking-wide", chosen ? "text-emerald-700" : o.labels.length ? "text-primary" : "text-muted-foreground")}>{label}</span>
                               <span className="max-w-[140px] truncate">{o.supplierName}</span>
                               <span className="font-semibold tabular-nums">{money0(o.price)}</span>
                               {o.quality ? <StarRating value={o.quality} className="[&_svg]:h-2.5 [&_svg]:w-2.5" /> : null}

@@ -234,10 +234,10 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
                     const dev = deviationPct(r.unitPrice, ref);
                     const lt = lineTaxes(r);
                     const origin = r.rowNumber
-                      ? <Badge variant="outline" className="h-5 text-[10px] font-normal">Renglón {r.rowNumber}</Badge>
+                      ? <Badge variant="outline" className="h-5 text-[11px] font-normal">Renglón {r.rowNumber}</Badge>
                       : r.requestNeedId
-                        ? <Badge variant="outline" className="h-5 border-violet-200 bg-violet-50 text-[10px] font-normal text-violet-700">Necesidad: {r.needName ?? "pieza/insumo"}</Badge>
-                        : <Badge variant="outline" className="h-5 border-sky-200 bg-sky-50 text-[10px] font-normal text-sky-700">Extra</Badge>;
+                        ? <Badge variant="outline" className="h-5 border-violet-200 bg-violet-50 text-[11px] font-normal text-violet-700">Necesidad: {r.needName ?? "pieza/insumo"}</Badge>
+                        : <Badge variant="outline" className="h-5 border-sky-200 bg-sky-50 text-[11px] font-normal text-sky-700">Extra</Badge>;
                     return (
                       <ItemCard
                         key={r.key}
@@ -272,7 +272,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
                               <span className="flex flex-wrap items-center gap-2">
                                 Referencia del catálogo: {formatMoney(ref)}
                                 {dev !== null && dev > threshold && (
-                                  <Badge variant="outline" className="h-5 border-amber-300 bg-amber-50 text-[10px] text-amber-700">+{dev}% sobre la referencia</Badge>
+                                  <Badge variant="outline" className="h-5 border-amber-300 bg-amber-50 text-[11px] text-amber-700">+{dev}% sobre la referencia</Badge>
                                 )}
                               </span>
                             ) : undefined} />

@@ -57,7 +57,7 @@ export function ExpedienteCard({ card, onOpen }: { card: BoardCard; onOpen: (c: 
       </div>
 
       <div className="mb-1 flex items-center gap-2">
-        <Badge variant="secondary" className={cn("h-5 rounded-md border-0 px-1.5 text-[10px] font-medium", TYPE_CLASS[card.type])}>
+        <Badge variant="secondary" className={cn("h-5 rounded-md border-0 px-1.5 text-[11px] font-medium", TYPE_CLASS[card.type])}>
           {REQUEST_TYPE_LABEL[card.type]}
         </Badge>
         {card.vehicle && <span className="truncate text-xs text-muted-foreground">{card.vehicle.plateNumber}</span>}
@@ -106,20 +106,20 @@ export function ExpedienteCard({ card, onOpen }: { card: BoardCard; onOpen: (c: 
       <div className="flex items-center justify-between gap-2 border-t pt-3">
         <div className="flex min-w-0 items-center gap-2">
           <Avatar className="h-7 w-7 shrink-0">
-            <AvatarFallback style={avatarStyle(card.createdByName ?? undefined)} className="text-[9px] font-semibold">
+            <AvatarFallback style={avatarStyle(card.createdByName ?? undefined)} className="text-[11px] font-semibold">
               {initialsFrom(card.createdByName ?? undefined)}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 leading-tight">
             <div className="truncate text-xs font-medium text-foreground">{card.createdByName ?? "—"}</div>
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Clock className="h-2.5 w-2.5" /> {relativeTime(card.updatedAt)}
             </div>
           </div>
         </div>
         {card.waitingOn && (
           <div className="flex flex-col items-end">
-            <span className="text-[8px] font-medium uppercase tracking-wide text-muted-foreground/60">Lo tiene</span>
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/60">Lo tiene</span>
             <span className="text-xs font-medium">{WAITING_LABEL[card.waitingOn]}</span>
           </div>
         )}

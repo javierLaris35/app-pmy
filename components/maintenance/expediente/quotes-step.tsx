@@ -60,69 +60,88 @@ export function QuotesStep({ request, comparison, onComparisonChange, editable, 
               <ComparisonMatrix requestId={request.id} comparison={comparison} editable={editable} onChange={onComparisonChange} />
             )}
 
-            <ul className="divide-y rounded-lg border">
-              {quotes.map((q) => (
-                <li key={q.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-2 font-medium">
-                      {q.supplier?.name}
-                      {q.status === "ganadora" && <Badge className="h-5 text-[10px]">Con orden</Badge>}
-                      {q.status === "descartada" && <Badge variant="outline" className="h-5 text-[10px] text-muted-foreground">No elegida</Badge>}
-                      {q.fromCatalog && (
-                        <Badge variant="outline" className="h-5 border-amber-300 bg-amber-50 text-[10px] text-amber-800">Precio del catálogo: confírmalo con el proveedor</Badge>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {q.items.length} {q.items.length === 1 ? "concepto" : "conceptos"} · {fmtDate(q.quoteDate)}
-                      {q.validUntil && ` · vigente al ${fmtDate(q.validUntil)}`}
-                      {Number(q.ieps ?? 0) > 0 && ` · IEPS ${formatMoney(q.ieps)}`}
-                    </p>
-                  </div>
-                  <span className="font-semibold tabular-nums">{formatMoney(q.total)}</span>
-                  <div className="flex gap-1">
-                    {q.attachmentName && (
-                      <Button size="icon" variant="ghost" title={q.attachmentName} aria-label="Ver archivo del proveedor"
-                        onClick={async () => { try { openBlob(await getQuoteAttachmentBlob(q.id)); } catch (e) { toast.error(apiError(e, "No se pudo abrir el archivo")); } }}>
-                        <Paperclip className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {editable && (
-                      <>
-                        <Button size="icon" variant="ghost" aria-label="Editar cotización" onClick={() => onEdit(q)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <ConfirmAction
-                          destructive
-                          title="¿Eliminar cotización?"
-                          description={`Se eliminará la cotización de ${q.supplier?.name}.`}
-                          confirmLabel="Eliminar"
-                          onConfirm={async () => {
-                            try { await deleteQuote(q.id); toast.success("Cotización eliminada"); onChanged(); }
-                            catch (e) { toast.error(apiError(e, "No se pudo eliminar")); }
-                          }}
-                          trigger={<Button size="icon" variant="ghost" className="text-destructive" aria-label="Eliminar cotización"><Trash2 className="h-4 w-4" /></Button>}
-                        />
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th className="px-3 py-1.5 font-semibold">Proveedor</th>
+                    <th className="px-3 py-1.5 font-semibold">Conceptos</th>
+                    <th className="px-3 py-1.5 font-semibold">Fecha</th>
+                    <th className="px-3 py-1.5 font-semibold">Vigencia</th>
+                    <th className="px-3 py-1.5 font-semibold">Estado</th>
+                    <th className="px-3 py-1.5 text-right font-semibold">Total</th>
+                    <th className="w-24 px-2 py-1.5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {quotes.map((q) => (
+                    <tr key={q.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                      <td className="px-3 py-1.5 font-medium">{q.supplier?.name}</td>
+                      <td className="px-3 py-1.5 text-muted-foreground">
+                        {q.items.length}{Number(q.ieps ?? 0) > 0 && <span className="ml-1 text-xs">· IEPS {formatMoney(q.ieps)}</span>}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">{fmtDate(q.quoteDate)}</td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">{q.validUntil ? fmtDate(q.validUntil) : "—"}</td>
+                      <td className="px-3 py-1.5">
+                        {q.fromCatalog ? (
+                          <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800" title="Se armó con precios del catálogo">Por confirmar</span>
+                        ) : q.status === "ganadora" ? (
+                          <span className="whitespace-nowrap rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">Con orden</span>
+                        ) : q.status === "descartada" ? (
+                          <span className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">No elegida</span>
+                        ) : (
+                          <span className="whitespace-nowrap rounded bg-sky-100 px-1.5 py-0.5 text-[11px] font-medium text-sky-700">Capturada</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{formatMoney(q.total)}</td>
+                      <td className="px-2 py-1 text-right">
+                        <div className="inline-flex">
+                          {q.attachmentName && (
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title={q.attachmentName} aria-label="Ver archivo del proveedor"
+                              onClick={async () => { try { openBlob(await getQuoteAttachmentBlob(q.id)); } catch (e) { toast.error(apiError(e, "No se pudo abrir el archivo")); } }}>
+                              <Paperclip className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {editable && (
+                            <>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Editar cotización" title="Editar" onClick={() => onEdit(q)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <ConfirmAction
+                                destructive
+                                title="¿Eliminar cotización?"
+                                description={`Se eliminará la cotización de ${q.supplier?.name}.`}
+                                confirmLabel="Eliminar"
+                                onConfirm={async () => {
+                                  try { await deleteQuote(q.id); toast.success("Cotización eliminada"); onChanged(); }
+                                  catch (e) { toast.error(apiError(e, "No se pudo eliminar")); }
+                                }}
+                                trigger={<Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" aria-label="Eliminar cotización" title="Eliminar"><Trash2 className="h-3.5 w-3.5" /></Button>}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
 
         {dispatches && dispatches.length > 0 && (
           <div>
-            <p className="mb-2 text-sm font-medium">Cotizaciones pedidas</p>
-            <ul className="divide-y rounded-lg border text-sm">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cotizaciones pedidas</p>
+            <ul className="divide-y rounded-xl border text-[13px]">
               {dispatches.map((d) => (
-                <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
+                <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5">
                   {d.channel === "whatsapp" ? <MessageCircle className="h-4 w-4 text-emerald-600" /> : <Mail className="h-4 w-4 text-sky-600" />}
                   <span className="font-medium">{d.supplier?.name ?? "Proveedor"}</span>
                   <span className="text-muted-foreground">{d.destination}</span>
                   {d.status === "error"
-                    ? <Badge variant="outline" className="h-5 border-red-200 bg-red-50 text-[10px] text-red-700">No se envió</Badge>
-                    : <Badge variant="outline" className="h-5 border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">Enviada</Badge>}
+                    ? <Badge variant="outline" className="h-5 border-red-200 bg-red-50 text-[11px] text-red-700">No se envió</Badge>
+                    : <Badge variant="outline" className="h-5 border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">Enviada</Badge>}
                   <span className="ml-auto text-xs text-muted-foreground">{fmtDateTime(d.sentAt)}{d.sentByName ? ` · ${d.sentByName}` : ""}</span>
                   {d.status === "error" && d.error && <p className="w-full text-xs text-red-700">{d.error}</p>}
                 </li>

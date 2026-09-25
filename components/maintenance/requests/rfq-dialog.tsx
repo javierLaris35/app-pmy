@@ -139,7 +139,7 @@ export function RfqDialog({ open, onOpenChange, request, onSent }: Props) {
                       <div className="min-w-[140px] flex-1">
                         <p className="flex items-center gap-2 text-sm font-medium">
                           {s.name}
-                          {suggested.has(s.id) && <Badge variant="outline" className="h-5 border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">Ya le compramos</Badge>}
+                          {suggested.has(s.id) && <Badge variant="outline" className="h-5 border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">Ya le compramos</Badge>}
                         </p>
                         {disabled && (
                           <p className="text-xs text-muted-foreground">

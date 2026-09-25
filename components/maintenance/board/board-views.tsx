@@ -136,7 +136,7 @@ export function BoardList({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: B
         cell: ({ row }) => (
           <div className="max-w-[320px]">
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className={cn("h-5 rounded-md border-0 px-1.5 text-[10px]", TYPE_CLASS[row.original.type])}>
+              <Badge variant="secondary" className={cn("h-5 rounded-md border-0 px-1.5 text-[11px]", TYPE_CLASS[row.original.type])}>
                 {REQUEST_TYPE_LABEL[row.original.type]}
               </Badge>
               {row.original.vehicle && <span className="text-sm font-medium">{vehicleLabel(row.original.vehicle)}</span>}
