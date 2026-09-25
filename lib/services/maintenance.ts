@@ -273,3 +273,25 @@ export const dismissNeed = async (needId: string) => (await axiosConfig.delete(`
 /** Elegir una sugerencia: la pone en la cotización de ese proveedor con el precio del catálogo. */
 export const pickNeedOffer = async (needId: string, offerId: string) =>
   (await axiosConfig.post<{ quoteId: string }>(`${base}/requests/needs/${needId}/pick`, { offerId })).data;
+
+/** "Capturar precio": lo que dijo el proveedor para una pieza/insumo, sin que exista en el catálogo. */
+export const captureNeedPrice = async (
+  needId: string,
+  body: { supplierId: string; description: string; brand?: string | null; unitPrice: number; quality?: number | null },
+) => (await axiosConfig.post<{ quoteId: string }>(`${base}/requests/needs/${needId}/manual`, body)).data;
+
+export interface UncatalogedItem {
+  quoteItemId: string;
+  description: string;
+  unitPrice: number;
+  quality: number | null;
+  supplierId: string;
+  supplierName: string;
+  categoryId: string;
+  categoryName: string;
+}
+/** Conceptos cotizados que aún no están en el catálogo (se ofrecen al generar órdenes). */
+export const getUncataloged = async (requestId: string) =>
+  (await axiosConfig.get<UncatalogedItem[]>(`${base}/requests/${requestId}/uncataloged`)).data;
+export const saveToCatalog = async (requestId: string, quoteItemIds: string[]) =>
+  (await axiosConfig.post<{ saved: number }>(`${base}/requests/${requestId}/save-to-catalog`, { quoteItemIds })).data;

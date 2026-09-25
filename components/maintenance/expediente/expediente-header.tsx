@@ -29,27 +29,27 @@ export function ExpedienteHeader({ request, progress, totalLabel }: {
   ];
 
   return (
-    <div className="grid gap-4 rounded-2xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] md:p-5">
+    <div className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,300px)]">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="font-mono text-xl font-bold tracking-tight">{request.folio}</h2>
+          <h2 className="font-mono text-lg font-bold tracking-tight">{request.folio}</h2>
           <StageBadge stage={progress.stage} />
         </div>
-        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
           {facts.map(([k, v]) => (
             <div key={k} className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{k}</dt>
+              <dt className="text-[11px] text-muted-foreground">{k}</dt>
               <dd className="truncate font-medium">{v}</dd>
             </div>
           ))}
         </dl>
       </div>
       {progress.nextStep && (
-        <div className={cn("self-start rounded-xl border p-3.5", closed ? "border-border bg-muted/40" : "border-amber-200 bg-amber-50")}>
+        <div className={cn("self-start rounded-xl border p-3", closed ? "border-border bg-muted/40" : "border-amber-200 bg-amber-50")}>
           <p className={cn("text-[11px] font-semibold uppercase tracking-wide", closed ? "text-muted-foreground" : "text-amber-800")}>
             {closed ? "Estado" : "Qué sigue"}
           </p>
-          <p className="mt-1 flex items-start gap-1.5 text-sm font-medium leading-snug">
+          <p className="mt-1 flex items-start gap-1.5 text-[13px] font-medium leading-snug">
             {!closed && <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />}
             {progress.nextStep}
           </p>

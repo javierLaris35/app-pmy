@@ -69,15 +69,15 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
   return (
     <TooltipProvider delayDuration={200}>
       <div className="space-y-3">
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-xl border text-[13px]">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[200px]">Concepto</TableHead>
-                <TableHead className="w-20 text-center">Cant.</TableHead>
+                <TableHead className="h-9 min-w-[200px] text-xs">Concepto</TableHead>
+                <TableHead className="h-9 w-16 text-center text-xs">Cant.</TableHead>
                 {comparison.quotes.map((q) => (
-                  <TableHead key={q.id} className="min-w-[170px] border-l text-center">
-                    <div className="flex flex-col items-center gap-1 py-1.5">
+                  <TableHead key={q.id} className="h-auto min-w-[150px] border-l text-center text-xs">
+                    <div className="flex flex-col items-center gap-0.5 py-1">
                       <span className="font-semibold text-foreground">{q.supplierName}</span>
                       {editable && (
                         <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!saving} onClick={() => chooseAll(q.id)}>
@@ -88,7 +88,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                     </div>
                   </TableHead>
                 ))}
-                {editable && <TableHead className="w-24 border-l text-center">No comprar</TableHead>}
+                {editable && <TableHead className="h-9 w-20 border-l text-center text-xs">No comprar</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -96,8 +96,8 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                 const none = row.selectedQuoteItemId === null;
                 return (
                   <TableRow key={row.requestItemId} className="align-top">
-                    <TableCell className="font-medium">{row.description}</TableCell>
-                    <TableCell className="text-center tabular-nums">
+                    <TableCell className="py-2 font-medium">{row.description}</TableCell>
+                    <TableCell className="py-2 text-center tabular-nums">
                       {qty(row.quantity)}
                       {comparison.units[row.requestItemId] && <span className="block text-xs text-muted-foreground">{comparison.units[row.requestItemId]}</span>}
                     </TableCell>
@@ -111,7 +111,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                       const noStock = c.availability === "no";
                       const body = (
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="font-semibold tabular-nums">{formatMoney(c.unitPrice)}</span>
+                          <span className="text-[13px] font-semibold tabular-nums">{formatMoney(c.unitPrice)}</span>
                           <span className="text-xs tabular-nums text-muted-foreground">Importe {formatMoney(c.total)}</span>
                           {noStock ? (
                             <Badge variant="outline" className="h-5 border-red-200 bg-red-50 text-[10px] text-red-700">Sin existencia</Badge>
@@ -126,14 +126,14 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                         </div>
                       );
                       return (
-                        <TableCell key={q.id} className={cn("border-l p-1.5 text-center", best && "bg-emerald-50/50")}>
+                        <TableCell key={q.id} className={cn("border-l p-1 text-center", best && "bg-emerald-50/50")}>
                           {editable ? (
                             <button
                               type="button"
                               disabled={!!saving}
                               onClick={() => !selected && choose([{ requestItemId: row.requestItemId, quoteItemId: c.quoteItemId }], row.requestItemId)}
                               className={cn(
-                                "w-full rounded-md border border-transparent p-2 transition hover:border-primary/40 hover:bg-primary/5",
+                                "w-full rounded-lg border border-transparent px-2 py-1.5 transition hover:border-primary/40 hover:bg-primary/5",
                                 selected && "border-primary ring-1 ring-primary",
                                 noStock && !selected && "opacity-70",
                               )}
@@ -143,7 +143,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                               {body}
                             </button>
                           ) : (
-                            <div className={cn("rounded-md border border-transparent p-2", selected && "border-primary")}>{body}</div>
+                            <div className={cn("rounded-lg border border-transparent px-2 py-1.5", selected && "border-primary")}>{body}</div>
                           )}
                         </TableCell>
                       );
@@ -153,7 +153,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              size="icon" variant={none ? "secondary" : "ghost"} disabled={!!saving || none}
+                              size="icon" variant="ghost" className={cn("h-8 w-8", none && "bg-red-50")} disabled={!!saving || none}
                               onClick={() => choose([{ requestItemId: row.requestItemId, quoteItemId: null }], row.requestItemId)}
                               aria-label="No comprar este renglón"
                             >
@@ -183,7 +183,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
           </Table>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2 text-[13px]">
           {summary.groups.length === 0 ? (
             <span className="text-muted-foreground">No hay nada elegido para comprar.</span>
           ) : (

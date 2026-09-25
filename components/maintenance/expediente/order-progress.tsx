@@ -49,7 +49,7 @@ export function OrderProgressList({ orders, activeId, onSelect }: { orders: Orde
           onClick={() => onSelect(o.id)}
           aria-pressed={o.id === activeId}
           className={cn(
-            "grid gap-3 rounded-2xl border bg-card p-4 text-left transition hover:border-foreground/20",
+            "grid gap-2.5 rounded-2xl border bg-card p-3 text-left transition hover:border-foreground/20",
             o.id === activeId && "border-primary ring-4 ring-primary/10 hover:border-primary",
             o.status === "cancelada" && "opacity-70",
           )}

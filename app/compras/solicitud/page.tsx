@@ -8,6 +8,7 @@ import { withAuth } from "@/hoc/withAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -27,7 +28,7 @@ import {
 } from "@/hooks/services/maintenance/use-maintenance";
 import {
   approveRequest, authorizePurchaseOrder, cancelPurchaseOrder, cancelRequest, completePurchaseOrder, deletePurchaseOrder,
-  deleteRequest, generateOrders, rejectPurchaseOrder, rejectRequest, sendPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder,
+  deleteRequest, generateOrders, getUncataloged, saveToCatalog, UncatalogedItem, rejectPurchaseOrder, rejectRequest, sendPurchaseOrder, submitPurchaseOrder, updatePurchaseOrder,
 } from "@/lib/services/maintenance";
 import {
   ExpedienteProgress, formatKms, formatMoney, MaintenanceQuote, PRIORITY_LABEL, REQUEST_TYPE_LABEL, vehicleLabel,
@@ -83,6 +84,15 @@ function SolicitudContent() {
   const [dialog, setDialog] = useState<DialogKey>(null);
   const [editingQuote, setEditingQuote] = useState<MaintenanceQuote | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Conceptos cotizados que no están en el catálogo: se ofrece guardarlos al generar órdenes. */
+  const [uncataloged, setUncataloged] = useState<UncatalogedItem[]>([]);
+  const [saveIds, setSaveIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (dialog !== "generate" || !request?.id) return;
+    getUncataloged(request.id)
+      .then((list) => { setUncataloged(list); setSaveIds(list.map((u) => u.quoteItemId)); })
+      .catch(() => { setUncataloged([]); setSaveIds([]); });
+  }, [dialog, request?.id]);
 
   if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   if (isError || !request) {
@@ -250,7 +260,7 @@ function SolicitudContent() {
         <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b bg-transparent p-0">
           {tabs.map((t) => (
             <TabsTrigger key={t.key} value={t.key}
-              className="relative -mb-px gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2.5 text-sm font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
+              className="relative -mb-px gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-3.5 py-2 text-[13px] font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
               {t.label}
               {t.count !== undefined && <span className="rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">{t.count}</span>}
               {t.attention && <span className="h-2 w-2 rounded-full bg-amber-500" aria-label="Requiere atención" />}
@@ -258,7 +268,7 @@ function SolicitudContent() {
           ))}
         </TabsList>
 
-        <TabsContent value="solicitud" className="mt-4 space-y-4">
+        <TabsContent value="solicitud" className="mt-3 space-y-3">
           {progress.stage === "rechazada" && (
             <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
@@ -270,7 +280,7 @@ function SolicitudContent() {
         </TabsContent>
 
         {canSeeQuotes && (
-          <TabsContent value="cotizar" className="mt-4 space-y-4">
+          <TabsContent value="cotizar" className="mt-3 space-y-3">
             {needsVisible && (needs.length > 0 || quotesEditable || needsLoading) && (
               <NeedsCard requestId={request.id} needs={needs} editable={quotesEditable} loading={needsLoading && !needs.length} onChanged={refresh} />
             )}
@@ -286,7 +296,7 @@ function SolicitudContent() {
           </TabsContent>
         )}
 
-        <TabsContent value="ordenes" className="mt-4 space-y-4">
+        <TabsContent value="ordenes" className="mt-3 space-y-3">
           {orders.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center text-sm text-muted-foreground">
@@ -302,7 +312,7 @@ function SolicitudContent() {
           )}
         </TabsContent>
 
-        <TabsContent value="historial" className="mt-4">
+        <TabsContent value="historial" className="mt-3">
           <ExpedienteActivity request={request} order={order} dispatches={isPurchaser || canAuthorize ? dispatches : undefined} />
         </TabsContent>
       </Tabs>
@@ -341,11 +351,32 @@ function SolicitudContent() {
           {summary.skipped > 0 && (
             <p className="text-xs text-muted-foreground">{summary.skipped} {summary.skipped === 1 ? "renglón no se va" : "renglones no se van"} a comprar.</p>
           )}
+          {uncataloged.length > 0 && (
+            <div className="grid gap-2 rounded-xl border bg-muted/30 p-3">
+              <p className="text-sm font-medium">¿Guardarlos en el catálogo para la próxima vez?</p>
+              <p className="text-xs text-muted-foreground">Estos conceptos no están en el catálogo. Los marcados se guardan con el precio y la calidad de ese proveedor, y la próxima vez salen como sugerencia.</p>
+              {uncataloged.map((u) => (
+                <label key={u.quoteItemId} className="flex cursor-pointer items-start gap-2.5 text-sm">
+                  <Checkbox className="mt-0.5" checked={saveIds.includes(u.quoteItemId)}
+                    onCheckedChange={(v) => setSaveIds((ids) => (v === true ? [...ids, u.quoteItemId] : ids.filter((x) => x !== u.quoteItemId)))} />
+                  <span className="min-w-0">
+                    <span className="block font-medium">{u.description}</span>
+                    <span className="block text-xs text-muted-foreground">{u.categoryName} · {u.supplierName} · {formatMoney(u.unitPrice)}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Volver</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => guarded(() => run(
-                async () => { const out = await generateOrders(request.id); setActiveOrderId(out[0]?.id ?? null); setTab("ordenes"); },
+                async () => {
+                  if (saveIds.length) await saveToCatalog(request.id, saveIds);
+                  const out = await generateOrders(request.id);
+                  setActiveOrderId(out[0]?.id ?? null);
+                  setTab("ordenes");
+                },
                 summary.groups.length === 1 ? "Orden mandada a autorización" : "Órdenes mandadas a autorización", "No se pudieron generar las órdenes",
               ))}
             >
