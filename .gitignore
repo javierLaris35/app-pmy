@@ -34,3 +34,4 @@ electron.js
 nvm
 # Graphify knowledge-graph output
 graphify-out/
+.superpowers/

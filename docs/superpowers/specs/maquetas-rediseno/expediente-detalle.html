@@ -1,0 +1,88 @@
+<style>
+  .m { font-family: Inter, system-ui, sans-serif; font-size: 12.5px; color: #1c1917; background: #fafaf9; border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
+  .bar { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 10px 14px; }
+  .btn { background: #dc2626; color: #fff; border-radius: 8px; padding: 6px 11px; font-weight: 600; font-size: 12px; }
+  .btn-o { border: 1px solid #d6d3d1; background: #fff; border-radius: 8px; padding: 6px 11px; font-weight: 600; font-size: 12px; }
+  .chip { display: inline-flex; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; }
+  .c-amber { background: #fef3c7; color: #92400e; } .c-green { background: #dcfce7; color: #166534; } .c-sky { background: #e0f2fe; color: #075985; } .c-gray { background: #f5f5f4; color: #57534e; } .c-violet { background: #ede9fe; color: #5b21b6; }
+  .muted { color: #78716c; } .s { font-size: 11px; }
+  .hdr { background: #fff; border: 1px solid #e7e5e4; border-radius: 14px; padding: 14px 16px; display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+  .folio { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+  .meta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; }
+  .meta span b { color: #1c1917; font-weight: 600; }
+  .next { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 9px 12px; min-width: 230px; }
+  .next small { color: #9a3412; font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid #e7e5e4; }
+  .tab { padding: 8px 14px; font-weight: 600; color: #78716c; border-bottom: 2px solid transparent; }
+  .tab.on { color: #1c1917; border-color: #dc2626; }
+  .cnt { background: #f5f5f4; border-radius: 999px; padding: 0 6px; margin-left: 5px; font-size: 10.5px; }
+  .card { background: #fff; border: 1px solid #e7e5e4; border-radius: 14px; padding: 12px 14px; }
+  .card h4 { margin: 0 0 2px; font-size: 13.5px; }
+  .need { border-top: 1px solid #f5f5f4; padding-top: 10px; margin-top: 10px; }
+  .sug { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  .sc { border: 1px solid #e7e5e4; border-radius: 10px; padding: 8px; display: grid; gap: 3px; }
+  .sc.on { border-color: #16a34a; background: #f0fdf4; }
+  .tag { font-size: 10px; color: #b91c1c; background: #fef2f2; border-radius: 6px; padding: 1px 6px; justify-self: start; font-weight: 600; }
+  .stars { color: #f59e0b; letter-spacing: 1px; font-size: 11px; }
+  .pick { border: 1px solid #d6d3d1; border-radius: 7px; text-align: center; padding: 3px; font-weight: 600; font-size: 11px; margin-top: 3px; }
+  .on .pick { border-color: #16a34a; color: #166534; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { text-align: left; font-size: 11px; color: #78716c; font-weight: 600; padding: 6px 8px; border-bottom: 1px solid #e7e5e4; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f5f5f4; }
+  td.best { background: #f0fdf4; } td.sel { box-shadow: inset 0 0 0 2px #dc2626; border-radius: 6px; }
+  .sum { display: flex; gap: 8px; align-items: center; background: #fafaf9; border-radius: 10px; padding: 8px 10px; margin-top: 8px; }
+</style>
+
+<h2>Expediente con pestañas — pestaña "Cotizar"</h2>
+<p class="subtitle">Arriba queda la barra de acciones de siempre; el encabezado dice en qué va y qué sigue. En "Cotizar" está todo lo de Gerardo en orden: lo que se necesita → cotizaciones → comparativo.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Compras · Solicitud SOL-000012</div>
+  <div class="mockup-body">
+    <div class="m">
+      <div class="bar"><b>Solicitud SOL-000012</b><span class="muted">Mantenimiento · PMY13</span><span style="margin-left:auto" class="btn-o">Pedir cotización</span><span class="btn-o">Agregar cotización</span><span class="btn">Generar 2 órdenes</span><span class="btn-o">⋯</span></div>
+
+      <div class="hdr">
+        <div>
+          <div class="folio">SOL-000012 <span class="chip c-amber">Cotizando</span></div>
+          <div class="meta muted s">
+            <span>Tipo <b>Mantenimiento</b></span><span>Unidad <b>PMY13 · UU-9156A</b></span><span>Sucursal <b>Hermosillo</b></span><span>Pidió <b>Juan Pérez</b></span><span>Prioridad <b>Alta</b></span>
+          </div>
+        </div>
+        <div class="next"><small>Qué sigue</small><div style="font-weight:600;margin-top:2px">Compras elige proveedor por concepto y genera las órdenes</div></div>
+      </div>
+
+      <div class="tabs"><div class="tab">Solicitud</div><div class="tab on">Cotizar<span class="cnt">3</span></div><div class="tab">Órdenes<span class="cnt">0</span></div><div class="tab">Historial</div></div>
+
+      <div class="card">
+        <h4>Lo que se necesita</h4>
+        <div class="muted s">Según el servicio "Revisión de frenos", la ficha de PMY13 y lo que escribió Juan ("rechina al frenar").</div>
+        <div class="need">
+          <div style="display:flex;gap:8px;align-items:center"><b>Balata delantera</b><span class="muted">× 1 juego</span><span class="chip c-violet">Por lo que escribió: "frenar"</span><span class="chip c-green" style="margin-left:auto">✓ En cotización de AutoZone</span></div>
+          <div class="sug">
+            <div class="sc on"><span class="tag">Más comprado</span><b>Brembo P-83</b><span class="muted s">AutoZone</span><span><b>$450</b> <span class="stars">★★★★☆</span></span><span class="pick">✓ Elegido</span></div>
+            <div class="sc"><span class="tag">Mejor precio</span><b>Wagner QC</b><span class="muted s">Orealli</span><span><b>$380</b> <span class="stars">★★★☆☆</span></span><span class="pick">Elegir</span></div>
+            <div class="sc"><span class="tag">Mejor calidad</span><b>Bosch QuietCast</b><span class="muted s">Chevrolet</span><span><b>$690</b> <span class="stars">★★★★★</span></span><span class="pick">Elegir</span></div>
+            <div class="sc"><span class="tag">Calidad-precio</span><b>ACDelco Gold</b><span class="muted s">DC</span><span><b>$420</b> <span class="stars">★★★★☆</span></span><span class="pick">Elegir</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Comparativo por concepto</h4>
+        <div class="muted s">Verde = mejor precio con existencia · recuadro rojo = lo elegido. Haz clic en otra celda para cambiar.</div>
+        <table>
+          <tr><th>Concepto</th><th>AutoZone</th><th>Orealli</th><th>Chevrolet</th></tr>
+          <tr><td>Balata delantera × 1</td><td class="sel">$450.00 <span class="stars">★★★★</span></td><td class="best">$380.00 <span class="muted s">sobre pedido 2 d</span></td><td>$690.00</td></tr>
+          <tr><td>Aceite 5W-30 × 6 L</td><td>$1,080.00</td><td class="best sel">$900.00</td><td class="muted">No cotizó</td></tr>
+        </table>
+        <div class="sum"><span class="muted">Se generarán 2 órdenes:</span><span class="chip c-gray">AutoZone · 1 concepto · $522.00</span><span class="chip c-gray">Orealli · 1 concepto · $1,044.00</span><b style="margin-left:auto">Total $1,566.00</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:16px">
+  <div class="option" data-choice="si" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Así me gusta</h3><p>Sigue con este expediente.</p></div></div>
+  <div class="option" data-choice="ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quiero ajustes</h3><p>Dime en el chat qué cambiarías.</p></div></div>
+</div>

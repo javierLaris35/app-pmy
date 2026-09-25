@@ -1,0 +1,83 @@
+<style>
+  .f { font-family: Inter, system-ui, sans-serif; font-size: 13px; color: #1c1917; background: #fff; border-radius: 12px; padding: 18px; display: grid; gap: 16px; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .ico { width: 16px; height: 16px; color: #a8a29e; flex-shrink: 0; }
+  .req { color: #dc2626; }
+  .ph { color: #a8a29e; }
+  .chev { margin-left: auto; color: #a8a29e; }
+  /* A: etiqueta sobre el borde (como la referencia) */
+  .a { position: relative; display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 14px; border: 1px solid #d6d3d1; border-radius: 12px; background: #fff; }
+  .a label { position: absolute; top: -8px; left: 12px; padding: 0 4px; background: #fff; font-size: 11px; color: #78716c; }
+  .a.focus { border-color: #dc2626; box-shadow: 0 0 0 4px rgba(220,38,38,.08); } .a.focus label { color: #dc2626; }
+  .a.err { border-color: #dc2626; } .a.err label { color: #dc2626; }
+  .msg { font-size: 11px; color: #dc2626; margin: 4px 4px 0; }
+  /* B: etiqueta dentro, arriba (relleno suave) */
+  .b { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 14px; border-radius: 12px; background: #f5f5f4; border: 1px solid transparent; }
+  .b .t { display: grid; } .b .t small { font-size: 11px; color: #78716c; } .b .t span { font-weight: 500; }
+  .b.focus { background: #fff; border-color: #dc2626; box-shadow: 0 0 0 4px rgba(220,38,38,.08); } .b.focus small { color: #dc2626; }
+  .b.err { background: #fef2f2; border-color: #fca5a5; }
+  /* C: etiqueta arriba fuera, campo limpio */
+  .c { display: grid; gap: 6px; } .c > small { font-size: 12px; font-weight: 600; color: #44403c; }
+  .c .box { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border: 1px solid #d6d3d1; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .c .box.focus { border-color: #dc2626; box-shadow: 0 0 0 4px rgba(220,38,38,.08); }
+  .c .box.err { border-color: #dc2626; }
+</style>
+
+<h2>¿Qué estilo de campo te gusta más?</h2>
+<p class="subtitle">Mismos campos en los 3: Sucursal (con foco), Unidad (con error), Km y Prioridad. Fíjate en cómo se lee la etiqueta y cómo se ve el campo lleno.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Etiqueta sobre el borde (como tu referencia)</h3>
+      <p>Borde fino gris, 48 px de alto, etiqueta que "corta" el borde. Limpio y ordenado.</p>
+      <div class="f">
+        <div class="g2">
+          <div class="a focus"><label>Sucursal <span class="req">*</span></label><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M4 9v11h16V9M9 20v-6h6v6"/></svg><span>Hermosillo</span><span class="chev">⌄</span></div>
+          <div><div class="a err"><label>Unidad <span class="req">*</span></label><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="1"/><path d="M16 10h4l3 3v4h-7"/></svg><span class="ph">Buscar unidad</span><span class="chev">⌄</span></div><div class="msg">Para mantenimiento elige la unidad.</div></div>
+        </div>
+        <div class="g2">
+          <div class="a"><label>Km actuales</label><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-3"/></svg><span>90,500</span></div>
+          <div class="a"><label>Prioridad</label><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4h13l-2 4 2 4H4"/></svg><span>Media</span><span class="chev">⌄</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Etiqueta dentro, fondo suave</h3>
+      <p>Sin borde en reposo, fondo gris claro; la etiqueta queda arriba dentro del campo. Más moderno y ligero.</p>
+      <div class="f">
+        <div class="g2">
+          <div class="b focus"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M4 9v11h16V9M9 20v-6h6v6"/></svg><div class="t"><small>Sucursal <span class="req">*</span></small><span>Hermosillo</span></div><span class="chev">⌄</span></div>
+          <div><div class="b err"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="1"/><path d="M16 10h4l3 3v4h-7"/></svg><div class="t"><small>Unidad <span class="req">*</span></small><span class="ph">Buscar unidad</span></div><span class="chev">⌄</span></div><div class="msg">Para mantenimiento elige la unidad.</div></div>
+        </div>
+        <div class="g2">
+          <div class="b"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-3"/></svg><div class="t"><small>Km actuales</small><span>90,500</span></div></div>
+          <div class="b"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4h13l-2 4 2 4H4"/></svg><div class="t"><small>Prioridad</small><span>Media</span></div><span class="chev">⌄</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Etiqueta arriba, campo limpio con ícono</h3>
+      <p>La etiqueta va arriba en negritas (fácil de leer) y el campo es sencillo con ícono. El más clásico y claro.</p>
+      <div class="f">
+        <div class="g2">
+          <div class="c"><small>Sucursal <span class="req">*</span></small><div class="box focus"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M4 9v11h16V9M9 20v-6h6v6"/></svg><span>Hermosillo</span><span class="chev">⌄</span></div></div>
+          <div class="c"><small>Unidad <span class="req">*</span></small><div class="box err"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="1"/><path d="M16 10h4l3 3v4h-7"/></svg><span class="ph">Buscar unidad</span><span class="chev">⌄</span></div><div class="msg" style="margin:0">Para mantenimiento elige la unidad.</div></div>
+        </div>
+        <div class="g2">
+          <div class="c"><small>Km actuales</small><div class="box"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-3"/></svg><span>90,500</span></div></div>
+          <div class="c"><small>Prioridad</small><div class="box"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4h13l-2 4 2 4H4"/></svg><span>Media</span><span class="chev">⌄</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,108 @@
+<style>
+  .m { font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #1c1917; background: #fafaf9; border-radius: 10px; padding: 14px; }
+  .hdr { background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; }
+  .folio { font-weight: 700; font-size: 15px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+  .c-amber { background: #fef3c7; color: #92400e; } .c-green { background: #dcfce7; color: #166534; } .c-sky { background: #e0f2fe; color: #075985; } .c-gray { background: #f5f5f4; color: #57534e; } .c-red { background: #fee2e2; color: #991b1b; }
+  .muted { color: #78716c; } .small { font-size: 11px; }
+  .next { margin-left: auto; text-align: right; }
+  .btn { display: inline-block; background: #dc2626; color: #fff; border-radius: 8px; padding: 5px 10px; font-weight: 600; font-size: 11px; }
+  .btn-o { display: inline-block; border: 1px solid #d6d3d1; border-radius: 8px; padding: 5px 10px; font-weight: 600; font-size: 11px; background: #fff; }
+  .tabs { display: flex; gap: 2px; margin: 12px 0 10px; border-bottom: 1px solid #e7e5e4; }
+  .tab { padding: 7px 12px; font-weight: 600; color: #78716c; border-bottom: 2px solid transparent; }
+  .tab.on { color: #1c1917; border-color: #dc2626; }
+  .cnt { background: #f5f5f4; border-radius: 999px; padding: 0 6px; margin-left: 4px; font-size: 10px; }
+  .card { background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .track { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; background: #d6d3d1; } .dot.ok { background: #16a34a; } .dot.now { background: #f59e0b; box-shadow: 0 0 0 3px #fef3c7; }
+  .bar { flex: 1; height: 2px; background: #e7e5e4; } .bar.ok { background: #16a34a; }
+  .lbl { display: flex; justify-content: space-between; font-size: 10px; color: #a8a29e; margin-top: 3px; }
+  .side { width: 150px; background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 6px; }
+  .nav { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; font-weight: 600; color: #57534e; }
+  .nav.on { background: #fef2f2; color: #b91c1c; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+  .stat { background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 8px 10px; }
+  .stat b { display: block; font-size: 16px; }
+  .acc { background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 9px 12px; margin-bottom: 6px; display: flex; justify-content: space-between; font-weight: 600; }
+</style>
+
+<h2>¿Cómo quieres ver el expediente de una solicitud?</h2>
+<p class="subtitle">Ejemplo real: SOL-000012 · Mantenimiento de PMY13, ya con 3 cotizaciones y 2 órdenes (una por proveedor). Elige la estructura; el estilo fino lo pulimos después.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Encabezado con "qué sigue" + pestañas</h3>
+      <p>Arriba: folio, estado y la siguiente acción. Abajo, pestañas: Solicitud · Cotizar · Órdenes · Historial. Cada orden tiene su propio avance.</p>
+      <div class="m">
+        <div class="hdr">
+          <div>
+            <div class="folio">SOL-000012 <span class="chip c-sky">Con órdenes</span></div>
+            <div class="muted small">Mantenimiento · PMY13 · UU-9156A · Hermosillo · pidió Juan Pérez</div>
+          </div>
+          <div class="next">
+            <div class="small muted">Qué sigue</div>
+            <div style="font-weight:600">Edgardo autoriza OC-000021</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab">Solicitud</div><div class="tab">Cotizar<span class="cnt">3</span></div><div class="tab on">Órdenes<span class="cnt">2</span></div><div class="tab">Historial</div>
+        </div>
+        <div class="card">
+          <div class="row"><b>OC-000020</b><span class="muted">AutoZone · $1,392.00</span><span class="chip c-green" style="margin-left:auto">Enviada</span></div>
+          <div class="track"><span class="dot ok"></span><span class="bar ok"></span><span class="dot ok"></span><span class="bar ok"></span><span class="dot ok"></span><span class="bar"></span><span class="dot"></span></div>
+          <div class="lbl"><span>Por autorizar</span><span>Autorizada</span><span>Enviada</span><span>Recibida</span></div>
+        </div>
+        <div class="card">
+          <div class="row"><b>OC-000021</b><span class="muted">Orealli · $375.84</span><span class="chip c-amber" style="margin-left:auto">Por autorizar</span></div>
+          <div class="track"><span class="dot now"></span><span class="bar"></span><span class="dot"></span><span class="bar"></span><span class="dot"></span><span class="bar"></span><span class="dot"></span></div>
+          <div class="lbl"><span>Por autorizar</span><span>Autorizada</span><span>Enviada</span><span>Recibida</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Menú lateral por secciones</h3>
+      <p>A la izquierda las secciones con su estado (punto de color) y contadores; a la derecha solo la sección elegida. Se siente como una "ficha" de la solicitud.</p>
+      <div class="m" style="display:flex;gap:10px">
+        <div class="side">
+          <div class="nav">● Solicitud</div>
+          <div class="nav">● Lo que se necesita</div>
+          <div class="nav">● Cotizaciones <span class="cnt">3</span></div>
+          <div class="nav on">● Órdenes <span class="cnt">2</span></div>
+          <div class="nav">● Historial</div>
+        </div>
+        <div style="flex:1">
+          <div class="hdr" style="padding:9px 12px"><div class="folio" style="font-size:13px">SOL-000012</div><span class="chip c-sky">Con órdenes</span><span class="btn" style="margin-left:auto">Autorizar OC-000021</span></div>
+          <div class="card" style="margin-top:8px"><div class="row"><b>OC-000020</b><span class="muted">AutoZone</span><span class="chip c-green" style="margin-left:auto">Enviada</span></div></div>
+          <div class="card"><div class="row"><b>OC-000021</b><span class="muted">Orealli</span><span class="chip c-amber" style="margin-left:auto">Por autorizar</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Resumen en tarjetas + secciones que se abren</h3>
+      <p>Cuatro tarjetas de estado arriba (qué hay en cada parte) y debajo secciones plegables; todo en una sola página pero ordenado.</p>
+      <div class="m">
+        <div class="hdr" style="padding:9px 12px"><div class="folio" style="font-size:13px">SOL-000012</div><span class="chip c-sky">Con órdenes</span><span class="muted small">Mantenimiento · PMY13</span></div>
+        <div class="grid4">
+          <div class="stat"><span class="muted small">Solicitud</span><b>Autorizada</b></div>
+          <div class="stat"><span class="muted small">Cotizaciones</span><b>3</b></div>
+          <div class="stat"><span class="muted small">Órdenes</span><b>1 de 2</b><span class="small muted">enviadas</span></div>
+          <div class="stat"><span class="muted small">Total</span><b>$1,767.84</b></div>
+        </div>
+        <div class="acc"><span>▸ Lo que se pidió</span><span class="muted">2 servicios</span></div>
+        <div class="acc"><span>▸ Cotizaciones y comparativo</span><span class="muted">3</span></div>
+        <div class="acc" style="border-color:#fca5a5"><span>▾ Órdenes de compra</span><span class="chip c-amber">1 por autorizar</span></div>
+      </div>
+    </div>
+  </div>
+</div>
