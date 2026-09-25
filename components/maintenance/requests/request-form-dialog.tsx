@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Hammer, Loader2, Plus, ShoppingCart, Trash2, Truck, Wrench } from "lucide-react";
+import {
+  AddItemButton, ComboField, Field, FormSection, ItemCard, MultiComboField, SelectField, TextareaField, TextField,
+} from "@/components/ui/field";
+import { Flag, Gauge, Hammer, Hash, ListChecks, Loader2, MessageSquareText, Package, ShoppingCart, Store, Truck, Wrench } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useVehiclesBySubsidiary } from "@/hooks/services/vehicles/use-vehicles";
@@ -21,8 +20,6 @@ import {
 import { Subsidiary } from "@/lib/types";
 import { hasErrors, firstError, validateRequest } from "@/lib/maintenance-validation";
 import { apiError } from "../shared/confirm-action";
-import { FieldError, invalidClass } from "../shared/field-error";
-import { SearchableMultiSelect, SearchableSelect } from "../shared/searchable-select";
 
 const TYPE_ICON: Record<RequestType, React.ComponentType<{ className?: string }>> = {
   mantenimiento: Wrench, servicio: Truck, reparacion: Hammer, compra: ShoppingCart,
@@ -131,149 +128,124 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{request ? `Editar ${request.folio}` : "Nueva solicitud"}</DialogTitle>
+      <DialogContent className="gap-0 p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b px-6 py-4">
+          <DialogTitle className="text-lg">{request ? `Editar ${request.folio}` : "Nueva solicitud"}</DialogTitle>
           <DialogDescription>Le llega a Compras para revisarla y cotizar. Te avisamos cuando avance.</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[72vh] pr-3">
-          <div className="grid gap-5 py-2">
-            <div className="grid gap-1.5">
-              <Label>¿Qué necesitas?</Label>
-              <ToggleGroup type="single" value={type} onValueChange={(v) => v && setType(v as RequestType)} variant="outline" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <ScrollArea className="max-h-[70vh]">
+          <div className="grid gap-5 px-6 py-5">
+            <FormSection title="¿Qué necesitas?">
+              <ToggleGroup type="single" value={type} onValueChange={(v) => v && setType(v as RequestType)} variant="outline"
+                className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {(Object.keys(REQUEST_TYPE_LABEL) as RequestType[]).map((t) => {
                   const Icon = TYPE_ICON[t];
                   return (
-                    <ToggleGroupItem key={t} value={t} className="h-auto justify-start gap-2 px-3 py-2 text-left data-[state=on]:border-primary data-[state=on]:bg-primary/5">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="text-sm">{REQUEST_TYPE_LABEL[t]}</span>
+                    <ToggleGroupItem key={t} value={t}
+                      className="h-auto justify-start gap-2.5 rounded-xl border-[1.5px] px-3 py-3 text-left data-[state=on]:border-primary data-[state=on]:bg-primary/5 data-[state=on]:text-foreground">
+                      <Icon className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="text-sm font-medium">{REQUEST_TYPE_LABEL[t]}</span>
                     </ToggleGroupItem>
                   );
                 })}
               </ToggleGroup>
-            </div>
+            </FormSection>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label>Sucursal</Label>
-                {request ? (
-                  <Input value={request.subsidiary?.name ?? ""} disabled />
-                ) : (
+            <FormSection title="Datos" columns={2}>
+              {request ? (
+                <TextField label="Sucursal" icon={Store} value={request.subsidiary?.name ?? ""} disabled readOnly />
+              ) : (
+                <Field label="Sucursal" required icon={Store} error={errors.subsidiaryId}>
                   <SucursalSelector
                     insideAModal
+                    bare
                     value={subsidiaryId}
                     onValueChange={(val) => { setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? ""); setVehicleId(""); }}
                   />
-                )}
-                <FieldError message={errors.subsidiaryId} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Unidad {needsVehicle ? "" : <span className="font-normal text-muted-foreground">(opcional)</span>}</Label>
-                <SearchableSelect
-                  value={vehicleId || null}
-                  onChange={(v) => setVehicleId(v ?? "")}
-                  options={vehicleOptions}
-                  placeholder="Buscar unidad"
-                  searchPlaceholder="Nombre, número o placas…"
-                  emptyText={subsidiaryId ? "No hay unidades con ese nombre en la sucursal." : "Primero elige la sucursal."}
-                  allowClear={!needsVehicle}
-                  clearLabel="No es para una unidad"
-                  invalid={!!errors.vehicleId}
-                />
-                <FieldError message={errors.vehicleId} />
-                {selected && <p className="text-xs text-muted-foreground">Km registrado: {formatKms(selected.kms)}</p>}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label>Km actuales <span className="font-normal text-muted-foreground">(opcional)</span></Label>
-                <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} placeholder="Lo que marca el tablero" disabled={!vehicleId} className={invalidClass(errors.kms)} />
-                <FieldError message={errors.kms} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Prioridad</Label>
-                <Select value={priority} onValueChange={(v) => setPriority(v as RequestPriority)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(PRIORITY_LABEL) as RequestPriority[]).map((p) => <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                </Field>
+              )}
+              <ComboField
+                label="Unidad"
+                required={needsVehicle}
+                icon={Truck}
+                value={vehicleId || null}
+                onChange={(v) => setVehicleId(v ?? "")}
+                options={vehicleOptions}
+                placeholder={needsVehicle ? "Buscar unidad" : "No es para una unidad"}
+                searchPlaceholder="Nombre, número o placas…"
+                emptyText={subsidiaryId ? "No hay unidades con ese nombre en la sucursal." : "Primero elige la sucursal."}
+                allowClear={!needsVehicle}
+                clearLabel="No es para una unidad"
+                error={errors.vehicleId}
+                hint={selected ? `Km registrado: ${formatKms(selected.kms)}` : undefined}
+              />
+              <TextField label="Km actuales" icon={Gauge} type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)}
+                placeholder="Lo que marca el tablero" disabled={!vehicleId} error={errors.kms} />
+              <SelectField label="Prioridad" icon={Flag} value={priority} onValueChange={(v) => setPriority(v as RequestPriority)}
+                options={(Object.keys(PRIORITY_LABEL) as RequestPriority[]).map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))} />
+            </FormSection>
 
             {needsVehicle ? (
-              <>
-                <div className="grid gap-1.5">
-                  <Label>¿Qué servicio necesita? <span className="font-normal text-muted-foreground">(uno o varios)</span></Label>
-                  <SearchableMultiSelect
-                    values={serviceIds}
-                    onChange={setServiceIds}
-                    options={serviceOptions}
-                    placeholder="Buscar servicio (ej. servicio de 10,000 km, frenos…)"
-                    searchPlaceholder="Escribe para buscar…"
-                    emptyText="No está en la lista; descríbelo abajo."
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>¿Qué necesita o qué le pasa?</Label>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-                    placeholder="Ej. Rechina al frenar y se jala a la derecha; tira aceite abajo del motor"
-                    className={invalidClass(errors.description)} />
-                  <FieldError message={errors.description} />
-                  <p className="text-xs text-muted-foreground">No necesitas saber qué piezas lleva: Compras lo revisa al cotizar.</p>
-                </div>
-              </>
+              <FormSection title="Detalle" description="No necesitas saber qué piezas lleva: Compras lo revisa al cotizar.">
+                <MultiComboField
+                  label="Servicios"
+                  icon={ListChecks}
+                  values={serviceIds}
+                  onChange={setServiceIds}
+                  options={serviceOptions}
+                  placeholder="Buscar servicio (ej. servicio de 10,000 km, frenos…)"
+                  searchPlaceholder="Escribe para buscar…"
+                  emptyText="No está en la lista; descríbelo abajo."
+                />
+                <TextareaField
+                  label="¿Qué necesita o qué le pasa?"
+                  required={!serviceIds.length}
+                  icon={MessageSquareText}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Ej. Rechina al frenar y se jala a la derecha; tira aceite abajo del motor"
+                  error={errors.description}
+                />
+              </FormSection>
             ) : (
-              <>
-                <div className="grid gap-1.5">
-                  <Label>¿Para qué se necesita?</Label>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-                    placeholder="Ej. Sillas para la oficina de Hermosillo" className={invalidClass(errors.description)} />
-                  <FieldError message={errors.description} />
-                </div>
+              <FormSection title="Detalle">
+                <TextareaField label="¿Para qué se necesita?" required icon={MessageSquareText} rows={2} value={description}
+                  onChange={(e) => setDescription(e.target.value)} placeholder="Ej. Sillas para la oficina de Hermosillo" error={errors.description} />
                 <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label>¿Qué se necesita y cuánto?</Label>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setRows((rs) => [...rs, newRow()])}>
-                      <Plus className="mr-1.5 h-4 w-4" /> Agregar renglón
-                    </Button>
-                  </div>
                   {rows.map((r, i) => (
-                    <div key={r.key} className="rounded-lg border p-3">
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_100px_160px_auto] md:items-start">
-                        <div className="grid gap-1">
-                          <Input value={r.description} placeholder="Ej. Silla ejecutiva negra" onChange={(e) => patch(r.key, { description: e.target.value })}
-                            className={invalidClass(errors[`rows.${i}.description`])} aria-label="Qué se necesita" />
-                          <FieldError message={errors[`rows.${i}.description`]} />
-                        </div>
-                        <div className="grid gap-1">
-                          <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
-                            className={invalidClass(errors[`rows.${i}.quantity`])} aria-label="Cantidad" />
-                          <FieldError message={errors[`rows.${i}.quantity`]} />
-                        </div>
-                        <SearchableSelect value={r.unitId} onChange={(v) => patch(r.key, { unitId: v })} options={unitOptions}
-                          allowClear clearLabel="Presentación" searchPlaceholder="Buscar presentación…" />
-                        <Button type="button" size="icon" variant="ghost" className="text-destructive" disabled={rows.length === 1}
-                          onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label="Quitar renglón">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                    <ItemCard
+                      key={r.key}
+                      title={r.description.trim() || `Renglón ${i + 1}`}
+                      subtitle={r.description.trim() ? `Renglón ${i + 1}` : "Qué se necesita y cuánto"}
+                      aside={<span className="text-muted-foreground">× {r.quantity || 0}</span>}
+                      onRemove={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
+                      removeDisabled={rows.length === 1}
+                      removeLabel="Quitar renglón"
+                    >
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_180px]">
+                        <TextField label="Qué se necesita" required icon={Package} value={r.description} placeholder="Ej. Silla ejecutiva negra"
+                          onChange={(e) => patch(r.key, { description: e.target.value })} error={errors[`rows.${i}.description`]} />
+                        <TextField label="Cantidad" required icon={Hash} type="number" min={0.01} step="0.01" value={r.quantity}
+                          onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })} error={errors[`rows.${i}.quantity`]} />
+                        <ComboField label="Presentación" value={r.unitId} onChange={(v) => patch(r.key, { unitId: v })} options={unitOptions}
+                          allowClear clearLabel="Sin presentación" placeholder="Opcional" searchPlaceholder="Buscar presentación…" />
                       </div>
-                      <Textarea value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })} rows={1} className="mt-2"
-                        placeholder="Notas: marca, medida, color… (opcional)" />
-                    </div>
+                      <TextareaField label="Notas" rows={2} value={r.notes} onChange={(e) => patch(r.key, { notes: e.target.value })}
+                        placeholder="Marca, medida, color… (opcional)" />
+                    </ItemCard>
                   ))}
-                  <FieldError message={errors.rows} />
+                  {errors.rows && <p className="px-1 text-xs text-destructive">{errors.rows}</p>}
+                  <AddItemButton onClick={() => setRows((rs) => [...rs, newRow()])}>Agregar renglón</AddItemButton>
                 </div>
-              </>
+              </FormSection>
             )}
           </div>
         </ScrollArea>
-        <DialogFooter>
+        <DialogFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button onClick={save} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {request ? "Guardar" : "Enviar a Compras"}
+            {request ? "Guardar cambios" : "Enviar a Compras"}
           </Button>
         </DialogFooter>
       </DialogContent>
