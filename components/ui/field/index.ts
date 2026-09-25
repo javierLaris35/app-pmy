@@ -8,3 +8,5 @@ export { ComboField, MultiComboField } from "./combo-field";
 export type { SearchOption } from "./combo-field";
 export { DateField } from "./date-field";
 export { FormSection, ItemCard, AddItemButton } from "./form-section";
+export { ChoiceCards } from "./choice-cards";
+export type { ChoiceOption } from "./choice-cards";

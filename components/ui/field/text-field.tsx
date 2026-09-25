@@ -26,7 +26,7 @@ export const TextField = React.forwardRef<HTMLInputElement, FieldProps & InputPr
           aria-invalid={!!error}
           aria-label={size === "sm" ? label : undefined}
           placeholder={placeholder ?? (size === "sm" ? label : undefined)}
-          className={cn(BARE_CONTROL, size === "md" ? "py-2.5" : "py-1.5")}
+          className={cn(BARE_CONTROL, size === "md" ? "py-3" : "py-1.5")}
           {...props}
         />
       </Field>
@@ -66,7 +66,7 @@ export const TextareaField = React.forwardRef<HTMLTextAreaElement, FieldProps & 
     return (
       <Field label={label} required={required} icon={icon} error={error} hint={hint} disabled={disabled} className={className} htmlFor={inputId} multiline>
         <Textarea ref={ref} id={inputId} rows={rows} disabled={disabled} required={required} aria-invalid={!!error}
-          className={cn(BARE_CONTROL, "min-h-[72px] resize-y py-2.5 leading-relaxed")} {...props} />
+          className={cn(BARE_CONTROL, "min-h-[84px] resize-y py-3 leading-relaxed")} {...props} />
       </Field>
     );
   },

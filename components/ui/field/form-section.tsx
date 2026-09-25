@@ -21,7 +21,7 @@ export function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className={cn("grid gap-3 border-b border-border/70 pb-5 last:border-b-0 last:pb-0", className)}>
+    <section className={cn("grid gap-4 border-b border-border/70 pb-6 last:border-b-0 last:pb-0", className)}>
       <div className="flex items-end justify-between gap-3">
         <div>
           <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
@@ -29,7 +29,7 @@ export function FormSection({
         </div>
         {actions}
       </div>
-      <div className={cn("grid gap-x-4 gap-y-3", COLS[columns])}>{children}</div>
+      <div className={cn("grid gap-x-4 gap-y-5", COLS[columns])}>{children}</div>
     </section>
   );
 }
@@ -71,7 +71,7 @@ export function ItemCard({
         )}
       </div>
       <CollapsibleContent>
-        <div className="grid gap-3 border-t bg-background px-3 pb-3 pt-1 [border-bottom-left-radius:inherit] [border-bottom-right-radius:inherit]">{children}</div>
+        <div className="grid gap-5 border-t bg-background px-3.5 pb-4 pt-5 [border-bottom-left-radius:inherit] [border-bottom-right-radius:inherit]">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -81,7 +81,7 @@ export function ItemCard({
 export function AddItemButton({ onClick, children, disabled }: { onClick: () => void; children: React.ReactNode; disabled?: boolean }) {
   return (
     <Button type="button" variant="outline" onClick={onClick} disabled={disabled}
-      className="h-10 w-full rounded-xl border-dashed text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground">
+      className="h-11 w-full rounded-xl border-dashed text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground">
       <Plus className="mr-1.5 h-4 w-4" /> {children}
     </Button>
   );

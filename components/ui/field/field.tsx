@@ -38,24 +38,24 @@ export function Field({
 }: FieldProps & { htmlFor?: string; multiline?: boolean; trailing?: React.ReactNode; children: React.ReactNode }) {
   const md = size === "md";
   return (
-    <div className={cn("grid gap-1", md && label && "pt-2", className)}>
+    <div className={cn("grid gap-1", className)}>
       <div
         data-invalid={error ? "" : undefined}
         data-disabled={disabled ? "" : undefined}
         className={cn(
-          "group/field relative flex w-full gap-2 border-[1.5px] border-input bg-background px-3 text-sm transition-[border-color,box-shadow] duration-150",
-          "hover:border-foreground/20 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10",
-          md ? "min-h-11 rounded-xl" : "min-h-9 rounded-lg",
+          "group/field relative flex w-full border border-[hsl(var(--field-border))] bg-background text-sm transition-[border-color,box-shadow] duration-150",
+          "hover:border-foreground/30 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10",
+          md ? "min-h-12 gap-2.5 rounded-xl px-3.5" : "min-h-9 gap-2 rounded-lg px-3",
           multiline ? "items-start" : "items-center",
           error && "border-destructive hover:border-destructive focus-within:border-destructive focus-within:ring-destructive/10",
-          disabled && "bg-muted/40 hover:border-input",
+          disabled && "bg-muted/40 hover:border-[hsl(var(--field-border))]",
         )}
       >
         {md && label && (
           <label
             htmlFor={htmlFor}
             className={cn(
-              "pointer-events-none absolute -top-2 left-2.5 max-w-[calc(100%-1.25rem)] truncate bg-background px-1 text-[11px] font-medium leading-4",
+              "pointer-events-none absolute -top-2 left-3 max-w-[calc(100%-1.5rem)] truncate bg-background px-1 text-[11px] font-medium leading-4",
               "text-muted-foreground group-focus-within/field:text-primary",
               error && "text-destructive group-focus-within/field:text-destructive",
               disabled && "bg-transparent",
@@ -65,7 +65,7 @@ export function Field({
             {required && <span className="ml-0.5 text-destructive">*</span>}
           </label>
         )}
-        {Icon && <Icon className={cn("h-4 w-4 shrink-0 text-muted-foreground", multiline && "mt-3", error && "text-destructive/80")} aria-hidden />}
+        {Icon && <Icon className={cn("h-4 w-4 shrink-0 text-muted-foreground", multiline && "mt-3.5", error && "text-destructive/80")} aria-hidden />}
         {children}
         {trailing}
       </div>

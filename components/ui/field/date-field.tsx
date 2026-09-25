@@ -26,7 +26,7 @@ export function DateField({
       <Popover open={open} onOpenChange={setOpen} modal={modal}>
         <PopoverTrigger asChild>
           <button id={id} type="button" disabled={field.disabled} aria-invalid={!!field.error}
-            className={cn("h-auto min-h-0 w-full flex-1 bg-transparent text-left text-sm outline-none disabled:cursor-not-allowed", field.size === "sm" ? "py-1.5" : "py-2.5")}>
+            className={cn("h-auto min-h-0 w-full flex-1 bg-transparent text-left text-sm outline-none disabled:cursor-not-allowed", field.size === "sm" ? "py-1.5" : "py-3")}>
             <span className={cn("truncate", !date && "text-muted-foreground")}>{date ? formatLongDate(value) : placeholder}</span>
           </button>
         </PopoverTrigger>

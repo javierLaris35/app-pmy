@@ -38,6 +38,8 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+    /* Borde de los campos del sistema nuevo (piloto Mantenimiento/Compras). */
+    --field-border: 24 6% 83%;
     --sidebar-background: 30 70% 96%;
     --sidebar-foreground: 26 53% 27%;
     --sidebar-primary: 0 68% 51%;

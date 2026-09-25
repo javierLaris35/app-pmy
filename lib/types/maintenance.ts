@@ -381,6 +381,13 @@ export const REQUEST_TYPE_LABEL: Record<RequestType, string> = {
   reparacion: "Reparación",
   compra: "Compra de equipo/material",
 };
+/** Para qué sirve cada tipo (se muestra al elegirlo). */
+export const REQUEST_TYPE_HINT: Record<RequestType, string> = {
+  mantenimiento: "Servicio preventivo de una unidad",
+  servicio: "Lavado, verificación, alineación…",
+  reparacion: "Algo falla en la unidad",
+  compra: "Equipo o material (no es para una unidad)",
+};
 /** Tipos que requieren unidad. */
 export const TYPES_REQUIRING_VEHICLE: RequestType[] = ["mantenimiento", "servicio", "reparacion"];
 

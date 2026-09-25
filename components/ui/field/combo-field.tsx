@@ -85,7 +85,7 @@ export function ComboField({
         <PopoverTrigger asChild>
           <button id={id} type="button" role="combobox" aria-expanded={open} aria-invalid={!!field.error || invalid}
             aria-label={field.size === "sm" ? field.label : undefined} disabled={field.disabled}
-            className={cn(TRIGGER, field.size === "sm" ? "py-1.5" : "py-2.5")}>
+            className={cn(TRIGGER, field.size === "sm" ? "py-1.5" : "py-3")}>
             <span className={cn("truncate", !selected && "text-muted-foreground")}>{shown ?? placeholder}</span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </button>
@@ -127,7 +127,7 @@ export function MultiComboField({
         <Popover open={open} onOpenChange={setOpen} modal={modal}>
           <PopoverTrigger asChild>
             <button id={id} type="button" role="combobox" aria-expanded={open} disabled={field.disabled}
-              className={cn(TRIGGER, field.size === "sm" ? "py-1.5" : "py-2.5")}>
+              className={cn(TRIGGER, field.size === "sm" ? "py-1.5" : "py-3")}>
               <span className="truncate text-muted-foreground">
                 {chosen.length ? `${chosen.length} elegido${chosen.length === 1 ? "" : "s"} · agregar otro` : placeholder}
               </span>

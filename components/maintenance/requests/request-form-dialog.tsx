@@ -4,24 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  AddItemButton, ComboField, Field, FormSection, ItemCard, MultiComboField, SelectField, TextareaField, TextField,
+  AddItemButton, ChoiceCards, ComboField, Field, FormSection, ItemCard, MultiComboField, SelectField, TextareaField, TextField,
 } from "@/components/ui/field";
-import { Flag, Gauge, Hammer, Hash, ListChecks, Loader2, MessageSquareText, Package, ShoppingCart, Store, Truck, Wrench } from "lucide-react";
+import { Flag, Gauge, Hammer, Hash, ListChecks, Loader2, MessageSquareText, Package, ShoppingCart, Store, Truck, Wrench, type LucideIcon } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useVehiclesBySubsidiary } from "@/hooks/services/vehicles/use-vehicles";
 import { useServiceTemplates, useUnits } from "@/hooks/services/maintenance/use-maintenance";
 import { createRequest, updateRequest } from "@/lib/services/maintenance";
 import {
-  formatKms, MaintenanceRequest, PRIORITY_LABEL, REQUEST_TYPE_LABEL, RequestPriority, RequestType, TYPES_REQUIRING_VEHICLE,
+  formatKms, MaintenanceRequest, PRIORITY_LABEL, REQUEST_TYPE_HINT, REQUEST_TYPE_LABEL, RequestPriority, RequestType, TYPES_REQUIRING_VEHICLE,
 } from "@/lib/types/maintenance";
 import { Subsidiary } from "@/lib/types";
 import { hasErrors, firstError, validateRequest } from "@/lib/maintenance-validation";
 import { apiError } from "../shared/confirm-action";
 
-const TYPE_ICON: Record<RequestType, React.ComponentType<{ className?: string }>> = {
+const TYPE_ICON: Record<RequestType, LucideIcon> = {
   mantenimiento: Wrench, servicio: Truck, reparacion: Hammer, compra: ShoppingCart,
 };
 
@@ -136,19 +135,14 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
         <ScrollArea className="max-h-[70vh]">
           <div className="grid gap-5 px-6 py-5">
             <FormSection title="¿Qué necesitas?">
-              <ToggleGroup type="single" value={type} onValueChange={(v) => v && setType(v as RequestType)} variant="outline"
-                className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {(Object.keys(REQUEST_TYPE_LABEL) as RequestType[]).map((t) => {
-                  const Icon = TYPE_ICON[t];
-                  return (
-                    <ToggleGroupItem key={t} value={t}
-                      className="h-auto justify-start gap-2.5 rounded-xl border-[1.5px] px-3 py-3 text-left data-[state=on]:border-primary data-[state=on]:bg-primary/5 data-[state=on]:text-foreground">
-                      <Icon className="h-4 w-4 shrink-0 text-primary" />
-                      <span className="text-sm font-medium">{REQUEST_TYPE_LABEL[t]}</span>
-                    </ToggleGroupItem>
-                  );
-                })}
-              </ToggleGroup>
+              <ChoiceCards
+                aria-label="Tipo de solicitud"
+                value={type}
+                onChange={setType}
+                options={(Object.keys(REQUEST_TYPE_LABEL) as RequestType[]).map((t) => ({
+                  value: t, label: t === "compra" ? "Compra" : REQUEST_TYPE_LABEL[t], description: REQUEST_TYPE_HINT[t], icon: TYPE_ICON[t],
+                }))}
+              />
             </FormSection>
 
             <FormSection title="Datos" columns={2}>

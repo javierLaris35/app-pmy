@@ -147,7 +147,7 @@ export function SucursalSelector({
           variant={bare ? "ghost" : "outline"}
           role="combobox"
           aria-expanded={open}
-          className={bare ? "h-auto w-full flex-1 justify-between px-0 py-2.5 font-normal hover:bg-transparent" : "w-full justify-between"}
+          className={bare ? "h-auto w-full flex-1 justify-between px-0 py-3 font-normal hover:bg-transparent" : "w-full justify-between"}
         >
           {/* 2. Contenedor flex para alinear el icono y el texto. min-w-0 es necesario
              para que el truncate funcione dentro de un padre flex (si no, el texto

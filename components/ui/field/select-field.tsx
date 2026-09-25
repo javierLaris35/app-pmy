@@ -24,7 +24,7 @@ export function SelectField({
           id={triggerId}
           aria-invalid={!!field.error}
           aria-label={field.size === "sm" ? field.label : undefined}
-          className={cn(BARE_CONTROL, "justify-between gap-2", field.size === "sm" ? "py-1.5" : "py-2.5")}
+          className={cn(BARE_CONTROL, "justify-between gap-2", field.size === "sm" ? "py-1.5" : "py-3")}
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -51,7 +51,7 @@ export function SwitchField({
 }) {
   const id = React.useId();
   return (
-    <div className={cn("flex min-h-11 items-center gap-3 rounded-xl border-[1.5px] border-input bg-background px-3 py-2", disabled && "bg-muted/40", className)}>
+    <div className={cn("flex min-h-12 items-center gap-3 rounded-xl border border-[hsl(var(--field-border))] bg-background px-3.5 py-2", disabled && "bg-muted/40", className)}>
       <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
         <span className="block text-sm font-medium">{label}</span>
         {description && <span className="block text-xs text-muted-foreground">{description}</span>}
