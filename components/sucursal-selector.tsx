@@ -33,6 +33,8 @@ interface SucursalSelectorProps {
   returnObject?: boolean
   onlyWarehouses?: boolean
   insideAModal?: boolean
+  /** Para usarlo dentro de un campo del sistema nuevo (Field): sin borde ni ícono propios. */
+  bare?: boolean
 }
 
 export function SucursalSelector({
@@ -41,7 +43,8 @@ export function SucursalSelector({
   multi = false,
   returnObject = false,
   onlyWarehouses = false,
-  insideAModal = false
+  insideAModal = false,
+  bare = false,
 }: SucursalSelectorProps) {
   const { subsidiaries: rawSubsidiaries, isLoading } = useSubsidiaries()
   const [open, setOpen] = useState(false)
@@ -141,16 +144,16 @@ export function SucursalSelector({
     <Popover open={open} onOpenChange={setOpen} modal={insideAModal}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant={bare ? "ghost" : "outline"}
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className={bare ? "h-auto w-full flex-1 justify-between px-0 py-2.5 font-normal hover:bg-transparent" : "w-full justify-between"}
         >
           {/* 2. Contenedor flex para alinear el icono y el texto. min-w-0 es necesario
              para que el truncate funcione dentro de un padre flex (si no, el texto
              largo -varias sucursales seleccionadas- se desborda en vez de cortarse). */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Store className="h-4 w-4 shrink-0" />
+            {!bare && <Store className="h-4 w-4 shrink-0" />}
             <span className="truncate min-w-0">{selectedLabel}</span>
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -158,7 +161,7 @@ export function SucursalSelector({
       </PopoverTrigger>
       
       {/* 3. w-[var(--radix-popover-trigger-width)] para igualar el ancho del botón */}
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+      <PopoverContent className={bare ? "w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0" : "w-[var(--radix-popover-trigger-width)] p-0"} align="start" sideOffset={bare ? 10 : 4}>
         <Command>
           <CommandInput placeholder={onlyWarehouses ? "Buscar bodega..." : "Buscar sucursal..."} />
           {/* ✅ CORRECCIÓN: Quitamos el overflow-y-auto, Radix lo maneja internamente */}
