@@ -96,33 +96,29 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                 const none = row.selectedQuoteItemId === null;
                 return (
                   <TableRow key={row.requestItemId} className="align-top">
-                    <TableCell className="py-2 font-medium">{row.description}</TableCell>
-                    <TableCell className="py-2 text-center tabular-nums">
+                    <TableCell className="py-1 font-medium">{row.description}</TableCell>
+                    <TableCell className="py-1 text-center tabular-nums">
                       {qty(row.quantity)}
-                      {comparison.units[row.requestItemId] && <span className="block text-xs text-muted-foreground">{comparison.units[row.requestItemId]}</span>}
+                      {comparison.units[row.requestItemId] && <span className="ml-1 text-[11px] text-muted-foreground">{comparison.units[row.requestItemId]}</span>}
                     </TableCell>
                     {comparison.quotes.map((q) => {
                       const c = row.cells[q.id];
                       if (!c) {
-                        return <TableCell key={q.id} className="border-l text-center text-xs text-muted-foreground">No cotizado</TableCell>;
+                        return <TableCell key={q.id} className="border-l py-1 text-center text-[11px] text-muted-foreground">No cotizado</TableCell>;
                       }
                       const best = row.bestQuoteItemId === c.quoteItemId;
                       const selected = row.selectedQuoteItemId === c.quoteItemId;
                       const noStock = c.availability === "no";
+                      // Una sola línea: precio · estrellas · existencia · etiquetas (el importe va en el título).
                       const body = (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[13px] font-semibold tabular-nums">{formatMoney(c.unitPrice)}</span>
-                          <span className="text-xs tabular-nums text-muted-foreground">Importe {formatMoney(c.total)}</span>
-                          {noStock ? (
-                            <Badge variant="outline" className="h-5 border-red-200 bg-red-50 text-[10px] text-red-700">Sin existencia</Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">{availabilityText(c)}</span>
-                          )}
-                          {c.quality ? <StarRating value={c.quality} /> : null}
-                          <div className="flex gap-1">
-                            {best && <Badge variant="outline" className="h-5 gap-1 border-emerald-300 bg-emerald-50 text-[10px] text-emerald-700"><Award className="h-3 w-3" /> Mejor precio</Badge>}
-                            {selected && <Badge className="h-5 gap-1 text-[10px]"><Check className="h-3 w-3" /> Elegido</Badge>}
-                          </div>
+                        <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5" title={`Importe con impuestos ${formatMoney(c.total)}`}>
+                          {selected && <Check className="h-3.5 w-3.5 text-primary" />}
+                          <span className="text-[12.5px] font-semibold tabular-nums">{formatMoney(c.unitPrice)}</span>
+                          {c.quality ? <StarRating value={c.quality} className="[&_svg]:h-2.5 [&_svg]:w-2.5" /> : null}
+                          {noStock
+                            ? <span className="rounded bg-red-50 px-1 text-[10px] font-semibold text-red-700">Sin existencia</span>
+                            : <span className="text-[11px] text-muted-foreground">{availabilityText(c)}</span>}
+                          {best && <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1 text-[10px] font-semibold text-emerald-700"><Award className="h-2.5 w-2.5" />Mejor</span>}
                         </div>
                       );
                       return (
@@ -133,7 +129,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                               disabled={!!saving}
                               onClick={() => !selected && choose([{ requestItemId: row.requestItemId, quoteItemId: c.quoteItemId }], row.requestItemId)}
                               className={cn(
-                                "w-full rounded-lg border border-transparent px-2 py-1.5 transition hover:border-primary/40 hover:bg-primary/5",
+                                "w-full rounded-md border border-transparent px-1.5 py-1 transition hover:border-primary/40 hover:bg-primary/5",
                                 selected && "border-primary ring-1 ring-primary",
                                 noStock && !selected && "opacity-70",
                               )}
@@ -143,13 +139,13 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                               {body}
                             </button>
                           ) : (
-                            <div className={cn("rounded-lg border border-transparent px-2 py-1.5", selected && "border-primary")}>{body}</div>
+                            <div className={cn("rounded-md border border-transparent px-1.5 py-1", selected && "border-primary")}>{body}</div>
                           )}
                         </TableCell>
                       );
                     })}
                     {editable && (
-                      <TableCell className="border-l p-1.5 text-center">
+                      <TableCell className="border-l p-1 text-center">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -170,14 +166,14 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={2} className="font-semibold">Total cotizado (con impuestos)</TableCell>
+                <TableCell colSpan={2} className="py-1.5 text-xs font-semibold">Total cotizado (con impuestos)</TableCell>
                 {comparison.quotes.map((q) => (
-                  <TableCell key={q.id} className="border-l text-center">
+                  <TableCell key={q.id} className="border-l py-1.5 text-center">
                     <span className="font-semibold tabular-nums">{formatMoney(q.total)}</span>
                     <span className="block text-xs font-normal text-muted-foreground">cubre {q.covered} de {comparison.rows.length}</span>
                   </TableCell>
                 ))}
-                {editable && <TableCell className="border-l" />}
+                {editable && <TableCell className="border-l py-1.5" />}
               </TableRow>
             </TableFooter>
           </Table>

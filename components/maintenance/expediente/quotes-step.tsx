@@ -32,8 +32,8 @@ export function QuotesStep({ request, comparison, onComparisonChange, editable, 
   const pdf = async () => { try { openBlob(await getComparisonPdf(request.id)); } catch (e) { toast.error(apiError(e, "No se pudo generar el PDF")); } };
 
   return (
-    <Card className="rounded-2xl">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-4 pb-3">
+    <Card className="rounded-xl shadow-none">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b px-3 py-2">
         <div>
           <CardTitle className="text-sm font-semibold">Cotizaciones y comparativo</CardTitle>
           <CardDescription className="text-xs">
@@ -48,7 +48,7 @@ export function QuotesStep({ request, comparison, onComparisonChange, editable, 
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-3 p-4 pt-0">
+      <CardContent className="space-y-2.5 p-3">
         {quotes.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
             Aún no hay cotizaciones. Usa &quot;Pedir cotización&quot; para mandarle la lista a tus proveedores y luego captura lo que te respondan
