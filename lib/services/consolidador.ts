@@ -11,7 +11,7 @@ import {
   SearchPackageResult,
   WarehouseKpi,
 } from "../types/consolidador";
-import { Cause, ManualCountReport, ManualLists } from "../types/manual-count";
+import { Cause, ManualCountReport, ManualCountScope, ManualLists } from "../types/manual-count";
 
 const baseUrl = "/consolidador";
 
@@ -132,13 +132,14 @@ export const prefetchManualCountFedex = async (
 ): Promise<{ done: number; failed: number }> =>
   (await axiosConfig.post(`${baseUrl}/${subsidiaryId}/manual-count/fedex`, { trackingNumbers })).data;
 
-/** POST: diagnóstico del conteo manual del día contra FedEx + sistema + ingresos. */
+/** POST: diagnóstico del conteo manual (del día o de la semana de `day`) contra FedEx + sistema + ingresos. */
 export const diagnoseManualCount = async (
   subsidiaryId: string,
   day: string,
   lists: ManualLists,
+  scope: ManualCountScope = "day",
 ): Promise<ManualCountReport> =>
-  (await axiosConfig.post<ManualCountReport>(`${baseUrl}/${subsidiaryId}/${day}/manual-count`, lists, { timeout: 180_000 })).data;
+  (await axiosConfig.post<ManualCountReport>(`${baseUrl}/${subsidiaryId}/${day}/manual-count`, { ...lists, scope }, { timeout: 300_000 })).data;
 
 /** POST: prompt para corregir en Claude Code los errores del sistema de las causas elegidas. */
 export const getManualCountPrompt = async (
@@ -146,5 +147,6 @@ export const getManualCountPrompt = async (
   day: string,
   lists: ManualLists,
   causes: Cause[],
+  scope: ManualCountScope = "day",
 ): Promise<{ prompt: string }> =>
-  (await axiosConfig.post(`${baseUrl}/${subsidiaryId}/${day}/manual-count/prompt`, { ...lists, causes }, { timeout: 180_000 })).data;
+  (await axiosConfig.post(`${baseUrl}/${subsidiaryId}/${day}/manual-count/prompt`, { ...lists, causes, scope }, { timeout: 300_000 })).data;

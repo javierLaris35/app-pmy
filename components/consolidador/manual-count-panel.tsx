@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ManualCountTable } from "@/components/consolidador/manual-count-table";
 import { ManualCountPromptDialog, errorText } from "@/components/consolidador/manual-count-prompt-dialog";
 import { diagnoseManualCount, prefetchManualCountFedex, repairPackageIncome } from "@/lib/services/consolidador";
 import { countListTokens, findConflicts, parseList, parseSheetRows } from "@/lib/consolidador/manual-count-parse";
 import { exportManualCountToExcel } from "@/lib/consolidador/manual-count-export";
 import { VERDICT_LABEL, VERDICT_TONE } from "@/lib/consolidador/manual-count-labels";
-import type { DiagnosisRow, ManualCountReport, ManualLists, Mark } from "@/lib/types/manual-count";
+import type { DiagnosisRow, ManualCountReport, ManualCountScope, ManualLists, Mark } from "@/lib/types/manual-count";
 import { MARKS, VERDICTS } from "@/lib/types/manual-count";
 import { toast } from "@/lib/toast";
 
@@ -41,8 +42,14 @@ interface Props {
   to: string;
 }
 
-/** Conteo manual vs sistema (solo superadmin): pega o sube el conteo del día y compara. */
+const shortDate = (d: string) => {
+  const [, m, dd] = d.split("-");
+  return `${dd}/${m}`;
+};
+
+/** Conteo manual vs sistema (solo superadmin): pega o sube el conteo del día (o de la semana) y compara. */
 export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
+  const [scope, setScope] = useState<ManualCountScope>("day");
   const [day, setDay] = useState(() => todayIn(from, to));
   const [texts, setTexts] = useState<Record<keyof ManualLists, string>>({ pod: "", dex07: "", dex08: "" });
   const [report, setReport] = useState<ManualCountReport | null>(null);
@@ -95,7 +102,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
         setProgress({ done: Math.min(i + FEDEX_BLOCK, all.length), total: all.length });
       }
       // 2) Diagnóstico (incluye las guías del sistema que el usuario no contó).
-      const res = await diagnoseManualCount(subsidiaryId, dayInWeek, lists);
+      const res = await diagnoseManualCount(subsidiaryId, scope === "week" ? from : dayInWeek, lists, scope);
       setReport(res);
       setSentLists(lists);
       if (res.fedexFailures) toast.error(`FedEx no respondió para ${res.fedexFailures} guía(s); se usó el estatus del sistema.`);
@@ -118,12 +125,12 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
           return;
         }
         toast.success(`Cobro generado: ${row.trackingNumber}`);
-        setReport(await diagnoseManualCount(subsidiaryId, report?.day ?? dayInWeek, sentLists));
+        setReport(await diagnoseManualCount(subsidiaryId, report?.day ?? dayInWeek, sentLists, report?.scope ?? "day"));
       } catch (e: any) {
         toast.error(errorText(e, "No se pudo generar el cobro. Intenta de nuevo."));
       }
     },
-    [subsidiaryId, sentLists, report?.day, dayInWeek],
+    [subsidiaryId, sentLists, report?.day, report?.scope, dayInWeek],
   );
 
   if (!subsidiaryId) {
@@ -139,12 +146,40 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
       <div className="rounded-lg border bg-white p-4">
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="mc-day" className="text-xs text-slate-500">Día del conteo</Label>
-            <Input id="mc-day" type="date" className="h-9 w-44" min={from} max={to} value={dayInWeek} onChange={(e) => setDay(e.target.value)} />
+            <Label className="text-xs text-slate-500">Revisar</Label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={scope}
+              onValueChange={(v) => {
+                if (!v || v === scope) return;
+                setScope(v as ManualCountScope);
+                setReport(null);
+              }}
+              disabled={running}
+            >
+              <ToggleGroupItem value="day" className="h-9 px-3">Por día</ToggleGroupItem>
+              <ToggleGroupItem value="week" className="h-9 px-3">Por semana</ToggleGroupItem>
+            </ToggleGroup>
           </div>
+          {scope === "day" ? (
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="mc-day" className="text-xs text-slate-500">Día del conteo</Label>
+              <Input id="mc-day" type="date" className="h-9 w-44" min={from} max={to} value={dayInWeek} onChange={(e) => setDay(e.target.value)} />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-500">Semana del conteo</span>
+              <span className="flex h-9 items-center rounded-md border bg-slate-50 px-3 text-sm tabular-nums text-slate-700">
+                Lun {shortDate(from)} – Dom {shortDate(to)}
+              </span>
+            </div>
+          )}
           <p className="flex-1 text-xs text-slate-500">
-            Pega las guías del conteo en cada caja (una por línea o la columna de Excel) o sube un Excel con columnas POD,
-            DEX07 y DEX08, o con dos columnas Guía y Estatus.
+            {scope === "day"
+              ? "Pega las guías del conteo del día en cada caja (una por línea o la columna de Excel) o sube un Excel con columnas POD, DEX07 y DEX08, o con dos columnas Guía y Estatus."
+              : "Pega las guías de toda la semana en cada caja, sin separar por día: el sistema busca en qué día pasó cada una. Una guía puede ir en dos cajas (por ejemplo DEX08 el lunes y POD el viernes)."}
           </p>
           <input
             ref={fileRef}
@@ -181,7 +216,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
           ))}
         </div>
 
-        {conflicts.length > 0 && (
+        {scope === "day" && conflicts.length > 0 && (
           <p className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {conflicts.length} guía(s) están en más de una caja ({conflicts.slice(0, 5).join(", ")}
@@ -195,7 +230,9 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
             Comparar con el sistema
           </Button>
           {totalCounted === 0 && !running && (
-            <span className="text-xs text-slate-500">Sin guías pegadas se muestra solo lo que tiene el sistema ese día.</span>
+            <span className="text-xs text-slate-500">
+              Sin guías pegadas se muestra solo lo que tiene el sistema {scope === "week" ? "esa semana" : "ese día"}.
+            </span>
           )}
           {progress && (
             <div className="flex min-w-64 flex-1 items-center gap-2">
@@ -248,7 +285,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
             </div>
           </div>
 
-          <ManualCountTable rows={report.rows} onRepair={repair} />
+          <ManualCountTable rows={report.rows} onRepair={repair} showDay={report.scope === "week"} />
           <ManualCountPromptDialog open={promptOpen} onOpenChange={setPromptOpen} report={report} lists={sentLists} />
         </>
       )}

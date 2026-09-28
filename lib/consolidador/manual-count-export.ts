@@ -8,6 +8,7 @@ export async function exportManualCountToExcel(report: ManualCountReport): Promi
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Conteo manual");
   ws.columns = [
+    { header: "Día", key: "day", width: 12 },
     { header: "Guía", key: "tn", width: 18 },
     { header: "Contó", key: "manual", width: 10 },
     { header: "FedEx dice", key: "fedex", width: 34 },
@@ -24,6 +25,7 @@ export async function exportManualCountToExcel(report: ManualCountReport): Promi
 
   for (const r of report.rows) {
     ws.addRow({
+      day: r.day ?? report.day,
       tn: r.trackingNumber,
       manual: r.manual ? outcomeLabel(r.manual) : "—",
       fedex: r.fedexLabel,
@@ -39,5 +41,5 @@ export async function exportManualCountToExcel(report: ManualCountReport): Promi
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  saveAs(blob, `Conteo_manual_${report.subsidiaryName ?? report.subsidiaryId}_${report.day}.xlsx`);
+  saveAs(blob, `Conteo_manual_${report.subsidiaryName ?? report.subsidiaryId}_${report.scope === "week" ? `semana_${report.from}` : report.day}.xlsx`);
 }

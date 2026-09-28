@@ -32,7 +32,22 @@ const StatusText = ({ v }: { v: string }) => {
   );
 };
 
-function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<void>): ColumnDef<DiagnosisRow>[] {
+const WEEKDAY = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+/** 'YYYY-MM-DD' → "Lun 21/09". */
+const dayLabel = (d: string) => {
+  const [y, m, dd] = d.split("-").map(Number);
+  return `${WEEKDAY[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()]} ${String(dd).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+};
+
+const dayColumn: ColumnDef<DiagnosisRow> = {
+  id: "day",
+  accessorFn: (r) => r.day ?? "",
+  header: "Día",
+  filterFn: inArray,
+  cell: ({ getValue }) => <span className="whitespace-nowrap tabular-nums text-slate-700">{getValue() ? dayLabel(String(getValue())) : "—"}</span>,
+};
+
+function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<void>, showDay = false): ColumnDef<DiagnosisRow>[] {
   return [
   {
     id: "expand",
@@ -50,6 +65,7 @@ function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<vo
       </Button>
     ),
   },
+  ...(showDay ? [dayColumn] : []),
   { accessorKey: "trackingNumber", header: "Guía", cell: ({ row }) => <span className="font-mono text-sm">{row.original.trackingNumber}</span> },
   { id: "manual", accessorFn: (r) => (r.manual ? outcomeLabel(r.manual) : "—"), header: "Contó", cell: ({ getValue }) => <Mark v={String(getValue())} /> },
   { id: "fedex", accessorFn: (r) => r.fedexLabel, header: "FedEx dice", cell: ({ getValue }) => <StatusText v={String(getValue())} /> },
@@ -125,8 +141,18 @@ function ChainDetail({ row }: { row: DiagnosisRow }) {
   );
 }
 
-export function ManualCountTable({ rows, onRepair }: { rows: DiagnosisRow[]; onRepair?: (r: DiagnosisRow, reason: string) => Promise<void> }) {
-  const columns = React.useMemo(() => buildColumns(onRepair), [onRepair]);
+export function ManualCountTable({
+  rows,
+  onRepair,
+  showDay = false,
+}: {
+  rows: DiagnosisRow[];
+  onRepair?: (r: DiagnosisRow, reason: string) => Promise<void>;
+  /** Revisión por semana: columna y filtro de Día. */
+  showDay?: boolean;
+}) {
+  const columns = React.useMemo(() => buildColumns(onRepair, showDay), [onRepair, showDay]);
+  const daysPresent = [...new Set(rows.map((r) => r.day).filter((d): d is string => !!d))].sort();
   const causesPresent = [...new Set(rows.map((r) => r.cause).filter((c): c is Cause => !!c))];
   const verdictsPresent = VERDICTS.filter((v: Verdict) => rows.some((r) => r.verdict === v));
   return (
@@ -137,6 +163,7 @@ export function ManualCountTable({ rows, onRepair }: { rows: DiagnosisRow[]; onR
       autoResetPageIndex={false}
       hideSelectionCount
       filters={[
+        ...(showDay ? [{ columnId: "day", title: "Día", options: daysPresent.map((d) => ({ label: dayLabel(d), value: d })) }] : []),
         { columnId: "verdict", title: "Resultado", options: verdictsPresent.map((v) => ({ label: VERDICT_LABEL[v], value: v })) },
         { columnId: "cause", title: "Causa", options: causesPresent.map((c) => ({ label: CAUSE_LABEL[c], value: c })) },
       ]}

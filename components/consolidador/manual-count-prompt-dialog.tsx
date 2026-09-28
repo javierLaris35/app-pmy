@@ -42,7 +42,7 @@ export function ManualCountPromptDialog({ open, onOpenChange, report, lists }: P
   const generate = async () => {
     setLoading(true);
     try {
-      const res = await getManualCountPrompt(report.subsidiaryId, report.day, lists, selected);
+      const res = await getManualCountPrompt(report.subsidiaryId, report.day, lists, selected, report.scope ?? "day");
       setPrompt(res.prompt);
     } catch (e: any) {
       toast.error(errorText(e, "No se pudo generar el prompt. Intenta de nuevo."));
@@ -60,7 +60,7 @@ export function ManualCountPromptDialog({ open, onOpenChange, report, lists }: P
     const blob = new Blob([prompt], { type: "text/markdown;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `prompt_conteo_${report.subsidiaryName ?? report.subsidiaryId}_${report.day}.md`;
+    a.download = `prompt_conteo_${report.subsidiaryName ?? report.subsidiaryId}_${report.scope === "week" ? `semana_${report.from}` : report.day}.md`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
