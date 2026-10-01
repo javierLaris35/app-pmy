@@ -625,6 +625,8 @@ export interface PackageDispatch {
   estimatedArrival: string
   startTime: string
   subsidiary: Subsidiary
+  /** 'YYYY-MM-DD' — día operativo de la ruta (fecha real; createdAt es cuándo se capturó). */
+  routeDate?: string | null
   createdAt?: string
   kms: string
 }
@@ -636,6 +638,8 @@ export interface PackageDispatchResponse {
   driverName: string;
   totalPackages: number;
   vehicle: Vehicles
+  /** 'YYYY-MM-DD' — día operativo de la ruta. */
+  routeDate?: string | null
   createdAt?: string
   // Trazabilidad de envío de correo (denormalizado para pintar el botón/tooltip).
   emailStatus?: EmailStatus

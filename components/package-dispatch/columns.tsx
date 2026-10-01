@@ -7,6 +7,7 @@ import { Badge, BadgeProps } from "../ui/badge"
 import { Tooltip, TooltipContent } from "../ui/tooltip"
 import { TooltipTrigger } from "@radix-ui/react-tooltip"
 import { mapToPackageInfo } from "@/lib/utils"
+import { formatShortDate } from "@/utils/date.utils"
 import { ro } from "date-fns/locale"
 
 const statusMap: Record<string, { label: string; variant: BadgeProps["variant"] }> = {
@@ -79,19 +80,19 @@ export const columns: ColumnDef<PackageDispatchResponse>[] = [
     },
   },
   {
-    accessorKey: "createdAt",
+    // Fecha REAL de la ruta (`routeDate`, día calendario sin hora). Se formatea del string
+    // tal cual: `new Date('YYYY-MM-DD')` es medianoche UTC y en Hermosillo mostraría el día
+    // anterior (un lunes aparecía como domingo). Rutas viejas sin routeDate ⇒ createdAt.
+    id: "routeDate",
+    accessorFn: (row) => row.routeDate ?? row.createdAt ?? null,
     header: "Fecha",
     cell: ({ row }) => {
-      const rawValue = row.getValue("createdAt");
-      const date = rawValue ? new Date(rawValue as string) : null;
-
-      const formatted = date
-        ? date.toLocaleString("es-MX", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          })
-        : "N/A";
+      const { routeDate, createdAt } = row.original;
+      const formatted = routeDate
+        ? formatShortDate(routeDate)
+        : createdAt
+          ? new Date(createdAt).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" })
+          : "N/A";
 
       return <div className="font-medium">{formatted}</div>;
     },
