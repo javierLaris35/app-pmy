@@ -33,30 +33,17 @@ import {
   Tooltip 
 } from 'recharts';
 import { Subsidiary } from "@/lib/types"
-import { todayInputValue, addDaysInputValue } from "@/utils/date.utils"
 import { getWeekRange } from "@/lib/week"
+import { DateRangePresets } from "@/components/shared/date-range-presets"
 
 function IngresosPage() {
   // 1. ESTADOS DE FILTRO
   const [selectedSucursalId, setSelectedSucursalId] = useState<string>("")
-  const [range, setRange] = useState({
-    fromDate: addDaysInputValue(-7),
-    toDate: todayInputValue()
+  // Por defecto: semana calendario lun–dom en curso (no los últimos 7 días).
+  const [range, setRange] = useState(() => {
+    const week = getWeekRange()
+    return { fromDate: week.from, toDate: week.to }
   })
-
-  // Presets de fecha (fecha LOCAL — evita el desfase de +1 día de UTC).
-  const applyPreset = (preset: "today" | "yesterday" | "week" | "month") => {
-    if (preset === "today") setRange({ fromDate: todayInputValue(), toDate: todayInputValue() })
-    else if (preset === "yesterday") setRange({ fromDate: addDaysInputValue(-1), toDate: addDaysInputValue(-1) })
-    else if (preset === "week") {
-      // Semana calendario LUNES–SÁBADO (misma regla que package-dispatch / lib/week),
-      // no un rolling de 7 días. Acotamos el fin al día de hoy para no mostrar días futuros.
-      const week = getWeekRange()
-      const today = todayInputValue()
-      setRange({ fromDate: week.from, toDate: week.to < today ? week.to : today })
-    }
-    else setRange({ fromDate: addDaysInputValue(-29), toDate: todayInputValue() })
-  }
 
   // 2. CONSUMO DE DATOS
   // Pasamos los strings directamente para evitar desfases de Date()
@@ -194,11 +181,11 @@ function IngresosPage() {
                     className="h-9 text-xs border-slate-200"
                   />
                 </div>
-                <div className="flex gap-1 mt-1.5">
-                  {([["today","Hoy"],["yesterday","Ayer"],["week","Semana"],["month","Mes"]] as const).map(([k,l]) => (
-                    <Button key={k} type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(k)}>{l}</Button>
-                  ))}
-                </div>
+                <DateRangePresets
+                  className="mt-1.5"
+                  buttonClassName="h-7 text-xs"
+                  onSelect={(r) => setRange({ fromDate: r.from, toDate: r.to })}
+                />
               </div>
             </CardContent>
           </Card>

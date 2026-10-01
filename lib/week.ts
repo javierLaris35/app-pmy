@@ -46,3 +46,34 @@ export function formatWeekLabel(range: WeekRange): string {
   const fmt = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
   return `${fmt(from)} – ${fmt(to)}`;
 }
+
+/** Atajos de rango de fechas usados en reportes / ingresos. */
+export type DatePreset = "today" | "yesterday" | "week" | "month";
+
+export const DATE_PRESETS: ReadonlyArray<readonly [DatePreset, string]> = [
+  ["today", "Hoy"],
+  ["yesterday", "Ayer"],
+  ["week", "Semana"],
+  ["month", "Mes"],
+];
+
+function addDays(d: Date, days: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + days);
+  return r;
+}
+
+/**
+ * Rango (fechas LOCALES YYYY-MM-DD) de un atajo. "Semana" es la semana calendario
+ * LUNES–DOMINGO que contiene `refDate` (igual que el selector de semana), no los
+ * últimos 7 días corridos. "Mes" se mantiene como los últimos 30 días.
+ */
+export function getPresetRange(preset: DatePreset, refDate: Date = new Date()): WeekRange {
+  if (preset === "today") return { from: toISODate(refDate), to: toISODate(refDate) };
+  if (preset === "yesterday") {
+    const y = toISODate(addDays(refDate, -1));
+    return { from: y, to: y };
+  }
+  if (preset === "week") return getWeekRange(refDate);
+  return { from: toISODate(addDays(refDate, -29)), to: toISODate(refDate) };
+}

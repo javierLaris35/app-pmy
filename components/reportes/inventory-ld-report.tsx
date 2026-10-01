@@ -20,7 +20,8 @@ import { DataTable } from "@/components/data-table/data-table";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { KpiCard } from "@/components/reportes/routes-report";
 import { useAuthStore } from "@/store/auth.store";
-import { todayInputValue, addDaysInputValue } from "@/utils/date.utils";
+import { addDaysInputValue } from "@/utils/date.utils";
+import { DateRangePresets } from "@/components/shared/date-range-presets";
 import { fmtDate, fmtDateTime } from "@/lib/audit-format";
 import { fetchInventoryLDReportJson, fetchVisibility67FedexCheck } from "@/lib/services/reportes/reportes";
 import { buildInventoryLDExcel } from "@/lib/services/reportes/inventory-ld-excel";
@@ -58,13 +59,6 @@ export function InventoryLDReport({ onBack }: { onBack: () => void }) {
   const [includeSundays, setIncludeSundays] = useState(true);
   const [fedexConfirmed, setFedexConfirmed] = useState(false);
   const [view, setView] = useState<"lista" | "consolidado">("lista");
-
-  const presetRange = (preset: "today" | "yesterday" | "week" | "month") => {
-    if (preset === "today") return { start: todayInputValue(), end: todayInputValue() };
-    if (preset === "yesterday") return { start: addDaysInputValue(-1), end: addDaysInputValue(-1) };
-    if (preset === "week") return { start: addDaysInputValue(-6), end: todayInputValue() };
-    return { start: addDaysInputValue(-29), end: todayInputValue() };
-  };
 
   const rangeDays = useMemo(() => {
     const s = new Set<string>();
@@ -238,12 +232,7 @@ export function InventoryLDReport({ onBack }: { onBack: () => void }) {
               <label className="text-[11px] font-medium text-muted-foreground block">Hasta</label>
               <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="h-9 w-[150px]" />
             </div>
-            <div className="flex items-end gap-1">
-              {([["today", "Hoy"], ["yesterday", "Ayer"], ["week", "Semana"], ["month", "Mes"]] as const).map(([key, label]) => (
-                <Button key={key} type="button" variant="outline" size="sm" className="h-9"
-                  onClick={() => { const r = presetRange(key); setStart(r.start); setEnd(r.end); }}>{label}</Button>
-              ))}
-            </div>
+            <DateRangePresets onSelect={(r) => { setStart(r.from); setEnd(r.to); }} />
             <Button onClick={load} disabled={isLoading || !subsidiaryId}>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Generar
             </Button>

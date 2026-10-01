@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getWeekRange, shiftWeek, isCurrentWeek, formatWeekLabel } from "./week";
+import { getWeekRange, shiftWeek, isCurrentWeek, formatWeekLabel, getPresetRange } from "./week";
 
 /**
  * La semana del selector es LUNES–DOMINGO (7 días). El domingo es el último día
@@ -52,5 +52,27 @@ describe("formatWeekLabel", () => {
     const label = formatWeekLabel({ from: "2026-08-31", to: "2026-09-06" });
     expect(label).toContain("–");
     expect(label.length).toBeGreaterThan(0);
+  });
+});
+
+describe("getPresetRange", () => {
+  // 2026-10-01 es jueves: "Semana" debe ser lun 28-sep → dom 04-oct, no jue→jue.
+  const thursday = new Date("2026-10-01T15:00:00");
+
+  it("week → lunes–domingo de la semana en curso (no últimos 7 días)", () => {
+    expect(getPresetRange("week", thursday)).toEqual({ from: "2026-09-28", to: "2026-10-04" });
+  });
+
+  it("week en domingo → cierra su propia semana", () => {
+    expect(getPresetRange("week", new Date("2026-10-04T22:00:00"))).toEqual({ from: "2026-09-28", to: "2026-10-04" });
+  });
+
+  it("today / yesterday", () => {
+    expect(getPresetRange("today", thursday)).toEqual({ from: "2026-10-01", to: "2026-10-01" });
+    expect(getPresetRange("yesterday", thursday)).toEqual({ from: "2026-09-30", to: "2026-09-30" });
+  });
+
+  it("month → últimos 30 días", () => {
+    expect(getPresetRange("month", thursday)).toEqual({ from: "2026-09-02", to: "2026-10-01" });
   });
 });

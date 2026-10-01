@@ -17,6 +17,8 @@ import { StatBar, type StatItem } from "@/components/shared/stat-bar";
 import { useAuthStore } from "@/store/auth.store";
 import { todayInputValue, addDaysInputValue } from "@/utils/date.utils";
 import type { ReportDef } from "./report-registry";
+import { getPresetRange } from "@/lib/week";
+import { DateRangePresets } from "@/components/shared/date-range-presets";
 
 const pretty = (s?: any) =>
   s === null || s === undefined || s === "" ? "—" : String(s).replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
@@ -31,15 +33,9 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
   const user = useAuthStore((s) => s.user);
   const [subsidiaryId, setSubsidiaryId] = useState<string>(user?.subsidiary?.id || "");
   // Fecha LOCAL (no UTC) para inputs/presets — evita el desfase de +1 día.
-  const presetRange = (preset: "today" | "yesterday" | "week" | "month") => {
-    if (preset === "today") return { start: todayInputValue(), end: todayInputValue() };
-    if (preset === "yesterday") return { start: addDaysInputValue(-1), end: addDaysInputValue(-1) };
-    if (preset === "week") return { start: addDaysInputValue(-6), end: todayInputValue() };
-    return { start: addDaysInputValue(-29), end: todayInputValue() }; // month
-  };
-  const initialRange = def.defaultPreset ? presetRange(def.defaultPreset) : { start: addDaysInputValue(-10), end: todayInputValue() };
-  const [start, setStart] = useState<string>(initialRange.start);
-  const [end, setEnd] = useState<string>(initialRange.end);
+  const initialRange = def.defaultPreset ? getPresetRange(def.defaultPreset) : { from: addDaysInputValue(-10), to: todayInputValue() };
+  const [start, setStart] = useState<string>(initialRange.from);
+  const [end, setEnd] = useState<string>(initialRange.to);
   const range = def.dateRange ? { start, end } : undefined;
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<Record<string, any> | undefined>(undefined);
@@ -394,25 +390,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
                   <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="h-9 w-[150px]" />
                 </div>
                 {/* Presets rápidos de rango. */}
-                <div className="flex items-end gap-1">
-                  {([
-                    ["today", "Hoy"],
-                    ["yesterday", "Ayer"],
-                    ["week", "Semana"],
-                    ["month", "Mes"],
-                  ] as const).map(([key, label]) => (
-                    <Button
-                      key={key}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9"
-                      onClick={() => { const r = presetRange(key); setStart(r.start); setEnd(r.end); }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
+                <DateRangePresets onSelect={(r) => { setStart(r.from); setEnd(r.to); }} />
               </>
             )}
             <Button onClick={handleGenerate} disabled={isLoading || !subsidiaryId}>
