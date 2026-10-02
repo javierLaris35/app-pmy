@@ -198,4 +198,6 @@ export interface PastePlan {
   batches: PasteBatchView[];
   /** Consolidados que el correo anuncia sin archivo adjunto (COD, F2 o HV solo en el texto). */
   announcedOnly: { consNumber: string; kind: ConsolidationKind; announcedCount: number | null; insideSheet: string | null; uploaded: { at: string; byName: string | null; minutes: number | null } | null }[];
+  /** Guías de cobros del correo que no están en ningún archivo. */
+  unmatchedCobros: string[];
 }

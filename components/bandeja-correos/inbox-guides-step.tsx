@@ -97,11 +97,19 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
       </ul>
     </div>
   );
+  const orphans = plan?.unmatchedCobros ?? [];
+  const orphanNote = orphans.length > 0 && (
+    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      {plural(orphans.length, "cobro del correo no corresponde", "cobros del correo no corresponden")} a ninguna guía de los archivos, así que no se aplica:{" "}
+      <span className="font-mono">{orphans.join(", ")}</span>.
+    </p>
+  );
   if (!batches.length) {
     return (
       <div className="space-y-2">
         <p className="py-1 text-sm text-slate-500">Este correo no trae archivos con guías para subir.</p>
         {announcedList}
+        {orphanNote}
       </div>
     );
   }
@@ -174,6 +182,7 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
       })}
 
       {announcedList}
+        {orphanNote}
 
       <PasteImportModal
         open={!!prefill}
