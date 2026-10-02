@@ -17,15 +17,15 @@ import { inboxErrorText, syncInbox } from "@/lib/services/inbox";
 import { InboxView } from "@/lib/types/inbox";
 import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
-import { getInboxColumns } from "@/components/correos-fedex/inbox-columns";
-import { InboxDetailSheet } from "@/components/correos-fedex/inbox-detail-sheet";
-import { InboxBoard } from "@/components/correos-fedex/inbox-board";
-import { VIEW_LABEL, hmoDay } from "@/components/correos-fedex/labels";
+import { getInboxColumns } from "@/components/bandeja-correos/inbox-columns";
+import { InboxDetailSheet } from "@/components/bandeja-correos/inbox-detail-sheet";
+import { InboxBoard } from "@/components/bandeja-correos/inbox-board";
+import { VIEW_LABEL, hmoDay } from "@/components/bandeja-correos/labels";
 import { Loader2, Mail, RefreshCw, Search } from "lucide-react";
 
 const VIEWS: InboxView[] = ["revision", "detectado", "confirmado", "todos", "ignorado", "error"];
 
-function CorreosFedexPage() {
+function BandejaCorreosPage() {
   const role = String(useAuthStore((s) => s.user)?.role ?? "").toLowerCase();
   const isSuper = ["superadmin", "superamin", "owner"].includes(role);
 
@@ -75,8 +75,8 @@ function CorreosFedexPage() {
         <div className="flex min-h-screen flex-col gap-4 p-4 md:p-5">
           <OperationHeader
             icon={Mail}
-            title="Correos FedEx"
-            description="Archivos que FedEx manda a sistemas@, con la sucursal detectada"
+            title="Bandeja de correos"
+            description="Archivos de FedEx (y pronto DHL) que llegan a sistemas@, con la sucursal detectada"
             actions={
               <div className="flex items-center gap-2">
                 <div className="w-56">
@@ -160,4 +160,4 @@ function CorreosFedexPage() {
   );
 }
 
-export default withAuth(CorreosFedexPage, "correo.bandejaFedex");
+export default withAuth(BandejaCorreosPage, "correo.bandeja");

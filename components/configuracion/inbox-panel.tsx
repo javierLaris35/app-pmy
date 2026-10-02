@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useInboxStatus } from "@/hooks/services/inbox/use-inbox";
 import { inboxErrorText, redetectInbox, setInboxEnabled, syncInbox } from "@/lib/services/inbox";
 import { toast } from "@/lib/toast";
-import { formatDateTime } from "@/components/correos-fedex/labels";
+import { formatDateTime } from "@/components/bandeja-correos/labels";
 import { Loader2, RefreshCw, Wand2 } from "lucide-react";
 
 const HEALTH: Record<string, { label: string; cls: string }> = {
@@ -18,7 +18,7 @@ const HEALTH: Record<string, { label: string; cls: string }> = {
   sin_configurar: { label: "Falta configurar el acceso", cls: "bg-amber-100 text-amber-800" },
 };
 
-/** Configuración → Servidor → Correo FedEx (solo superadmin). */
+/** Configuración → Servidor → Bandeja de correos (solo superadmin). */
 export function InboxPanel() {
   const { data, mutate, isLoading } = useInboxStatus();
   const [busy, setBusy] = useState<"toggle" | "sync" | "redetect" | null>(null);
@@ -48,7 +48,7 @@ export function InboxPanel() {
   return (
     <Panel>
       <PanelHeader>
-        <PanelTitle>Correo FedEx</PanelTitle>
+        <PanelTitle>Bandeja de correos</PanelTitle>
         <PanelDescription>Lectura del buzón {data.mailbox} de sistemas@ (solo lectura: nunca se borra ni se marca nada).</PanelDescription>
       </PanelHeader>
       <PanelContent className="space-y-4">

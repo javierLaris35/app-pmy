@@ -153,7 +153,7 @@ function ConfiguracionPage() {
                   <TabsTrigger value="logs">Logs en vivo</TabsTrigger>
                   {isSuper && <TabsTrigger value="respaldo">Respaldo</TabsTrigger>}
                   {isSuper && <TabsTrigger value="energia">Energía</TabsTrigger>}
-                  {isSuper && <TabsTrigger value="correo">Correo FedEx</TabsTrigger>}
+                  {isSuper && <TabsTrigger value="correo">Correo</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="metricas"><ServerStatsPanel /></TabsContent>
                 <TabsContent value="logs"><ServerLogsPanel /></TabsContent>

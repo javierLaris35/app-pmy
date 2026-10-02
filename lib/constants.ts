@@ -83,10 +83,10 @@ export const sidebarMenu = {
           isActive: false
         },
         {
-          name: "Correos FedEx",
-          url: "/operaciones/correos-fedex",
+          name: "Bandeja de correos",
+          url: "/operaciones/bandeja-correos",
           icon: MailIcon,
-          roles: allowedPageRoles.correo.bandejaFedex,
+          roles: allowedPageRoles.correo.bandeja,
           isActive: false
         },
         {
