@@ -1110,6 +1110,7 @@ export interface Transfer {
   // Origen
   originId?: string;
   origin?: Subsidiary; // Relación completa
+  otherOrigin?: string; // Origen externo (sin originId); el ingreso va al destino
   
   // Destino
   destinationId?: string;
@@ -1140,6 +1141,7 @@ export interface Transfer {
 // 2. Interfaz para crear el Traslado (Para el Formulario / POST)
 export interface CreateTransferPayload {
   originId?: string;
+  otherOrigin?: string;
   destinationId?: string;
   otherDestination?: string;
   transferType: string;

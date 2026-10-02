@@ -37,7 +37,7 @@ export const columns: ColumnDef<Transfer>[] = [
       // Mostramos el nombre de la sucursal de origen
       return (
         <span className="font-medium text-slate-700">
-          {transfer.origin?.name || "Sucursal desconocida"}
+          {transfer.origin?.name || transfer.otherOrigin || "Sucursal desconocida"}
         </span>
       );
     },

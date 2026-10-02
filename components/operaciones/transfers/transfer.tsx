@@ -44,6 +44,8 @@ export default function TransferScreen() {
   const [errors, setErrors] = useState<Record<string, boolean>>({})
 
   const [origin, setOrigin] = useState("")
+  const [otherOrigin, setOtherOrigin] = useState("")
+  const [isExternalOrigin, setIsExternalOrigin] = useState(false)
   const [destination, setDestination] = useState("")
   const [otherDestination, setOtherDestination] = useState("")
   const [isExternalDestination, setIsExternalDestination] = useState(false) 
@@ -68,6 +70,16 @@ export default function TransferScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const effectiveSubsidiaryId = selectedSucursalId || user?.subsidiary?.id;
+
+  // Unidad y choferes salen de la sucursal que hace el traslado: el origen, o el destino
+  // cuando el origen es externo (ahí también se registra el ingreso).
+  const operatingSubsidiaryId = isExternalOrigin ? (isExternalDestination ? "" : destination) : origin
+
+  const resetCrew = () => {
+    setSelectedVehicle(undefined)
+    setSelectedDrivers([])
+    setSelectedHelpers([])
+  }
 
   // === CONSUMO DE SWR ===
   const { transfers, isLoading, error, mutate } = useTransfer()
@@ -97,13 +109,22 @@ export default function TransferScreen() {
     const newErrors: Record<string, boolean> = {}
 
     if (!transferDate) newErrors.transferDate = true
-    if (!origin) newErrors.origin = true
+    if (isExternalOrigin) {
+      if (!otherOrigin.trim()) newErrors.otherOrigin = true
+    } else if (!origin) {
+      newErrors.origin = true
+    }
+
+    if (isExternalOrigin && isExternalDestination) {
+      newErrors.destination = true
+      toast.error("Si el origen es externo, el destino debe ser una de nuestras sucursales.")
+    }
 
     if (isExternalDestination) {
       if (!otherDestination.trim()) newErrors.otherDestination = true
     } else {
       if (!destination) newErrors.destination = true
-      if (origin && destination && origin === destination) {
+      if (!isExternalOrigin && origin && destination && origin === destination) {
         newErrors.destination = true
         toast.error("La sucursal de destino no puede ser la misma que la sucursal de origen.")
       }
@@ -116,12 +137,7 @@ export default function TransferScreen() {
       if (Number(amount) <= 0 || isNaN(Number(amount))) newErrors.amount = true
     }
 
-    if (selectedVehicle && !origin) {
-      newErrors.origin = true
-      toast.error("Para seleccionar un vehículo, primero debes elegir una sucursal de origen.")
-    }
-
-    if (!selectedVehicle && origin) newErrors.vehicle = true
+    if (!selectedVehicle && operatingSubsidiaryId) newErrors.vehicle = true
 
     if (selectedDrivers.length === 0) newErrors.drivers = true
 
@@ -147,7 +163,7 @@ export default function TransferScreen() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
-      if (!duplicateDriver && origin !== destination && !(selectedVehicle && !origin)) {
+      if (!duplicateDriver && origin !== destination && !(isExternalOrigin && isExternalDestination)) {
         toast.error("Por favor completa o corrige los campos obligatorios marcados en rojo.")
       }
       return 
@@ -166,7 +182,8 @@ export default function TransferScreen() {
       const calculatedTotalAmount = baseAmount + extra;
 
       const payload = {
-        originId: origin, 
+        originId: isExternalOrigin ? undefined : origin,
+        otherOrigin: isExternalOrigin ? otherOrigin.trim() : undefined,
         destinationId: isExternalDestination ? undefined : destination,
         otherDestination: isExternalDestination ? otherDestination : undefined,
         transferType: transferType, 
@@ -187,6 +204,8 @@ export default function TransferScreen() {
 
       setTransferDate(new Date().toISOString().split("T")[0])
       setOrigin("")
+      setOtherOrigin("")
+      setIsExternalOrigin(false)
       setDestination("")
       setOtherDestination("")
       setIsExternalDestination(false)
@@ -224,7 +243,7 @@ export default function TransferScreen() {
             <SucursalSelector
               value={effectiveSubsidiaryId || ""}
               onValueChange={ (val) => {
-                const id = typeof val === "string" ? val : (val as Subsidiary).id;
+                const id = typeof val === "string" ? val : (val as Subsidiary).id ?? "";
                 setSelectedSucursalId(id)
               }} 
             />
@@ -260,25 +279,65 @@ export default function TransferScreen() {
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">1. Ruta del Traslado</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
                     <div className="space-y-2">
-                      <Label htmlFor="origin" className={errors.origin ? "flex items-center gap-2 h-5 text-red-500" : "flex items-center gap-2 h-5 text-slate-500"}>
-                        <MapPin className="w-4 h-4" />
-                        Sucursal Origen
-                      </Label>
-                      <SucursalSelector 
-                        value={origin}
-                        hasError={errors.origin}
-                        onValueChange={(val) => {
-                            const id = typeof val === 'string' ? val : (val as Subsidiary).id;
-                            if (id !== origin) {
-                              setOrigin(id);
-                              setSelectedVehicle(undefined);
-                              setSelectedDrivers([]);
-                              setSelectedHelpers([]);
-                            }
-                            if (errors.origin) setErrors(prev => ({ ...prev, origin: false }))
-                        }}
-                      />
-                      {errors.origin && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
+                      <div className="flex items-center justify-between mb-1 h-5">
+                        <Label htmlFor="origin" className={errors.origin || errors.otherOrigin ? "flex items-center gap-2 text-red-500" : "flex items-center gap-2 text-slate-500"}>
+                          <MapPin className="w-4 h-4" />
+                          Sucursal Origen
+                        </Label>
+
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="isExternalOrigin"
+                            checked={isExternalOrigin}
+                            onCheckedChange={(checked) => {
+                              setIsExternalOrigin(checked as boolean)
+                              resetCrew()
+                              if (errors.origin || errors.otherOrigin) setErrors(prev => ({ ...prev, origin: false, otherOrigin: false }))
+                            }}
+                          />
+                          <label
+                            htmlFor="isExternalOrigin"
+                            className="text-sm font-medium leading-none cursor-pointer text-slate-600"
+                          >
+                            Externa (Otra)
+                          </label>
+                        </div>
+                      </div>
+
+                      {isExternalOrigin ? (
+                        <div className="animate-in fade-in zoom-in duration-200">
+                          <Input
+                            id="otherOrigin"
+                            placeholder="Escribe el nombre del origen..."
+                            value={otherOrigin}
+                            onChange={(e) => {
+                              setOtherOrigin(e.target.value)
+                              if (errors.otherOrigin) setErrors(prev => ({ ...prev, otherOrigin: false }))
+                            }}
+                            className={errors.otherOrigin ? "border-red-500 focus-visible:ring-red-500" : "border-blue-200 focus-visible:ring-blue-500"}
+                          />
+                          {errors.otherOrigin
+                            ? <p className="text-xs text-red-500 mt-1">Campo requerido</p>
+                            : <p className="text-xs text-slate-500 mt-1">El ingreso se registra en la sucursal destino.</p>}
+                        </div>
+                      ) : (
+                        <div className="animate-in fade-in zoom-in duration-200">
+                          <div className={errors.origin ? "rounded-md ring-1 ring-red-500" : ""}>
+                          <SucursalSelector
+                            value={origin}
+                            onValueChange={(val) => {
+                                const id = typeof val === 'string' ? val : (val as Subsidiary).id ?? "";
+                                if (id !== origin) {
+                                  setOrigin(id);
+                                  resetCrew();
+                                }
+                                if (errors.origin) setErrors(prev => ({ ...prev, origin: false }))
+                            }}
+                          />
+                          </div>
+                          {errors.origin && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -294,6 +353,7 @@ export default function TransferScreen() {
                             checked={isExternalDestination} 
                             onCheckedChange={(checked) => {
                               setIsExternalDestination(checked as boolean)
+                              if (isExternalOrigin) resetCrew()
                               if (errors.destination) setErrors(prev => ({ ...prev, destination: false }))
                               if (errors.otherDestination) setErrors(prev => ({ ...prev, otherDestination: false }))
                             }} 
@@ -323,15 +383,17 @@ export default function TransferScreen() {
                         </div>
                       ) : (
                         <div className="animate-in fade-in zoom-in duration-200">
+                            <div className={errors.destination ? "rounded-md ring-1 ring-red-500" : ""}>
                             <SucursalSelector 
                                 value={destination}
-                                hasError={errors.destination}
                                 onValueChange={(val) => {
-                                    const id = typeof val === 'string' ? val : (val as Subsidiary).id;
+                                    const id = typeof val === 'string' ? val : (val as Subsidiary).id ?? "";
+                                    if (isExternalOrigin && id !== destination) resetCrew();
                                     setDestination(id);
                                     if (errors.destination) setErrors(prev => ({ ...prev, destination: false }))
                                 }}
                             />
+                            </div>
                             {errors.destination && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                         </div>
                       )}
@@ -471,16 +533,17 @@ export default function TransferScreen() {
                         <Car className="w-4 h-4" />
                         Vehículo
                       </Label>
+                      <div className={errors.vehicle ? "rounded-md ring-1 ring-red-500" : ""}>
                       <UnidadSelector 
                         selectedUnidad={selectedVehicle}
-                        hasError={errors.vehicle}
                         onSelectionChange={(val) => {
                           setSelectedVehicle(val)
                           if (errors.vehicle) setErrors(prev => ({ ...prev, vehicle: false }))
                         }}
-                        disabled={isLoading || !origin} 
-                        subsidiaryId={origin} 
+                        disabled={isLoading || !operatingSubsidiaryId} 
+                        subsidiaryId={operatingSubsidiaryId} 
                       />
+                      </div>
                       {errors.vehicle && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                     </div>
 
@@ -490,16 +553,17 @@ export default function TransferScreen() {
                           <Users className="w-4 h-4" />
                           Chofer {transferType === "aeropuerto" && "*"}
                         </Label>
+                        <div className={errors.drivers ? "rounded-md ring-1 ring-red-500" : ""}>
                         <RepartidorSelector 
                           selectedRepartidores={selectedDrivers} 
-                          hasError={errors.drivers}
                           onSelectionChange={(val) => {
                             setSelectedDrivers(val)
                             if (errors.drivers) setErrors(prev => ({ ...prev, drivers: false }))
                           }}
-                          disabled={isLoading || !origin} 
-                          subsidiaryId={origin}
+                          disabled={isLoading || !operatingSubsidiaryId} 
+                          subsidiaryId={operatingSubsidiaryId}
                         />
+                        </div>
                         {errors.drivers && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                       </div>
 
@@ -521,16 +585,17 @@ export default function TransferScreen() {
                             <Users className="w-4 h-4" />
                             Ayudante (Segundo a bordo) {transferType === "aeropuerto" && "*"}
                           </Label>
+                          <div className={errors.helpers ? "rounded-md ring-1 ring-red-500" : ""}>
                           <RepartidorSelector 
                             selectedRepartidores={selectedHelpers} 
-                            hasError={errors.helpers}
                             onSelectionChange={(val) => {
                               setSelectedHelpers(val)
                               if (errors.helpers) setErrors(prev => ({ ...prev, helpers: false }))
                             }}
-                            disabled={isLoading || !origin} 
-                            subsidiaryId={origin}
+                            disabled={isLoading || !operatingSubsidiaryId} 
+                            subsidiaryId={operatingSubsidiaryId}
                           />
+                          </div>
                           {errors.helpers && <p className="text-xs text-red-500 mt-1">Campo requerido</p>}
                         </div>
                       )}

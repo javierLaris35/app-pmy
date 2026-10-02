@@ -91,7 +91,7 @@ export function TransferDetailDialog({ transfer }: { transfer: Transfer }) {
               transfer.createdAt ? formatDate(transfer.createdAt) : "—"
             }
           />
-          <Row label="Origen" value={transfer.origin?.name || "—"} />
+          <Row label="Origen" value={transfer.origin?.name || transfer.otherOrigin || "—"} />
           <Row label="Destino" value={destination} />
           <Row label="Tipo" value={typeLabel} />
           <Row
