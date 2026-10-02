@@ -9,7 +9,7 @@ import { getInboxPastePlan, inboxErrorText, markInboxPasted } from "@/lib/servic
 import { PasteBatchView } from "@/lib/types/inbox";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { BATCH_LABEL, formatDateTime, formatMinutes } from "./labels";
+import { BATCH_LABEL, CONS_KIND_LABEL, formatDateTime, formatMinutes } from "./labels";
 import { CheckCircle2, Copy, Loader2, Package, Plane, Truck, Upload } from "lucide-react";
 
 const ICON = { master: Package, aereo: Plane, f2: Truck } as const;
@@ -67,8 +67,38 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged }: Props)
     );
   }
   const batches = plan?.batches ?? [];
+  const announcedOnly = plan?.announcedOnly ?? [];
+  const announcedList = announcedOnly.length > 0 && (
+    <div className="rounded-md border border-dashed px-3 py-2">
+      <p className="mb-1 text-xs font-medium text-slate-600">También viene en el texto del correo, sin archivo adjunto:</p>
+      <ul className="space-y-1">
+        {announcedOnly.map((c) => (
+          <li key={`${c.kind}-${c.consNumber}`} className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="secondary" className="w-14 justify-center px-1.5 py-0 text-[11px]">
+              {CONS_KIND_LABEL[c.kind] ?? c.kind}
+            </Badge>
+            <span className="font-mono text-slate-700">{c.consNumber}</span>
+            {c.announcedCount != null && <span className="text-slate-500">{plural(c.announcedCount, "guía", "guías")}</span>}
+            {c.uploaded ? (
+              <span className="flex items-center gap-1 text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Ya está en el sistema ({formatDateTime(c.uploaded.at)}
+                {c.uploaded.byName ? ` · ${c.uploaded.byName}` : ""})
+              </span>
+            ) : (
+              <span className="text-slate-500">Todavía no aparece en el sistema; se marca solo cuando se suba.</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
   if (!batches.length) {
-    return <p className="py-2 text-sm text-slate-500">Este correo no trae archivos con guías para subir.</p>;
+    return (
+      <div className="space-y-2">
+        <p className="py-1 text-sm text-slate-500">Este correo no trae archivos con guías para subir.</p>
+        {announcedList}
+      </div>
+    );
   }
 
   const fileOf = (key?: string) => batches.find((x) => x.key === key)?.filename ?? "otro archivo";
@@ -131,6 +161,8 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged }: Props)
           </div>
         );
       })}
+
+      {announcedList}
 
       <PasteImportModal
         open={!!prefill}

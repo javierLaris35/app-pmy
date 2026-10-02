@@ -11,7 +11,7 @@ export type AttachmentKind =
   | "dhl"
   | "pdf"
   | "other";
-export type ConsolidationKind = "master" | "f2" | "aereo" | "high_value" | "dhl";
+export type ConsolidationKind = "master" | "f2" | "aereo" | "high_value" | "dhl" | "cod";
 export type LinkStatus = "pendiente" | "subido" | "no_aplica";
 
 export interface InboxListItem {
@@ -194,4 +194,6 @@ export interface PastePlan {
   ready: boolean;
   reason: string | null;
   batches: PasteBatchView[];
+  /** Consolidados que el correo anuncia sin archivo adjunto (COD, F2 o HV solo en el texto). */
+  announcedOnly: { consNumber: string; kind: ConsolidationKind; announcedCount: number | null; uploaded: { at: string; byName: string | null; minutes: number | null } | null }[];
 }

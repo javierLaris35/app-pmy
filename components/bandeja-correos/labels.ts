@@ -69,6 +69,7 @@ export const CONS_KIND_LABEL: Record<ConsolidationKind, string> = {
   aereo: "Aéreo",
   high_value: "Valor",
   dhl: "DHL",
+  cod: "COD",
 };
 
 export const SIGNAL_LABEL: Record<string, string> = {
