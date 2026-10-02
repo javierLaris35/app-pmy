@@ -56,6 +56,10 @@ interface DataTableProps<TData, TValue> {
   hideToolbar?: boolean
   /** Oculta el texto "N de M fila(s) seleccionada(s)." en la paginación. */
   hideSelectionCount?: boolean
+  /** Clic en cualquier parte de la fila (opcional). Los clics en botones/links de la fila no lo disparan. */
+  onRowClick?: (row: TData) => void
+  /** ¿Es la fila activa? (p. ej. la abierta en un panel lateral) — se resalta. */
+  activeRowId?: (row: TData) => boolean
 }
 
 export function DataTable<TData, TValue>({
@@ -74,6 +78,8 @@ export function DataTable<TData, TValue>({
   initialColumnFilters,
   hideToolbar = false,
   hideSelectionCount = false,
+  onRowClick,
+  activeRowId,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -207,7 +213,22 @@ export function DataTable<TData, TValue>({
               table.getRowModel().rows.map((row) => (
                 <React.Fragment key={row.id}>
                   {/* FILA PRINCIPAL */}
-                  <TableRow data-state={row.getIsSelected() && "selected"} className={cn(rowClassName?.(row.original))}>
+                  <TableRow
+                    data-state={row.getIsSelected() && "selected"}
+                    className={cn(
+                      onRowClick && "cursor-pointer",
+                      activeRowId?.(row.original) && "bg-sky-50 hover:bg-sky-50",
+                      rowClassName?.(row.original),
+                    )}
+                    onClick={
+                      onRowClick
+                        ? (e) => {
+                            if ((e.target as HTMLElement).closest("button, a, input, [role='checkbox'], [role='combobox']")) return;
+                            onRowClick(row.original);
+                          }
+                        : undefined
+                    }
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

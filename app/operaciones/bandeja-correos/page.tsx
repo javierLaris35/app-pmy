@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
+import { PaginationState } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table/data-table";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { SucursalSelector } from "@/components/sucursal-selector";
@@ -15,8 +17,8 @@ import { InboxView } from "@/lib/types/inbox";
 import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { InboxList } from "@/components/bandeja-correos/inbox-list";
-import { InboxDetailPanel } from "@/components/bandeja-correos/inbox-detail-panel";
+import { getInboxColumns } from "@/components/bandeja-correos/inbox-columns";
+import { InboxDetailSheet } from "@/components/bandeja-correos/inbox-detail-sheet";
 import { InboxBoard } from "@/components/bandeja-correos/inbox-board";
 import { VIEW_LABEL, hmoDay } from "@/components/bandeja-correos/labels";
 import { Loader2, Mail, RefreshCw, Search } from "lucide-react";
@@ -29,7 +31,6 @@ const EMPTY: Record<InboxView, string> = {
   todos: "No llegaron correos en estas fechas",
   ignorado: "No hay correos ignorados",
 };
-const PAGE_SIZE = 50;
 
 function BandejaCorreosPage() {
   const role = String(useAuthStore((s) => s.user)?.role ?? "").toLowerCase();
@@ -41,8 +42,8 @@ function BandejaCorreosPage() {
   const [from, setFrom] = useState(() => hmoDay(-6));
   const [to, setTo] = useState(() => hmoDay(0));
   const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const [openId, setOpenId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const { data, isLoading, mutate } = useInboxMessages({
@@ -51,18 +52,12 @@ function BandejaCorreosPage() {
     from,
     to,
     q: q.trim() || undefined,
-    page,
-    pageSize: PAGE_SIZE,
+    page: pagination.pageIndex + 1,
+    pageSize: pagination.pageSize,
   });
-  const items = data?.items ?? [];
+  const columns = useMemo(() => getInboxColumns(), []);
 
-  // Siempre hay un correo abierto: el elegido si sigue en la lista; si no, el primero.
-  useEffect(() => {
-    if (!data) return;
-    if (!selectedId || !items.some((i) => i.id === selectedId)) setSelectedId(items[0]?.id ?? null);
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const resetPage = () => setPage(1);
+  const resetPage = () => setPagination((p) => ({ ...p, pageIndex: 0 }));
 
   async function handleSync() {
     setSyncing(true);
@@ -78,12 +73,8 @@ function BandejaCorreosPage() {
     }
   }
 
-  function openFromBoard(id: string) {
-    setView("todos");
-    setPage(1);
-    setSelectedId(id);
-    setTab("correos");
-  }
+  // Desde el tablero se abre el mismo panel lateral, sin cambiar de pestaña.
+  const openFromBoard = (id: string) => setOpenId(id);
 
   return (
     <AppLayout>
@@ -114,13 +105,13 @@ function BandejaCorreosPage() {
           }
         />
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="self-start">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+          <TabsList>
             <TabsTrigger value="correos">Correos</TabsTrigger>
             <TabsTrigger value="tablero">Recibido vs subido</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="correos" className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
+          <TabsContent value="correos" className="mt-3 flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-1.5">
               {VIEWS.map((v) => (
                 <Button
@@ -153,31 +144,35 @@ function BandejaCorreosPage() {
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-3 lg:h-[calc(100vh-250px)] lg:grid-cols-[minmax(320px,400px)_1fr]">
-              {isLoading && !data ? (
-                <div className="flex items-center justify-center rounded-md border bg-white text-sm text-slate-500">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando correos…
-                </div>
-              ) : (
-                <InboxList
-                  items={items}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  page={page}
-                  pageSize={PAGE_SIZE}
-                  total={data?.total ?? 0}
-                  onPage={setPage}
-                  emptyText={EMPTY[view]}
-                />
-              )}
-              <InboxDetailPanel id={selectedId} onChanged={() => mutate()} />
-            </div>
+            {isLoading && !data ? (
+              <div className="flex h-32 items-center justify-center rounded-md border bg-white text-sm text-slate-500">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando correos…
+              </div>
+            ) : (data?.items?.length ?? 0) === 0 ? (
+              <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">{EMPTY[view]}</div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={data?.items ?? []}
+                hideToolbar
+                hideSelectionCount
+                manualPagination
+                pageCount={Math.max(1, Math.ceil((data?.total ?? 0) / pagination.pageSize))}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+                autoResetPageIndex={false}
+                onRowClick={(r) => setOpenId(r.id)}
+                activeRowId={(r) => r.id === openId}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="tablero" className="mt-3">
             <InboxBoard from={from} to={to} subsidiaryId={subsidiaryId || undefined} active={tab === "tablero"} onOpenMessage={openFromBoard} />
           </TabsContent>
         </Tabs>
+
+        <InboxDetailSheet id={openId} onOpenChange={(o) => !o && setOpenId(null)} onChanged={() => mutate()} />
       </div>
     </AppLayout>
   );

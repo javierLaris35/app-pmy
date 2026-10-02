@@ -26,10 +26,12 @@ const GUIDE_KINDS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_val
 interface Props {
   id: string | null;
   onChanged: () => void;
+  /** Dentro del panel lateral: sin borde y con espacio para la ✕ de cerrar. */
+  bare?: boolean;
 }
 
 /** Correo seleccionado, como dos pasos: ① de qué sucursal es · ② subir sus guías. */
-export function InboxDetailPanel({ id, onChanged }: Props) {
+export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
   const { data, isLoading, mutate } = useInboxMessage(id);
   const [editing, setEditing] = useState(false);
   const [subsidiaryId, setSubsidiaryId] = useState("");
@@ -91,14 +93,14 @@ export function InboxDetailPanel({ id, onChanged }: Props) {
 
   if (!id) {
     return (
-      <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-2 rounded-md border bg-white text-sm text-slate-400">
+      <div className={cn("flex h-full min-h-[320px] flex-col items-center justify-center gap-2 bg-white text-sm text-slate-400", !bare && "rounded-md border")}>
         <MailOpen className="h-6 w-6" /> Elige un correo de la lista
       </div>
     );
   }
   if (isLoading || !m) {
     return (
-      <div className="flex h-full min-h-[320px] items-center justify-center rounded-md border bg-white text-sm text-slate-500">
+      <div className={cn("flex h-full min-h-[320px] items-center justify-center bg-white text-sm text-slate-500", !bare && "rounded-md border")}>
         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando correo…
       </div>
     );
@@ -123,9 +125,9 @@ export function InboxDetailPanel({ id, onChanged }: Props) {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-md border bg-white">
+    <div className={cn("flex h-full min-h-0 flex-col bg-white", !bare && "rounded-md border")}>
       {/* Encabezado */}
-      <div className="flex items-start gap-2 border-b px-4 py-3">
+      <div className={cn("flex items-start gap-2 border-b px-4 py-3", bare && "pr-12 pt-4")}>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-slate-900" title={m.subject}>
             {m.subject || "(sin asunto)"}
