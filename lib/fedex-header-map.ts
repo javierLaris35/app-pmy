@@ -634,22 +634,26 @@ export function parsePaymentsPaste(raw: string): ParsedPayment[] {
   return Array.from(byTracking.values()).filter((p) => p.amount !== null || p.type !== null);
 }
 
-export interface ParsedHv { tracking: string; address: string; }
+/**
+ * Guía de High Value pegada. Si el pegado trae encabezados (p. ej. el archivo "valor"
+ * completo), `values` lleva TODOS los campos mapeados para crear la fila completa
+ * cuando la guía no está en la tabla.
+ */
+export interface ParsedHv { tracking: string; address: string; values?: Record<string, string>; }
 
-/** Parsea un pegado de High Value: guía (+ dirección si viene). */
+/** Parsea un pegado de High Value: guía (+ dirección y demás columnas si vienen). */
 export function parseHvPaste(raw: string): ParsedHv[] {
   const rows = toMatrix(raw);
   if (!rows.length) return [];
-  const detected = detectHeaderMap(rows);
   const out: ParsedHv[] = [];
 
-  if (detected && detected.map["trackingNumber"] !== undefined) {
-    const { headerRowIndex, map } = detected;
-    const addrIdx = map["recipientAddress"];
-    for (const r of rows.slice(headerRowIndex + 1)) {
-      const tracking = String(r[map["trackingNumber"]] ?? "").trim();
+  // Con encabezados: mismo mapeo y limpieza que el pegado principal.
+  const mapped = buildMappedTable(rows);
+  if (mapped) {
+    for (const r of mapped.rows) {
+      const tracking = String(r.values["trackingNumber"] ?? "").trim();
       if (!tracking) continue;
-      out.push({ tracking, address: addrIdx !== undefined ? String(r[addrIdx] ?? "").trim() : "" });
+      out.push({ tracking, address: String(r.values["recipientAddress"] ?? "").trim(), values: { ...r.values } });
     }
     return out;
   }
@@ -699,22 +703,34 @@ export function mergeHighValue(table: MappedTable, hv: ParsedHv[]): MappedTable 
     const t = String(r.values["trackingNumber"] ?? "").trim();
     if (t) byTracking.set(t, r);
   }
+  const usedFields = new Set(table.fields.map((f) => f.field));
+  const filled = (v: unknown) => String(v ?? "").trim() !== "";
   for (const h of hv) {
     if (!h.tracking) continue;
+    const incoming: Record<string, string> = { ...(h.values ?? {}), trackingNumber: h.tracking };
+    if (h.address && !filled(incoming["recipientAddress"])) incoming["recipientAddress"] = h.address;
     const existing = byTracking.get(h.tracking);
     if (existing) {
       existing.isHighValue = true;
-      if (h.address && !existing.values["recipientAddress"]) existing.values["recipientAddress"] = h.address;
+      // Solo completa lo que la fila no traía.
+      for (const [k, v] of Object.entries(incoming)) {
+        if (filled(v) && !filled(existing.values[k])) {
+          existing.values[k] = v;
+          usedFields.add(k);
+        }
+      }
     } else {
-      const values: Record<string, string> = { trackingNumber: h.tracking };
-      if (h.address) values["recipientAddress"] = h.address;
-      const nr = analyzeRow(values, true);
+      // Fila completa si el pegado traía más que guía/dirección; si no, queda como "manual".
+      const complete = Object.values(incoming).filter(filled).length > 2;
+      const nr = analyzeRow(incoming, !complete);
       nr.isHighValue = true;
       rows.push(nr);
       byTracking.set(h.tracking, nr);
+      for (const [k, v] of Object.entries(incoming)) if (filled(v)) usedFields.add(k);
     }
   }
-  return recompute({ fields: table.fields, rows, meta: table.meta, problems: table.problems, sources: table.sources });
+  const fields = CANONICAL_FIELDS.filter((f) => usedFields.has(f.field));
+  return recompute({ fields, rows, meta: table.meta, problems: table.problems, sources: table.sources });
 }
 
 /**

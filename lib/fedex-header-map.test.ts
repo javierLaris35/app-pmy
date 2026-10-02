@@ -259,6 +259,41 @@ describe("enriquecimiento de high value", () => {
     expect(merged.rows.find((r) => r.values.trackingNumber === "111111111")!.isHighValue).toBe(true);
     expect(merged.rows.find((r) => r.values.trackingNumber === "555555555")!.manual).toBe(true);
   });
+
+  it("archivo de valor completo (guías que no están en la tabla): se agregan con TODOS sus datos", () => {
+    const base = buildMappedTable([
+      ["Tracking No", "Recip Name", "Recip Addr", "Recip Postal"],
+      ["383495230427", "A", "Calle 1", "23406"],
+    ])!;
+    const hv = parseHvPaste(
+      [
+        "\t305821531470\tALBERTO GUTIERREZ\tVALOR\t\t\t\t10/1/2026",
+        "\tTracking No\tRecip Name\tRecip Addr\tRecip Postal\tCommit Date\tCommit Time\tRecip Phone",
+        "1\t383954974418\tMARIA DE JESUS CORONEL LOPEZ\tCALLE PERCEBES Y PLAYA  #9\t23473\t10/02/2026\t21:00:00\t6241779925",
+      ].join("\n"),
+    );
+    expect(hv).toHaveLength(1);
+    const merged = mergeHighValue(base, hv);
+    const row = merged.rows.find((r) => r.values.trackingNumber === "383954974418")!;
+    expect(row.isHighValue).toBe(true);
+    expect(row.manual).toBe(false);
+    expect(row.values.recipientName).toBe("MARIA DE JESUS CORONEL LOPEZ");
+    expect(row.values.recipientZip).toBe("23473");
+    expect(row.values.recipientPhone).toBe("6241779925");
+    expect(merged.fields.map((f) => f.field)).toEqual(expect.arrayContaining(["commitDate", "recipientPhone"]));
+  });
+
+  it("guía de valor que ya está en la tabla: solo se marca y completa datos vacíos", () => {
+    const base = buildMappedTable([
+      ["Tracking No", "Recip Name", "Recip Postal"],
+      ["383954974418", "", "23473"],
+    ])!;
+    const hv = parseHvPaste("Tracking No\tRecip Name\n383954974418\tMARIA");
+    const merged = mergeHighValue(base, hv);
+    expect(merged.rows).toHaveLength(1);
+    expect(merged.rows[0].isHighValue).toBe(true);
+    expect(merged.rows[0].values.recipientName).toBe("MARIA");
+  });
 });
 
 describe("normalizeTrackingValue / normalizePhoneValue (limpieza automática)", () => {
