@@ -88,9 +88,16 @@ export function InboxDetailSheet({ id, onOpenChange, onChanged }: Props) {
     <Sheet open={!!id} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
         {isLoading || !m ? (
-          <div className="flex h-40 items-center justify-center text-sm text-slate-500">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando correo…
-          </div>
+          <>
+            {/* Radix exige título en el diálogo también mientras carga (lectores de pantalla). */}
+            <SheetHeader className="sr-only">
+              <SheetTitle>Cargando correo</SheetTitle>
+              <SheetDescription>Detalle del correo de FedEx</SheetDescription>
+            </SheetHeader>
+            <div className="flex h-40 items-center justify-center text-sm text-slate-500">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando correo…
+            </div>
+          </>
         ) : (
           <div className="flex flex-col gap-4">
             <SheetHeader className="space-y-1 text-left">
