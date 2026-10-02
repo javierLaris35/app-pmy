@@ -30,7 +30,10 @@ export const columns: ColumnDef<Transfer>[] = [
     },
   },
   {
-    accessorKey: "originId", // Aunque el key sea originId, usaremos row.original
+    // Por nombre (no por originId): los de origen externo no tienen originId y así
+    // también se ordenan/buscan por el texto que se capturó.
+    id: "origin",
+    accessorFn: (row) => row.origin?.name || row.otherOrigin || "",
     header: "Origen",
     cell: ({ row }) => {
       const transfer = row.original;
