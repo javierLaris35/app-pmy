@@ -1,5 +1,6 @@
 export type InboxStatus = "nuevo" | "detectado" | "revision" | "confirmado" | "ignorado" | "error";
-export type InboxView = "revision" | "detectado" | "confirmado" | "ignorado" | "error" | "todos";
+export type InboxView = "falta_confirmar" | "listos" | "subidos" | "todos" | "ignorado";
+export type UploadState = "falta_confirmar" | "listo" | "subido" | "sin_guias" | "ignorado" | "error";
 export type AttachmentKind =
   | "master"
   | "master_aereo"
@@ -15,6 +16,7 @@ export type LinkStatus = "pendiente" | "subido" | "no_aplica";
 
 export interface InboxListItem {
   id: string;
+  uploadState: UploadState;
   receivedAt: string;
   fromAddress: string;
   fromName: string | null;
@@ -181,8 +183,15 @@ export interface PasteBatch {
   done: boolean;
 }
 
+export interface PasteBatchView extends PasteBatch {
+  hvCount: number;
+  cobrosCount: number;
+  uploaded: { at: string; byName: string | null; minutes: number | null; via: string | null } | null;
+  duplicateOf?: string;
+}
+
 export interface PastePlan {
   ready: boolean;
   reason: string | null;
-  batches: PasteBatch[];
+  batches: PasteBatchView[];
 }
