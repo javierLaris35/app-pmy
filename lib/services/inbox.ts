@@ -79,5 +79,21 @@ export function inboxErrorText(e: unknown, fallback: string): string {
 export const getInboxPastePlan = async (id: string): Promise<import("../types/inbox").PastePlan> =>
   (await axiosConfig.get(`${baseUrl}/messages/${id}/paste-plan`)).data;
 
-export const markInboxPasted = async (id: string, body: { attachmentId: string; kind: import("../types/inbox").PasteBatchKind; consNumber: string }) =>
+export const markInboxPasted = async (id: string, body: { attachmentId: string; kind: import("../types/inbox").PasteBatchKind; consNumber: string; key?: string }) =>
   (await axiosConfig.post(`${baseUrl}/messages/${id}/pasted`, body)).data;
+
+export interface AttachmentPreview {
+  type: "sheet" | "pdf" | "image" | "none";
+  filename: string;
+  sheets?: { name: string; rows: string[][]; totalRows: number; truncated: boolean }[];
+}
+
+export const getAttachmentPreview = async (id: string): Promise<AttachmentPreview> =>
+  (await axiosConfig.get<AttachmentPreview>(`${baseUrl}/attachments/${id}/preview`)).data;
+
+/** URL local (blob) del archivo para mostrar PDF/imagen dentro de la app. Liberar con URL.revokeObjectURL. */
+export async function getAttachmentObjectUrl(id: string, contentType?: string): Promise<string> {
+  const res = await axiosConfig.get(`${baseUrl}/attachments/${id}/download`, { responseType: "blob" });
+  const blob = contentType ? new Blob([res.data as Blob], { type: contentType }) : (res.data as Blob);
+  return URL.createObjectURL(blob);
+}

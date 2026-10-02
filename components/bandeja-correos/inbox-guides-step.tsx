@@ -10,7 +10,8 @@ import { PasteBatchView } from "@/lib/types/inbox";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { BATCH_LABEL, CONS_KIND_LABEL, formatDateTime, formatMinutes } from "./labels";
-import { CheckCircle2, Copy, Loader2, Package, Plane, Truck, Upload } from "lucide-react";
+import { CheckCircle2, Copy, Eye, Loader2, Package, Plane, Truck, Upload } from "lucide-react";
+import { ViewerTarget } from "./attachment-viewer";
 
 const ICON = { master: Package, aereo: Plane, f2: Truck } as const;
 
@@ -20,6 +21,8 @@ interface Props {
   /** La sucursal ya está decidida (confirmada o detectada con certeza). */
   ready: boolean;
   onChanged: () => void;
+  /** Abrir un archivo en el visor (con la hoja del bloque). */
+  onView: (t: ViewerTarget) => void;
 }
 
 function plural(n: number, one: string, many: string) {
@@ -27,7 +30,7 @@ function plural(n: number, one: string, many: string) {
 }
 
 /** Paso 2: bloques de guías del correo; cada uno se sube abriendo "Pegar FedEx" ya capturado. */
-export function InboxGuidesStep({ messageId, subject, ready, onChanged }: Props) {
+export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }: Props) {
   const { data: plan, isLoading, mutate } = useSWR(["/inbox/paste-plan", messageId], () => getInboxPastePlan(messageId));
   const [prefill, setPrefill] = useState<(PastePrefill & { batch: PasteBatchView }) | null>(null);
 
@@ -50,7 +53,7 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged }: Props)
   async function handleImported(r: { consNumber: string }) {
     if (!prefill) return;
     try {
-      await markInboxPasted(messageId, { attachmentId: prefill.batch.attachmentId, kind: prefill.batch.kind, consNumber: r.consNumber });
+      await markInboxPasted(messageId, { attachmentId: prefill.batch.attachmentId, kind: prefill.batch.kind, consNumber: r.consNumber, key: prefill.batch.key });
       toast.success("Guías subidas; quedó registrado en la bandeja");
       await mutate();
       onChanged();
@@ -70,7 +73,7 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged }: Props)
   const announcedOnly = plan?.announcedOnly ?? [];
   const announcedList = announcedOnly.length > 0 && (
     <div className="rounded-md border border-dashed px-3 py-2">
-      <p className="mb-1 text-xs font-medium text-slate-600">También viene en el texto del correo, sin archivo adjunto:</p>
+      <p className="mb-1 text-xs font-medium text-slate-600">El correo también menciona:</p>
       <ul className="space-y-1">
         {announcedOnly.map((c) => (
           <li key={`${c.kind}-${c.consNumber}`} className="flex flex-wrap items-center gap-2 text-xs">
@@ -79,13 +82,15 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged }: Props)
             </Badge>
             <span className="font-mono text-slate-700">{c.consNumber}</span>
             {c.announcedCount != null && <span className="text-slate-500">{plural(c.announcedCount, "guía", "guías")}</span>}
-            {c.uploaded ? (
+            {c.insideSheet ? (
+              <span className="text-slate-600">Viene en la hoja “{c.insideSheet}” del archivo master; se sube junto con él.</span>
+            ) : c.uploaded ? (
               <span className="flex items-center gap-1 text-emerald-700">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Ya está en el sistema ({formatDateTime(c.uploaded.at)}
                 {c.uploaded.byName ? ` · ${c.uploaded.byName}` : ""})
               </span>
             ) : (
-              <span className="text-slate-500">Todavía no aparece en el sistema; se marca solo cuando se suba.</span>
+              <span className="text-amber-700">El correo lo menciona, pero no trae su archivo. Pídeselo a FedEx o súbelo cuando llegue.</span>
             )}
           </li>
         ))}
@@ -116,9 +121,15 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged }: Props)
               <Icon className={cn("h-4 w-4 shrink-0", uploaded ? "text-emerald-600" : "text-slate-500")} />
               <span className="text-sm font-semibold text-slate-800">{BATCH_LABEL[b.kind]}</span>
               <span className="truncate font-mono text-xs text-slate-600">{b.consNumber ? `consolidado ${b.consNumber}` : "sin número de consolidado"}</span>
-              <span className="ml-auto truncate text-[11px] text-slate-400" title={b.filename}>
-                {b.filename}
-              </span>
+              <Button
+                variant="link"
+                className="ml-auto h-auto min-w-0 gap-1 truncate p-0 text-[11px] text-slate-500"
+                title={`Ver ${b.filename}`}
+                onClick={() => onView({ id: b.attachmentId, filename: b.filename.replace(/ · hoja ".*"$/, ""), sheet: b.sheet })}
+              >
+                <Eye className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{b.sheet ? `Ver hoja "${b.sheet}"` : "Ver archivo"}</span>
+              </Button>
             </div>
 
             <p className="mt-1 text-sm text-slate-700">

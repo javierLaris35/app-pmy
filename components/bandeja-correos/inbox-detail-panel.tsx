@@ -18,8 +18,9 @@ import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { InboxGuidesStep } from "./inbox-guides-step";
+import { AttachmentViewer, ViewerTarget } from "./attachment-viewer";
 import { ATTACHMENT_LABEL, SIGNAL_LABEL, formatDateTime, knownByPhrase } from "./labels";
-import { AlertTriangle, CheckCircle2, ChevronDown, Download, EyeOff, HelpCircle, Loader2, MailOpen, MoreHorizontal } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Download, Eye, EyeOff, HelpCircle, Loader2, MailOpen, MoreHorizontal } from "lucide-react";
 
 const KIND_OPTIONS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "ccp", "ccp_ignored", "dhl", "pdf", "other"];
 const GUIDE_KINDS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "dhl"];
@@ -40,6 +41,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
   const [ignoreOpen, setIgnoreOpen] = useState(false);
   const [ignoreReason, setIgnoreReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [viewer, setViewer] = useState<ViewerTarget | null>(null);
 
   const m = data?.message;
   const d = data?.detection;
@@ -253,7 +255,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
             {/* ② Guías */}
             <section>
               <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">② Guías que trae el correo</h3>
-              <InboxGuidesStep messageId={m.id} subject={m.subject} ready={decided && !editing} onChanged={onChanged} />
+              <InboxGuidesStep messageId={m.id} subject={m.subject} ready={decided && !editing} onChanged={onChanged} onView={setViewer} />
               {infoFiles.length > 0 && (
                 <p className="mt-2 text-xs text-slate-500">
                   No se suben (son informativos): {infoFiles.map((a) => a.filename).join(", ")}.
@@ -313,6 +315,14 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                     </Select>
                     <Button
                       variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      onClick={() => setViewer({ id: a.id, filename: a.filename, contentType: a.contentType })}
+                    >
+                      <Eye className="h-4 w-4" /> Ver
+                    </Button>
+                    <Button
+                      variant="ghost"
                       size="icon"
                       className="h-7 w-7"
                       aria-label={`Descargar ${a.filename}`}
@@ -345,6 +355,8 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
           {m.hasQuotedHistory && <p className="mt-1 text-xs text-slate-500">Este correo trae mensajes anteriores del hilo; solo se leyó el mensaje nuevo.</p>}
         </section>
       </div>
+
+      <AttachmentViewer target={viewer} onClose={() => setViewer(null)} />
 
       <Dialog open={ignoreOpen} onOpenChange={setIgnoreOpen}>
         <DialogContent className="sm:max-w-md">

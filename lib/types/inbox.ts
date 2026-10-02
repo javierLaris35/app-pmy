@@ -80,6 +80,7 @@ export interface InboxDetail {
     id: string;
     filename: string;
     size: number;
+    contentType: string;
     kind: AttachmentKind;
     kindSource: "nombre" | "contenido" | "manual";
     consNumber: string | null;
@@ -188,6 +189,7 @@ export interface PasteBatchView extends PasteBatch {
   cobrosCount: number;
   uploaded: { at: string; byName: string | null; minutes: number | null; via: string | null } | null;
   duplicateOf?: string;
+  sheet?: string;
 }
 
 export interface PastePlan {
@@ -195,5 +197,5 @@ export interface PastePlan {
   reason: string | null;
   batches: PasteBatchView[];
   /** Consolidados que el correo anuncia sin archivo adjunto (COD, F2 o HV solo en el texto). */
-  announcedOnly: { consNumber: string; kind: ConsolidationKind; announcedCount: number | null; uploaded: { at: string; byName: string | null; minutes: number | null } | null }[];
+  announcedOnly: { consNumber: string; kind: ConsolidationKind; announcedCount: number | null; insideSheet: string | null; uploaded: { at: string; byName: string | null; minutes: number | null } | null }[];
 }
