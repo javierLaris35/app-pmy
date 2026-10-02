@@ -140,7 +140,7 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
             </p>
 
             {uploaded ? (
-              <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-emerald-800">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-emerald-800">
                 <CheckCircle2 className="h-4 w-4" />
                 Subidas el {formatDateTime(uploaded.at)}
                 {uploaded.byName ? ` por ${uploaded.byName}` : ""}
@@ -150,7 +150,7 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
                     desde la bandeja
                   </Badge>
                 )}
-              </p>
+              </div>
             ) : duplicate ? (
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                 <Copy className="h-3.5 w-3.5" /> Repetido: son las mismas guías de “{fileOf(b.duplicateOf)}”. No hace falta subirlo.
