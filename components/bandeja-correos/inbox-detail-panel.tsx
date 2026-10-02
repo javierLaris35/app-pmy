@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SucursalSelector } from "@/components/sucursal-selector";
@@ -53,6 +54,12 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
 
   const decided = m?.status === "confirmado" || m?.status === "detectado";
   const phrase = useMemo(() => (d ? knownByPhrase(d.signals, suggested) : null), [d, suggested]);
+  const topZips = useMemo(() => {
+    const all: Record<string, number> = {};
+    for (const a of data?.attachments ?? []) for (const [z, n] of Object.entries(a.zipSummary ?? {})) all[z] = (all[z] ?? 0) + n;
+    return Object.entries(all).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [data?.attachments]);
+  const cobros = useMemo(() => (data?.consolidations ?? []).flatMap((c) => c.cobros ?? []), [data?.consolidations]);
 
   async function save(subId: string) {
     if (!id || !subId) {
@@ -210,23 +217,36 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                 </div>
               )}
 
-              {d && d.signals.length > 0 && (
-                <Collapsible className="mt-2">
-                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-                    <HelpCircle className="h-3.5 w-3.5" /> Ver cómo se decidió <ChevronDown className="h-3.5 w-3.5" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <ul className="mt-1.5 space-y-1 rounded-md border bg-slate-50 p-2">
+              {d && (d.signals.length > 0 || topZips.length > 0) && (
+                <div className="mt-3 rounded-md border p-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                    <HelpCircle className="h-3.5 w-3.5 text-slate-400" /> ¿Por qué esta sucursal?
+                    {d.runnerUpName && <span className="font-normal text-slate-500">(segunda opción: {d.runnerUpName})</span>}
+                  </p>
+                  {d.signals.length > 0 ? (
+                    <ul className="space-y-1">
                       {[...d.signals].sort((a, b) => b.weight - a.weight).map((s, i) => (
                         <li key={i} className="flex items-center gap-2 text-xs">
-                          <span className="w-36 shrink-0 text-slate-500">{SIGNAL_LABEL[s.type] ?? s.type}</span>
-                          <span className="w-32 shrink-0 truncate font-medium">{s.subsidiaryName ?? "—"}</span>
-                          <span className="truncate text-slate-600">{s.note}</span>
+                          <Badge variant="secondary" className="w-36 shrink-0 justify-center px-1.5 py-0 text-[11px]">
+                            {SIGNAL_LABEL[s.type] ?? s.type}
+                          </Badge>
+                          <span className="w-28 shrink-0 truncate font-medium">{s.subsidiaryName ?? "—"}</span>
+                          <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded bg-slate-100" aria-hidden>
+                            <span className="block h-full bg-sky-500" style={{ width: `${Math.min(100, s.weight * 100)}%` }} />
+                          </span>
+                          <span className="truncate text-slate-600" title={s.note}>
+                            {s.note}
+                          </span>
                         </li>
                       ))}
                     </ul>
-                  </CollapsibleContent>
-                </Collapsible>
+                  ) : (
+                    <p className="text-xs text-slate-500">Ninguna pista apuntó a una sucursal.</p>
+                  )}
+                  {topZips.length > 0 && (
+                    <p className="mt-2 text-xs text-slate-500">CP más frecuentes del archivo: {topZips.map(([z, n]) => `${z} (${n})`).join(" · ")}</p>
+                  )}
+                </div>
               )}
             </section>
 
@@ -243,14 +263,36 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
           </>
         )}
 
-        {/* ③ Correo original */}
-        <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center gap-1 border-t pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700">
-            Correo original y archivos <ChevronDown className="h-3.5 w-3.5" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-3 pt-2">
-            {data.attachments.length > 0 && (
-              <ul className="divide-y rounded-md border">
+        {/* Cobros del cuerpo del correo */}
+        {cobros.length > 0 && (
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+              Cobros del correo ({cobros.length}) <ChevronDown className="h-4 w-4" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <Table>
+                <TableBody>
+                  {cobros.map((c, i) => (
+                    <TableRow key={`${c.trackingNumber}-${i}`}>
+                      <TableCell className="px-2 py-1 font-mono text-xs">{c.trackingNumber}</TableCell>
+                      <TableCell className="px-2 py-1 text-xs">{c.date ?? "—"}</TableCell>
+                      <TableCell className="px-2 py-1 text-xs">{c.concept}</TableCell>
+                      <TableCell className="px-2 py-1 text-right text-xs tabular-nums">
+                        {c.amount != null ? c.amount.toLocaleString("es-MX", { style: "currency", currency: "MXN" }) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Archivos */}
+        {data.attachments.length > 0 && (
+          <section>
+            <h3 className="mb-1 text-sm font-semibold text-slate-800">Archivos</h3>
+            <ul className="divide-y rounded-md border">
                 {data.attachments.map((a) => (
                   <li key={a.id} className="flex items-center gap-2 px-2 py-1.5 text-xs">
                     <span className="min-w-0 flex-1 truncate" title={a.filename}>
@@ -280,24 +322,28 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                     </Button>
                   </li>
                 ))}
-              </ul>
-            )}
+            </ul>
             {Object.keys(kinds).length > 0 && (
-              <div className="flex items-center gap-2 text-xs text-amber-800">
+              <div className="mt-1 flex items-center gap-2 text-xs text-amber-800">
                 Cambiaste el tipo de un archivo.
                 <Button size="sm" variant="outline" className="h-7" disabled={busy || !subsidiaryId} onClick={() => save(subsidiaryId)}>
                   Guardar cambios
                 </Button>
               </div>
             )}
-            {m.htmlSafe ? (
-              <iframe title="Contenido del correo" sandbox="" srcDoc={m.htmlSafe} className="h-[380px] w-full rounded-md border bg-white" />
-            ) : (
-              <pre className="max-h-[380px] overflow-auto whitespace-pre-wrap rounded-md border bg-white p-3 text-xs">{m.textTop || "(sin texto)"}</pre>
-            )}
-            {m.hasQuotedHistory && <p className="text-xs text-slate-500">Trae mensajes anteriores del hilo; solo se leyó el mensaje nuevo.</p>}
-          </CollapsibleContent>
-        </Collapsible>
+          </section>
+        )}
+
+        {/* Correo */}
+        <section>
+          <h3 className="mb-1 text-sm font-semibold text-slate-800">Correo</h3>
+          {m.htmlSafe ? (
+            <iframe title="Contenido del correo" sandbox="" srcDoc={m.htmlSafe} className="h-[420px] w-full rounded-md border bg-white" />
+          ) : (
+            <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-md border bg-white p-3 text-xs">{m.textTop || "(sin texto)"}</pre>
+          )}
+          {m.hasQuotedHistory && <p className="mt-1 text-xs text-slate-500">Este correo trae mensajes anteriores del hilo; solo se leyó el mensaje nuevo.</p>}
+        </section>
       </div>
 
       <Dialog open={ignoreOpen} onOpenChange={setIgnoreOpen}>
