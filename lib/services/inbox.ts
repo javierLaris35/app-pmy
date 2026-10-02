@@ -75,3 +75,9 @@ export function inboxErrorText(e: unknown, fallback: string): string {
   if (typeof msg === "string" && msg && !/^[A-Za-z ]+Exception$/.test(msg) && (e as any)?.response?.status < 500) return msg;
   return fallback;
 }
+
+export const getInboxPastePlan = async (id: string): Promise<import("../types/inbox").PastePlan> =>
+  (await axiosConfig.get(`${baseUrl}/messages/${id}/paste-plan`)).data;
+
+export const markInboxPasted = async (id: string, body: { attachmentId: string; kind: import("../types/inbox").PasteBatchKind; consNumber: string }) =>
+  (await axiosConfig.post(`${baseUrl}/messages/${id}/pasted`, body)).data;

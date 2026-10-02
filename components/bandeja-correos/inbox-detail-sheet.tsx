@@ -14,6 +14,7 @@ import { confirmInboxMessage, downloadInboxAttachment, ignoreInboxMessage, inbox
 import { AttachmentKind } from "@/lib/types/inbox";
 import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
+import { InboxPasteSection } from "./inbox-paste-section";
 import { ATTACHMENT_LABEL, CONS_KIND_LABEL, SIGNAL_LABEL, STATUS_LABEL, certaintyPill, formatDateTime, formatMinutes } from "./labels";
 import { Check, ChevronDown, Download, EyeOff, Loader2 } from "lucide-react";
 
@@ -50,11 +51,12 @@ export function InboxDetailSheet({ id, onOpenChange, onChanged }: Props) {
   const d = data?.detection;
   const isConfirmed = m?.status === "confirmado";
 
-  async function handleConfirm() {
-    if (!id) return;
+  /** Confirma la sucursal elegida (y tipos cambiados). Devuelve si se pudo. */
+  async function confirmSelected(): Promise<boolean> {
+    if (!id) return false;
     if (!subsidiaryId) {
       toast.error("Elige la sucursal antes de confirmar");
-      return;
+      return false;
     }
     setBusy("confirm");
     try {
@@ -62,12 +64,19 @@ export function InboxDetailSheet({ id, onOpenChange, onChanged }: Props) {
       toast.success("Sucursal confirmada; el sistema aprendió de este correo");
       await mutate();
       onChanged();
+      return true;
     } catch (e) {
       toast.error(inboxErrorText(e, "No se pudo confirmar el correo"));
+      return false;
     } finally {
       setBusy(null);
     }
   }
+  const handleConfirm = () => void confirmSelected();
+  // Mandar al pegado sin pedir otra confirmación solo si ya está confirmado o detectado seguro,
+  // con la misma sucursal y sin tipos de archivo cambiados.
+  const needsConfirm =
+    !(m?.status === "confirmado" || m?.status === "detectado") || subsidiaryId !== (m?.subsidiaryId ?? "") || Object.keys(kinds).length > 0;
 
   async function handleIgnore() {
     if (!id) return;
@@ -140,6 +149,16 @@ export function InboxDetailSheet({ id, onOpenChange, onChanged }: Props) {
                   </div>
                 )}
               </div>
+            )}
+            {m.status !== "error" && m.status !== "ignorado" && (
+              <InboxPasteSection
+                messageId={m.id}
+                subject={m.subject}
+                selectedSubsidiaryId={subsidiaryId}
+                needsConfirm={needsConfirm}
+                ensureConfirmed={confirmSelected}
+                onChanged={onChanged}
+              />
             )}
             {m.status === "error" && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{m.errorMessage}</p>}
             {m.status === "ignorado" && m.ignoreReason && <p className="text-xs text-slate-500">Ignorado: {m.ignoreReason}</p>}

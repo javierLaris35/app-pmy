@@ -84,6 +84,11 @@ export function InboxBoard({ from, to, subsidiaryId, active, onOpenMessage }: Pr
                           <span className="text-emerald-700">
                             Subido {formatDateTime(i.uploadedAt)}
                             {i.uploadedByName ? ` · ${i.uploadedByName}` : ""}
+                            {i.uploadedVia === "correo" && (
+                              <Badge variant="outline" className="ml-1 border-sky-200 bg-sky-50 px-1.5 py-0 text-[10px] text-sky-700">
+                                desde correo
+                              </Badge>
+                            )}
                           </span>
                         ) : (
                           <span className={delayTone(i.minutes, true)}>Sin subir</span>

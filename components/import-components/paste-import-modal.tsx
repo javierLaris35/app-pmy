@@ -38,7 +38,7 @@ import {
 } from "@/lib/fedex-header-map";
 
 const FEDEX = "#4D148C";
-type PasteKind = "master" | "f2";
+export type PasteKind = "master" | "f2";
 
 /** Resumen normalizado que se muestra al terminar de importar. */
 type SubmitResult = {
@@ -99,9 +99,28 @@ function CountChip({ label, value, tone = "neutral" }: { label: string; value: n
   );
 }
 
+/** Datos para abrir el pegado ya lleno (p. ej. desde la Bandeja de correos). */
+export interface PastePrefill {
+  key: string;
+  kind: PasteKind;
+  subsidiaryId: string;
+  consNumber: string;
+  consDate: string;
+  isAereo: boolean;
+  raw: string;
+  paymentsRaw?: string;
+  hvRaw?: string;
+  /** Texto del aviso "Datos tomados de…". */
+  sourceLabel?: string;
+}
+
 export function PasteImportModal({
-  open = true, onOpenChange, subsidiaryId, asPage = false, onClose, helpHandleRef,
+  open = true, onOpenChange, subsidiaryId, asPage = false, onClose, helpHandleRef, prefill, onImported,
 }: {
+  /** Abre el pegado ya lleno; cambia `key` para volver a llenarlo. */
+  prefill?: PastePrefill | null;
+  /** Se llama al terminar de importar con éxito. */
+  onImported?: (r: { kind: PasteKind; consNumber: string; isAereo: boolean }) => void;
   open?: boolean;
   onOpenChange?: (o: boolean) => void;
   subsidiaryId?: string;
@@ -148,6 +167,25 @@ export function PasteImportModal({
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setLocalSubsidiaryId(subsidiaryId ?? ""); }, [subsidiaryId]);
+
+  // Llenado desde fuera (Bandeja de correos): mismos estados que al pegar a mano.
+  useEffect(() => {
+    if (!prefill) return;
+    setKind(prefill.kind);
+    setLocalSubsidiaryId(prefill.subsidiaryId);
+    setConsNumber(prefill.consNumber);
+    setConsDate(prefill.consDate || todayLocalISO());
+    setIsAereo(prefill.isAereo);
+    setRaw(prefill.raw);
+    setPaymentsRaw("");
+    setHvRaw("");
+    setPreview(null);
+    setResult(null);
+    // Los cobros del correo traen tipo (COD/FTC); si alguno no, se usa COD como en el flujo manual.
+    const pays = prefill.paymentsRaw ? parsePaymentsPaste(prefill.paymentsRaw).map((p) => (p.amount !== null && !p.type ? { ...p, type: "COD" } : p)) : [];
+    setAppliedPayments(pays);
+    setAppliedHv(prefill.hvRaw ? parseHvPaste(prefill.hvRaw) : []);
+  }, [prefill?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedSub = subsidiaries.find((s: any) => s.id === localSubsidiaryId) as any;
   const halfTonCost = Number(selectedSub?.chargeCostHalfTon ?? 0);
@@ -325,6 +363,7 @@ export function PasteImportModal({
         }
       }
       setResult(summary);
+      onImported?.({ kind, consNumber: consNumber.trim(), isAereo });
     } catch (e: any) {
       toast.error(e?.message || e?.response?.data?.message || "No se pudo importar el pegado.");
     } finally {
@@ -480,6 +519,14 @@ export function PasteImportModal({
         {/* BODY — en página fluye con el scroll de la página (sin altura fija ni fondo
             de tarjeta); en modal mantiene el scroll interno. */}
         <div className={asPage ? "space-y-5 pt-5" : "flex-1 min-h-0 overflow-y-auto bg-gray-50/40 p-6 space-y-5"}>
+          {prefill?.sourceLabel && (
+            <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Datos tomados de <b>{prefill.sourceLabel}</b>. Revisa sucursal, consolidado y fecha antes de importar.
+              </span>
+            </div>
+          )}
           {/* Config */}
           <div id="paste-fields" className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             {/* Datos del consolidado — primero: a dónde entra la importación. */}

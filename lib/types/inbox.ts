@@ -118,6 +118,7 @@ export interface BoardItem {
   receivedAt: string;
   uploadedAt: string | null;
   uploadedByName: string | null;
+  uploadedVia: "manual" | "auto" | "correo" | null;
   linkStatus: LinkStatus;
   minutes: number | null;
 }
@@ -159,4 +160,29 @@ export interface ZipCoverageRow {
   status: "sugerido" | "confirmado" | "excluido";
   lastSeenAt: string | null;
   sharedWith: string[];
+}
+
+export type PasteBatchKind = "master" | "aereo" | "f2";
+
+export interface PasteBatch {
+  key: string;
+  kind: PasteBatchKind;
+  attachmentId: string;
+  filename: string;
+  subsidiaryId: string | null;
+  consNumber: string;
+  consDate: string;
+  isAereo: boolean;
+  raw: string;
+  paymentsRaw: string;
+  hvRaw: string;
+  rows: number;
+  blockedReason: string | null;
+  done: boolean;
+}
+
+export interface PastePlan {
+  ready: boolean;
+  reason: string | null;
+  batches: PasteBatch[];
 }
