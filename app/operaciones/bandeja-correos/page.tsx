@@ -108,7 +108,7 @@ function BandejaCorreosPage() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList>
             <TabsTrigger value="correos">Correos</TabsTrigger>
-            <TabsTrigger value="tablero">Recibido vs subido</TabsTrigger>
+            <TabsTrigger value="tablero">Seguimiento</TabsTrigger>
           </TabsList>
 
           <TabsContent value="correos" className="mt-3 flex flex-col gap-3">

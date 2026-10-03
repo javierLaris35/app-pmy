@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { BATCH_LABEL, CONS_KIND_LABEL, formatDateTime, formatMinutes } from "./labels";
 import { CheckCircle2, Copy, Eye, Loader2, Package, Plane, Truck, Upload } from "lucide-react";
 import { ViewerTarget } from "./attachment-viewer";
+import { TrackingSteps } from "./tracking-steps";
+import { getTrackingForMessage } from "@/lib/services/ops-alerts";
 
 const ICON = { master: Package, aereo: Plane, f2: Truck } as const;
 
@@ -32,6 +34,9 @@ function plural(n: number, one: string, many: string) {
 /** Paso 2: bloques de guías del correo; cada uno se sube abriendo "Pegar FedEx" ya capturado. */
 export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }: Props) {
   const { data: plan, isLoading, mutate } = useSWR(["/inbox/paste-plan", messageId], () => getInboxPastePlan(messageId));
+  // Recorrido de cada consolidado ya subido (desembarque → ruta → cierre).
+  const { data: tracking, mutate: mutateTracking } = useSWR(["/ops-alerts/tracking/message", messageId], () => getTrackingForMessage(messageId));
+  const trackOf = (b: PasteBatchView) => tracking?.find((t) => t.consNumber === b.consNumber && t.kind === b.kind);
   const [prefill, setPrefill] = useState<(PastePrefill & { batch: PasteBatchView }) | null>(null);
 
   function openPaste(b: PasteBatchView) {
@@ -56,6 +61,7 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
       await markInboxPasted(messageId, { attachmentId: prefill.batch.attachmentId, kind: prefill.batch.kind, consNumber: r.consNumber, key: prefill.batch.key });
       toast.success("Guías subidas; quedó registrado en la bandeja");
       await mutate();
+      await mutateTracking();
       onChanged();
     } catch (e) {
       toast.error(inboxErrorText(e, "Las guías se subieron, pero no se pudo registrar en la bandeja"));
@@ -157,6 +163,11 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
                   <Badge variant="outline" className="border-emerald-200 bg-white px-1.5 py-0 text-[10px] text-emerald-700">
                     desde la bandeja
                   </Badge>
+                )}
+                {trackOf(b) && (
+                  <div className="mt-1 w-full">
+                    <TrackingSteps item={trackOf(b)!} />
+                  </div>
                 )}
               </div>
             ) : duplicate ? (

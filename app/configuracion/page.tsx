@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2, CalendarDays } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2, CalendarDays, AlarmClock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
@@ -38,6 +38,7 @@ const ServerBackupPanel = dynamic(() => import("@/components/configuracion/serve
 const InboxPanel = dynamic(() => import("@/components/configuracion/inbox-panel").then((m) => m.InboxPanel), { ssr: false, loading: PanelFallback })
 const ZipCoveragePanel = dynamic(() => import("@/components/configuracion/zip-coverage-panel").then((m) => m.ZipCoveragePanel), { ssr: false, loading: PanelFallback })
 const ServerPowerPanel = dynamic(() => import("@/components/configuracion/server-power-panel").then((m) => m.ServerPowerPanel), { ssr: false, loading: PanelFallback })
+const OpsAlertsPanel = dynamic(() => import("@/components/configuracion/ops-alerts-panel").then((m) => m.OpsAlertsPanel), { ssr: false, loading: PanelFallback })
 const WhatsappConfigPanel = dynamic(() => import("@/components/configuracion/whatsapp-config-panel").then((m) => m.WhatsappConfigPanel), { ssr: false, loading: PanelFallback })
 const PlantillasPanel = dynamic(() => import("@/components/configuracion/plantillas/plantillas-panel").then((m) => m.PlantillasPanel), { ssr: false, loading: PanelFallback })
 const BrandingPanel = dynamic(() => import("@/components/configuracion/branding-panel").then((m) => m.BrandingPanel), { ssr: false, loading: PanelFallback })
@@ -52,6 +53,7 @@ const SECTIONS = [
   { id: "catalogos", label: "Catálogos", icon: Tags, description: "Valores de los enums" },
   { id: "geocode", label: "Geolocalización", icon: MapPin, description: "Direcciones aprendidas" },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, description: "Avisos al chofer" },
+  { id: "alertas", label: "Alertas operativas", icon: AlarmClock, description: "Plazos y avisos por sucursal" },
   { id: "plantillas", label: "Plantillas", icon: Mail, description: "Correos configurables" },
   { id: "branding", label: "Branding", icon: Palette, description: "Identidad visual" },
   { id: "servidor", label: "Servidor", icon: Server, description: "Uso de CPU/RAM/disco/red" },
@@ -68,7 +70,7 @@ function ConfiguracionPage() {
   const { theme, setTheme } = useTheme()
   const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase()
   const isSuper = ["superadmin", "superamin"].includes(role)
-  const sections = SECTIONS.filter((s) => (s.id === "plantillas" || s.id === "branding") ? isSuper : true)
+  const sections = SECTIONS.filter((s) => (s.id === "plantillas" || s.id === "branding" || s.id === "alertas") ? isSuper : true)
 
   return (
     <AppLayout>
@@ -141,6 +143,8 @@ function ConfiguracionPage() {
             {section === "geocode" && <GeocodePanel />}
 
             {section === "whatsapp" && <WhatsappConfigPanel />}
+
+            {section === "alertas" && isSuper && <OpsAlertsPanel />}
 
             {section === "plantillas" && <PlantillasPanel />}
 
