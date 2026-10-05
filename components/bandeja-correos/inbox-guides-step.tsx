@@ -4,7 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PasteImportModal, PastePrefill } from "@/components/import-components/paste-import-modal";
+import { PasteImportModal, PastePrefill, SubmitResult } from "@/components/import-components/paste-import-modal";
 import { getInboxPastePlan, inboxErrorText, markInboxPasted } from "@/lib/services/inbox";
 import { PasteBatchView } from "@/lib/types/inbox";
 import { toast } from "@/lib/toast";
@@ -55,10 +55,20 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
     });
   }
 
-  async function handleImported(r: { consNumber: string }) {
+  async function handleImported(r: { consNumber: string; consDate: string; fileRows: number; summary: SubmitResult }) {
     if (!prefill) return;
     try {
-      await markInboxPasted(messageId, { attachmentId: prefill.batch.attachmentId, kind: prefill.batch.kind, consNumber: r.consNumber, key: prefill.batch.key });
+      await markInboxPasted(messageId, {
+        attachmentId: prefill.batch.attachmentId,
+        kind: prefill.batch.kind,
+        consNumber: r.consNumber,
+        key: prefill.batch.key,
+        sheet: prefill.batch.sheet,
+        consDate: r.consDate,
+        fileRows: r.fileRows,
+        cobrosCount: prefill.batch.cobrosCount,
+        summary: r.summary,
+      });
       toast.success("Guías subidas; quedó registrado en la bandeja");
       await mutate();
       await mutateTracking();

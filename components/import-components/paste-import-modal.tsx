@@ -41,7 +41,7 @@ const FEDEX = "#4D148C";
 export type PasteKind = "master" | "f2";
 
 /** Resumen normalizado que se muestra al terminar de importar. */
-type SubmitResult = {
+export type SubmitResult = {
   kind: PasteKind;
   saved: number;
   recycled?: number;        // reingresos (master)
@@ -120,7 +120,7 @@ export function PasteImportModal({
   /** Abre el pegado ya lleno; cambia `key` para volver a llenarlo. */
   prefill?: PastePrefill | null;
   /** Se llama al terminar de importar con éxito. */
-  onImported?: (r: { kind: PasteKind; consNumber: string; isAereo: boolean }) => void;
+  onImported?: (r: { kind: PasteKind; consNumber: string; isAereo: boolean; consDate: string; fileRows: number; summary: SubmitResult }) => void;
   open?: boolean;
   onOpenChange?: (o: boolean) => void;
   subsidiaryId?: string;
@@ -363,7 +363,7 @@ export function PasteImportModal({
         }
       }
       setResult(summary);
-      onImported?.({ kind, consNumber: consNumber.trim(), isAereo });
+      onImported?.({ kind, consNumber: consNumber.trim(), isAereo, consDate, fileRows: good.length, summary });
     } catch (e: any) {
       toast.error(e?.message || e?.response?.data?.message || "No se pudo importar el pegado.");
     } finally {

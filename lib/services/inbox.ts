@@ -79,7 +79,20 @@ export function inboxErrorText(e: unknown, fallback: string): string {
 export const getInboxPastePlan = async (id: string): Promise<import("../types/inbox").PastePlan> =>
   (await axiosConfig.get(`${baseUrl}/messages/${id}/paste-plan`)).data;
 
-export const markInboxPasted = async (id: string, body: { attachmentId: string; kind: import("../types/inbox").PasteBatchKind; consNumber: string; key?: string }) =>
+export const markInboxPasted = async (
+  id: string,
+  body: {
+    attachmentId: string;
+    kind: import("../types/inbox").PasteBatchKind;
+    consNumber: string;
+    key?: string;
+    sheet?: string;
+    consDate?: string;
+    fileRows?: number;
+    cobrosCount?: number;
+    summary?: Record<string, unknown>;
+  },
+) =>
   (await axiosConfig.post(`${baseUrl}/messages/${id}/pasted`, body)).data;
 
 export interface AttachmentPreview {

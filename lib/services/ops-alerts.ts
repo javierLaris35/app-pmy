@@ -16,6 +16,8 @@ export interface OpsSettings {
   lookbackDays: number;
   activeFrom: string;
   activeTo: string;
+  uploadNotifyEnabled: boolean;
+  uploadNotifyGroups: { id: string; name: string }[] | null;
 }
 
 export interface OpsSubsidiaryConfig {

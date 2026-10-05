@@ -221,6 +221,8 @@ export function OpsAlertsPanel() {
         </PanelContent>
       </Panel>
 
+      <UploadNotifyPanel settings={form} onSaved={() => mutateSettings()} />
+
       <SubsidiaryContactsDialog row={editing} onClose={() => setEditing(null)} onSaved={() => mutateSubs()} />
     </div>
   );
@@ -348,5 +350,75 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** WhatsApp a grupos cuando alguien sube guías desde la Bandeja de correos. */
+function UploadNotifyPanel({ settings, onSaved }: { settings: OpsSettings; onSaved: () => void }) {
+  const { data: groups, error } = useSWR("/ops-alerts/whatsapp-groups", getWhatsappGroups);
+  const [sel, setSel] = useState<{ id: string; name: string }[]>(settings.uploadNotifyGroups ?? []);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => setSel(settings.uploadNotifyGroups ?? []), [settings.uploadNotifyGroups]);
+
+  async function save(patch: Partial<OpsSettings>, okText: string) {
+    setSaving(true);
+    try {
+      await updateOpsSettings(patch);
+      toast.success(okText);
+      onSaved();
+    } catch (e) {
+      toast.error(errText(e, "No se pudo guardar"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>Aviso al subir desde la bandeja</PanelTitle>
+        <PanelDescription>
+          Cuando alguien sube guías desde la Bandeja de correos, se manda un WhatsApp con quién lo subió, el archivo, la sucursal, los paquetes, F2, alto valor y cobros.
+        </PanelDescription>
+      </PanelHeader>
+      <PanelContent className="space-y-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <Switch checked={settings.uploadNotifyEnabled} disabled={saving} onCheckedChange={(v) => save({ uploadNotifyEnabled: v }, v ? "Aviso activado" : "Aviso pausado")} />
+          {settings.uploadNotifyEnabled ? "Aviso activo" : "Aviso pausado"}
+        </label>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Grupos que reciben el aviso ({sel.length})</Label>
+          {!sel.length && <p className="text-[11px] text-slate-500">Si no eliges ninguno, se usan los grupos llamados “PMY (Monitoreo)” y “Sistemas PMY”.</p>}
+          {error ? (
+            <p className="text-xs text-amber-700">WhatsApp no está conectado. Vincula el número en Configuración → WhatsApp para elegir grupos.</p>
+          ) : !groups ? (
+            <p className="flex items-center gap-1 text-xs text-slate-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando grupos…
+            </p>
+          ) : (
+            <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-md border p-1">
+              {groups.map((g) => (
+                <label key={g.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-slate-50">
+                  <Checkbox
+                    checked={sel.some((x) => x.id === g.id)}
+                    onCheckedChange={(v) => setSel((s) => (v ? [...s, { id: g.id, name: g.subject }] : s.filter((x) => x.id !== g.id)))}
+                  />
+                  <span className="truncate">{g.subject}</span>
+                  <Badge variant="secondary" className="ml-auto px-1.5 py-0 text-[10px]">
+                    {g.participants}
+                  </Badge>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" className="gap-1.5" disabled={saving} onClick={() => save({ uploadNotifyGroups: sel }, "Grupos guardados")}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar grupos
+          </Button>
+        </div>
+      </PanelContent>
+    </Panel>
   );
 }
