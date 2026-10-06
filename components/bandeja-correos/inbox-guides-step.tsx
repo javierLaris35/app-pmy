@@ -162,6 +162,12 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
               <span className="text-slate-400"> · </span>
               {b.cobrosCount > 0 ? plural(b.cobrosCount, "cobro", "cobros") : "sin cobros"}
             </p>
+            {!!b.alreadyInMaster && !uploaded && (
+              <p className="mt-0.5 text-xs text-amber-700">
+                ⚠️ {plural(b.alreadyInMaster.count, "guía de esta F2 ya se subió", "guías de esta F2 ya se subieron")} como paquete en el master{" "}
+                <span className="font-mono">{b.alreadyInMaster.consNumber}</span> de este correo. Al subir la F2 pasan a carga (quedan solo de un lado).
+              </p>
+            )}
             {!!b.movedToF2 && (
               <p className="mt-0.5 text-xs text-sky-700">
                 {plural(b.movedToF2, "guía viene también en la F2", "guías vienen también en la F2")}: se suben solo como carga, no aquí (así no se cobran dos veces).

@@ -174,8 +174,6 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     otherSubsidiary?: { subsidiaryName: string; createdByName: string | null; createdAt: string; message: string } | null
     /** (master) Guías que ya son carga F2 de este consolidado: no se agregan como paquete. */
     alreadyF2Count?: number
-    /** F2: guías que ya son paquete normal en la sucursal (se pasan a carga). */
-    alreadyMasterCount?: number
   }
 
   /** Pre-valida un archivo SIN guardar: duplicados de guías + consNumber existente.

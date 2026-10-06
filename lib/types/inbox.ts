@@ -191,6 +191,8 @@ export interface PasteBatchView extends PasteBatch {
   duplicateOf?: string;
   /** Guías que también vienen en la F2 del mismo correo y por eso NO van en este bloque. */
   movedToF2?: number;
+  /** F2: guías de este bloque que ya se subieron como paquete en el master de este mismo correo. */
+  alreadyInMaster?: { count: number; consNumber: string };
   sheet?: string;
 }
 

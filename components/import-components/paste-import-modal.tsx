@@ -729,9 +729,6 @@ export function PasteImportModal({
                 {preview.alreadyImportedCount > 0 && <CountChip label="Ya existen" value={preview.alreadyImportedCount} tone="amber" />}
                 {preview.duplicatesInFile > 0 && <CountChip label="Dup. pegado" value={preview.duplicatesInFile} tone="amber" />}
                 {kind !== "f2" && (preview.alreadyF2Count ?? 0) > 0 && <CountChip label="Ya son F2 (se omiten)" value={preview.alreadyF2Count ?? 0} tone="amber" />}
-                {kind === "f2" && (preview.alreadyMasterCount ?? 0) > 0 && (
-                  <CountChip label={notRemoveCharge ? "Ya son paquete (quedarían dobles)" : "Ya son paquete (se pasan a carga)"} value={preview.alreadyMasterCount ?? 0} tone="amber" />
-                )}
                 {(c?.withPayment ?? 0) > 0 && <CountChip label="Con pago" value={c?.withPayment ?? 0} tone="green" />}
                 {kind !== "f2" && (c?.highValue ?? 0) > 0 && <CountChip label="Alto Valor" value={c?.highValue ?? 0} tone="purple" />}
               </div>
