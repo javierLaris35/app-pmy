@@ -30,6 +30,44 @@ export function sortWarehousePackages(a: PackageInfo, b: PackageInfo): number {
   return String(a.shipmentType ?? "").toUpperCase().localeCompare(String(b.shipmentType ?? "").toUpperCase());
 }
 
+/** Paquetería de un paquete de bodega: las cargas (F2) son FedEx. */
+export function warehouseCarrier(p: PackageInfo): "fedex" | "dhl" | "other" {
+  const t = String(p?.shipmentType ?? "").toLowerCase();
+  if (t === "dhl") return "dhl";
+  if (t === "fedex" || p?.isCharge) return "fedex";
+  return "other";
+}
+
+const CARRIER_RANK = { fedex: 0, dhl: 1, other: 2 } as const;
+const CARRIER_LABEL = { fedex: "FedEx", dhl: "DHL", other: "Otra paquetería" } as const;
+
+export function warehouseCarrierLabel(p: PackageInfo): string {
+  return CARRIER_LABEL[warehouseCarrier(p)];
+}
+
+/**
+ * Orden "Por paquetería": FedEx primero y DHL después, SIN mezclarlas. Dentro de
+ * cada bloque se respeta el orden en que llegaron (el sort es estable).
+ */
+export function sortWarehouseByCarrier(a: PackageInfo, b: PackageInfo): number {
+  return CARRIER_RANK[warehouseCarrier(a)] - CARRIER_RANK[warehouseCarrier(b)];
+}
+
+/** Comparador según el modo del toggle (`undefined` = como se escanearon). */
+export function warehouseSortComparator(
+  mode: "carrier" | "cp" | "scan",
+): ((a: PackageInfo, b: PackageInfo) => number) | undefined {
+  if (mode === "carrier") return sortWarehouseByCarrier;
+  if (mode === "cp") return sortWarehousePackages;
+  return undefined;
+}
+
+/** Copia ordenada según el modo; es el mismo orden que llevan el PDF y el Excel. */
+export function orderWarehousePackages<T extends PackageInfo>(packages: T[], mode: "carrier" | "cp" | "scan"): T[] {
+  const cmp = warehouseSortComparator(mode);
+  return cmp ? [...packages].sort(cmp) : [...packages];
+}
+
 export function makeResolveWarehouseScan(deps: {
   validate: (code: string, warehouseId: string, ctx: "inbound" | "outbound") => Promise<any>;
   warehouseId: string;

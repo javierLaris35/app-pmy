@@ -35,6 +35,11 @@ interface PackagesListProps {
   collapseLabel?: string;
   /** Identidad estable de cada paquete. Default: dhlUniqueId || trackingNumber || id. */
   getKey?: (pkg: PackageInfo) => string;
+  /**
+   * Agrupa visualmente la lista: pinta un encabezado (con conteo) cada vez que
+   * cambia el grupo. La lista debe venir ya ordenada por ese grupo.
+   */
+  groupBy?: (pkg: PackageInfo) => string;
 
   className?: string;
 }
@@ -61,6 +66,7 @@ export function PackagesList({
   expandLabel = "Ver piezas de la remesa",
   collapseLabel = "Ocultar piezas",
   getKey = defaultKey,
+  groupBy,
   className,
 }: PackagesListProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,6 +111,12 @@ export function PackagesList({
   );
 
   const filtered = useMemo(() => packages.filter(matchesFilters), [packages, matchesFilters]);
+
+  const groupCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (groupBy) filtered.forEach((p) => counts.set(groupBy(p), (counts.get(groupBy(p)) ?? 0) + 1));
+    return counts;
+  }, [filtered, groupBy]);
 
   const activeFilterCount =
     (priority !== "all" ? 1 : 0) +
@@ -156,12 +168,20 @@ export function PackagesList({
         </div>
       ) : (
         <div className={cn("overflow-y-auto rounded-md border", maxHeightClass)}>
-          {filtered.map((pkg) => {
+          {filtered.map((pkg, i) => {
             const key = getKey(pkg);
             const extra = renderExpanded?.(pkg);
             const isExpanded = expanded.has(key);
+            const group = groupBy?.(pkg);
+            const startsGroup = group !== undefined && (i === 0 || groupBy?.(filtered[i - 1]) !== group);
             return (
               <div key={key} className="border-b last:border-b-0">
+                {startsGroup ? (
+                  <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-muted px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span>{group}</span>
+                    <span>{groupCounts.get(group!) ?? 0}</span>
+                  </div>
+                ) : null}
                 <PackageListItem
                   pkg={pkg}
                   onRemove={onRemove ?? (() => {})}

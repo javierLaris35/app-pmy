@@ -2,13 +2,14 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ArrowDownWideNarrow, ScanLine } from "lucide-react";
+import { ArrowDownWideNarrow, Layers, ScanLine } from "lucide-react";
 
 /** Modo de orden de la lista de bodega (Entrada / Salida). */
-export type WarehouseSortMode = "cp" | "scan";
+export type WarehouseSortMode = "carrier" | "cp" | "scan";
 
 /**
  * Toggle para ordenar la lista de paquetes de bodega:
+ *  - "carrier": FedEx y DHL separados (FedEx primero), sin mezclarse (`sortWarehouseByCarrier`).
  *  - "cp": orden por sucursal → CP → carrier (comportamiento histórico, `sortWarehousePackages`).
  *  - "scan": orden en que se fueron escaneando (orden de inserción del buffer).
  *
@@ -28,8 +29,19 @@ export function WarehouseSortToggle({
       <Button
         type="button"
         size="sm"
-        variant={value === "cp" ? "default" : "ghost"}
+        variant={value === "carrier" ? "default" : "ghost"}
         className="gap-1.5 rounded-none"
+        onClick={() => onChange("carrier")}
+        aria-pressed={value === "carrier"}
+      >
+        <Layers className="h-4 w-4" />
+        Por paquetería
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={value === "cp" ? "default" : "ghost"}
+        className="gap-1.5 rounded-none border-l"
         onClick={() => onChange("cp")}
         aria-pressed={value === "cp"}
       >

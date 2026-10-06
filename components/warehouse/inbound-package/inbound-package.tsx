@@ -24,7 +24,9 @@ import { WarehouseSortToggle, type WarehouseSortMode } from "@/components/wareho
 import {
   makeResolveWarehouseScan,
   computeWarehouseStats,
-  sortWarehousePackages,
+  orderWarehousePackages,
+  warehouseCarrierLabel,
+  warehouseSortComparator,
 } from "@/components/warehouse/shared/warehouse-scan"
 
 // Capa compartida de bodega
@@ -205,7 +207,7 @@ export default function InboundPackage() {
   // ---- Orden para payload / PDF / Excel: sigue el modo elegido en la UI. ----
   const sessionPackages = useMemo(
     () =>
-      (sortMode === "cp" ? [...packages].sort(sortWarehousePackages) : [...packages]).map((p) =>
+      orderWarehousePackages(packages, sortMode).map((p) =>
         toSessionShipment(p as WarehousePackageInfo),
       ),
     [packages, sortMode],
@@ -245,8 +247,7 @@ export default function InboundPackage() {
     warehouse: s.effectiveWarehouseId,
     vehicle: resolveId(s.vehicleId),
     drivers: s.driverIds.map(resolveId),
-    shipments: [...packages]
-      .sort(sortWarehousePackages)
+    shipments: orderWarehousePackages(packages, sortMode)
       .map((p) => {
         const wp = p as WarehousePackageInfo
         return {
@@ -377,7 +378,7 @@ export default function InboundPackage() {
                 onScan={resolveScan}
                 onRemittance={onRemittance}
                 onPackagesChange={setPackages}
-                sortComparator={sortMode === "cp" ? sortWarehousePackages : undefined}
+                sortComparator={warehouseSortComparator(sortMode)}
                 renderRichList={(pkgs, { onRemove }) => (
                   <PackagesList
                     packages={s.groupRemesas ? groupRemittances(pkgs as WarehousePackageInfo[]) : pkgs}
@@ -396,6 +397,7 @@ export default function InboundPackage() {
                         <RemittancePiecesPanel pkg={pkg as WarehousePackageInfo} />
                       ) : null
                     }
+                    groupBy={sortMode === "carrier" ? warehouseCarrierLabel : undefined}
                     maxHeightClass="max-h-[640px]"
                     emptyTitle="Sin paquetes escaneados"
                     emptyDescription="Escanee un código de barras para comenzar el ingreso."
