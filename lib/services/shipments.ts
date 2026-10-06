@@ -170,6 +170,10 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
       id: string; consNumber: string; type: string; date: string | null; numberOfPackages: number; subsidiary: string | null
       isExactMatch?: boolean; isDateConflict?: boolean
     } | null
+    /** El consolidado ya está activo en OTRA sucursal: la subida se bloquea (mensaje en llano). */
+    otherSubsidiary?: { subsidiaryName: string; createdByName: string | null; createdAt: string; message: string } | null
+    /** (master) Guías que ya son carga F2 de este consolidado: no se agregan como paquete. */
+    alreadyF2Count?: number
   }
 
   /** Pre-valida un archivo SIN guardar: duplicados de guías + consNumber existente.

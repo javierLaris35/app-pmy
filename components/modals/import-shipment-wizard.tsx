@@ -268,6 +268,9 @@ export function ShipmentWizardModal({
       if (preview.parseError) return setError(`Archivo inválido: ${preview.parseError}`);
       if (preview.withTracking === 0) return setError("El archivo no contiene guías válidas.");
       
+      // Bloqueo: el consolidado ya está activo en otra sucursal (doble cobro)
+      if (preview.otherSubsidiary) return setError(preview.otherSubsidiary.message);
+
       // Bloqueo por fecha ocupada
       if (preview.consNumberExists?.isDateConflict) {
         return setError(`Ya existe otro consolidado (${preview.consNumberExists.consNumber}) en esta fecha. No se permite más de un consolidado por día.`);
@@ -348,7 +351,7 @@ export function ShipmentWizardModal({
   // Condición calculada para deshabilitar el botón "Siguiente"
   const isNextDisabled = loading || previewing ||
     (step < 4 && !files[step] && step !== 1 && step !== 0) ||
-    (PREVIEW_STEPS.includes(step) && !!preview && (preview.consNumberExists?.isDateConflict || (preview.newCount === 0 && (preview.recycledCount ?? 0) === 0) || !!preview.parseError));
+    (PREVIEW_STEPS.includes(step) && !!preview && (!!preview.otherSubsidiary || preview.consNumberExists?.isDateConflict || (preview.newCount === 0 && (preview.recycledCount ?? 0) === 0) || !!preview.parseError));
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -568,7 +571,12 @@ export function ShipmentWizardModal({
                             <div className={cn("rounded-lg border p-2 text-center", preview.duplicatesInFile ? "border-amber-200 bg-amber-50" : "bg-background")}><div className={cn("text-base font-bold tabular-nums", preview.duplicatesInFile && "text-amber-700")}>{preview.duplicatesInFile}</div><div className="text-[10px] uppercase text-muted-foreground">Dup. archivo</div></div>
                           </div>
 
-                          {preview.consNumberExists?.isDateConflict ? (
+                          {preview.otherSubsidiary ? (
+                            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 font-medium text-destructive">
+                              <X className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span>{preview.otherSubsidiary.message}</span>
+                            </div>
+                          ) : preview.consNumberExists?.isDateConflict ? (
                             <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 font-medium text-destructive">
                               <X className="mt-0.5 h-4 w-4 shrink-0" />
                               <span>Ya existe otro consolidado en esta fecha (<b>{preview.consNumberExists.consNumber}</b>). Usa otra fecha o el mismo número de consolidado.</span>
@@ -590,6 +598,12 @@ export function ShipmentWizardModal({
                               <span className="leading-tight">
                                 <b>{preview.newCount}</b> guías nuevas{(preview.recycledCount ?? 0) > 0 && <> + <b>{preview.recycledCount}</b> reingresos</>} listas para importar.{preview.alreadyImportedCount > 0 && <span className="text-amber-700"> <b>{preview.alreadyImportedCount}</b> ya existen y se omiten.</span>}
                               </span>
+                            </div>
+                          )}
+                          {(preview.alreadyF2Count ?? 0) > 0 && !preview.otherSubsidiary && (
+                            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-amber-800">
+                              <HelpCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span className="leading-tight"><b>{preview.alreadyF2Count}</b> guías ya están en la carga F2 de este consolidado; no se agregan como paquete.</span>
                             </div>
                           )}
                         </>

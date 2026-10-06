@@ -303,6 +303,8 @@ export function PasteImportModal({
     // Validación del backend (aplica a master y F2 por igual).
     if (preview) {
       if (preview.parseError) return `Archivo inválido: ${preview.parseError}`;
+      // El consolidado ya está activo en otra sucursal: no se puede subir (doble cobro).
+      if (preview.otherSubsidiary) return preview.otherSubsidiary.message;
       // Nada procesable: ni guías nuevas ni reingresos (todas ya existen en este consolidado).
       if (preview.newCount === 0 && (preview.recycledCount ?? 0) === 0) {
         return kind === "f2"
@@ -719,6 +721,7 @@ export function PasteImportModal({
                 {kind !== "f2" && preview.recycledCount > 0 && <CountChip label="Reingresos" value={preview.recycledCount} tone="blue" />}
                 {preview.alreadyImportedCount > 0 && <CountChip label="Ya existen" value={preview.alreadyImportedCount} tone="amber" />}
                 {preview.duplicatesInFile > 0 && <CountChip label="Dup. pegado" value={preview.duplicatesInFile} tone="amber" />}
+                {kind !== "f2" && (preview.alreadyF2Count ?? 0) > 0 && <CountChip label="Ya son F2 (se omiten)" value={preview.alreadyF2Count ?? 0} tone="amber" />}
                 {(c?.withPayment ?? 0) > 0 && <CountChip label="Con pago" value={c?.withPayment ?? 0} tone="green" />}
                 {kind !== "f2" && (c?.highValue ?? 0) > 0 && <CountChip label="Alto Valor" value={c?.highValue ?? 0} tone="purple" />}
               </div>
@@ -727,6 +730,9 @@ export function PasteImportModal({
                 const recycled = kind === "f2" ? 0 : (preview.recycledCount ?? 0);
                 if (preview.parseError) {
                   return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Archivo inválido: {preview.parseError}</p>;
+                }
+                if (preview.otherSubsidiary) {
+                  return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{preview.otherSubsidiary.message}</p>;
                 }
                 if (preview.newCount === 0 && recycled === 0) {
                   return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Todas las {unit} ya existen en este consolidado; no hay nuevas{kind === "f2" ? "" : " ni reingresos"}.</p>;
