@@ -189,6 +189,8 @@ export interface PasteBatchView extends PasteBatch {
   cobrosCount: number;
   uploaded: { at: string; byName: string | null; minutes: number | null; via: string | null } | null;
   duplicateOf?: string;
+  /** Guías que también vienen en la F2 del mismo correo y por eso NO van en este bloque. */
+  movedToF2?: number;
   sheet?: string;
 }
 

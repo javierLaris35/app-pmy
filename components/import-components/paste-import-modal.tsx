@@ -537,11 +537,18 @@ export function PasteImportModal({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="grid gap-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Sucursal (*)</Label>
-                  <SucursalSelector
-                    value={localSubsidiaryId}
-                    onValueChange={(val) => setLocalSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
-                    insideAModal={!asPage}
-                  />
+                  {prefill ? (
+                    // Viene de la Bandeja: la sucursal se decidió allá (paso 1); aquí no se cambia.
+                    <div className="flex h-9 items-center rounded-md border bg-slate-50 px-3 text-sm text-slate-700" title="La sucursal se cambia en la Bandeja de correos">
+                      {selectedSub?.name ?? "—"}
+                    </div>
+                  ) : (
+                    <SucursalSelector
+                      value={localSubsidiaryId}
+                      onValueChange={(val) => setLocalSubsidiaryId(typeof val === "string" ? val : Array.isArray(val) ? (val[0] as any)?.id ?? "" : (val as any)?.id ?? "")}
+                      insideAModal={!asPage}
+                    />
+                  )}
                 </div>
                 <div className="grid gap-1.5">
                   <Label className="text-xs font-semibold text-gray-700">No. de consolidado (*)</Label>
@@ -722,6 +729,9 @@ export function PasteImportModal({
                 {preview.alreadyImportedCount > 0 && <CountChip label="Ya existen" value={preview.alreadyImportedCount} tone="amber" />}
                 {preview.duplicatesInFile > 0 && <CountChip label="Dup. pegado" value={preview.duplicatesInFile} tone="amber" />}
                 {kind !== "f2" && (preview.alreadyF2Count ?? 0) > 0 && <CountChip label="Ya son F2 (se omiten)" value={preview.alreadyF2Count ?? 0} tone="amber" />}
+                {kind === "f2" && (preview.alreadyMasterCount ?? 0) > 0 && (
+                  <CountChip label={notRemoveCharge ? "Ya son paquete (quedarían dobles)" : "Ya son paquete (se pasan a carga)"} value={preview.alreadyMasterCount ?? 0} tone="amber" />
+                )}
                 {(c?.withPayment ?? 0) > 0 && <CountChip label="Con pago" value={c?.withPayment ?? 0} tone="green" />}
                 {kind !== "f2" && (c?.highValue ?? 0) > 0 && <CountChip label="Alto Valor" value={c?.highValue ?? 0} tone="purple" />}
               </div>

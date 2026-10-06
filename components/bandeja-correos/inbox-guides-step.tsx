@@ -162,6 +162,11 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
               <span className="text-slate-400"> · </span>
               {b.cobrosCount > 0 ? plural(b.cobrosCount, "cobro", "cobros") : "sin cobros"}
             </p>
+            {!!b.movedToF2 && (
+              <p className="mt-0.5 text-xs text-sky-700">
+                {plural(b.movedToF2, "guía viene también en la F2", "guías vienen también en la F2")}: se suben solo como carga, no aquí (así no se cobran dos veces).
+              </p>
+            )}
 
             {uploaded ? (
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-emerald-800">
