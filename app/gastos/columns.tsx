@@ -80,5 +80,5 @@ export const getGastosColumns = ({ onEdit, onDelete }: GastosColumnsProps) => [
   ),
   // Conectamos las acciones aquí
   createViewColumn<Expense>((data) => onEdit(data)),
-  createDeleteColumn<Expense>((data) => onDelete(data.id)),
+  createDeleteColumn<Expense>((data) => { if (data.id) onDelete(data.id); }),
 ];

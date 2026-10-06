@@ -43,9 +43,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { Expense, Vehicles } from "@/lib/types";
+import { VehicleStatus, type Expense, type Vehicles } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
-import { proratedAmountInRange, consultedRangeLabel } from "@/lib/expense-proration";
+import {
+  proratedAmountInRange,
+  consultedRangeLabel,
+  dayCountInclusive,
+  normalizePeriodEnd,
+  suggestedPeriodEnd,
+} from "@/lib/expense-proration";
 import { AppLayout } from "@/components/app-layout";
 import {
   Popover,
@@ -317,7 +323,7 @@ function GastosPage() {
     isLoading,
     isError,
     mutate,
-  } = useExpenses(effectiveSubsidiaryId);
+  } = useExpenses(effectiveSubsidiaryId ?? "");
 
   const { save, isSaving, isError: isSaveError } = useSaveExpense();
 
@@ -366,13 +372,27 @@ function GastosPage() {
   const [notas, setNotas] = useState("");
   const [comprobante, setComprobante] = useState<File | null>(null);
   const [vehiculoId, setVehiculoId] = useState<string>("");
-  const [selectedVehiculo, setSelectedVehiculo] = useState<Vehicles | undefined>(null);
+  const [selectedVehiculo, setSelectedVehiculo] = useState<Vehicles | undefined>(undefined);
   const [sucursalesDistribucion, setSucursalesDistribucion] = useState<SucursalSplit[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const selectedCategoryName = byId[categoriaId]?.name ?? "";
   const requiresVehicle = VEHICLE_CATEGORIES.includes(selectedCategoryName);
   const isRecurring = ["Semanal", "Mensual", "Anual"].includes(periodoPago);
+
+  // Periodo efectivo que se guardará: "hasta" capturado fecha a fecha (vie→vie, 27→27) se recorta
+  // un día, igual que el backend; si no, la semana se prorratea en 8 días y el mes en 31/32.
+  const periodStartStr = periodStart ? format(periodStart, "yyyy-MM-dd") : "";
+  const periodEndStr = periodEnd ? format(periodEnd, "yyyy-MM-dd") : "";
+  const effectivePeriodEnd =
+    periodStartStr && periodEndStr ? normalizePeriodEnd(periodoPago, periodStartStr, periodEndStr) : "";
+  const periodDays = effectivePeriodEnd ? dayCountInclusive(periodStartStr, effectivePeriodEnd) : 0;
+
+  const handlePeriodStartChange = (value: string) => {
+    setPeriodStart(value ? new Date(value + "T00:00:00") : undefined);
+    const sugerido = value ? suggestedPeriodEnd(periodoPago, value) : null;
+    if (sugerido) setPeriodEnd(new Date(sugerido + "T00:00:00"));
+  };
 
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
@@ -565,7 +585,7 @@ function GastosPage() {
 
     const fechaStr = format(fecha, "yyyy-MM-dd");
     const periodPayload = isRecurring && periodStart && periodEnd
-      ? { periodStart: format(periodStart, "yyyy-MM-dd"), periodEnd: format(periodEnd, "yyyy-MM-dd") }
+      ? { periodStart: periodStartStr, periodEnd: effectivePeriodEnd }
       : {};
 
     setIsDialogOpen(false);
@@ -597,7 +617,7 @@ function GastosPage() {
                 ? `${descripcion} - ${selectedVehiculo.plateNumber} (${selectedVehiculo.brand} ${selectedVehiculo.model}) ${notaDistribucion}`.trim()
                 : `${descripcion} ${notaDistribucion}`.trim(),
             paymentMethod: metodoPago,
-            frequency: periodoPago,
+            frequency: periodoPago as Expense["frequency"],
             responsible: responsable,
             vehicleId: requiresVehicle ? selectedVehiculo?.id : null,
             notes:
@@ -857,7 +877,7 @@ function GastosPage() {
               <div className="w-full sm:w-[250px]" id="sucursal-selector-container">
                 <SucursalSelector
                   value={effectiveSubsidiaryId || ""}
-                  onValueChange={setSelectedSucursalId}
+                  onValueChange={(v) => setSelectedSucursalId(v as string)}
                 />
               </div>
             </>
@@ -1303,7 +1323,7 @@ function GastosPage() {
                         value={dist.sucursalId}
                         onValueChange={(val) => {
                           const newDist = [...sucursalesDistribucion];
-                          newDist[index].sucursalId = val;
+                          newDist[index].sucursalId = val as string;
                           setSucursalesDistribucion(newDist);
                         }}
                       />
@@ -1370,10 +1390,10 @@ function GastosPage() {
                     Vehículo <span className="text-destructive">*</span>
                   </Label>
                   <UnidadSelector
-                    value={selectedVehiculo || ({} as Vehicles)}
+                    selectedUnidad={selectedVehiculo}
                     subsidiaryId={effectiveSubsidiaryId}
+                    isInsideModal
                     onSelectionChange={setSelectedVehiculo}
-                    placeholder="Selecciona el vehículo asociado a este gasto..."
                   />
                   {selectedVehiculo && (
                     <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-lg border mt-2">
@@ -1385,13 +1405,13 @@ function GastosPage() {
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {selectedVehiculo.kms?.toLocaleString()} km
-                          {selectedVehiculo.planeNumber &&
-                            ` • No. Placa: ${selectedVehiculo.planeNumber}`}
+                          {selectedVehiculo.plateNumber &&
+                            ` • No. Placa: ${selectedVehiculo.plateNumber}`}
                         </p>
                       </div>
                       <Badge
                         variant={
-                          selectedVehiculo.status === "active"
+                          selectedVehiculo.status === VehicleStatus.ACTIVE
                             ? "default"
                             : "secondary"
                         }
@@ -1456,8 +1476,8 @@ function GastosPage() {
                     <Label className="font-medium text-xs uppercase text-muted-foreground">Desde</Label>
                     <Input
                       type="date"
-                      value={periodStart ? format(periodStart, "yyyy-MM-dd") : ""}
-                      onChange={(e) => setPeriodStart(e.target.value ? new Date(e.target.value + "T00:00:00") : undefined)}
+                      value={periodStartStr}
+                      onChange={(e) => handlePeriodStartChange(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1470,8 +1490,19 @@ function GastosPage() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  El gasto se prorratea entre estos días. Para gastos de un solo día usa frecuencia Único o Diario.
+                  El gasto se reparte entre estos días, contando el primero y el último. Para gastos de un solo
+                  día usa frecuencia Único o Diario.
                 </p>
+                {periodDays > 0 && (
+                  <p className="text-xs font-medium">
+                    Cubre {periodDays} {periodDays === 1 ? "día" : "días"}: del {consultedRangeLabel(periodStartStr, effectivePeriodEnd)}
+                    {effectivePeriodEnd !== periodEndStr && (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}(el {consultedRangeLabel(periodEndStr, periodEndStr)} ya es del siguiente periodo, no se cuenta)
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
             )}
 

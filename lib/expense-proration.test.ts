@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { proratedAmountInRange, consultedRangeLabel } from "./expense-proration";
+import { proratedAmountInRange, consultedRangeLabel, normalizePeriodEnd, suggestedPeriodEnd } from "./expense-proration";
 
 describe("consultedRangeLabel", () => {
   it("shows a single date when start equals end", () => {
@@ -41,5 +41,18 @@ describe("proratedAmountInRange", () => {
   it("accepts Date objects for the expense date", () => {
     const fuel = { amount: 250, date: new Date("2026-08-18T00:00:00"), periodStart: null, periodEnd: null };
     expect(proratedAmountInRange(fuel, "2026-08-15", "2026-08-20")).toBe(250);
+  });
+});
+
+describe("normalizePeriodEnd / suggestedPeriodEnd (espejo del backend)", () => {
+  it("recorta el hasta capturado fecha a fecha", () => {
+    expect(normalizePeriodEnd("Semanal", "2026-08-14", "2026-08-21")).toBe("2026-08-20");
+    expect(normalizePeriodEnd("Mensual", "2026-09-01", "2026-10-01")).toBe("2026-09-30");
+    expect(normalizePeriodEnd("Mensual", "2026-08-01", "2026-08-31")).toBe("2026-08-31");
+  });
+  it("sugiere el último día incluido", () => {
+    expect(suggestedPeriodEnd("Semanal", "2026-09-28")).toBe("2026-10-04");
+    expect(suggestedPeriodEnd("Mensual", "2026-07-27")).toBe("2026-08-26");
+    expect(suggestedPeriodEnd("Único", "2026-07-27")).toBeNull();
   });
 });
