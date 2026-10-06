@@ -160,7 +160,10 @@ export function mapToPackageInfoComplete(
     payment: s.payment,
     lastHistory: s.lastHistory,
     statusHistory: s.statusHistory,
-    status: s.status,
+    // Cierre: "hasta el último estatus del día en que se realizó la ruta" (lo calcula el
+    // backend desde el historial); lo posterior a ese día no cambia el cierre de esta ruta.
+    status: s.routeDayStatus ?? s.status,
+    exceptionCode: s.routeDayExceptionCode ?? s.exceptionCode,
     movedToAnotherRoute: s.movedToAnotherRoute ?? false,
     currentDispatchTrackingNumber: s.currentDispatchTrackingNumber ?? null,
   }));
@@ -186,8 +189,8 @@ export function mapToPackageInfoComplete(
     reason: c.reason,
     payment: c.payment,
     lastHistory: c.lastHistory,
-    status: c.status,
-    exceptionCode: c.exceptionCode,
+    status: c.routeDayStatus ?? c.status,
+    exceptionCode: c.routeDayExceptionCode ?? c.exceptionCode,
     movedToAnotherRoute: c.movedToAnotherRoute ?? false,
     currentDispatchTrackingNumber: c.currentDispatchTrackingNumber ?? null,
   }));
