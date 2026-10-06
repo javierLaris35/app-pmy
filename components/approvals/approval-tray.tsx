@@ -8,9 +8,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
 import { useMyApprovals } from "@/hooks/services/approvals/use-my-approvals";
-import { approveRequest, rejectRequest, ApprovalRequestItem } from "@/lib/services/approvals";
+import { approveRequest, rejectRequest, ApprovalRequestItem, APPROVAL_TYPE_LABEL } from "@/lib/services/approvals";
 
-/** Bandeja de autorización de borrados (junto a la campana). Solo con pendientes muestra badge. */
+/** Bandeja de autorizaciones (borrados y cambios de sucursal/fecha de consolidado). Solo con pendientes muestra badge. */
 export function ApprovalTray() {
   const { items, count, mutate } = useMyApprovals();
   const [open, setOpen] = useState(false);
@@ -22,7 +22,7 @@ export function ApprovalTray() {
     setBusyId(r.id);
     try {
       await approveRequest(r.id);
-      toast.success("Autorizado y eliminado");
+      toast.success("Autorizado y aplicado");
       mutate();
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo autorizar");
@@ -80,8 +80,22 @@ export function ApprovalTray() {
               const s = r.impactSnapshot;
               return (
                 <div key={r.id} className="px-4 py-3 text-sm">
-                  <p className="font-medium">{s?.label ?? r.targetId}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{APPROVAL_TYPE_LABEL[r.type] ?? r.type}</p>
+                  <p className="font-medium">{r.targetLabel ?? s?.label ?? r.targetId}</p>
+                  {s?.change && (
+                    <p className="text-[12px] font-medium">{s.change.from} → {s.change.to}</p>
+                  )}
                   <p className="text-[12px] text-muted-foreground">Solicitó: {r.requestedByName ?? "—"}</p>
+                  {r.justification && <p className="mt-1 text-[12px]">Motivo: {r.justification}</p>}
+                  {s?.summary && (
+                    <p className="text-[12px] text-muted-foreground">
+                      Ingresos: {fmtMoney(s.summary.amountBefore)}
+                      {s.summary.amountAfter !== s.summary.amountBefore && <> → {fmtMoney(s.summary.amountAfter)}</>}
+                    </p>
+                  )}
+                  {r.executionError && (
+                    <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-[12px] text-rose-700">No se pudo aplicar: {r.executionError}</p>
+                  )}
                   {s?.counts && (
                     <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
                       <Chip>{s.counts.shipments} guías</Chip>
@@ -117,6 +131,8 @@ export function ApprovalTray() {
     </Popover>
   );
 }
+
+const fmtMoney = (n?: number) => (n ?? 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
 function Chip({ children, warn }: { children: React.ReactNode; warn?: boolean }) {
   return (

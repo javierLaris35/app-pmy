@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Consolidated } from "@/lib/types"; 
 import { ConsolidatedDetailDialog } from "@/components/modals/consolidated-shipment-detail-dialog";
-import { RequestDeleteButton } from "@/components/approvals/request-delete-button";
+import { ConsolidatedActionsMenu } from "@/components/approvals/consolidated-actions-menu";
 import { formatShortDate } from "@/utils/date.utils";
 
 export const columns: ColumnDef<Consolidated>[] = [
@@ -43,7 +43,7 @@ export const columns: ColumnDef<Consolidated>[] = [
     cell: ({ row }) => {
       const carrier: string = row.getValue("carrier");
 
-      let color: string;
+      let color = "bg-slate-500";
       
       switch (carrier) {
         case "fedex":
@@ -87,6 +87,7 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "Volumen",
     cell: ({ row }) => {
+      if (!row.original.shipmentCounts) return <span className="text-muted-foreground">—</span>;
       const { total, countNormal, countF2, countHighValue, countCobros } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col gap-1">
@@ -113,6 +114,7 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "POD",
     cell: ({ row }) => {
+      if (!row.original.shipmentCounts) return <span className="text-muted-foreground">—</span>;
       const { entregado, podPlusDexs } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col items-center">
@@ -134,6 +136,7 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "DEX / DEV",
     cell: ({ row }) => {
+      if (!row.original.shipmentCounts) return <span className="text-muted-foreground">—</span>;
       const { dex03, dex07, dex08, totalDex, totalDevueltos, ocurre } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col gap-1.5">
@@ -170,6 +173,7 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "S.I. / Ubicación",
     cell: ({ row }) => {
+      if (!row.original.shipmentCounts) return <span className="text-muted-foreground">—</span>;
       const { en_ruta, en_bodega, other, guiasPendientesDeMov } = row.original.shipmentCounts;
       return (
         <div className="flex flex-col gap-1.5 min-w-[100px]">
@@ -219,6 +223,7 @@ export const columns: ColumnDef<Consolidated>[] = [
   {
     header: "KPIs / Porcentajes",
     cell: ({ row }) => {
+      if (!row.original.shipmentCounts) return <span className="text-muted-foreground">—</span>;
       const { porcEfectividad, porcEfectividadEntrega, porcRendimientoIntentos } = row.original.shipmentCounts;
       
       const getProgressColor = (val: number) => {
@@ -295,7 +300,7 @@ export const columns: ColumnDef<Consolidated>[] = [
     cell: ({ row }) => (
       <div className="flex justify-end items-center gap-1 pr-2">
         <ConsolidatedDetailDialog consolidated={row.original} date={row.original.date} />
-        <RequestDeleteButton type="delete_consolidado" targetId={row.original.id} />
+        <ConsolidatedActionsMenu consolidated={row.original} />
       </div>
     )
   }
