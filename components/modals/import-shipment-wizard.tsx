@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { cn, formatCurrency } from "@/lib/utils"
 import { SucursalSelector } from "../sucursal-selector"
+import { CommitPreviewNotice } from "@/components/import-components/commit-preview-notice"
 import {
   uploadF2ChargeShipments,
   uploadShipmentFile,
@@ -600,6 +601,7 @@ export function ShipmentWizardModal({
                               </span>
                             </div>
                           )}
+                          {!preview.otherSubsidiary && <CommitPreviewNotice check={preview.commitCheck} consDate={date} />}
                           {(preview.alreadyF2Count ?? 0) > 0 && !preview.otherSubsidiary && (
                             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-amber-800">
                               <HelpCircle className="mt-0.5 h-4 w-4 shrink-0" />

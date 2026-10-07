@@ -1,3 +1,4 @@
+import { CommitIssue, daysBetween, parseCommitDate, readCommitCells } from "./commit-date";
 /**
  * Espejo (frontend) del mapeo de encabezados FedEx del backend
  * (`src/utils/header-detector.util.ts`) + motor de validación/enriquecimiento
@@ -66,12 +67,20 @@ export const CANONICAL_FIELDS: FieldDef[] = [
 ];
 
 const COD_FIELD = CANONICAL_FIELDS.find((f) => f.field === "cod")!;
+const DATE_FIELD = CANONICAL_FIELDS.find((f) => f.field === "commitDate")!;
+const TIME_FIELD = CANONICAL_FIELDS.find((f) => f.field === "commitTime")!;
 
 export interface MappedRow {
   values: Record<string, string>; // campo canónico → valor (incluye 'cod')
   missingTracking: boolean;
   duplicateTracking: boolean;
   badDate: boolean;
+  /** Problema de vencimiento (lo llena `applyCommitChecks`). */
+  commitIssue?: CommitIssue | null;
+  /** Aviso contra la fecha del consolidado (lo llena `applyCommitChecks`). */
+  commitWarn?: "antes_del_consolidado" | "muy_lejana" | null;
+  /** Lo que venía pegado en Fecha/Hora antes de normalizar (para mostrarlo si se corrigió). */
+  commitRaw?: { date: string; time: string };
   hasPayment: boolean;
   paymentNoType: boolean;
   isHighValue: boolean;
@@ -330,21 +339,9 @@ export function resolveColumns(rows: string[][], maxScanRows = 20): {
 // Validación de celdas
 // ---------------------------------------------------------------------------
 
-/** Fecha vacía = ok (backend aplica default). No vacía e ininterpretable = mala. */
+/** Fecha vacía = ok (se usa la de FedEx). No vacía e ininterpretable = mala. Mismo lector que el backend. */
 export function isBadDate(value: string): boolean {
-  const v = String(value ?? "").trim();
-  if (!v) return false;
-  if (/^\d+(\.\d+)?$/.test(v)) return false; // serial de Excel
-  // M/D/Y, D/M/Y o Y-M-D con separadores / - .
-  const m = v.match(/^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})/);
-  if (m) {
-    const a = Number(m[1]), b = Number(m[2]), c = Number(m[3]);
-    const parts = [a, b, c];
-    const hasDay = parts.some((p) => p >= 1 && p <= 31);
-    const hasMonthOk = b >= 1 && b <= 12;
-    return !(hasDay && (hasMonthOk || a <= 12));
-  }
-  return isNaN(Date.parse(v));
+  return parseCommitDate(value).status === "invalid";
 }
 
 const PAY_TYPE_RE = /\b(COD|FTC|ROD)\b/i;
@@ -745,4 +742,105 @@ export function toMatrix(raw: string): string[][] {
     .split("\n")
     .filter((line) => line.trim().length > 0)
     .map((line) => (line.includes("\t") ? line.split("\t") : line.split(/ {2,}/)));
+}
+
+// ---------------------------------------------------------------------------
+// Vencimientos (fecha/hora de compromiso)
+// ---------------------------------------------------------------------------
+
+/** Corrección manual de una fila (por índice en `table.rows`). */
+export type CommitEdits = Record<number, { commitDate?: string; commitTime?: string }>;
+
+export interface CommitCheck {
+  /** Vencimientos por día (`yyyy-MM-dd`), ordenado. */
+  byDay: { day: string; count: number }[];
+  sinFecha: number;
+  fechaInvalida: number;
+  horaInvalida: number;
+  ambiguas: number;
+  antesDelConsolidado: number;
+  muyLejanas: number;
+  /** Filas con fecha u hora que no se pudo leer: bloquean la subida hasta corregirlas. */
+  bloqueantes: number;
+  /** No vino columna de fecha en lo pegado. */
+  sinColumna: boolean;
+}
+
+/**
+ * Lee Fecha/Hora de cada fila con el MISMO lector del backend, aplica las correcciones
+ * del usuario y deja los valores normalizados (`yyyy-MM-dd` + `HH:mm:ss`) para que lo
+ * que se sube no dependa de cómo venía escrito. Marca problemas por fila y resume.
+ * Antes, una hora en texto ("6:00 PM") o una fecha AAAA-MM-DD hacían que el backend
+ * ignorara la fecha del archivo (casos Cabos 305822137864 / Loreto 305821676711).
+ */
+export function applyCommitChecks(
+  table: MappedTable,
+  consDate: string | null | undefined,
+  edits: CommitEdits = {},
+): { table: MappedTable; check: CommitCheck } {
+  const ref = consDate && /^\d{4}-\d{2}-\d{2}$/.test(consDate) ? consDate : null;
+  const hasDateCol = table.fields.some((f) => f.field === "commitDate");
+  const editedDate = Object.values(edits).some((e) => e.commitDate);
+  const editedTime = Object.values(edits).some((e) => e.commitTime);
+  let fields = table.fields;
+  // Si el usuario captura fecha/hora y no venía la columna, se agrega.
+  if (editedDate && !hasDateCol) fields = insertAfter(fields, DATE_FIELD, "recipientZip");
+  if (editedTime && !fields.some((f) => f.field === "commitTime")) fields = insertAfter(fields, TIME_FIELD, "commitDate");
+  const hasTimeCol = fields.some((f) => f.field === "commitTime");
+
+  const check: CommitCheck = {
+    byDay: [], sinFecha: 0, fechaInvalida: 0, horaInvalida: 0, ambiguas: 0,
+    antesDelConsolidado: 0, muyLejanas: 0, bloqueantes: 0, sinColumna: !hasDateCol && !editedDate,
+  };
+  const days = new Map<string, number>();
+
+  const rows = table.rows.map((r, i) => {
+    const e = edits[i] ?? {};
+    const rawDate = e.commitDate ?? r.commitRaw?.date ?? r.values["commitDate"] ?? "";
+    const rawTime = e.commitTime ?? r.commitRaw?.time ?? r.values["commitTime"] ?? "";
+    const c = readCommitCells(rawDate, rawTime, ref);
+    const issue: CommitIssue | null =
+      c.dateStatus === "invalid" ? "fecha_invalida"
+      : c.timeStatus === "invalid" ? "hora_invalida"
+      : c.dateStatus === "empty" ? "sin_fecha"
+      : c.ambiguous ? "ambigua"
+      : null;
+    let warn: MappedRow["commitWarn"] = null;
+    if (c.commitDate && ref) {
+      const diff = daysBetween(ref, c.commitDate);
+      if (diff < 0) warn = "antes_del_consolidado";
+      else if (diff > 30) warn = "muy_lejana";
+    }
+    const values = { ...r.values };
+    if (hasDateCol || editedDate) values["commitDate"] = c.commitDate ?? rawDate;
+    if (hasTimeCol) values["commitTime"] = c.timeStatus === "empty" ? "" : c.timeStatus === "ok" ? c.commitTime : rawTime;
+
+    if (!r.missingTracking) {
+      if (issue === "sin_fecha" && !check.sinColumna) check.sinFecha++;
+      if (issue === "fecha_invalida") check.fechaInvalida++;
+      if (issue === "hora_invalida") check.horaInvalida++;
+      if (issue === "ambigua") check.ambiguas++;
+      if (warn === "antes_del_consolidado") check.antesDelConsolidado++;
+      if (warn === "muy_lejana") check.muyLejanas++;
+      if (c.commitDate) days.set(c.commitDate, (days.get(c.commitDate) ?? 0) + 1);
+    }
+    return {
+      ...r,
+      values,
+      badDate: issue === "fecha_invalida",
+      commitIssue: issue,
+      commitWarn: warn,
+      commitRaw: { date: String(rawDate), time: String(rawTime) },
+    };
+  });
+  check.bloqueantes = check.fechaInvalida + check.horaInvalida;
+  check.byDay = [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, count]) => ({ day, count }));
+  return { table: { ...table, fields, rows }, check };
+}
+
+function insertAfter(fields: FieldDef[], f: FieldDef, after: string): FieldDef[] {
+  const i = fields.findIndex((x) => x.field === after);
+  const out = [...fields];
+  out.splice(i >= 0 ? i + 1 : out.length, 0, f);
+  return out;
 }

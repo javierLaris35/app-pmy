@@ -174,6 +174,19 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     otherSubsidiary?: { subsidiaryName: string; createdByName: string | null; createdAt: string; message: string } | null
     /** (master) Guías que ya son carga F2 de este consolidado: no se agregan como paquete. */
     alreadyF2Count?: number
+    /** Vencimientos leídos del archivo (mismo lector que la subida). */
+    commitCheck?: UploadCommitCheck | null
+  }
+
+  /** Resumen de vencimientos que devuelve el backend al validar un archivo. */
+  export interface UploadCommitCheck {
+    byDay: { day: string; count: number }[]
+    sinFecha: number
+    fechaInvalida: number
+    horaInvalida: number
+    ambiguas: number
+    antesDelConsolidado: number
+    muyLejanas: number
   }
 
   /** Pre-valida un archivo SIN guardar: duplicados de guías + consNumber existente.

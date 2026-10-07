@@ -33,9 +33,11 @@ import {
   UploadPreview,
 } from "@/lib/services/shipments";
 import {
-  buildMappedTable, mergePayments, mergeHighValue, parsePaymentsPaste, parseHvPaste,
-  MappedTable, MappedRow, ParsedPayment, ParsedHv,
+  buildMappedTable, mergePayments, mergeHighValue, parsePaymentsPaste, parseHvPaste, applyCommitChecks,
+  MappedTable, MappedRow, ParsedPayment, ParsedHv, CommitEdits, CommitCheck,
 } from "@/lib/fedex-header-map";
+import { format as formatDateFns, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 
 const FEDEX = "#4D148C";
 export type PasteKind = "master" | "f2";
@@ -80,6 +82,57 @@ function buildXlsx(fields: { field: string; header: string }[], rows: Record<str
   XLSX.utils.book_append_sheet(wb, ws, "Pegado");
   const out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
   return new File([out], name, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+/** "2026-10-07" → "mié 07-oct". */
+function formatDay(iso: string): string {
+  try { return formatDateFns(parseISO(iso), "EEE dd-MMM", { locale: es }); } catch { return iso; }
+}
+
+/** Avisos de vencimiento del pegado + vencimientos por día. */
+function CommitPanel({ check, consDate, bulkDate, setBulkDate, onApplyBulk }: {
+  check: CommitCheck; consDate: string; bulkDate: string; setBulkDate: (v: string) => void; onApplyBulk: () => void;
+}) {
+  const alerts: { level: "error" | "warn"; text: string }[] = [];
+  if (check.fechaInvalida > 0) alerts.push({ level: "error", text: `${check.fechaInvalida} guía(s) con una fecha de vencimiento que no se entiende. Corrígela(s) en la columna Fecha (aparecen arriba en la tabla).` });
+  if (check.horaInvalida > 0) alerts.push({ level: "error", text: `${check.horaInvalida} guía(s) con una hora que no se entiende. Corrígela(s) en la columna Hora.` });
+  if (check.sinColumna) alerts.push({ level: "warn", text: "No viene la columna de vencimiento. Se tomará la fecha de FedEx y, si FedEx no la tiene, vencen hoy a las 18:00." });
+  if (check.sinFecha > 0) alerts.push({ level: "warn", text: `${check.sinFecha} guía(s) sin fecha de vencimiento. Se tomará la de FedEx; si no la tiene, vencen hoy a las 18:00.` });
+  if (check.antesDelConsolidado > 0) alerts.push({ level: "warn", text: `${check.antesDelConsolidado} guía(s) vencen antes de la fecha del consolidado: llegarían ya vencidas. Revisa la fecha del consolidado y las del archivo.` });
+  if (check.muyLejanas > 0) alerts.push({ level: "warn", text: `${check.muyLejanas} guía(s) vencen más de 30 días después del consolidado. Revisa que el día y el mes no estén volteados.` });
+  if (check.ambiguas > 0) alerts.push({ level: "warn", text: `${check.ambiguas} guía(s) con fecha que puede leerse de dos formas (día/mes). Confírmalas en la tabla.` });
+  const canBulk = check.sinColumna || check.sinFecha > 0 || check.fechaInvalida > 0;
+
+  return (
+    <div className="space-y-1.5">
+      {alerts.map((a, i) => (
+        <div key={i} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] ${a.level === "error" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>
+          <AlertTriangle className="h-4 w-4 shrink-0" /> {a.text}
+        </div>
+      ))}
+      {canBulk && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-[13px] text-gray-700">
+          <span>Poner esta fecha a las guías sin fecha válida:</span>
+          <Input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)} className="h-8 w-[150px]" aria-label="Fecha para todas" />
+          <Button size="sm" variant="outline" className="h-8" disabled={!bulkDate} onClick={onApplyBulk}>Aplicar</Button>
+        </div>
+      )}
+      {check.byDay.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <span className="mr-1 text-[12px] font-semibold text-gray-700">Vencimientos por día</span>
+          {check.byDay.map((d) => {
+            const before = !!consDate && d.day < consDate;
+            const same = d.day === consDate;
+            return (
+              <span key={d.day} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${before ? "bg-amber-100 text-amber-800" : same ? "bg-sky-100 text-sky-800" : "bg-slate-100 text-slate-700"}`}>
+                <strong>{formatDay(d.day)}</strong> · {d.count}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CountChip({ label, value, tone = "neutral" }: { label: string; value: number; tone?: "neutral" | "green" | "amber" | "red" | "purple" | "blue" }) {
@@ -160,6 +213,9 @@ export function PasteImportModal({
   const [appliedHv, setAppliedHv] = useState<ParsedHv[]>([]);
   // Pagos sin tipo pendientes de confirmar (¿usar COD por defecto?).
   const [pendingPayments, setPendingPayments] = useState<ParsedPayment[] | null>(null);
+  // Correcciones de vencimiento hechas en la tabla (por índice de fila) + fecha para "poner a todas".
+  const [commitEdits, setCommitEdits] = useState<CommitEdits>({});
+  const [bulkDate, setBulkDate] = useState("");
 
   // Preview del backend (solo master/aéreo).
   const [preview, setPreview] = useState<UploadPreview | null>(null);
@@ -197,13 +253,38 @@ export function PasteImportModal({
   useEffect(() => { setSecondAbord(!!selectedSub?.chargeSecondAbord); }, [localSubsidiaryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const baseTable = useMemo(() => buildMappedTable(parseTsv(raw)), [raw]);
-  const table: MappedTable | null = useMemo(() => {
+  const merged: MappedTable | null = useMemo(() => {
     if (!baseTable) return null;
     let t = baseTable;
     if (appliedPayments.length) t = mergePayments(t, appliedPayments);
     if (appliedHv.length) t = mergeHighValue(t, appliedHv);
     return t;
   }, [baseTable, appliedPayments, appliedHv]);
+  // Vencimientos: mismo lector que el backend, normaliza lo que se sube y marca problemas.
+  const checked = useMemo(
+    () => (merged ? applyCommitChecks(merged, consDate, commitEdits) : null),
+    [merged, consDate, commitEdits],
+  );
+  const table: MappedTable | null = checked?.table ?? null;
+  const commitCheck: CommitCheck | null = checked?.check ?? null;
+  // Pegado nuevo → las correcciones anteriores ya no aplican.
+  useEffect(() => { setCommitEdits({}); }, [raw]);
+  const setCommitEdit = (i: number, patch: { commitDate?: string; commitTime?: string }) =>
+    setCommitEdits((prev) => ({ ...prev, [i]: { ...prev[i], ...patch } }));
+  const applyBulkDate = () => {
+    if (!table || !bulkDate) return;
+    const next: CommitEdits = { ...commitEdits };
+    let n = 0;
+    table.rows.forEach((r, i) => {
+      if (r.missingTracking) return;
+      if (r.commitIssue === "sin_fecha" || r.commitIssue === "fecha_invalida") {
+        next[i] = { ...next[i], commitDate: bulkDate };
+        n++;
+      }
+    });
+    setCommitEdits(next);
+    toast.success(`Fecha aplicada a ${n} guía(s).`);
+  };
 
   const hasContent = raw.trim().length > 0;
   const c = table?.counts;
@@ -256,6 +337,7 @@ export function PasteImportModal({
   const reset = () => {
     setRaw(""); setConsNumber(""); setConsDate(todayLocalISO()); setPaymentsRaw(""); setHvRaw("");
     setAppliedPayments([]); setAppliedHv([]); setPreview(null); setResult(null);
+    setCommitEdits({}); setBulkDate("");
   };
   const close = () => { reset(); if (onClose) onClose(); else onOpenChange?.(false); };
 
@@ -300,6 +382,9 @@ export function PasteImportModal({
     // consNumber obligatorio también en F2 (agrupa las cargas, ancla el 2º request de
     // cobros y es la clave con la que el backend deduplica).
     if (!consNumber.trim()) return "Captura el número de consolidado.";
+    if (commitCheck && commitCheck.bloqueantes > 0) {
+      return `Hay ${commitCheck.bloqueantes} guía(s) con fecha u hora de vencimiento que no se entiende. Corrígelas en la tabla.`;
+    }
     // Validación del backend (aplica a master y F2 por igual).
     if (preview) {
       if (preview.parseError) return `Archivo inválido: ${preview.parseError}`;
@@ -313,7 +398,7 @@ export function PasteImportModal({
       }
     }
     return null;
-  }, [table, c, localSubsidiaryId, consNumber, kind, preview]);
+  }, [table, c, localSubsidiaryId, consNumber, kind, preview, commitCheck]);
 
   const submit = async () => {
     if (!table || blockReason) return;
@@ -414,7 +499,38 @@ export function PasteImportModal({
           );
         }
         if (f.field === "commitDate") {
-          return <span className={r.badDate ? "rounded bg-amber-100 px-1 text-amber-700" : "text-gray-700"}>{val || "-"}</span>;
+          const i = table.rows.indexOf(r);
+          const needsFix = r.commitIssue === "fecha_invalida" || r.commitIssue === "sin_fecha" || r.commitIssue === "ambigua" || !!r.commitWarn;
+          if (needsFix) {
+            const iso = /^\d{4}-\d{2}-\d{2}$/.test(val) ? val : "";
+            const hint = r.commitIssue === "fecha_invalida" ? `No se entiende "${r.commitRaw?.date}"`
+              : r.commitIssue === "sin_fecha" ? "Sin fecha: se usará la de FedEx"
+              : r.commitIssue === "ambigua" ? `"${r.commitRaw?.date}": revisa día y mes`
+              : r.commitWarn === "antes_del_consolidado" ? "Vence antes del consolidado"
+              : "Vence en más de 30 días";
+            const tone = r.commitIssue === "fecha_invalida" ? "border-rose-400 bg-rose-50" : "border-amber-400 bg-amber-50";
+            return (
+              <div className="flex flex-col gap-0.5">
+                <Input type="date" value={iso} onChange={(e) => setCommitEdit(i, { commitDate: e.target.value })}
+                  className={`h-7 w-[140px] px-2 text-xs ${tone}`} aria-label="Fecha de vencimiento" />
+                <span className={`text-[10px] ${r.commitIssue === "fecha_invalida" ? "text-rose-600" : "text-amber-700"}`}>{hint}</span>
+              </div>
+            );
+          }
+          return <span className="whitespace-nowrap text-gray-700" title={r.commitRaw?.date ? `Venía: ${r.commitRaw.date}` : undefined}>{val ? formatDay(val) : "-"}</span>;
+        }
+        if (f.field === "commitTime") {
+          const i = table.rows.indexOf(r);
+          if (r.commitIssue === "hora_invalida") {
+            return (
+              <div className="flex flex-col gap-0.5">
+                <Input type="time" value="" onChange={(e) => setCommitEdit(i, { commitTime: e.target.value })}
+                  className="h-7 w-[110px] border-rose-400 bg-rose-50 px-2 text-xs" aria-label="Hora de vencimiento" />
+                <span className="text-[10px] text-rose-600">No se entiende "{r.commitRaw?.time}"</span>
+              </div>
+            );
+          }
+          return <span className="whitespace-nowrap text-gray-700">{val ? val.slice(0, 5) : "18:00"}</span>;
         }
         if (f.field === "cod") {
           return val ? (
@@ -435,12 +551,20 @@ export function PasteImportModal({
         : <span className="text-gray-300">—</span>,
     });
     return [marks, ...cols];
+  }, [table]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Filas con problema de vencimiento primero, para corregirlas sin buscarlas.
+  const sortedRows = useMemo(() => {
+    if (!table) return [];
+    const rank = (r: MappedRow) =>
+      r.commitIssue === "fecha_invalida" || r.commitIssue === "hora_invalida" ? 0 : r.commitIssue || r.commitWarn ? 1 : 2;
+    return [...table.rows].sort((a, b) => rank(a) - rank(b));
   }, [table]);
 
   // Prioridad: problemas (rojo/ámbar) → HV (morado) → cobro (verde) → normal.
   const rowClassName = (r: MappedRow) => {
-    if (r.missingTracking) return "bg-rose-50 hover:bg-rose-100/70";
-    if (r.duplicateTracking || r.badDate || r.paymentNoType) return "bg-amber-50 hover:bg-amber-100/70";
+    if (r.missingTracking || r.commitIssue === "fecha_invalida" || r.commitIssue === "hora_invalida") return "bg-rose-50 hover:bg-rose-100/70";
+    if (r.duplicateTracking || r.paymentNoType || r.commitIssue || r.commitWarn) return "bg-amber-50 hover:bg-amber-100/70";
     if (r.isHighValue) return "bg-purple-50/70 hover:bg-purple-100/60";
     if (r.hasPayment) return "bg-emerald-50/60 hover:bg-emerald-100/50";
     return undefined;
@@ -705,6 +829,11 @@ export function PasteImportModal({
             </div>
           )}
 
+          {/* Vencimientos: avisos + resumen por día para comparar contra lo esperado */}
+          {table && commitCheck && table.rows.length > 0 && (
+            <CommitPanel check={commitCheck} consDate={consDate} bulkDate={bulkDate} setBulkDate={setBulkDate} onApplyBulk={applyBulkDate} />
+          )}
+
           {/* Explicabilidad del mapeo (cómo se interpretó cada columna) */}
           {table && Object.keys(table.sources).length > 0 && (
             <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -809,7 +938,7 @@ export function PasteImportModal({
                 <span className="flex items-center gap-1"><Diamond className="h-3.5 w-3.5 text-purple-600" /><span className="text-[11px] text-muted-foreground">alto valor</span></span>
               </div>
               <div className="max-w-full overflow-x-auto">
-                <DataTable columns={columns} data={table.rows} searchKey="trackingNumber" rowClassName={rowClassName} autoResetPageIndex={false} />
+                <DataTable columns={columns} data={sortedRows} searchKey="trackingNumber" rowClassName={rowClassName} autoResetPageIndex={false} />
               </div>
             </div>
           )}
