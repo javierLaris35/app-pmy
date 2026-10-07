@@ -75,6 +75,73 @@ export async function uploadFiles(
     }
 }
 
+// ───────────── Paquetes con problema (solo superadmin) ─────────────
+
+export type ClosureProblemCode =
+    | 'STATUS_BEHIND'
+    | 'DELIVERED_BEFORE_ROUTE'
+    | 'HISTORY_MISSING'
+    | 'INCOME_MISSING'
+    | 'WARNING';
+
+export interface ClosurePackageDiagnosis {
+    shipmentId: string;
+    trackingNumber: string;
+    kind: 'shipment' | 'charge';
+    currentStatus: string;
+    targetStatus: string | null;
+    fedexEventAt: string | null;
+    problems: ClosureProblemCode[];
+    plan: null | {
+        setStatus: string | null;
+        insertEvents: { occurredAt: string; status: string; exceptionCode: string | null; description: string | null }[];
+        income: null | {
+            type: 'create' | 'supersede';
+            incomeType: string;
+            nonDeliveryStatus: string | null;
+            date: string;
+            cost: number;
+            pastWeek: boolean;
+        };
+    };
+    explanation: string[];
+    fingerprint: string | null;
+}
+
+export interface ClosureDiagnosis {
+    packageDispatchId: string;
+    is315: boolean;
+    routeDay: string | null;
+    subsidiaryName: string | null;
+    total: number;
+    packages: ClosurePackageDiagnosis[];
+}
+
+export interface ClosureFixResult {
+    shipmentId: string;
+    kind: 'shipment' | 'charge';
+    trackingNumber: string | null;
+    status: 'applied' | 'changed' | 'nothing' | 'error';
+    message: string;
+}
+
+/** Revisa contra FedEx todas las guías de la salida sin cambiar nada. Puede tardar. */
+export const diagnoseClosure = async (packageDispatchId: string) => {
+    const response = await axiosConfig.post<ClosureDiagnosis>(`${url}/${packageDispatchId}/diagnose`);
+    return response.data;
+}
+
+/** Aplica los arreglos confirmados; el backend vuelve a revisar cada paquete antes de escribir. */
+export const applyClosureFixes = async (
+    packageDispatchId: string,
+    items: { shipmentId: string; kind: 'shipment' | 'charge'; fingerprint: string }[],
+) => {
+    const response = await axiosConfig.post<{ packageDispatchId: string; results: ClosureFixResult[] }>(
+        `${url}/${packageDispatchId}/apply-fixes`,
+        { items },
+    );
+    return response.data;
+}
 
 
 export {

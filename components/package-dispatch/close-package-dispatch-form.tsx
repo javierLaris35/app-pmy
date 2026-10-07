@@ -26,7 +26,8 @@ import {
   Trash2,
   ChevronRight,
   ChevronLeft,
-  Check
+  Check,
+  Stethoscope
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ import { updateDataFromFedexByPackageDispatchId } from "@/lib/services/monitorin
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCatalogOptions, CatalogItem } from "@/lib/services/catalog";
 import { classifyClosureBucket, isClosureBlockedByOtherStatus } from "@/lib/tracking/closure-status";
+import { ClosureDoctorPanel } from "./closure-doctor-panel";
 
 interface ClosePackageDispatchProps {
   dispatchId: string;
@@ -101,6 +103,19 @@ export default function ClosePackageDispatchWizard({
   const noVanScanRef = useRef<ScanInputHandle>(null);
 
   const [isReconciling, setIsReconciling] = useState(false);
+
+  // "Paquetes con problema": herramienta EXCLUSIVA de superadmin (el backend también lo exige).
+  const isSuperAdmin = ["superadmin", "superamin"].includes(((user?.role as string) || "").toLowerCase());
+  const [doctorOpen, setDoctorOpen] = useState(false);
+
+  // Recarga los paquetes tras aplicar arreglos (sin volver a reconciliar con FedEx).
+  const reloadDispatch = useCallback(async () => {
+    try {
+      setDispatch(await getShipmensByDispatchId(dispatchId));
+    } catch {
+      toast({ title: "No se pudo recargar la ruta", description: "Cierra y vuelve a abrir el cierre para ver los cambios." });
+    }
+  }, [dispatchId, toast]);
 
   useEffect(() => {
     const fetchDispatchData = async () => {
@@ -687,6 +702,14 @@ export default function ClosePackageDispatchWizard({
 
   return (
     <div className="w-full max-w-5xl mx-auto border-0 shadow-none space-y-6">
+      {isSuperAdmin && (
+        <ClosureDoctorPanel
+          dispatchId={dispatchId}
+          open={doctorOpen}
+          onOpenChange={setDoctorOpen}
+          onApplied={reloadDispatch}
+        />
+      )}
       {/* HEADER Y PASOS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-4">
         <div className="flex items-center gap-3">
@@ -708,6 +731,11 @@ export default function ClosePackageDispatchWizard({
         </div>
 
         <div className="flex items-center gap-2">
+          {isSuperAdmin && (
+            <Button size="sm" variant="outline" className="mr-2 whitespace-nowrap" onClick={() => setDoctorOpen(true)}>
+              <Stethoscope className="h-3.5 w-3.5 mr-1.5" /> Paquetes con problema
+            </Button>
+          )}
           {[
             { step: 1, label: "Resumen" },
             { step: 2, label: "Operaciones" },
