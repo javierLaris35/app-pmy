@@ -4,9 +4,10 @@ export type ApprovalType =
   | "delete_consolidado"
   | "delete_route_dispatch"
   | "change_subsidiary_consolidado"
-  | "change_date_consolidado";
+  | "change_date_consolidado"
+  | "change_type_consolidado";
 
-/** Acciones sobre consolidado (borrar / cambiar sucursal / cambiar fecha). */
+/** Acciones sobre consolidado (borrar / cambiar sucursal / cambiar fecha). El cambio de tipo tiene su propio diálogo. */
 export type ConsolidatedActionType = Extract<
   ApprovalType,
   "delete_consolidado" | "change_subsidiary_consolidado" | "change_date_consolidado"
@@ -15,6 +16,22 @@ export type ConsolidatedActionType = Extract<
 export interface ConsolidatedActionPayload {
   newSubsidiaryId?: string;
   newDate?: string; // yyyy-MM-dd
+  /** Cambio de tipo */
+  toType?: "carga" | "paquete";
+  trackingNumbers?: string[];
+  targetConsolidatedId?: string;
+  destConsNumber?: string;
+  isHalfTon?: boolean;
+}
+
+/** Guías del consolidado para el diálogo "Cambiar tipo". */
+export interface ConsolidatedTypeOptions {
+  consNumber: string;
+  subsidiaryId: string;
+  packages: { trackingNumber: string; status: string | null }[];
+  charges: { trackingNumber: string; status: string | null }[];
+  hasCharge: boolean;
+  isHalfTon: boolean | null;
 }
 
 export interface ConsolidatedPlanSummary {
@@ -27,6 +44,8 @@ export interface ConsolidatedPlanSummary {
   incomesMoved: number;
   incomesRecosted: number;
   incomesRedated: number;
+  converted?: number;
+  incomesCreated?: number;
   amountBefore: number;
   amountAfter: number;
 }
@@ -82,7 +101,7 @@ export interface ConsolidatedChangeLogItem {
   approvalRequestId: string | null;
   action: ApprovalType;
   consNumber: string | null;
-  entityType: "consolidated" | "shipment" | "charge_shipment" | "charge" | "income" | "devolution";
+  entityType: "consolidated" | "shipment" | "charge_shipment" | "charge" | "income" | "devolution" | "payment" | "shipment_status" | "package_dispatch_history";
   entityId: string;
   trackingNumber: string | null;
   field: string;
@@ -99,6 +118,21 @@ export async function getApprovalImpact(
   payload?: ConsolidatedActionPayload,
 ): Promise<ApprovalImpact> {
   const { data } = await axiosConfig.get("/approvals/impact", { params: { type, targetId, ...(payload ?? {}) } });
+  return data;
+}
+
+/** Impacto con el cambio en el cuerpo (cambio de tipo: la lista de guías puede ser larga). */
+export async function postApprovalImpact(
+  type: ApprovalType,
+  targetId: string,
+  payload: ConsolidatedActionPayload,
+): Promise<ApprovalImpact> {
+  const { data } = await axiosConfig.post("/approvals/impact", { type, targetId, payload });
+  return data;
+}
+
+export async function getConsolidatedTypeOptions(targetId: string): Promise<ConsolidatedTypeOptions> {
+  const { data } = await axiosConfig.get(`/approvals/consolidated/${targetId}/type-options`);
   return data;
 }
 
@@ -125,6 +159,7 @@ export const APPROVAL_TYPE_LABEL: Record<ApprovalType, string> = {
   delete_route_dispatch: "Eliminar salida a ruta",
   change_subsidiary_consolidado: "Cambiar sucursal del consolidado",
   change_date_consolidado: "Cambiar fecha del consolidado",
+  change_type_consolidado: "Cambiar tipo (paquete ↔ carga)",
 };
 
 export async function getMyApprovals(): Promise<ApprovalRequestItem[]> {

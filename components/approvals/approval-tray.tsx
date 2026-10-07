@@ -87,6 +87,18 @@ export function ApprovalTray() {
                   )}
                   <p className="text-[12px] text-muted-foreground">Solicitó: {r.requestedByName ?? "—"}</p>
                   {r.justification && <p className="mt-1 text-[12px]">Motivo: {r.justification}</p>}
+                  {!!s?.summary?.converted && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {s.summary.converted} guía(s) cambian de tipo
+                      {s.summary.incomesAnnulled ? ` · ${s.summary.incomesAnnulled} ingreso(s) se anulan` : ""}
+                      {s.summary.incomesCreated ? ` · ${s.summary.incomesCreated} se crean` : ""}
+                    </p>
+                  )}
+                  {(s?.warnings ?? []).length > 0 && r.type === "change_type_consolidado" && (
+                    <ul className="mt-1 space-y-0.5 text-[11px] text-amber-700">
+                      {s!.warnings!.slice(0, 3).map((w) => <li key={w}>⚠ {w}</li>)}
+                    </ul>
+                  )}
                   {s?.summary && (
                     <p className="text-[12px] text-muted-foreground">
                       Ingresos: {fmtMoney(s.summary.amountBefore)}

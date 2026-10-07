@@ -10,10 +10,11 @@ import { PasteBatchView } from "@/lib/types/inbox";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { BATCH_LABEL, CONS_KIND_LABEL, formatDateTime, formatMinutes } from "./labels";
-import { CheckCircle2, Copy, Eye, Loader2, Package, Plane, Truck, Upload } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, Copy, Eye, Loader2, Package, Plane, Truck, Upload } from "lucide-react";
 import { ViewerTarget } from "./attachment-viewer";
 import { TrackingSteps } from "./tracking-steps";
 import { getTrackingForMessage } from "@/lib/services/ops-alerts";
+import { ConsolidatedTypeDialog } from "@/components/approvals/consolidated-type-dialog";
 
 const ICON = { master: Package, aereo: Plane, f2: Truck } as const;
 
@@ -40,6 +41,8 @@ export function InboxGuidesStep({ messageId, subject, ready, canUpload, onChange
   const { data: tracking, mutate: mutateTracking } = useSWR(["/ops-alerts/tracking/message", messageId], () => getTrackingForMessage(messageId));
   const trackOf = (b: PasteBatchView) => tracking?.find((t) => t.consNumber === b.consNumber && t.kind === b.kind);
   const [prefill, setPrefill] = useState<(PastePrefill & { batch: PasteBatchView }) | null>(null);
+  // Guías subidas con el tipo equivocado → pedir "Cambiar tipo" ya lleno.
+  const [typeFix, setTypeFix] = useState<PasteBatchView | null>(null);
 
   function openPaste(b: PasteBatchView) {
     setPrefill({
@@ -179,7 +182,34 @@ export function InboxGuidesStep({ messageId, subject, ready, canUpload, onChange
                   .join(" · ")}
               </p>
             )}
-            {!!b.alreadyInMaster && !uploaded && (
+            {!!b.typeMismatch && !duplicate && (
+              <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
+                <p className="flex items-start gap-1.5">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {b.typeMismatch.toType === "carga"
+                      ? `${plural(b.typeMismatch.count, "guía de esta F2 está", "guías de esta F2 están")} como paquete en el consolidado ${b.typeMismatch.consNumber} (${b.typeMismatch.subsidiaryName}).`
+                      : `${b.typeMismatch.whole ? "Este master se subió" : `${plural(b.typeMismatch.count, "guía de este master está", "guías de este master están")}`} como carga en ${b.typeMismatch.consNumber} (${b.typeMismatch.subsidiaryName}).`}
+                    {b.typeMismatch.targetConsNumber
+                      ? ` También están como ${b.typeMismatch.toType} en ${b.typeMismatch.targetConsNumber}: se cobran dos veces.`
+                      : ""}
+                  </span>
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-5">
+                  {b.typeMismatch.pending ? (
+                    <span className="text-amber-800">Ya hay una solicitud pendiente para ese consolidado.</span>
+                  ) : canUpload ? (
+                    <Button size="sm" variant="outline" className="h-7 gap-1.5 border-amber-300 bg-white text-amber-900" onClick={() => setTypeFix(b)}>
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                      {b.typeMismatch.toType === "carga" ? "Pedir pasarlas a carga" : b.typeMismatch.whole ? "Pedir cambiarlo a paquete" : "Pedir pasarlas a paquete"}
+                    </Button>
+                  ) : (
+                    <span className="text-amber-800">Avísale a quien pueda subir guías de la bandeja.</span>
+                  )}
+                </div>
+              </div>
+            )}
+            {!!b.alreadyInMaster && !uploaded && !b.typeMismatch && (
               <p className="mt-0.5 text-xs text-amber-700">
                 ⚠️ {plural(b.alreadyInMaster.count, "guía de esta F2 ya se subió", "guías de esta F2 ya se subieron")} como paquete en el master{" "}
                 <span className="font-mono">{b.alreadyInMaster.consNumber}</span> de este correo. Al subir la F2 pasan a carga (quedan solo de un lado).
@@ -234,6 +264,25 @@ export function InboxGuidesStep({ messageId, subject, ready, canUpload, onChange
 
       {announcedList}
         {orphanNote}
+
+      {typeFix?.typeMismatch && (
+        <ConsolidatedTypeDialog
+          open={!!typeFix}
+          onOpenChange={(o) => !o && setTypeFix(null)}
+          consolidated={{ id: typeFix.typeMismatch.consolidatedId, consNumber: typeFix.typeMismatch.consNumber, subsidiaryName: typeFix.typeMismatch.subsidiaryName }}
+          prefill={{
+            toType: typeFix.typeMismatch.toType,
+            trackingNumbers: typeFix.typeMismatch.whole ? [] : typeFix.typeMismatch.trackingNumbers,
+            targetConsolidatedId: typeFix.typeMismatch.targetConsolidatedId,
+            destConsNumber: typeFix.typeMismatch.toType === "carga" && !typeFix.typeMismatch.targetConsolidatedId ? typeFix.typeMismatch.emailConsNumber : null,
+            justification:
+              typeFix.typeMismatch.toType === "carga"
+                ? `Correo "${subject}": FedEx manda estas guías en la F2${typeFix.typeMismatch.emailConsNumber ? ` ${typeFix.typeMismatch.emailConsNumber}` : ""}; se subieron como paquete.`
+                : `Correo "${subject}": FedEx lo manda como master${typeFix.typeMismatch.emailConsNumber ? ` ${typeFix.typeMismatch.emailConsNumber}` : ""}; se subió como carga.`,
+          }}
+          onRequested={() => mutate()}
+        />
+      )}
 
       <PasteImportModal
         open={!!prefill}

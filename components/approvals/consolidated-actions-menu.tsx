@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, CalendarDays, History, MoreHorizontal, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Building2, CalendarDays, History, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import {
 import { ConsolidatedActionType } from "@/lib/services/approvals";
 import { ConsolidatedActionDialog } from "./consolidated-action-dialog";
 import { ConsolidatedHistoryDialog } from "./consolidated-history-dialog";
+import { ConsolidatedTypeDialog } from "./consolidated-type-dialog";
 
 type ConsolidatedRef = {
   id: string;
@@ -23,10 +24,11 @@ type ConsolidatedRef = {
   date?: string;
 };
 
-/** "Más acciones" de un consolidado: eliminar, cambiar sucursal o fecha (con autorización) e historial. */
+/** "Más acciones" de un consolidado: eliminar, cambiar sucursal, fecha o tipo (con autorización) e historial. */
 export function ConsolidatedActionsMenu({ consolidated, onRequested }: { consolidated: ConsolidatedRef; onRequested?: () => void }) {
   const [action, setAction] = useState<ConsolidatedActionType | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
   const subsidiaryId = consolidated.subsidiary?.id ?? consolidated.subsidiaryId ?? "";
 
   return (
@@ -45,6 +47,9 @@ export function ConsolidatedActionsMenu({ consolidated, onRequested }: { consoli
           <DropdownMenuItem onSelect={() => setAction("change_date_consolidado")}>
             <CalendarDays className="mr-2 h-4 w-4" /> Cambiar fecha
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setTypeOpen(true)}>
+            <ArrowLeftRight className="mr-2 h-4 w-4" /> Cambiar tipo (paquete ↔ carga)
+          </DropdownMenuItem>
           <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onSelect={() => setAction("delete_consolidado")}>
             <Trash2 className="mr-2 h-4 w-4" /> Eliminar
           </DropdownMenuItem>
@@ -60,6 +65,14 @@ export function ConsolidatedActionsMenu({ consolidated, onRequested }: { consoli
           open={!!action}
           onOpenChange={(o) => !o && setAction(null)}
           type={action}
+          consolidated={consolidated}
+          onRequested={onRequested}
+        />
+      )}
+      {typeOpen && (
+        <ConsolidatedTypeDialog
+          open={typeOpen}
+          onOpenChange={setTypeOpen}
           consolidated={consolidated}
           onRequested={onRequested}
         />

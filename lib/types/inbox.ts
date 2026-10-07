@@ -198,6 +198,22 @@ export interface PasteBatchView extends PasteBatch {
   sheet?: string;
   /** El archivo no trae número: se armó con el formato que usa la sucursal (fecha + ruta). */
   consSuggested?: { pattern: "fecha+ruta" | "ruta+fecha"; route: string } | null;
+  /** Las guías del bloque se subieron con el OTRO tipo (F2 como paquete o master como carga). */
+  typeMismatch?: TypeMismatch | null;
+}
+
+export interface TypeMismatch {
+  toType: "carga" | "paquete";
+  consolidatedId: string;
+  consNumber: string;
+  subsidiaryName: string;
+  count: number;
+  trackingNumbers: string[];
+  whole: boolean;
+  targetConsolidatedId: string | null;
+  targetConsNumber: string | null;
+  emailConsNumber: string | null;
+  pending: boolean;
 }
 
 export interface PastePlan {

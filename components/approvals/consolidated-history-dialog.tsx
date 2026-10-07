@@ -21,6 +21,9 @@ const ENTITY_LABEL: Record<ConsolidatedChangeLogItem["entityType"], string> = {
   charge: "Carga F2",
   income: "Ingreso",
   devolution: "Devolución",
+  payment: "Cobro",
+  shipment_status: "Historial de estatus",
+  package_dispatch_history: "Salida a ruta",
 };
 
 const FIELD_LABEL: Record<string, string> = {
@@ -32,6 +35,10 @@ const FIELD_LABEL: Record<string, string> = {
   originalCost: "Monto original",
   secondAbordApplied: "2º a bordo",
   chargeNotChargedSameDay: "No cobra (2ª carga del día)",
+  __created: "Registro nuevo",
+  shipmentId: "Guía ligada",
+  chargeShipmentId: "Guía de carga ligada",
+  paymentId: "Cobro ligado",
 };
 
 const STATUS_STYLE: Record<string, string> = {
