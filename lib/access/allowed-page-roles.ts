@@ -44,9 +44,11 @@ export const allowedPageRoles = {
         // Compras (Gerardo) por user_permission; el rol legacy solo cubre superadmin.
         revisar: [UserRoleEnum.SUPERADMIN],
     },
-    // Bandeja de correos (FedEx y DHL): superadmin; se concede por usuario (user_permission).
+    // Correos (FedEx y DHL): superadmin; se conceden por rol o por usuario en Configuración → Permisos.
     correo: {
-        bandeja: [UserRoleEnum.SUPERADMIN],
+        bandeja: [UserRoleEnum.SUPERADMIN], // ver bandeja y seguimiento
+        subir: [UserRoleEnum.SUPERADMIN], // confirmar sucursal, ignorar y subir guías
+        configurar: [UserRoleEnum.SUPERADMIN], // buzón, cobertura de CP, alertas
     },
     configuracion: [UserRoleEnum.SUPERADMIN],
     // Auditoría: EXCLUSIVO superadmin (incluye variante histórica 'superamin').

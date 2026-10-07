@@ -11,10 +11,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2, CalendarDays, AlarmClock } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2, CalendarDays, AlarmClock, Inbox } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
+import { hasPermission } from "@/lib/access/permissions"
 // Paneles con carga perezosa: antes se importaban los ~15 de golpe, inflando el
 // grafo de módulos que el dev server compila y retiene en memoria (crítico en
 // máquinas de 8 GB). Con `dynamic` + `ssr: false` solo se trae el panel de la
@@ -53,6 +54,7 @@ const SECTIONS = [
   { id: "catalogos", label: "Catálogos", icon: Tags, description: "Valores de los enums" },
   { id: "geocode", label: "Geolocalización", icon: MapPin, description: "Direcciones aprendidas" },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, description: "Avisos al chofer" },
+  { id: "correos", label: "Bandeja de correos", icon: Inbox, description: "Buzón y cobertura (CP)" },
   { id: "alertas", label: "Alertas operativas", icon: AlarmClock, description: "Plazos y avisos por sucursal" },
   { id: "plantillas", label: "Plantillas", icon: Mail, description: "Correos configurables" },
   { id: "branding", label: "Branding", icon: Palette, description: "Identidad visual" },
@@ -68,9 +70,14 @@ function ConfiguracionPage() {
   const initialSection: SectionId = SECTIONS.some((s) => s.id === paramSection) ? (paramSection as SectionId) : "empresa"
   const [section, setSection] = useState<SectionId>(initialSection)
   const { theme, setTheme } = useTheme()
-  const role = (useAuthStore((s) => s.user?.role) || "").toString().toLowerCase()
+  const user = useAuthStore((s) => s.user)
+  const role = (user?.role || "").toString().toLowerCase()
   const isSuper = ["superadmin", "superamin"].includes(role)
-  const sections = SECTIONS.filter((s) => (s.id === "plantillas" || s.id === "branding" || s.id === "alertas") ? isSuper : true)
+  // Bandeja y alertas: permiso "Configurar bandeja" (por rol o por usuario en Roles y Permisos).
+  const canConfigureInbox = hasPermission(user, "correo.configurar")
+  const sections = SECTIONS.filter((s) =>
+    s.id === "plantillas" || s.id === "branding" ? isSuper : s.id === "correos" || s.id === "alertas" ? canConfigureInbox : true,
+  )
 
   return (
     <AppLayout>
@@ -126,14 +133,7 @@ function ConfiguracionPage() {
             {section === "usuarios" && <UsersPanel />}
 
             {section === "sucursales" && (
-              <Tabs defaultValue="config" className="space-y-4">
-                <TabsList>
-                  <TabsTrigger value="config">Configuración</TabsTrigger>
-                  <TabsTrigger value="cobertura">Cobertura (CP)</TabsTrigger>
-                </TabsList>
-                <TabsContent value="config"><SubsidiaryConfigPanel /></TabsContent>
-                <TabsContent value="cobertura"><ZipCoveragePanel /></TabsContent>
-              </Tabs>
+              <SubsidiaryConfigPanel />
             )}
 
             {section === "festivos" && <HolidaysPanel />}
@@ -144,7 +144,18 @@ function ConfiguracionPage() {
 
             {section === "whatsapp" && <WhatsappConfigPanel />}
 
-            {section === "alertas" && isSuper && <OpsAlertsPanel />}
+            {section === "correos" && canConfigureInbox && (
+              <Tabs defaultValue="buzon" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="buzon">Lectura del buzón</TabsTrigger>
+                  <TabsTrigger value="cobertura">Cobertura (CP)</TabsTrigger>
+                </TabsList>
+                <TabsContent value="buzon"><InboxPanel /></TabsContent>
+                <TabsContent value="cobertura"><ZipCoveragePanel /></TabsContent>
+              </Tabs>
+            )}
+
+            {section === "alertas" && canConfigureInbox && <OpsAlertsPanel />}
 
             {section === "plantillas" && <PlantillasPanel />}
 
@@ -157,13 +168,11 @@ function ConfiguracionPage() {
                   <TabsTrigger value="logs">Logs en vivo</TabsTrigger>
                   {isSuper && <TabsTrigger value="respaldo">Respaldo</TabsTrigger>}
                   {isSuper && <TabsTrigger value="energia">Energía</TabsTrigger>}
-                  {isSuper && <TabsTrigger value="correo">Correo</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="metricas"><ServerStatsPanel /></TabsContent>
                 <TabsContent value="logs"><ServerLogsPanel /></TabsContent>
                 {isSuper && <TabsContent value="respaldo"><ServerBackupPanel /></TabsContent>}
                 {isSuper && <TabsContent value="energia"><ServerPowerPanel /></TabsContent>}
-                {isSuper && <TabsContent value="correo"><InboxPanel /></TabsContent>}
               </Tabs>
             )}
 

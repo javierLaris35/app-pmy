@@ -22,6 +22,8 @@ interface Props {
   subject: string;
   /** La sucursal ya está decidida (confirmada o detectada con certeza). */
   ready: boolean;
+  /** Tiene el permiso "Confirmar sucursal y subir guías". */
+  canUpload: boolean;
   onChanged: () => void;
   /** Abrir un archivo en el visor (con la hoja del bloque). */
   onView: (t: ViewerTarget) => void;
@@ -32,7 +34,7 @@ function plural(n: number, one: string, many: string) {
 }
 
 /** Paso 2: bloques de guías del correo; cada uno se sube abriendo "Pegar FedEx" ya capturado. */
-export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }: Props) {
+export function InboxGuidesStep({ messageId, subject, ready, canUpload, onChanged, onView }: Props) {
   const { data: plan, isLoading, mutate } = useSWR(["/inbox/paste-plan", messageId], () => getInboxPastePlan(messageId));
   // Recorrido de cada consolidado ya subido (desembarque → ruta → cierre).
   const { data: tracking, mutate: mutateTracking } = useSWR(["/ops-alerts/tracking/message", messageId], () => getTrackingForMessage(messageId));
@@ -214,11 +216,13 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
               <p className="mt-1.5 text-xs text-slate-500">{b.blockedReason}</p>
             ) : (
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <Button size="sm" className="gap-1.5" disabled={!ready} onClick={() => openPaste(b)}>
+                <Button size="sm" className="gap-1.5" disabled={!ready || !canUpload} onClick={() => openPaste(b)}>
                   <Upload className="h-4 w-4" /> Subir estas guías
                 </Button>
                 <span className="text-xs text-slate-500">
-                  {ready
+                  {!canUpload
+                    ? "No tienes permiso para subir guías desde la bandeja."
+                    : ready
                     ? `Se abre "Pegar FedEx" con todo ya capturado${b.consNumber ? "" : " (falta escribir el número de consolidado)"}; solo revisas y guardas.`
                     : "Primero confirma la sucursal (paso 1)."}
                 </span>

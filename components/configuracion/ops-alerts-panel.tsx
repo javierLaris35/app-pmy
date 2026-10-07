@@ -49,7 +49,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-/** Configuración → Alertas operativas (solo superadmin). */
+/** Configuración → Alertas operativas (permiso correo.configurar). */
 export function OpsAlertsPanel() {
   const { data: settings, mutate: mutateSettings } = useSWR("/ops-alerts/settings", getOpsSettings);
   const { data: subs, mutate: mutateSubs } = useSWR("/ops-alerts/subsidiaries", getOpsSubsidiaries);
