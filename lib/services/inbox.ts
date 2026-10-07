@@ -46,6 +46,9 @@ export const setInboxEnabled = async (enabled: boolean): Promise<InboxStatusInfo
 export const getInboxBoard = async (p: { from?: string; to?: string; subsidiaryId?: string }): Promise<BoardRow[]> =>
   (await axiosConfig.get<BoardRow[]>(`${baseUrl}/board`, { params: p })).data;
 
+export const getInboxRoutes = async (p: { from?: string; to?: string; subsidiaryId?: string }): Promise<import("../types/inbox").RoutesReport> =>
+  (await axiosConfig.get(`${baseUrl}/routes`, { params: p })).data;
+
 export const getZipCoverage = async (subsidiaryId?: string): Promise<ZipCoverageRow[]> =>
   (await axiosConfig.get<ZipCoverageRow[]>(`${baseUrl}/zip-coverage`, { params: { subsidiaryId } })).data;
 

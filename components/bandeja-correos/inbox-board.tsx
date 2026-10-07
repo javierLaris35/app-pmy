@@ -10,6 +10,7 @@ import { Subsidiary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CONS_KIND_LABEL, formatDateTime } from "./labels";
 import { TrackingSteps } from "./tracking-steps";
+import { InboxRoutes } from "./inbox-routes";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Inbox, Loader2 } from "lucide-react";
 
 interface Props {
@@ -86,6 +87,8 @@ export function InboxBoard({ from, to, subsidiaryId, active, onOpenMessage }: Pr
         <Stat label="Con algún paso atrasado" value={totals.late} tone={totals.late ? "text-red-600" : undefined} />
         <Stat label="Terminados (ruta cerrada)" value={totals.done} tone="text-emerald-700" />
       </div>
+
+      <InboxRoutes from={from} to={to} subsidiaryId={subsidiaryId} active={active} />
 
       {days.map(([day, bySub]) => (
         <section key={day} className="rounded-md border bg-white">

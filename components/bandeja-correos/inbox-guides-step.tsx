@@ -125,7 +125,7 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
       <div className="space-y-2">
         <p className="py-1 text-sm text-slate-500">Este correo no trae archivos con guías para subir.</p>
         {announcedList}
-        {orphanNote}
+      {orphanNote}
       </div>
     );
   }
@@ -162,6 +162,13 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
               <span className="text-slate-400"> · </span>
               {b.cobrosCount > 0 ? plural(b.cobrosCount, "cobro", "cobros") : "sin cobros"}
             </p>
+            {!!b.consSuggested && !uploaded && (
+              <p className="mt-0.5 text-xs text-sky-700">
+                El archivo no trae número de consolidado. Lo armamos como lo hace la sucursal (
+                {b.consSuggested.pattern === "fecha+ruta" ? "fecha + ruta" : "ruta + fecha"} {b.consSuggested.route}):{" "}
+                <span className="font-mono">{b.consNumber}</span>. Revísalo antes de guardar.
+              </p>
+            )}
             {!!b.inSystem && (
               <p className={cn("mt-0.5 text-xs", b.inSystem.complete ? "text-emerald-800" : "text-teal-700")}>
                 {b.inSystem.complete ? "En el sistema: " : `${b.inSystem.found} de ${b.inSystem.total} guías ya están en el sistema: `}

@@ -196,6 +196,8 @@ export interface PasteBatchView extends PasteBatch {
   /** Revisión por guías: cuántas del bloque ya están en el sistema y en qué consolidados. */
   inSystem?: { found: number; total: number; complete: boolean; groups: { consNumber: string; subsidiaryName: string; type: "paquete" | "carga"; count: number; at: string; byName: string | null }[] } | null;
   sheet?: string;
+  /** El archivo no trae número: se armó con el formato que usa la sucursal (fecha + ruta). */
+  consSuggested?: { pattern: "fecha+ruta" | "ruta+fecha"; route: string } | null;
 }
 
 export interface PastePlan {
@@ -206,4 +208,23 @@ export interface PastePlan {
   announcedOnly: { consNumber: string; kind: ConsolidationKind; announcedCount: number | null; insideSheet: string | null; uploaded: { at: string; byName: string | null; minutes: number | null } | null }[];
   /** Guías de cobros del correo que no están en ningún archivo. */
   unmatchedCobros: string[];
+}
+
+export interface RouteSummary {
+  route: string;
+  daysReceived: number;
+  daysUploaded: number;
+  daysPartial: number;
+  missingDays: string[];
+  guides: number;
+  asPackage: number;
+  asCharge: number;
+  subsidiaries: { name: string; days: number }[];
+  last: { day: string; consNumber: string | null; type: "paquete" | "carga" | null; subsidiaryName: string | null } | null;
+}
+
+export interface RoutesReport {
+  from: string;
+  to: string;
+  routes: RouteSummary[];
 }
