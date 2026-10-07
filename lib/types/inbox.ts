@@ -1,6 +1,6 @@
 export type InboxStatus = "nuevo" | "detectado" | "revision" | "confirmado" | "ignorado" | "error";
 export type InboxView = "falta_confirmar" | "listos" | "subidos" | "todos" | "ignorado";
-export type UploadState = "falta_confirmar" | "listo" | "subido" | "sin_guias" | "ignorado" | "error";
+export type UploadState = "falta_confirmar" | "listo" | "subido" | "parcial" | "sin_guias" | "ignorado" | "error";
 export type AttachmentKind =
   | "master"
   | "master_aereo"
@@ -193,6 +193,8 @@ export interface PasteBatchView extends PasteBatch {
   movedToF2?: number;
   /** F2: guías de este bloque que ya se subieron como paquete en el master de este mismo correo. */
   alreadyInMaster?: { count: number; consNumber: string };
+  /** Revisión por guías: cuántas del bloque ya están en el sistema y en qué consolidados. */
+  inSystem?: { found: number; total: number; complete: boolean; groups: { consNumber: string; subsidiaryName: string; type: "paquete" | "carga"; count: number; at: string; byName: string | null }[] } | null;
   sheet?: string;
 }
 

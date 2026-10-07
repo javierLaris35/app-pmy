@@ -13,6 +13,7 @@ export const UPLOAD_STATE: Record<UploadState, { label: string; cls: string }> =
   falta_confirmar: { label: "Falta confirmar", cls: "border-amber-200 bg-amber-50 text-amber-800" },
   listo: { label: "Listo para subir", cls: "border-sky-200 bg-sky-50 text-sky-700" },
   subido: { label: "Subido", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  parcial: { label: "Subido en parte", cls: "border-teal-200 bg-teal-50 text-teal-700" },
   sin_guias: { label: "Sin guías", cls: "border-slate-200 bg-slate-50 text-slate-500" },
   ignorado: { label: "Ignorado", cls: "border-slate-200 bg-slate-50 text-slate-500" },
   error: { label: "No se pudo leer", cls: "border-red-200 bg-red-50 text-red-700" },
@@ -28,6 +29,7 @@ export const BATCH_LABEL: Record<PasteBatchKind, string> = {
 /** Cómo supimos la sucursal, en una frase: "Lo sabemos por …". */
 const SIGNAL_PHRASE: Record<string, string> = {
   consolidado_conocido: "el consolidado ya está registrado en esa sucursal",
+  guias_registradas: "las guías ya están registradas en esa sucursal",
   cp_archivo: "los códigos postales de las guías",
   ciudad_archivo: "las ciudades de las guías",
   asunto_o_archivo: "el asunto o el nombre del archivo",
@@ -74,6 +76,7 @@ export const CONS_KIND_LABEL: Record<ConsolidationKind, string> = {
 
 export const SIGNAL_LABEL: Record<string, string> = {
   consolidado_conocido: "Consolidado registrado",
+  guias_registradas: "Guías ya registradas",
   cp_archivo: "Códigos postales",
   ciudad_archivo: "Ciudades del archivo",
   asunto_o_archivo: "Asunto / archivo",

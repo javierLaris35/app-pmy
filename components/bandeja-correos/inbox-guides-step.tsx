@@ -162,6 +162,14 @@ export function InboxGuidesStep({ messageId, subject, ready, onChanged, onView }
               <span className="text-slate-400"> · </span>
               {b.cobrosCount > 0 ? plural(b.cobrosCount, "cobro", "cobros") : "sin cobros"}
             </p>
+            {!!b.inSystem && (
+              <p className={cn("mt-0.5 text-xs", b.inSystem.complete ? "text-emerald-800" : "text-teal-700")}>
+                {b.inSystem.complete ? "En el sistema: " : `${b.inSystem.found} de ${b.inSystem.total} guías ya están en el sistema: `}
+                {b.inSystem.groups
+                  .map((g) => `${g.count} como ${g.type} en ${g.subsidiaryName} (cons ${g.consNumber})`)
+                  .join(" · ")}
+              </p>
+            )}
             {!!b.alreadyInMaster && !uploaded && (
               <p className="mt-0.5 text-xs text-amber-700">
                 ⚠️ {plural(b.alreadyInMaster.count, "guía de esta F2 ya se subió", "guías de esta F2 ya se subieron")} como paquete en el master{" "}
