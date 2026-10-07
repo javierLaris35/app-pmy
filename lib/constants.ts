@@ -1,5 +1,5 @@
 import { IconTruckLoading } from "@tabler/icons-react"
-import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal, ShoppingCart, KanbanSquare, Gauge, BookOpen, ClipboardList, Wrench, ListChecks, MailIcon } from "lucide-react"
+import { BarChart3, PieChart, SettingsIcon, BuildingIcon, PackageIcon, TruckIcon, BriefcaseBusinessIcon, Truck, Wallet2Icon, ChartNoAxesCombinedIcon, DollarSignIcon, HomeIcon, HistoryIcon, PenToolIcon, PackagePlusIcon, MapIcon, MonitorCheckIcon, Undo2Icon, ClipboardPasteIcon, MilestoneIcon, CarFrontIcon, PackageCheckIcon, Warehouse, ForkliftIcon, PackageMinusIcon, FileSpreadsheet, SlidersHorizontal, ShoppingCart, KanbanSquare, Gauge, BookOpen, ClipboardList, Wrench, ListChecks, MailIcon, InboxIcon } from "lucide-react"
 import { ElementType } from "react";
 import { allowedPageRoles } from "@/lib/access/allowed-page-roles";
 
@@ -83,13 +83,6 @@ export const sidebarMenu = {
           isActive: false
         },
         {
-          name: "Bandeja de correos",
-          url: "/operaciones/bandeja-correos",
-          icon: MailIcon,
-          roles: allowedPageRoles.correo.bandeja,
-          isActive: false
-        },
-        {
           name: "Entrada",
           url: "/bodega/entrada",
           icon: PackagePlusIcon,
@@ -115,6 +108,28 @@ export const sidebarMenu = {
           url: "/bodega/salida",
           icon: PackageMinusIcon,
           roles: allowedPageRoles.bodega.salida,
+          isActive: false
+        }
+      ]
+    },
+    {
+      title: "Correos",
+      url: "#",
+      icon: MailIcon,
+      isActive: false,
+      items: [
+        {
+          name: "Bandeja",
+          url: "/correos/bandeja",
+          icon: InboxIcon,
+          roles: allowedPageRoles.correo.bandeja,
+          isActive: false
+        },
+        {
+          name: "Seguimiento",
+          url: "/correos/seguimiento",
+          icon: ListChecks,
+          roles: allowedPageRoles.correo.bandeja,
           isActive: false
         }
       ]

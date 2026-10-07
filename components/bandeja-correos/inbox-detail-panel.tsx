@@ -12,6 +12,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useInboxMessage } from "@/hooks/services/inbox/use-inbox";
+import { useAuthStore } from "@/store/auth.store";
+import { hasPermission } from "@/lib/access/permissions";
 import { confirmInboxMessage, downloadInboxAttachment, ignoreInboxMessage, inboxErrorText } from "@/lib/services/inbox";
 import { AttachmentKind } from "@/lib/types/inbox";
 import { Subsidiary } from "@/lib/types";
@@ -42,6 +44,8 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
   const [ignoreReason, setIgnoreReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [viewer, setViewer] = useState<ViewerTarget | null>(null);
+  // Confirmar, ignorar y subir requieren "Confirmar sucursal y subir guías"; sin él se ve todo pero no se cambia nada.
+  const canAct = hasPermission(useAuthStore((s) => s.user), "correo.subir");
 
   const m = data?.message;
   const d = data?.detection;
@@ -146,7 +150,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
             {m.fromAddress} · {formatDateTime(m.receivedAt)}
           </p>
         </div>
-        {m.status !== "ignorado" && (
+        {m.status !== "ignorado" && canAct && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Más acciones">
@@ -178,9 +182,11 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                     <span className="text-lg font-semibold text-slate-900">{m.subsidiaryName}</span>
-                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setEditing(true)}>
-                      Cambiar
-                    </Button>
+                    {canAct && (
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setEditing(true)}>
+                        Cambiar
+                      </Button>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500">
                     {m.status === "confirmado"
@@ -202,6 +208,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {d.reason}
                     </p>
                   )}
+                  {canAct ? (
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => save(suggested)} disabled={busy}>
                       {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
@@ -211,11 +218,14 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                       No, es otra
                     </Button>
                   </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">Falta que alguien con permiso para subir guías la confirme.</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
-                  <p className="text-sm text-slate-800">No pudimos saber de qué sucursal es. Elígela:</p>
-                  {selector}
+                  <p className="text-sm text-slate-800">No pudimos saber de qué sucursal es.{canAct ? " Elígela:" : ""}</p>
+                  {canAct ? selector : <p className="text-xs text-slate-500">Falta que alguien con permiso para subir guías la elija.</p>}
                 </div>
               )}
 
@@ -255,7 +265,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
             {/* ② Guías */}
             <section>
               <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">② Guías que trae el correo</h3>
-              <InboxGuidesStep messageId={m.id} subject={m.subject} ready={decided && !editing} onChanged={onChanged} onView={setViewer} />
+              <InboxGuidesStep messageId={m.id} subject={m.subject} ready={decided && !editing} canUpload={canAct} onChanged={onChanged} onView={setViewer} />
               {infoFiles.length > 0 && (
                 <p className="mt-2 text-xs text-slate-500">
                   No se suben (son informativos): {infoFiles.map((a) => a.filename).join(", ")}.
@@ -301,7 +311,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                       {a.filename}
                     </span>
                     {a.rowCount != null && a.rowCount > 0 && <span className="text-slate-500">{a.rowCount} filas</span>}
-                    <Select value={kinds[a.id] ?? a.kind} onValueChange={(v) => setKinds((k) => ({ ...k, [a.id]: v as AttachmentKind }))}>
+                    <Select disabled={!canAct} value={kinds[a.id] ?? a.kind} onValueChange={(v) => setKinds((k) => ({ ...k, [a.id]: v as AttachmentKind }))}>
                       <SelectTrigger className="h-7 w-44 text-xs" aria-label="Tipo de archivo">
                         <SelectValue />
                       </SelectTrigger>

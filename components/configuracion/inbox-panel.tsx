@@ -18,7 +18,7 @@ const HEALTH: Record<string, { label: string; cls: string }> = {
   sin_configurar: { label: "Falta configurar el acceso", cls: "bg-amber-100 text-amber-800" },
 };
 
-/** Configuración → Servidor → Bandeja de correos (solo superadmin). */
+/** Configuración → Bandeja de correos → Lectura del buzón (permiso correo.configurar). */
 export function InboxPanel() {
   const { data, mutate, isLoading } = useInboxStatus();
   const [busy, setBusy] = useState<"toggle" | "sync" | "redetect" | null>(null);
