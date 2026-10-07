@@ -94,6 +94,9 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
   }, [open, load]);
 
   const fixable = useMemo(() => (data?.packages ?? []).filter((p) => !!p.plan && !!p.fingerprint), [data]);
+  // "Entregado antes de la ruta" sin nada que corregir: solo informa que se revisó.
+  const reviewedOnly = (data?.packages ?? []).filter((p) => p.problems.length === 1 && p.problems[0] === "DELIVERED_BEFORE_ROUTE").length;
+  const toFix = (data?.packages.length ?? 0) - reviewedOnly;
   const chosen = useMemo(() => fixable.filter((p) => selected.has(keyOf(p))), [fixable, selected]);
 
   const summary = useMemo(() => {
@@ -166,7 +169,7 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
           <div className="flex items-center gap-2 pt-2">
             <span className="text-xs text-slate-600">
               {data
-                ? `${data.packages.length} con problema de ${data.total} guías${data.is315 ? " · ruta 31.5 (solo cargas)" : ""}`
+                ? `${toFix} por corregir · ${reviewedOnly} entregados antes de la ruta (ya bien) · ${data.total} guías revisadas${data.is315 ? " · ruta 31.5 (solo cargas)" : ""}`
                 : " "}
             </span>
             <div className="ml-auto flex items-center gap-2">
