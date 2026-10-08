@@ -60,6 +60,19 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
   /** ¿Es la fila activa? (p. ej. la abierta en un panel lateral) — se resalta. */
   activeRowId?: (row: TData) => boolean
+  /**
+   * Filtros del lado del servidor (opt-in; úsalo junto con `manualPagination`). La tabla NO
+   * filtra en el navegador (solo vería la página actual): la pantalla controla
+   * `columnFilters`/`globalFilter`, los manda al backend y pasa las `options` de cada filtro.
+   * Sin estos props la tabla filtra en el navegador como siempre.
+   */
+  manualFiltering?: boolean
+  columnFilters?: ColumnFiltersState
+  onColumnFiltersChange?: OnChangeFn<ColumnFiltersState>
+  globalFilter?: string
+  onGlobalFilterChange?: (value: string) => void
+  /** Texto del buscador de la barra (default "Buscar..."). */
+  searchPlaceholder?: string
 }
 
 export function DataTable<TData, TValue>({
@@ -80,12 +93,22 @@ export function DataTable<TData, TValue>({
   hideSelectionCount = false,
   onRowClick,
   activeRowId,
+  manualFiltering = false,
+  columnFilters: columnFiltersProp,
+  onColumnFiltersChange,
+  globalFilter: globalFilterProp,
+  onGlobalFilterChange,
+  searchPlaceholder,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(initialColumnFilters ?? [])
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = React.useState<string>("")
+  // Filtros controlados por la pantalla (modo servidor) o internos (modo navegador).
+  const effectiveColumnFilters = columnFiltersProp ?? columnFilters
+  const effectiveGlobalFilter = globalFilterProp ?? globalFilter
+  const changeGlobalFilter = onGlobalFilterChange ?? setGlobalFilter
   
   // NUEVO ESTADO PARA CONTROLAR LAS FILAS EXPANDIDAS
   const [expanded, setExpanded] = React.useState<ExpandedState>({})
@@ -106,8 +129,8 @@ export function DataTable<TData, TValue>({
       sorting,
       columnVisibility,
       rowSelection,
-      columnFilters,
-      globalFilter,
+      columnFilters: effectiveColumnFilters,
+      globalFilter: effectiveGlobalFilter,
       expanded,
       pagination: manualPagination ? (pagination ?? internalPagination) : internalPagination,
     },
@@ -119,9 +142,11 @@ export function DataTable<TData, TValue>({
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    manualFiltering,
+    onColumnFiltersChange: onColumnFiltersChange ?? setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: (updater) =>
+      changeGlobalFilter(typeof updater === "function" ? updater(effectiveGlobalFilter) : updater),
     onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -164,7 +189,8 @@ export function DataTable<TData, TValue>({
         <DataTableToolbar
           table={table}
           filters={filters}
-          setGlobalFilter={setGlobalFilter}
+          setGlobalFilter={changeGlobalFilter}
+          searchPlaceholder={searchPlaceholder}
         />
       )}
       <div className="rounded-md border">

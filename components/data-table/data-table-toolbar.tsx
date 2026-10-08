@@ -18,9 +18,11 @@ interface DataTableToolbarProps<TData> {
     title: string
     options?: { label: string; value: string }[]
   }[]
+  /** Texto del buscador (default "Buscar..."). */
+  searchPlaceholder?: string
 }
 
-export function DataTableToolbar<TData>({ table, setGlobalFilter, filters }: DataTableToolbarProps<TData>) {
+export function DataTableToolbar<TData>({ table, setGlobalFilter, filters, searchPlaceholder = "Buscar..." }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter
 
   // Buscar columnas de manera segura
@@ -55,7 +57,7 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter, filters }: Dat
       {/* Cambiamos space-x-2 por gap-2 y flex-wrap para que si hay muchos filtros no se rompa la pantalla */}
       <div className="flex flex-1 flex-wrap items-center gap-2">
         <Input
-          placeholder="Buscar..."
+          placeholder={searchPlaceholder}
           value={(table.getState().globalFilter as string) ?? ""}
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="h-8 w-[150px] lg:w-[250px]"

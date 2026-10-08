@@ -1,15 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Send, Package, Truck, Eye, Sheet, Lock } from "lucide-react"
+import { Send, Truck, Eye, Sheet, Lock } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
-import { Card, CardContent } from "@/components/ui/card"
 import PackageDispatchForm from "./package-dispatch-form"
 import { PackageDispatchStatus, type PackageDispatchResponse } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
@@ -26,9 +25,19 @@ import { RequestDeleteButton } from "@/components/approvals/request-delete-butto
 import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
-import type { PaginationState, Row } from "@tanstack/react-table"
-import { Input } from "@/components/ui/input"
-import { Search } from "lucide-react"
+import type { ColumnFiltersState, OnChangeFn, PaginationState, Row } from "@tanstack/react-table"
+
+/** Estatus de la salida tal como los guarda el backend (DispatchStatus). */
+const DISPATCH_STATUS_OPTIONS = [
+  { label: "Pendiente", value: "Pendiente" },
+  { label: "En progreso", value: "En progreso" },
+  { label: "Completada", value: "Completada" },
+  { label: "Cancelada", value: "Cancelada" },
+]
+
+/** "2026-10-07" → "mié, 07/10" (día calendario, sin correrse por zona horaria). */
+const dayLabel = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString("es-MX", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" })
 
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
@@ -53,9 +62,43 @@ export default function PackageDispatchControl() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  const { packageDispatchs, totalPages, isError, isLoading, mutate } = usePackageDispatchs(
+  // Filtros de la tabla (estatus, chofer, fecha, 31.5). Se aplican en el BACKEND: la tabla
+  // pagina en el servidor (Cabo llega a 120 salidas por semana) y filtrar en el navegador solo
+  // vería la página actual.
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (updater) => {
+    setColumnFilters((prev) => (typeof updater === "function" ? updater(prev) : updater))
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const filterParam = (columnId: string) => {
+    const value = columnFilters.find((f) => f.id === columnId)?.value
+    return Array.isArray(value) && value.length ? value.join(",") : undefined
+  }
+
+  const { packageDispatchs, totalPages, facets, isError, isLoading, mutate } = usePackageDispatchs(
     selectedSucursalId,
-    { page: pagination.pageIndex + 1, limit: pagination.pageSize, from: week.from, to: week.to, search: search || undefined }
+    {
+      page: pagination.pageIndex + 1,
+      limit: pagination.pageSize,
+      from: week.from,
+      to: week.to,
+      search: search || undefined,
+      status: filterParam("status"),
+      driverId: filterParam("drivers"),
+      day: filterParam("routeDate"),
+      is315: filterParam("is315"),
+    }
+  )
+
+  // Opciones de los filtros: estatus fijos (valores del backend) y choferes/días de TODA la semana.
+  const tableFilters = useMemo(
+    () => [
+      { columnId: "status", title: "Estatus", options: DISPATCH_STATUS_OPTIONS },
+      { columnId: "routeDate", title: "Fecha", options: facets.days.map((d) => ({ label: dayLabel(d), value: d })) },
+      { columnId: "drivers", title: "Chofer", options: facets.drivers.map((d) => ({ label: d.name, value: d.id })) },
+      { columnId: "is315", title: "31.5", options: [{ label: "Sí", value: "true" }, { label: "No", value: "false" }] },
+    ],
+    [facets],
   )
   // Obtener usuario y estado de hidratación
   const user = useAuthStore((s) => s.user)
@@ -113,11 +156,15 @@ export default function PackageDispatchControl() {
   const handleSucursalChange = (id: string, name?: string) => {
     setSelectedSucursalId(id || null)
     setSelectedSucursalName(name || "")
+    // Los choferes y días son de cada sucursal: los filtros se limpian.
+    setColumnFilters([])
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
   const handleWeekChange = (range: WeekRange) => {
     setWeek(range)
+    // Los días elegidos eran de la semana anterior.
+    setColumnFilters((prev) => prev.filter((f) => f.id !== "routeDate"))
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
@@ -250,7 +297,11 @@ const updatedColumns = columns.map((col) =>
           actions={
             <>
             {isSuperAdmin && <RouteRiskReportButton />}
-            <div className="w-full sm:w-[250px]">
+            <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
+            <Button size="sm" onClick={openDispatchDialog} disabled={!selectedSucursalId} className="whitespace-nowrap">
+              <Send className="mr-1.5 h-4 w-4" /> Nueva salida
+            </Button>
+            <div className="w-full sm:w-56">
               <SucursalSelector
                 value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
                 returnObject={true}
@@ -270,124 +321,35 @@ const updatedColumns = columns.map((col) =>
           }
         />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="flex items-center p-6">
-              <div className="flex items-center space-x-4">
-                <div className="p-2 bg-yellow-100 rounded-full">
-                  <Package className="h-6 w-6 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Pendientes</p>
-                  {/*<p className="text-2xl font-bold">{stats.pending}</p>*/}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center p-6">
-              <div className="flex items-center space-x-4">
-                <div className="p-2 bg-blue-100 rounded-full">
-                  <Truck className="h-6 w-6 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">En Tránsito</p>
-                  {/*<p className="text-2xl font-bold">{stats.inTransit}</p>*/}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center p-6">
-              <div className="flex items-center space-x-4">
-                <div className="p-2 bg-green-100 rounded-full">
-                  <Package className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Entregados</p>
-                  {/*<p className="text-2xl font-bold">{stats.delivered}</p>*/}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center p-6">
-              <div className="flex items-center space-x-4">
-                <div className="p-2 bg-red-100 rounded-full">
-                  <Package className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Devueltos</p>
-                  {/*<p className="text-2xl font-bold">{stats.returned}</p>*/}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Action Button */}
-        <div className="flex justify-center">
-          <Button
-            onClick={openDispatchDialog}
-            disabled={!selectedSucursalId}
-            size="lg"
-            className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-          >
-            <Send className="mr-2 h-5 w-5" />
-            Nueva Salida de Paquetes
-          </Button>
-        </div>
-
-        {/* Dispatches Table */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-lg font-semibold">Historial de Salidas</h3>
-                <p className="text-muted-foreground">Salidas de la semana seleccionada</p>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="relative w-full sm:w-[260px]">
-                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por folio de salida..."
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-                <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
-              </div>
-            </div>
-
-            {!selectedSucursalId ? (
-              <div className="flex h-[200px] items-center justify-center">
-                <p className="text-muted-foreground">Selecciona una sucursal para ver las salidas</p>
-              </div>
-            ) : isLoading ? (
-              <div className="flex h-[200px] items-center justify-center">
-                <p className="text-muted-foreground">Cargando salidas...</p>
-              </div>
-            ) : isError ? (
-              <div className="flex h-[200px] items-center justify-center">
-                <p className="text-red-600">Error al cargar las salidas</p>
-              </div>
-            ) : (
-              <DataTable
-                columns={updatedColumns}
-                data={packageDispatchs}
-                manualPagination
-                pageCount={totalPages}
-                pagination={pagination}
-                onPaginationChange={setPagination}
-              />
-            )}
-          </CardContent>
-        </Card>
+        {!selectedSucursalId ? (
+          <div className="flex h-[200px] items-center justify-center">
+            <p className="text-muted-foreground">Selecciona una sucursal para ver las salidas</p>
+          </div>
+        ) : isLoading ? (
+          <div className="flex h-[200px] items-center justify-center">
+            <p className="text-muted-foreground">Cargando salidas...</p>
+          </div>
+        ) : isError ? (
+          <div className="flex h-[200px] items-center justify-center">
+            <p className="text-red-600">Error al cargar las salidas</p>
+          </div>
+        ) : (
+          <DataTable
+            columns={updatedColumns}
+            data={packageDispatchs}
+            manualPagination
+            pageCount={totalPages}
+            pagination={pagination}
+            onPaginationChange={setPagination}
+            manualFiltering
+            filters={tableFilters}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={handleColumnFiltersChange}
+            globalFilter={searchInput}
+            onGlobalFilterChange={setSearchInput}
+            searchPlaceholder="Buscar por folio de salida..."
+          />
+        )}
       </div>
 
       {/* Dispatch Dialog (el form es dueño de su propio Dialog) */}

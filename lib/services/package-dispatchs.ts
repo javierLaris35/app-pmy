@@ -17,8 +17,25 @@ const getDispatchEmailHistory = async (id: string): Promise<EmailLog[]> => {
     return response.data
 }
 
-const getPackageDispatchs = async (subsidiaryId: string, params: ListParams = {}) => {
-    const response = await axiosConfig.get<Paginated<PackageDispatchResponse>>(`${url}/subsidiary/${subsidiaryId}`, { params });
+/** Filtros de la tabla de salidas (se aplican en el backend; listas separadas por coma). */
+export interface DispatchListParams extends ListParams {
+    status?: string;
+    driverId?: string;
+    day?: string;
+    is315?: string;
+}
+
+/** Opciones de los filtros calculadas sobre TODA la semana (no solo la página). */
+export interface DispatchListFacets {
+    drivers: { id: string; name: string }[];
+    days: string[];
+}
+
+const getPackageDispatchs = async (subsidiaryId: string, params: DispatchListParams = {}) => {
+    const response = await axiosConfig.get<Paginated<PackageDispatchResponse> & { facets?: DispatchListFacets }>(
+        `${url}/subsidiary/${subsidiaryId}`,
+        { params },
+    );
     return response.data;
 }
 
