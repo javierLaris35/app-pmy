@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -72,7 +73,8 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     setIsLoading(true);
     try {
       const { summary, details } = await fetchInventoryCodeReportMultiJson(effectiveSubsidiaryIds);
-      setRows(details || []);
+      // Por ahora el reporte es solo FedEx (el backend ya lo filtra; esto es defensivo).
+      setRows((details || []).filter(isFedexRow));
       setSummary({
         Paquetes: summary?.paquetes ?? (details?.length || 0),
         "Con código hoy": summary?.conCodigoHoy ?? 0,
@@ -274,7 +276,8 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
           </div>
 
           {/* Modo: por sucursal (multi) o por zona */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="text-[11px]">Periodo: octubre 2026 · solo FedEx</Badge>
             <span className="text-[11px] font-medium text-muted-foreground">Buscar:</span>
             <div className="inline-flex rounded-md border p-0.5">
               {([["sucursal", "Por sucursal"], ["zona", "Por zona"]] as const).map(([key, label]) => (
@@ -343,7 +346,7 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
       ) : rows.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">
           <EyeOff className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          No hay paquetes activos (pendiente / en bodega) para esa selección.
+          No hay paquetes FedEx activos (pendiente / en bodega) dados de alta en octubre 2026 para esa selección.
         </CardContent></Card>
       ) : (
         <Card>
