@@ -98,6 +98,16 @@ export const columns: ColumnDef<PackageDispatchResponse>[] = [
     },
   },
   {
+    accessorKey: "is315",
+    header: "31.5",
+    cell: ({ row }) =>
+      row.original.is315 ? (
+        <Badge variant="default">31.5</Badge>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
+  },
+  {
     accessorKey: "status",
     header: "Estatus",
     cell: ({ row }) => {

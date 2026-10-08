@@ -641,6 +641,8 @@ export interface PackageDispatchResponse {
   vehicle: Vehicles
   /** 'YYYY-MM-DD' — día operativo de la ruta. */
   routeDate?: string | null
+  /** Ruta 31.5 (solo cargas; los "No VAN" no generan ingreso). */
+  is315?: boolean
   createdAt?: string
   // Trazabilidad de envío de correo (denormalizado para pintar el botón/tooltip).
   emailStatus?: EmailStatus
