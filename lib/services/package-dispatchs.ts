@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { DispatchFormData, EmailLog, PackageDispatch, PackageInfo } from "../types"
+import { DispatchFormData, EmailLog, PackageDispatch, PackageDispatchResponse, PackageInfo } from "../types"
 import { Paginated, ListParams } from "./pagination"
 
 const url = '/package-dispatchs'
@@ -18,7 +18,7 @@ const getDispatchEmailHistory = async (id: string): Promise<EmailLog[]> => {
 }
 
 const getPackageDispatchs = async (subsidiaryId: string, params: ListParams = {}) => {
-    const response = await axiosConfig.get<Paginated<PackageDispatch>>(`${url}/subsidiary/${subsidiaryId}`, { params });
+    const response = await axiosConfig.get<Paginated<PackageDispatchResponse>>(`${url}/subsidiary/${subsidiaryId}`, { params });
     return response.data;
 }
 

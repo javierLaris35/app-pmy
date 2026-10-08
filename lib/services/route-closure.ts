@@ -149,6 +149,27 @@ export const applyClosureFixes = async (
 }
 
 
+// ───────────── Reporte 7 pm "Rutas del día con posibles problemas" (solo superadmin) ─────────────
+
+export interface RouteRiskReportResult {
+    day: string;
+    subject: string;
+    html: string;
+    totals: { routes: number; routesWithIssues: number; toFix: number; withoutOutcome: number; guides: number };
+}
+
+/**
+ * Genera el reporte de un día (YYYY-MM-DD; vacío = hoy). `dryRun` = solo simulación, sin correo.
+ * Revisa todas las salidas del día contra FedEx: puede tardar alrededor de un minuto.
+ */
+export const runRouteRiskReport = async (opts: { date?: string; dryRun: boolean }) => {
+    const response = await axiosConfig.post<RouteRiskReportResult | { skipped: true; reason: string }>(
+        `${url}/risk-report`,
+        { ...(opts.date ? { date: opts.date } : {}), dryRun: opts.dryRun },
+    );
+    return response.data;
+}
+
 export {
     save,
     validateTrackingNumbers,

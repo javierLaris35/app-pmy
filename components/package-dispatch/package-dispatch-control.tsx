@@ -11,7 +11,7 @@ import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
 import PackageDispatchForm from "./package-dispatch-form"
-import { PackageDispatchStatus, type PackageDispatch } from "@/lib/types"
+import { PackageDispatchStatus, type PackageDispatchResponse } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
 import { columns } from "./columns"
@@ -21,11 +21,12 @@ import PackageDispatchDetails from "./package-dispatch-details"
 import ClosePackageDisptach from "./close-package-dispatch-form"
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
 import ResendEmailButton from "./resend-email-button"
+import { RouteRiskReportButton } from "./route-risk-report-button"
 import { RequestDeleteButton } from "@/components/approvals/request-delete-button"
 import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
-import type { PaginationState } from "@tanstack/react-table"
+import type { PaginationState, Row } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 
@@ -58,6 +59,8 @@ export default function PackageDispatchControl() {
   )
   // Obtener usuario y estado de hidratación
   const user = useAuthStore((s) => s.user)
+  // Simulación del correo de las 7 pm: solo superadmin (el backend también lo exige).
+  const isSuperAdmin = ["superadmin", "superamin"].includes(((user?.role as string) || "").toLowerCase())
   const hasHydrated = useAuthStore((s) => s.hasHydrated)
   
   // Determinar sucursal efectiva SOLO cuando auth esté hidratado
@@ -90,7 +93,7 @@ export default function PackageDispatchControl() {
   };
 
     // 🔒 PROTECCIÓN: no permitir cerrar si ya está COMPLETADA
-  const openRouteClouserDialog = (packageDispatch: PackageDispatch) => {
+  const openRouteClouserDialog = (packageDispatch: Pick<PackageDispatchResponse, "id" | "status">) => {
     console.log("🚀 ~ openRouteClouserDialog ~ packageDispatch:", packageDispatch)
 
     if (packageDispatch.status == PackageDispatchStatus.COMPLETED) {
@@ -118,7 +121,7 @@ export default function PackageDispatchControl() {
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
-  const handleExcelFileCreation = async (packageDispatch: PackageDispatch) => {
+  const handleExcelFileCreation = async (packageDispatch: Pick<PackageDispatchResponse, "id">) => {
     const dispatch = await getShipmensByDispatchId(packageDispatch.id);
     return await generateDispatchExcelClient(dispatch);
   }
@@ -127,7 +130,7 @@ const updatedColumns = columns.map((col) =>
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) => {
+          cell: ({ row }: { row: Row<PackageDispatchResponse> }) => {
             const isCompleted =
               row.original.status === PackageDispatchStatus.COMPLETED
 
@@ -136,7 +139,7 @@ const updatedColumns = columns.map((col) =>
                 <Button
                   variant="ghost"
                   className="h-8 w-8 p-0"
-                  onClick={() => openDetailsDialog(row.original)}
+                  onClick={() => openDetailsDialog(row.original.id)}
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
@@ -245,6 +248,8 @@ const updatedColumns = columns.map((col) =>
           title="Salidas a Ruta"
           description="Gestiona las salidas de paquetes con repartidores, rutas y unidades"
           actions={
+            <>
+            {isSuperAdmin && <RouteRiskReportButton />}
             <div className="w-full sm:w-[250px]">
               <SucursalSelector
                 value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
@@ -261,6 +266,7 @@ const updatedColumns = columns.map((col) =>
                 }}
               />
             </div>
+            </>
           }
         />
 
@@ -408,7 +414,7 @@ const updatedColumns = columns.map((col) =>
           </DialogHeader>
           {selectedPackageDispatch && (
               <PackageDispatchDetails
-              dispatch={selectedPackageDispatch}
+              dispatch={{ id: selectedPackageDispatch }}
               onClose={() => setIsDetailsDialogOpen(false)}
               />
           )}

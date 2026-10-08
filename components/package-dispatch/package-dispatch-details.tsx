@@ -25,7 +25,8 @@ import { mapToPackageInfo } from "@/lib/utils";
 import { getPackageDispatchById } from "@/lib/services/package-dispatchs";
 
 interface Props {
-  dispatch: PackageDispatch; 
+  /** Solo se usa el id: el detalle completo se trae fresco del backend. */
+  dispatch: Pick<PackageDispatch, "id">;
   onClose: () => void;
 }
 

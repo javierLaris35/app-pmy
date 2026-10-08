@@ -1,5 +1,5 @@
 import { getPackageDispatchById, getPackageDispatchs, savePackageDispatch } from "@/lib/services/package-dispatchs";
-import { PackageDispatch } from "@/lib/types";
+import { DispatchFormData, PackageDispatch, PackageDispatchResponse } from "@/lib/types";
 import { ListParams, Paginated } from "@/lib/services/pagination";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
@@ -8,7 +8,7 @@ export function usePackageDispatchs(subsidiaryId: string | null, params: ListPar
     const isValid = subsidiaryId && subsidiaryId.length > 0;
     const { page, limit, from, to, search } = params;
 
-    const { data, error, isLoading, mutate } = useSWR<Paginated<PackageDispatch>>(
+    const { data, error, isLoading, mutate } = useSWR<Paginated<PackageDispatchResponse>>(
         isValid
           ? [`/package-dispatchs/subsidiary`, subsidiaryId, page, limit, from, to, search]
           : null,
@@ -51,7 +51,7 @@ export function useSavePackageDispatch(){
         trigger: save,
         isMutating: isSaving,
         error,
-    } = useSWRMutation("save-package-dispatch", async (_key, { arg }: { arg: PackageDispatch }) => {
+    } = useSWRMutation("save-package-dispatch", async (_key, { arg }: { arg: DispatchFormData }) => {
         return await savePackageDispatch(arg);
     });
 
