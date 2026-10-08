@@ -82,6 +82,7 @@ export type ClosureProblemCode =
     | 'DELIVERED_BEFORE_ROUTE'
     | 'HISTORY_MISSING'
     | 'INCOME_MISSING'
+    | 'CLOSURE_STALE'
     | 'WARNING';
 
 export interface ClosurePackageDiagnosis {
@@ -90,6 +91,8 @@ export interface ClosurePackageDiagnosis {
     kind: 'shipment' | 'charge';
     currentStatus: string;
     targetStatus: string | null;
+    /** Cómo muestra hoy el cierre la guía. */
+    closureStatus: string | null;
     fedexEventAt: string | null;
     problems: ClosureProblemCode[];
     plan: null | {
@@ -103,6 +106,8 @@ export interface ClosurePackageDiagnosis {
             cost: number;
             pastWeek: boolean;
         };
+        /** Estatus con el que ESTA salida cierra la guía (no toca el estatus vivo). */
+        closure?: null | { status: string; occurredAt: string; exceptionCode: string | null };
     };
     explanation: string[];
     fingerprint: string | null;

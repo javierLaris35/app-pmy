@@ -51,6 +51,8 @@ export type Subsidiary = {
   /** Cierre de ruta: permitir cerrar aunque haya paquetes en "otros estatus" (hoy solo Hermosillo). */
   allowRouteClosureWithOtherStatus?: boolean
   closureAcceptsAnyDayDelivery?: boolean
+  /** Cierre de ruta: cuenta lo que pasó hasta que la guía sale en otra ruta (no solo el día de la ruta). */
+  closureUntilNextDispatch?: boolean
   /** Cobros: sumar el segundo abordo (secondAbordAmount) al costo de cargas F2/31.5 normales. */
   chargeSecondAbord?: boolean
   /** Cobros: solo la primera carga del día genera cobro; las demás del mismo día se registran en $0. */

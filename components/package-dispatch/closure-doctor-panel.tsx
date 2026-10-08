@@ -5,7 +5,7 @@
 // y aplica los arreglos que el superadmin elija. El backend vuelve a revisar cada paquete antes
 // de escribir: si algo cambió, ese paquete no se toca y se pide revisarlo de nuevo.
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, Stethoscope, Wrench } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { apiError } from "@/components/maintenance/shared/confirm-action";
@@ -39,6 +40,7 @@ const PROBLEM_META: Record<ClosureProblemCode, { label: string; className: strin
   DELIVERED_BEFORE_ROUTE: { label: "Entregado antes de la ruta", className: "bg-violet-100 text-violet-800 border-violet-200" },
   HISTORY_MISSING: { label: "Falta en historial", className: "bg-sky-100 text-sky-800 border-sky-200" },
   INCOME_MISSING: { label: "Falta ingreso", className: "bg-emerald-100 text-emerald-800 border-emerald-200" },
+  CLOSURE_STALE: { label: "Resultado de otro día", className: "bg-orange-100 text-orange-800 border-orange-200" },
   WARNING: { label: "Revisar a mano", className: "bg-red-100 text-red-800 border-red-200" },
 };
 
@@ -105,8 +107,10 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
     let incomes = 0;
     let amount = 0;
     let pastWeek = 0;
+    let closures = 0;
     for (const p of chosen) {
       if (p.plan?.setStatus) statuses++;
+      if (p.plan?.closure) closures++;
       events += p.plan?.insertEvents.length ?? 0;
       if (p.plan?.income) {
         incomes++;
@@ -114,7 +118,7 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
         if (p.plan.income.pastWeek) pastWeek++;
       }
     }
-    return { statuses, events, incomes, amount, pastWeek };
+    return { statuses, events, incomes, amount, pastWeek, closures };
   }, [chosen]);
 
   const toggle = (set: Set<string>, k: string) => {
@@ -158,30 +162,46 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] p-0 gap-0">
-        <DialogHeader className="px-4 pt-4 pb-3 border-b">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Stethoscope className="h-4 w-4 text-primary" /> Paquetes con problema
+      <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] p-0 gap-0 overflow-hidden">
+        <DialogHeader className="space-y-1 px-5 pt-5 pb-3 text-left">
+          <DialogTitle className="flex items-center gap-2.5 pr-8 text-base">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
+              <Stethoscope className="h-4 w-4 text-primary" />
+            </span>
+            Paquetes con problema
           </DialogTitle>
           <DialogDescription className="text-xs">
             Se revisa cada guía de la ruta contra FedEx. Nada cambia hasta que elijas los paquetes y confirmes.
           </DialogDescription>
-          <div className="flex items-center gap-2 pt-2">
-            <span className="text-xs text-slate-600">
-              {data
-                ? `${toFix} por corregir · ${reviewedOnly} entregados antes de la ruta (ya bien) · ${data.total} guías revisadas${data.is315 ? " · ruta 31.5 (solo cargas)" : ""}`
-                : " "}
-            </span>
-            <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={load} disabled={loading || applying}>
-                <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} /> Volver a revisar
-              </Button>
-              <Button size="sm" onClick={() => setConfirmOpen(true)} disabled={!chosen.length || loading || applying}>
-                <Wrench className="h-3.5 w-3.5 mr-1.5" /> Aplicar seleccionados ({chosen.length})
-              </Button>
-            </div>
-          </div>
         </DialogHeader>
+
+        <div className="flex min-h-11 items-center gap-1.5 border-b px-5 pb-3">
+          {data ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Pill className={toFix ? "bg-amber-50 text-amber-800 border-amber-200" : undefined}>{toFix} por corregir</Pill>
+              {reviewedOnly > 0 && <Pill>{reviewedOnly} entregados antes de la ruta (ya bien)</Pill>}
+              <Pill>{data.total} guías revisadas</Pill>
+              {data.is315 && <Pill>Ruta 31.5 · solo cargas</Pill>}
+            </div>
+          ) : (
+            <span className="text-xs text-slate-500">{loading ? "Revisando…" : " "}</span>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="ml-auto h-8 w-8 shrink-0"
+                onClick={load}
+                disabled={loading || applying}
+                aria-label="Volver a revisar"
+              >
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Volver a revisar con FedEx</TooltipContent>
+          </Tooltip>
+        </div>
 
         <ScrollArea className="max-h-[65vh]">
           {loading && (
@@ -245,6 +265,24 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
           )}
         </ScrollArea>
 
+        <div className="flex items-center gap-3 border-t bg-slate-50/70 px-5 py-3">
+          <span className="text-xs text-slate-600">
+            {chosen.length
+              ? `${chosen.length} ${chosen.length === 1 ? "paquete seleccionado" : "paquetes seleccionados"}`
+              : fixable.length
+                ? "Marca los paquetes que quieres corregir."
+                : "No hay arreglos por aplicar."}
+          </span>
+          <Button
+            size="sm"
+            className="ml-auto"
+            onClick={() => setConfirmOpen(true)}
+            disabled={!chosen.length || loading || applying}
+          >
+            <Wrench className="mr-1.5 h-3.5 w-3.5" /> Aplicar{chosen.length ? ` (${chosen.length})` : ""}
+          </Button>
+        </div>
+
         <AlertDialog open={confirmOpen} onOpenChange={(v) => !applying && setConfirmOpen(v)}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -254,6 +292,7 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
                   <p>Esto es lo que va a pasar:</p>
                   <ul className="list-disc pl-5 space-y-0.5">
                     <li>{summary.statuses} cambios de estatus</li>
+                    {summary.closures > 0 && <li>{summary.closures} guías cambian cómo las cuenta el cierre de esta salida</li>}
                     <li>{summary.events} eventos de FedEx agregados al historial</li>
                     <li>
                       {summary.incomes} ingresos ({money(summary.amount)} nuevos)
@@ -331,6 +370,11 @@ function PackageRow({
           <span className="text-slate-600">{statusText(p.currentStatus)}</span>
           <span className="mx-1 text-slate-400">→</span>
           <span className="font-medium text-slate-800">{statusText(p.targetStatus)}</span>
+          {p.plan?.closure && (
+            <div className="text-[11px] text-orange-700">
+              Cierre: {statusText(p.closureStatus)} → {statusText(p.plan.closure.status)}
+            </div>
+          )}
         </td>
         <td className="px-2 py-1.5 text-slate-400">
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -350,5 +394,18 @@ function PackageRow({
         </tr>
       )}
     </Fragment>
+  );
+}
+
+function Pill({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600",
+        className,
+      )}
+    >
+      {children}
+    </span>
   );
 }

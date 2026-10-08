@@ -717,7 +717,25 @@ export default function ClosePackageDispatchWizard({
             <Lock className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Cierre de Ruta</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-2xl font-bold text-gray-800">Cierre de Ruta</h2>
+              {isSuperAdmin && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-slate-500 hover:text-primary"
+                      onClick={() => setDoctorOpen(true)}
+                      aria-label="Paquetes con problema"
+                    >
+                      <Stethoscope className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Paquetes con problema</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <p className="text-slate-600 text-sm mt-1 flex items-center gap-2">
               <span className="font-bold text-primary">{dispatch.trackingNumber}</span>
               <span className="text-slate-300">•</span>
@@ -731,11 +749,6 @@ export default function ClosePackageDispatchWizard({
         </div>
 
         <div className="flex items-center gap-2">
-          {isSuperAdmin && (
-            <Button size="sm" variant="outline" className="mr-2 whitespace-nowrap" onClick={() => setDoctorOpen(true)}>
-              <Stethoscope className="h-3.5 w-3.5 mr-1.5" /> Paquetes con problema
-            </Button>
-          )}
           {[
             { step: 1, label: "Resumen" },
             { step: 2, label: "Operaciones" },
