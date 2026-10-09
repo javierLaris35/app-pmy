@@ -79,8 +79,6 @@ interface DataTableProps<TData, TValue> {
   initialSorting?: SortingState
   /** Renglones por página iniciales (default 10). */
   initialPageSize?: number
-  /** Botones extra a la derecha de la barra de filtros (opt-in). */
-  toolbarActions?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -110,7 +108,6 @@ export function DataTable<TData, TValue>({
   dense = false,
   initialSorting,
   initialPageSize = 10,
-  toolbarActions,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -203,7 +200,6 @@ export function DataTable<TData, TValue>({
           filters={filters}
           setGlobalFilter={changeGlobalFilter}
           searchPlaceholder={searchPlaceholder}
-          actions={toolbarActions}
         />
       )}
       <div className="rounded-md border">

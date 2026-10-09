@@ -3,16 +3,18 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { ColumnDef, ColumnFiltersState } from "@tanstack/react-table";
 import {
-  ArrowLeft, Download, Loader2, Search, RefreshCw, EyeOff, CheckCircle2, Check, DollarSign,
+  ArrowLeft, Download, Loader2, Search, RefreshCw, EyeOff, Check, DollarSign, FileSpreadsheet, MoreHorizontal,
 } from "lucide-react";
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/data-table/data-table";
+import { OperationHeader } from "@/components/shared/operation-header";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { useZones } from "@/hooks/services/zones/use-zones";
@@ -316,54 +318,79 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     </div>
   );
 
+  // Barra de tareas: todo lo que dispara el reporte vive en el OperationHeader (regla de la app).
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" onClick={onBack} className="h-9 w-9 shrink-0" aria-label="Volver a reportes" title="Volver a reportes">
+        <ArrowLeft className="h-4 w-4" />
+      </Button>
+      <div className="inline-flex h-9 shrink-0 items-center rounded-md border p-0.5">
+        {([["sucursal", "Sucursal"], ["zona", "Zona"]] as const).map(([key, label]) => (
+          <Button key={key} type="button" size="sm" variant={mode === key ? "default" : "ghost"} className="h-7 px-2.5 text-xs"
+            onClick={() => { setMode(key); setHasRun(false); setRows([]); }}>
+            {label}
+          </Button>
+        ))}
+      </div>
+      {mode === "sucursal" ? (
+        <div className="w-56 shrink-0 [&_button]:h-9">
+          <SucursalSelector multi value={subsidiaryIds} onValueChange={(v) => setSubsidiaryIds(Array.isArray(v) ? (v as string[]) : [])} />
+        </div>
+      ) : (
+        <Select value={zoneId} onValueChange={setZoneId}>
+          <SelectTrigger className="h-9 w-56 shrink-0" title={zoneSubsidiaryNames || undefined}>
+            <SelectValue placeholder="Selecciona una zona" />
+          </SelectTrigger>
+          <SelectContent>
+            {zones.map((z: any) => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      <Button size="sm" onClick={load} disabled={isLoading || effectiveSubsidiaryIds.length === 0} className="h-9 shrink-0">
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+        <span className="ml-1">Generar</span>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1">
+            <MoreHorizontal className="h-4 w-4" /><span className="hidden 2xl:inline">Más acciones</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuItem onSelect={handleFedexCheck} disabled={!hasRun || rows.length === 0 || fedexLoading}>
+            {fedexLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Confirmar con FedEx
+          </DropdownMenuItem>
+          <DropdownMenuCheckboxItem checked={includeSundays} onCheckedChange={(v) => setIncludeSundays(!!v)} onSelect={(e) => e.preventDefault()}>
+            Contar domingos al confirmar
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={doExport} disabled={rows.length === 0 || isExporting}>
+            {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Exportar Excel
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+
+  // Estado del dato en la descripción (una línea), para no agrandar el header.
+  const headerDescription = [
+    "Octubre 2026 · solo FedEx",
+    mode === "zona" && zoneId ? `${zoneSubsidiaryIds.length} sucursal(es) de la zona` : null,
+    fedexConfirmed ? "Confirmado con FedEx" : hasRun ? "Estimado con el sistema" : null,
+  ].filter(Boolean).join(" · ");
+
   return (
     <div className="space-y-2">
-      {/* Barra de búsqueda en una sola línea */}
-      <div className="flex items-center gap-2 rounded-lg border bg-card px-2 py-1.5">
-        <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 shrink-0" aria-label="Volver a reportes">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="inline-flex shrink-0 rounded-md border p-0.5">
-          {([["sucursal", "Por sucursal"], ["zona", "Por zona"]] as const).map(([key, label]) => (
-            <Button key={key} type="button" size="sm" variant={mode === key ? "default" : "ghost"} className="h-7 px-3 text-xs"
-              onClick={() => { setMode(key); setHasRun(false); setRows([]); }}>
-              {label}
-            </Button>
-          ))}
-        </div>
-        {mode === "sucursal" ? (
-          <div className="min-w-0 max-w-2xl flex-1 [&_button]:h-8">
-            <SucursalSelector multi value={subsidiaryIds} onValueChange={(v) => setSubsidiaryIds(Array.isArray(v) ? (v as string[]) : [])} />
-          </div>
-        ) : (
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <Select value={zoneId} onValueChange={setZoneId}>
-              <SelectTrigger className="h-8 w-56 shrink-0"><SelectValue placeholder="Selecciona una zona" /></SelectTrigger>
-              <SelectContent>
-                {zones.map((z: any) => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {zoneId && (
-              <span className="truncate text-xs text-muted-foreground" title={zoneSubsidiaryNames}>
-                {zoneSubsidiaryIds.length} sucursal(es): {zoneSubsidiaryNames || "—"}
-              </span>
-            )}
-          </div>
-        )}
-        <Button size="sm" onClick={load} disabled={isLoading || effectiveSubsidiaryIds.length === 0} className="h-8 shrink-0">
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Generar
-        </Button>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <Badge variant="secondary" className="hidden text-[11px] font-normal xl:inline-flex">Octubre 2026 · solo FedEx</Badge>
-          {fedexConfirmed ? (
-            <Badge variant="outline" className="gap-1 border-emerald-300 text-[11px] font-normal text-emerald-700"><CheckCircle2 className="h-3 w-3" /> Confirmado con FedEx</Badge>
-          ) : hasRun ? (
-            <Badge variant="outline" className="border-amber-300 text-[11px] font-normal text-amber-700">Estimado con el sistema</Badge>
-          ) : null}
-        </div>
-      </div>
+      <OperationHeader
+        icon={FileSpreadsheet}
+        title="Sin código 44"
+        description={headerDescription}
+        actions={headerActions}
+      />
 
-      {!hasRun ? emptyBox(<>Elige sucursales (o una zona) y presiona <b>Generar</b>.</>)
+      {!hasRun ? emptyBox(<>Elige sucursales (o una zona) arriba y presiona <b>Generar</b>.</>)
         : rows.length === 0 ? emptyBox("No hay paquetes FedEx activos (pendiente / en bodega) dados de alta en octubre 2026 para esa selección.")
         : (
           <>
@@ -404,20 +431,6 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
                 autoResetPageIndex={false}
                 searchPlaceholder="Buscar guía, destinatario o CP"
                 rowClassName={(r: any) => generatesIncome(r.__fedexStatus) ? "bg-violet-50 hover:bg-violet-100/70 border-l-2 border-l-violet-400" : undefined}
-                toolbarActions={
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <Switch id="inc-sundays-44" checked={includeSundays} onCheckedChange={setIncludeSundays} />
-                      <Label htmlFor="inc-sundays-44" className="cursor-pointer text-xs">Domingos</Label>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={handleFedexCheck} disabled={fedexLoading} className="h-8">
-                      {fedexLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar con FedEx
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={doExport} disabled={isExporting} className="h-8">
-                      {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Excel
-                    </Button>
-                  </>
-                }
               />
             </div>
           </>
