@@ -1,20 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { useMemo, useState, type ReactNode } from "react";
+import type { ColumnDef, ColumnFiltersState } from "@tanstack/react-table";
 import {
-  ArrowLeft, Download, Loader2, Search, RefreshCw, EyeOff, CheckCircle2, Check, DollarSign, Building2,
+  ArrowLeft, Download, Loader2, Search, RefreshCw, EyeOff, Check, DollarSign, FileSpreadsheet, MoreHorizontal,
 } from "lucide-react";
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/data-table/data-table";
-import { StatBar, type StatItem } from "@/components/shared/stat-bar";
+import { OperationHeader } from "@/components/shared/operation-header";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { useZones } from "@/hooks/services/zones/use-zones";
@@ -24,18 +24,50 @@ import {
 import { buildVisibility44Excel } from "@/lib/services/reportes/visibilidad44-excel";
 import { daysWithPackage, daysWithPackageLabel } from "@/lib/days-with-package";
 
-const tipoLabel = (t?: string) => {
-  const v = String(t || "").toLowerCase();
-  if (v === "fedex") return "FedEx";
-  if (v === "dhl") return "DHL";
-  return v ? v.toUpperCase() : "Otro";
-};
 const isFedexRow = (r: any) => String(r?.shipmentType || "").toLowerCase() === "fedex";
 const prettyStatus = (s?: string) => (!s ? "—" : s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()));
 const norm = (s: any) => String(s ?? "").toLowerCase().trim();
 const inArray = (row: any, id: string, value: any) => (Array.isArray(value) ? value.includes(row.getValue(id)) : true);
 const INCOME_STATUSES = new Set(["entregado", "rechazado", "cliente_no_disponible"]);
 const generatesIncome = (s: any) => INCOME_STATUSES.has(norm(s));
+const catLabel = (c?: string) => (c === "hoy" ? "Al día" : c === "nunca" ? "Nunca" : "Con días sin código");
+
+// Gravedad por días sin código: verde = al día, ámbar = 1 día, rojo = 2+ días o nunca (igual que el Excel).
+type Tone = "ok" | "warn" | "bad";
+const toneOf = (r: any): Tone => (r.daysSinceLastCode == null ? "bad" : r.daysSinceLastCode === 0 ? "ok" : r.daysSinceLastCode === 1 ? "warn" : "bad");
+const TONE_PILL: Record<Tone, string> = {
+  ok: "bg-emerald-100 text-emerald-800",
+  warn: "bg-amber-100 text-amber-800",
+  bad: "bg-rose-100 text-rose-800",
+};
+const TONE_TEXT: Record<Tone, string> = { ok: "text-emerald-700", warn: "text-amber-700", bad: "text-rose-700" };
+const TILE_ACTIVE: Record<Tone, string> = {
+  ok: "border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300",
+  warn: "border-amber-400 bg-amber-50 ring-1 ring-amber-300",
+  bad: "border-rose-400 bg-rose-50 ring-1 ring-rose-300",
+};
+
+// Tarjetas = filtro rápido sobre la columna "Visibilidad".
+type Tile = "sinCodigo" | "nunca" | "diasSin" | "hoy" | "todos";
+const TILE_VALUES: Record<Exclude<Tile, "todos">, string[]> = {
+  sinCodigo: ["Nunca", "Con días sin código"],
+  nunca: ["Nunca"],
+  diasSin: ["Con días sin código"],
+  hoy: ["Al día"],
+};
+const tileFilters = (t: Tile): ColumnFiltersState => (t === "todos" ? [] : [{ id: "categoria", value: TILE_VALUES[t] }]);
+// El reporte abre ya filtrado a lo que hay que atender.
+const DEFAULT_FILTERS = tileFilters("sinCodigo");
+
+/** "08 oct 21:36" en hora de Hermosillo. */
+const herShort = (v?: string | null) => {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Hermosillo", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(d).replace(/\./g, "").replace(",", "");
+};
 
 export function Sin44Report({ onBack }: { onBack: () => void }) {
   const { subsidiaries } = useSubsidiaries();
@@ -46,7 +78,6 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
   const [zoneId, setZoneId] = useState<string>("");
 
   const [rows, setRows] = useState<any[]>([]);
-  const [summary, setSummary] = useState<Record<string, any> | undefined>(undefined);
   const [hasRun, setHasRun] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -54,12 +85,12 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
   const [includeSundays, setIncludeSundays] = useState(true);
   const [fedexConfirmed, setFedexConfirmed] = useState(false);
   const [updating, setUpdating] = useState<Set<string>>(new Set());
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(DEFAULT_FILTERS);
 
   // Sucursales que efectivamente están seleccionadas en modo "zona" (para mostrarlas y exportarlas).
-  const zoneSubsidiaryIds = useMemo(
-    () => subsidiaries.filter((s: any) => s.zoneId === zoneId).map((s: any) => s.id!).filter(Boolean),
-    [subsidiaries, zoneId],
-  );
+  const zoneSubsidiaries = useMemo(() => subsidiaries.filter((s: any) => s.zoneId === zoneId), [subsidiaries, zoneId]);
+  const zoneSubsidiaryIds = useMemo(() => zoneSubsidiaries.map((s: any) => s.id!).filter(Boolean), [zoneSubsidiaries]);
+  const zoneSubsidiaryNames = zoneSubsidiaries.map((s: any) => s.name).join(", ");
   const effectiveSubsidiaryIds = mode === "zona" ? zoneSubsidiaryIds : subsidiaryIds;
 
   const rowKey = (r: any) => `${r.trackingNumber}|${r.isCharge ? "c" : "s"}`;
@@ -72,26 +103,20 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     }
     setIsLoading(true);
     try {
-      const { summary, details } = await fetchInventoryCodeReportMultiJson(effectiveSubsidiaryIds);
+      const { details } = await fetchInventoryCodeReportMultiJson(effectiveSubsidiaryIds);
       // Por ahora el reporte es solo FedEx (el backend ya lo filtra; esto es defensivo).
       setRows((details || []).filter(isFedexRow));
-      setSummary({
-        Paquetes: summary?.paquetes ?? (details?.length || 0),
-        "Con código hoy": summary?.conCodigoHoy ?? 0,
-        "Sin código hoy": summary?.sinCodigo ?? 0,
-        Nunca: summary?.nunca ?? 0,
-      });
       setHasRun(true);
       setFedexConfirmed(false);
+      setColumnFilters(DEFAULT_FILTERS);
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo generar el reporte.");
-      setRows([]); setSummary(undefined); setHasRun(true);
+      setRows([]); setHasRun(true);
     } finally { setIsLoading(false); }
   };
 
-  // Confirma con FedEx usando el código que monitorea CADA sucursal: las guías de sucursales de
-  // código 44 van al check de 44, las de 67 al check de 67. Se normaliza a los mismos campos `__`
-  // (días sin código / faltantes) para la tabla y el Excel.
+  // Confirma con FedEx según el código de cada guía (44 → check de 44, 67 → check de 67); ambos
+  // cuentan los días con 44 o 67. Se normaliza a los mismos campos `__` para la tabla y el Excel.
   const handleFedexCheck = async () => {
     setFedexLoading(true);
     try {
@@ -148,65 +173,92 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     if (rows.length === 0) return;
     setIsExporting(true);
     try {
-      const blob = await buildVisibility44Excel(rows);
-      saveAs(blob, `sin_44_${mode === "zona" ? (zones.find((z: any) => z.id === zoneId)?.name || "zona") : "sucursales"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const zoneName = zones.find((z: any) => z.id === zoneId)?.name;
+      const subNames = subsidiaries.filter((s: any) => effectiveSubsidiaryIds.includes(s.id)).map((s: any) => s.name).join(", ");
+      const blob = await buildVisibility44Excel(rows, {
+        scope: mode === "zona" ? `Zona ${zoneName || ""}: ${subNames}` : `Sucursales: ${subNames}`,
+        period: "FedEx activos (pendiente / en bodega) dados de alta en octubre 2026",
+      });
+      saveAs(blob, `sin_44_${mode === "zona" ? (zoneName || "zona") : "sucursales"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch {
       toast.error("No se pudo exportar el Excel.");
     } finally { setIsExporting(false); }
   };
 
-  const statItems = useMemo<StatItem[]>(() => {
-    const items: StatItem[] = Object.entries(summary || {})
-      .filter(([, v]) => v !== undefined && v !== null)
-      .map(([k, v]) => ({ label: k, value: typeof v === "number" ? v.toLocaleString("es-MX") : String(v) }));
-    const consulted = rows.filter((r) => r.__fedexStatus);
-    if (consulted.length > 0) {
-      const sinDatos = consulted.filter((r) => r.__fedexStatus === "SIN_DATOS").length;
-      const desconocido = consulted.filter((r) => norm(r.__fedexStatus) === "desconocido").length;
-      const difieren = consulted.filter((r) => isMismatch(r) && norm(r.__fedexStatus) !== "desconocido").length;
-      const coinciden = consulted.length - sinDatos - desconocido - difieren;
-      const ingreso = consulted.filter((r) => generatesIncome(r.__fedexStatus)).length;
-      items.push(
-        { label: "Coinciden", value: coinciden < 0 ? 0 : coinciden, valueClassName: "text-emerald-600" },
-        { label: "Difieren", value: difieren, valueClassName: "text-rose-600" },
-        { label: "Desconocido", value: desconocido, valueClassName: "text-amber-600" },
-        { label: "Generan ingreso", value: ingreso, valueClassName: "text-violet-700", icon: DollarSign },
-        { label: "Sin datos FedEx", value: sinDatos, valueClassName: "text-muted-foreground" },
-      );
+  // Conteos por visibilidad (siempre sobre TODAS las filas, no sobre lo filtrado).
+  const counts = useMemo(() => {
+    const c = { hoy: 0, sinCodigo: 0, nunca: 0 };
+    for (const r of rows) {
+      if (r.category === "hoy") c.hoy++;
+      else if (r.category === "nunca") c.nunca++;
+      else c.sinCodigo++;
     }
-    return items;
-  }, [summary, rows]);
+    return c;
+  }, [rows]);
+
+  // Comparación contra FedEx (solo después de "Confirmar con FedEx").
+  const fedexStats = useMemo(() => {
+    const consulted = rows.filter((r) => r.__fedexStatus);
+    if (consulted.length === 0) return null;
+    const sinDatos = consulted.filter((r) => r.__fedexStatus === "SIN_DATOS").length;
+    const desconocido = consulted.filter((r) => norm(r.__fedexStatus) === "desconocido").length;
+    const difieren = consulted.filter((r) => isMismatch(r) && norm(r.__fedexStatus) !== "desconocido").length;
+    return {
+      coinciden: Math.max(0, consulted.length - sinDatos - desconocido - difieren),
+      difieren,
+      desconocido,
+      ingreso: consulted.filter((r) => generatesIncome(r.__fedexStatus)).length,
+      sinDatos,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
+  const activeTile = useMemo<Tile | null>(() => {
+    if (columnFilters.length === 0) return "todos";
+    if (columnFilters.length > 1) return null;
+    const f = columnFilters[0];
+    if (f.id !== "categoria" || !Array.isArray(f.value)) return null;
+    const key = [...(f.value as string[])].sort().join("|");
+    return (Object.keys(TILE_VALUES) as Exclude<Tile, "todos">[]).find((t) => [...TILE_VALUES[t]].sort().join("|") === key) ?? null;
+  }, [columnFilters]);
+
+  const tiles: { key: Tile; label: string; value: number; tone?: Tone }[] = [
+    { key: "sinCodigo", label: "Sin código (nunca + con días)", value: counts.nunca + counts.sinCodigo, tone: "bad" },
+    { key: "nunca", label: "Nunca", value: counts.nunca, tone: "bad" },
+    { key: "diasSin", label: "Con días sin código", value: counts.sinCodigo, tone: "warn" },
+    { key: "hoy", label: "Al día", value: counts.hoy, tone: "ok" },
+    { key: "todos", label: "Todos", value: rows.length },
+  ];
 
   const columns = useMemo<ColumnDef<any>[]>(() => [
     { id: "trackingNumber", accessorFn: (r) => r.trackingNumber, header: "Guía", cell: ({ getValue }) => <span className="font-mono text-xs">{String(getValue())}</span> },
-    { id: "subsidiaryName", accessorFn: (r) => r.subsidiaryName || "—", header: "Sucursal", filterFn: inArray },
-    { id: "tipo", accessorFn: (r) => tipoLabel(r.shipmentType), header: "Tipo", filterFn: inArray },
-    { id: "scanCode", accessorFn: (r) => String(r.scanCode ?? "67"), header: "Código", cell: ({ getValue }) => <span className="font-mono text-xs">{String(getValue())}</span>, filterFn: inArray },
-    { id: "status", accessorFn: (r) => prettyStatus(r.status), header: "Estatus", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span>, filterFn: inArray },
-    {
-      id: "diasConPaquete",
-      header: "Días con el paquete",
-      accessorFn: (r) => { const d = daysWithPackage(r.createdAt); return d == null ? Number.MAX_SAFE_INTEGER : d; },
-      cell: ({ row }) => <span className="text-xs">{daysWithPackageLabel(row.original.createdAt)}</span>,
-    },
+    { id: "subsidiaryName", accessorFn: (r) => r.subsidiaryName || "—", header: "Sucursal", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span>, filterFn: inArray },
     {
       id: "diasSinCodigo",
       header: "Días sin código",
       accessorFn: (r) => (r.daysSinceLastCode == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLastCode)),
       cell: ({ row }) => {
         const r = row.original;
-        return r.daysSinceLastCode == null ? "Nunca" : r.daysSinceLastCode === 0 ? "Hoy (0)" : String(r.daysSinceLastCode);
+        const d = r.daysSinceLastCode;
+        const label = d == null ? "Nunca" : d === 0 ? "Al día" : `${d} ${d === 1 ? "día" : "días"}`;
+        return <Badge variant="outline" className={`border-0 px-2 py-0 text-xs font-medium ${TONE_PILL[toneOf(r)]}`}>{label}</Badge>;
       },
     },
-    { id: "lastCodeDate", accessorFn: (r) => r.lastCodeDate, header: "Último escaneo", cell: ({ row }) => row.original.lastCodeDate ? new Date(row.original.lastCodeDate).toLocaleDateString("es-MX") : "—" },
+    { id: "lastCodeDate", accessorFn: (r) => r.lastCodeDate, header: "Último escaneo", cell: ({ row }) => <span className="whitespace-nowrap text-xs">{herShort(row.original.lastCodeDate)}</span> },
     {
-      id: "categoria",
-      header: "Visibilidad",
-      accessorFn: (r) => (r.category === "hoy" ? "Con código hoy" : r.category === "nunca" ? "Nunca" : "Sin código hoy"),
-      filterFn: inArray,
+      id: "scanCode", accessorFn: (r) => String(r.scanCode ?? "67"), header: "Código", filterFn: inArray,
+      cell: ({ getValue }) => <Badge variant="outline" className="px-1.5 py-0 font-mono text-[11px] font-normal">{String(getValue())}</Badge>,
     },
-    { id: "recipientName", accessorFn: (r) => r.recipientName, header: "Destinatario" },
-    { id: "recipientZip", accessorFn: (r) => r.recipientZip, header: "CP" },
+    { id: "status", accessorFn: (r) => prettyStatus(r.status), header: "Estatus", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span>, filterFn: inArray },
+    { id: "categoria", accessorFn: (r) => catLabel(r.category), header: "Visibilidad", cell: ({ getValue }) => <span className="text-xs text-muted-foreground">{String(getValue())}</span>, filterFn: inArray },
+    {
+      id: "diasConPaquete",
+      header: "Días con paquete",
+      accessorFn: (r) => { const d = daysWithPackage(r.createdAt); return d == null ? Number.MAX_SAFE_INTEGER : d; },
+      cell: ({ row }) => <span className="text-xs tabular-nums">{daysWithPackageLabel(row.original.createdAt)}</span>,
+    },
+    { id: "recipientName", accessorFn: (r) => r.recipientName, header: "Destinatario", cell: ({ getValue }) => <span className="block max-w-[240px] truncate text-xs" title={String(getValue() ?? "")}>{String(getValue() ?? "")}</span> },
+    { id: "recipientZip", accessorFn: (r) => r.recipientZip, header: "CP", cell: ({ getValue }) => <span className="text-xs">{String(getValue() ?? "")}</span> },
     {
       id: "__fedexStatus",
       header: "Estatus FedEx",
@@ -214,9 +266,8 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
       cell: ({ row }) => {
         const r = row.original;
         if (!r.__fedexStatus) return <span className="text-muted-foreground">—</span>;
-        if (r.__fedexStatus === "SIN_DATOS") return <span className="text-muted-foreground text-xs">Sin datos</span>;
-        const income = generatesIncome(r.__fedexStatus);
-        return income ? (
+        if (r.__fedexStatus === "SIN_DATOS") return <span className="text-xs text-muted-foreground">Sin datos</span>;
+        return generatesIncome(r.__fedexStatus) ? (
           <span className="inline-flex w-fit items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-semibold text-violet-700">
             <DollarSign className="h-3 w-3" /> {prettyStatus(r.__fedexStatus)}
           </span>
@@ -232,12 +283,12 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
       cell: ({ row }) => {
         const r = row.original;
         if (!isMismatch(r)) {
-          if (r.__fedexStatus && r.__fedexStatus !== "SIN_DATOS") return <span className="inline-flex items-center gap-1 text-emerald-600 text-xs"><Check className="h-3.5 w-3.5" /> Coincide</span>;
+          if (r.__fedexStatus && r.__fedexStatus !== "SIN_DATOS") return <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3.5 w-3.5" /> Coincide</span>;
           return <span className="text-muted-foreground">—</span>;
         }
         const busy = updating.has(rowKey(r));
         return (
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => handleUpdateRow(r)} className="h-7">
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => handleUpdateRow(r)} className="h-7 px-2 text-xs">
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             <span className="ml-1">Actualizar</span>
           </Button>
@@ -254,108 +305,136 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
         .sort()
         .map((v) => ({ label: String(v), value: String(v) }));
     return [
-      { columnId: "categoria", title: "Visibilidad", options: opts((r) => (r.category === "hoy" ? "Con código hoy" : r.category === "nunca" ? "Nunca" : "Sin código hoy")) },
-      { columnId: "scanCode", title: "Código", options: opts((r) => String(r.scanCode ?? "67")) },
-      { columnId: "tipo", title: "Tipo", options: opts((r) => tipoLabel(r.shipmentType)) },
-      { columnId: "status", title: "Estatus", options: opts((r) => prettyStatus(r.status)) },
+      { columnId: "categoria", title: "Visibilidad", options: opts((r) => catLabel(r.category)) },
       { columnId: "subsidiaryName", title: "Sucursal", options: opts((r) => r.subsidiaryName || "—") },
+      { columnId: "scanCode", title: "Código", options: opts((r) => String(r.scanCode ?? "67")) },
+      { columnId: "status", title: "Estatus", options: opts((r) => prettyStatus(r.status)) },
     ];
   }, [rows]);
 
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="sm" onClick={onBack} className="gap-1"><ArrowLeft className="h-4 w-4" /> Volver</Button>
-            {fedexConfirmed ? (
-              <span className="inline-flex items-center gap-1 rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Confirmado con FedEx</span>
-            ) : hasRun ? (
-              <span className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs text-amber-700">Estimado (local)</span>
-            ) : null}
-          </div>
+  const emptyBox = (text: ReactNode) => (
+    <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed py-10 text-sm text-muted-foreground">
+      <EyeOff className="h-5 w-5 opacity-50" /> {text}
+    </div>
+  );
 
-          {/* Modo: por sucursal (multi) o por zona */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="text-[11px]">Periodo: octubre 2026 · solo FedEx</Badge>
-            <span className="text-[11px] font-medium text-muted-foreground">Buscar:</span>
-            <div className="inline-flex rounded-md border p-0.5">
-              {([["sucursal", "Por sucursal"], ["zona", "Por zona"]] as const).map(([key, label]) => (
-                <Button key={key} type="button" size="sm" variant={mode === key ? "default" : "ghost"} className="h-7 px-3"
-                  onClick={() => { setMode(key); setHasRun(false); setRows([]); }}>
-                  {label}
-                </Button>
+  // Barra de tareas: todo lo que dispara el reporte vive en el OperationHeader (regla de la app).
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" onClick={onBack} className="h-9 w-9 shrink-0" aria-label="Volver a reportes" title="Volver a reportes">
+        <ArrowLeft className="h-4 w-4" />
+      </Button>
+      <div className="inline-flex h-9 shrink-0 items-center rounded-md border p-0.5">
+        {([["sucursal", "Sucursal"], ["zona", "Zona"]] as const).map(([key, label]) => (
+          <Button key={key} type="button" size="sm" variant={mode === key ? "default" : "ghost"} className="h-7 px-2.5 text-xs"
+            onClick={() => { setMode(key); setHasRun(false); setRows([]); }}>
+            {label}
+          </Button>
+        ))}
+      </div>
+      {mode === "sucursal" ? (
+        <div className="w-56 shrink-0 [&_button]:h-9">
+          <SucursalSelector multi value={subsidiaryIds} onValueChange={(v) => setSubsidiaryIds(Array.isArray(v) ? (v as string[]) : [])} />
+        </div>
+      ) : (
+        <Select value={zoneId} onValueChange={setZoneId}>
+          <SelectTrigger className="h-9 w-56 shrink-0" title={zoneSubsidiaryNames || undefined}>
+            <SelectValue placeholder="Selecciona una zona" />
+          </SelectTrigger>
+          <SelectContent>
+            {zones.map((z: any) => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      <Button size="sm" onClick={load} disabled={isLoading || effectiveSubsidiaryIds.length === 0} className="h-9 shrink-0">
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+        <span className="ml-1">Generar</span>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1">
+            <MoreHorizontal className="h-4 w-4" /><span className="hidden 2xl:inline">Más acciones</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuItem onSelect={handleFedexCheck} disabled={!hasRun || rows.length === 0 || fedexLoading}>
+            {fedexLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Confirmar con FedEx
+          </DropdownMenuItem>
+          <DropdownMenuCheckboxItem checked={includeSundays} onCheckedChange={(v) => setIncludeSundays(!!v)} onSelect={(e) => e.preventDefault()}>
+            Contar domingos al confirmar
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={doExport} disabled={rows.length === 0 || isExporting}>
+            {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Exportar Excel
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+
+  // Estado del dato en la descripción (una línea), para no agrandar el header.
+  const headerDescription = [
+    "Octubre 2026 · solo FedEx",
+    mode === "zona" && zoneId ? `${zoneSubsidiaryIds.length} sucursal(es) de la zona` : null,
+    fedexConfirmed ? "Confirmado con FedEx" : hasRun ? "Estimado con el sistema" : null,
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <div className="space-y-2">
+      <OperationHeader
+        icon={FileSpreadsheet}
+        title="Sin código 44"
+        description={headerDescription}
+        actions={headerActions}
+      />
+
+      {!hasRun ? emptyBox(<>Elige sucursales (o una zona) arriba y presiona <b>Generar</b>.</>)
+        : rows.length === 0 ? emptyBox("No hay paquetes FedEx activos (pendiente / en bodega) dados de alta en octubre 2026 para esa selección.")
+        : (
+          <>
+            {/* Tarjetas = filtro rápido de la tabla */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {tiles.map((t) => (
+                <button key={t.key} type="button" onClick={() => setColumnFilters(tileFilters(t.key))}
+                  className={`rounded-lg border px-3 py-1.5 text-left transition-colors hover:bg-muted/60 ${
+                    activeTile === t.key ? (t.tone ? TILE_ACTIVE[t.tone] : "border-foreground/40 bg-muted ring-1 ring-foreground/20") : "bg-card"
+                  }`}>
+                  <div className="truncate text-[11px] text-muted-foreground">{t.label}</div>
+                  <div className={`text-xl font-semibold leading-tight tabular-nums ${t.tone ? TONE_TEXT[t.tone] : ""}`}>{t.value.toLocaleString("es-MX")}</div>
+                </button>
               ))}
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-end gap-2">
-            {mode === "sucursal" ? (
-              <div className="min-w-[280px]">
-                <label className="text-[11px] font-medium text-muted-foreground">Sucursales</label>
-                <SucursalSelector
-                  multi
-                  value={subsidiaryIds}
-                  onValueChange={(v) => setSubsidiaryIds(Array.isArray(v) ? (v as string[]) : [])}
-                />
-              </div>
-            ) : (
-              <div className="min-w-[240px]">
-                <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" /> Zona</label>
-                <Select value={zoneId} onValueChange={setZoneId}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona una zona" /></SelectTrigger>
-                  <SelectContent>
-                    {zones.map((z: any) => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {zoneId && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {zoneSubsidiaryIds.length} sucursal(es): {subsidiaries.filter((s: any) => s.zoneId === zoneId).map((s: any) => s.name).join(", ") || "—"}
-                  </p>
-                )}
+            {fedexStats && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-card px-3 py-1.5 text-xs">
+                <span className="font-medium text-muted-foreground">Contra FedEx:</span>
+                <span className="text-emerald-600">Coinciden <b>{fedexStats.coinciden}</b></span>
+                <span className="text-rose-600">Difieren <b>{fedexStats.difieren}</b></span>
+                <span className="text-amber-600">Desconocido <b>{fedexStats.desconocido}</b></span>
+                <span className="inline-flex items-center gap-1 text-violet-700"><DollarSign className="h-3 w-3" /> Generan ingreso <b>{fedexStats.ingreso}</b></span>
+                <span className="text-muted-foreground">Sin datos <b>{fedexStats.sinDatos}</b></span>
               </div>
             )}
-            <Button onClick={load} disabled={isLoading || effectiveSubsidiaryIds.length === 0}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Generar
-            </Button>
-            <Button variant="outline" onClick={doExport} disabled={isExporting || rows.length === 0}>
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar Excel
-            </Button>
-            {hasRun && rows.length > 0 && (
-              <>
-                <div className="flex items-center gap-2 px-2 border-l h-9">
-                  <Switch id="inc-sundays-44" checked={includeSundays} onCheckedChange={setIncludeSundays} />
-                  <Label htmlFor="inc-sundays-44" className="text-xs cursor-pointer">Incluir domingos</Label>
-                </div>
-                <Button variant="outline" onClick={handleFedexCheck} disabled={fedexLoading}>
-                  {fedexLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar con FedEx
-                </Button>
-              </>
-            )}
-          </div>
 
-          {hasRun && statItems.length > 0 && <StatBar items={statItems} className="mt-1" />}
-        </CardContent>
-      </Card>
-
-      {!hasRun ? (
-        <Card><CardContent className="py-16 text-center text-muted-foreground">
-          <EyeOff className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          Elige sucursales (o una zona) y presiona <b className="mx-1">Generar</b>.
-        </CardContent></Card>
-      ) : rows.length === 0 ? (
-        <Card><CardContent className="py-16 text-center text-muted-foreground">
-          <EyeOff className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          No hay paquetes FedEx activos (pendiente / en bodega) dados de alta en octubre 2026 para esa selección.
-        </CardContent></Card>
-      ) : (
-        <Card>
-          <CardContent className="p-4">
-            <DataTable columns={columns} data={rows} filters={filters} autoResetPageIndex={false}
-              rowClassName={(r: any) => generatesIncome(r.__fedexStatus) ? "bg-violet-50 hover:bg-violet-100/70 border-l-2 border-l-violet-400" : undefined} />
-          </CardContent>
-        </Card>
-      )}
+            <div className="rounded-lg border bg-card p-2">
+              <DataTable
+                dense
+                columns={columns}
+                data={rows}
+                filters={filters}
+                columnFilters={columnFilters}
+                onColumnFiltersChange={setColumnFilters}
+                initialSorting={[{ id: "diasSinCodigo", desc: true }]}
+                initialPageSize={50}
+                autoResetPageIndex={false}
+                searchPlaceholder="Buscar guía, destinatario o CP"
+                rowClassName={(r: any) => generatesIncome(r.__fedexStatus) ? "bg-violet-50 hover:bg-violet-100/70 border-l-2 border-l-violet-400" : undefined}
+              />
+            </div>
+          </>
+        )}
     </div>
   );
 }

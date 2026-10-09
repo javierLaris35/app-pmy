@@ -73,6 +73,12 @@ interface DataTableProps<TData, TValue> {
   onGlobalFilterChange?: (value: string) => void
   /** Texto del buscador de la barra (default "Buscar..."). */
   searchPlaceholder?: string
+  /** Densidad compacta (opt-in): celdas py-1.5 / encabezados h-8, para pantallas de trabajo. */
+  dense?: boolean
+  /** Orden inicial (opt-in), p. ej. [{ id: "dias", desc: true }]. */
+  initialSorting?: SortingState
+  /** Renglones por página iniciales (default 10). */
+  initialPageSize?: number
 }
 
 export function DataTable<TData, TValue>({
@@ -99,11 +105,14 @@ export function DataTable<TData, TValue>({
   globalFilter: globalFilterProp,
   onGlobalFilterChange,
   searchPlaceholder,
+  dense = false,
+  initialSorting,
+  initialPageSize = 10,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(initialColumnFilters ?? [])
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [sorting, setSorting] = React.useState<SortingState>(initialSorting ?? [])
   const [globalFilter, setGlobalFilter] = React.useState<string>("")
   // Filtros controlados por la pantalla (modo servidor) o internos (modo navegador).
   const effectiveColumnFilters = columnFiltersProp ?? columnFilters
@@ -119,7 +128,7 @@ export function DataTable<TData, TValue>({
   // un estado + setter; solo delegamos a los props cuando es server-side.
   const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: initialPageSize,
   })
 
   const table = useReactTable({
@@ -184,7 +193,7 @@ export function DataTable<TData, TValue>({
   }, [table, onTableReady])
 
   return (
-    <div className="space-y-4">
+    <div className={dense ? "space-y-2" : "space-y-4"}>
       {!hideToolbar && (
         <DataTableToolbar
           table={table}
@@ -208,7 +217,7 @@ export function DataTable<TData, TValue>({
                   const useNativeSort =
                     header.column.getCanSort() && typeof headerDef !== "function"
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={dense ? "h-8 whitespace-nowrap px-2 text-xs" : undefined}>
                       {header.isPlaceholder ? null : useNativeSort ? (
                         // Encabezado ordenable: clic alterna asc/desc/sin orden.
                         <button
@@ -256,7 +265,7 @@ export function DataTable<TData, TValue>({
                     }
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell key={cell.id} className={dense ? "whitespace-nowrap px-2 py-1.5" : undefined}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}

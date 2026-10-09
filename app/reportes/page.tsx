@@ -29,12 +29,15 @@ function ReportesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-5">
-        <OperationHeader
-          icon={FileSpreadsheet}
-          title="Reportes"
-          description={selected ? selected.title : "Genera y exporta reportes operativos"}
-        />
+      <div className="space-y-3">
+        {/* "Sin código 44" publica su propio header con sus acciones (sucursal/zona, Generar…). */}
+        {selected?.id !== "sin44" && (
+          <OperationHeader
+            icon={FileSpreadsheet}
+            title="Reportes"
+            description={selected ? selected.title : "Genera y exporta reportes operativos"}
+          />
+        )}
 
         {!selected ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
