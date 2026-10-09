@@ -3,7 +3,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { AlertTriangle, FileSpreadsheet, Loader2, Scale, Sparkles, Upload } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,21 +10,23 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ManualCountTable } from "@/components/consolidador/manual-count-table";
+import { CollectionCountTable } from "@/components/consolidador/collection-count-table";
 import { ManualCountPromptDialog, errorText } from "@/components/consolidador/manual-count-prompt-dialog";
 import { diagnoseManualCount, prefetchManualCountFedex, repairPackageIncome } from "@/lib/services/consolidador";
 import { countListTokens, findConflicts, parseList, parseSheetRows } from "@/lib/consolidador/manual-count-parse";
 import { exportManualCountToExcel } from "@/lib/consolidador/manual-count-export";
-import { VERDICT_LABEL, VERDICT_TONE } from "@/lib/consolidador/manual-count-labels";
 import type { DiagnosisRow, ManualCountReport, ManualCountScope, ManualLists, Mark } from "@/lib/types/manual-count";
-import { MARKS, VERDICTS } from "@/lib/types/manual-count";
+import { MARKS } from "@/lib/types/manual-count";
 import { toast } from "@/lib/toast";
 
 const FEDEX_BLOCK = 25;
 
-const BOXES: { key: keyof ManualLists; mark: Mark; label: string }[] = [
-  { key: "pod", mark: "POD", label: "POD (entregados)" },
-  { key: "dex07", mark: "07", label: "DEX07 (rechazados)" },
-  { key: "dex08", mark: "08", label: "DEX08 (cliente no disponible)" },
+type BoxKey = "pod" | "dex07" | "dex08" | "recolecciones";
+const BOXES: { key: BoxKey; label: string }[] = [
+  { key: "pod", label: "POD (entregados)" },
+  { key: "dex07", label: "DEX07 (rechazados)" },
+  { key: "dex08", label: "DEX08 (cliente no disponible)" },
+  { key: "recolecciones", label: "Recolecciones" },
 ];
 
 const MARK_TITLE: Record<Mark, string> = { POD: "POD", "07": "DEX07", "08": "DEX08" };
@@ -51,7 +52,7 @@ const shortDate = (d: string) => {
 export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
   const [scope, setScope] = useState<ManualCountScope>("day");
   const [day, setDay] = useState(() => todayIn(from, to));
-  const [texts, setTexts] = useState<Record<keyof ManualLists, string>>({ pod: "", dex07: "", dex08: "" });
+  const [texts, setTexts] = useState<Record<BoxKey, string>>({ pod: "", dex07: "", dex08: "", recolecciones: "" });
   const [report, setReport] = useState<ManualCountReport | null>(null);
   const [sentLists, setSentLists] = useState<ManualLists | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -62,8 +63,14 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
   // Si cambia la semana del header, el día se re-acota a ella.
   const dayInWeek = day >= from && day <= to ? day : todayIn(from, to);
 
-  const lists = useMemo<ManualLists>(
-    () => ({ pod: parseList(texts.pod), dex07: parseList(texts.dex07), dex08: parseList(texts.dex08) }),
+  const lists = useMemo<ManualLists & { recolecciones: string[] }>(
+    () => ({
+      pod: parseList(texts.pod),
+      dex07: parseList(texts.dex07),
+      dex08: parseList(texts.dex08),
+      // Opcional: si la caja va vacía, las recolecciones no se revisan.
+      recolecciones: parseList(texts.recolecciones),
+    }),
     [texts],
   );
   const conflicts = useMemo(() => findConflicts(lists), [lists]);
@@ -79,7 +86,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
         toast.error(parsed.error);
         return;
       }
-      setTexts({ pod: parsed.pod.join("\n"), dex07: parsed.dex07.join("\n"), dex08: parsed.dex08.join("\n") });
+      setTexts((t) => ({ ...t, pod: parsed.pod.join("\n"), dex07: parsed.dex07.join("\n"), dex08: parsed.dex08.join("\n") }));
       if (parsed.error) toast.error(parsed.error);
       else toast.success("Excel cargado: revisa las cajas antes de comparar");
     } catch {
@@ -95,7 +102,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
     setReport(null);
     try {
       // 1) FedEx en vivo por bloques (1 llamada por bloque) para mostrar avance.
-      const all = [...new Set([...lists.pod, ...lists.dex07, ...lists.dex08])];
+      const all = [...new Set([...lists.pod, ...lists.dex07, ...lists.dex08, ...lists.recolecciones])];
       setProgress({ done: 0, total: all.length });
       for (let i = 0; i < all.length; i += FEDEX_BLOCK) {
         await prefetchManualCountFedex(subsidiaryId, all.slice(i, i + FEDEX_BLOCK));
@@ -193,7 +200,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
           </Button>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {BOXES.map((b) => (
             <div key={b.key} className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
@@ -208,7 +215,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
               <Textarea
                 id={`mc-${b.key}`}
                 className="h-36 font-mono text-xs"
-                placeholder="Una guía por línea"
+                placeholder={b.key === "recolecciones" ? "Opcional: una guía por línea" : "Una guía por línea"}
                 value={texts[b.key]}
                 onChange={(e) => setTexts((t) => ({ ...t, [b.key]: e.target.value }))}
               />
@@ -247,7 +254,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
 
       {report && sentLists && (
         <>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className={`grid gap-3 md:grid-cols-2 ${report.collections ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
             {MARKS.map((m) => {
               const c = report.totals.manual[m];
               const f = report.totals.fedex[m];
@@ -267,14 +274,27 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
                 </div>
               );
             })}
+            {report.collections && (() => {
+              const t = report.collections.totals;
+              const ok = t.manual === t.fedex && t.fedex === t.charged;
+              return (
+                <div className={`rounded-lg border p-3 ${ok ? "border-slate-200 bg-white" : "border-amber-200 bg-amber-50"}`}>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Recolecciones</p>
+                  <div className="mt-1 grid grid-cols-3 gap-2 text-center">
+                    {[["Contado", t.manual], ["FedEx", t.fedex], ["Cobrado", t.charged]].map(([lbl, n]) => (
+                      <div key={String(lbl)}>
+                        <p className="text-2xl font-bold tabular-nums text-slate-800">{n}</p>
+                        <p className="text-xs text-slate-500">{lbl}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {VERDICTS.map((v) => (
-              <Badge key={v} variant="outline" className={VERDICT_TONE[v]}>
-                {VERDICT_LABEL[v]}: {report.totals.byVerdict[v]}
-              </Badge>
-            ))}
+            <h3 className="text-sm font-semibold text-slate-700">Paquetes (POD / DEX)</h3>
             <div className="ml-auto flex gap-2">
               <Button variant="outline" size="sm" onClick={() => exportManualCountToExcel(report)}>
                 <FileSpreadsheet className="mr-1 h-4 w-4" /> Exportar Excel
@@ -286,6 +306,12 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
           </div>
 
           <ManualCountTable rows={report.rows} onRepair={repair} showDay={report.scope === "week"} />
+          {report.collections && (
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-slate-700">Recolecciones</h3>
+              <CollectionCountTable report={report.collections} showDay={report.scope === "week"} />
+            </div>
+          )}
           <ManualCountPromptDialog open={promptOpen} onOpenChange={setPromptOpen} report={report} lists={sentLists} />
         </>
       )}

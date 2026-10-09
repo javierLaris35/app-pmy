@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ColumnDef, FilterFn } from "@tanstack/react-table";
+import { ColumnDef, ColumnFiltersState, FilterFn } from "@tanstack/react-table";
 import { CheckCircle2, ChevronDown, ChevronRight, MinusCircle, XCircle } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import type { Cause, DiagnosisRow, Verdict } from "@/lib/types/manual-count";
 import { VERDICTS } from "@/lib/types/manual-count";
 import { CAUSE_LABEL, VERDICT_LABEL, VERDICT_TONE, outcomeLabel } from "@/lib/consolidador/manual-count-labels";
 import { ReasonButton } from "@/components/consolidador/reason-button";
+import { DIFF_FILTERS, VerdictTiles } from "@/components/consolidador/verdict-tiles";
 
 /** ¿Se puede generar/corregir el cobro desde aquí? Debía cobrar y no está cobrado ese código. */
 export const canRepair = (r: DiagnosisRow) =>
@@ -121,7 +122,7 @@ function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<vo
   ];
 }
 
-function ChainDetail({ row }: { row: DiagnosisRow }) {
+export function ChainDetail({ row }: { row: { chain: DiagnosisRow["chain"] } }) {
   return (
     <div className="grid gap-1.5 bg-slate-50 px-6 py-3 sm:grid-cols-2">
       {row.chain.map((s) => (
@@ -152,16 +153,26 @@ export function ManualCountTable({
   showDay?: boolean;
 }) {
   const columns = React.useMemo(() => buildColumns(onRepair, showDay), [onRepair, showDay]);
+  // Abre mostrando solo lo que tiene diferencia (todo menos "Cuadra").
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(DIFF_FILTERS);
+  const byVerdict = React.useMemo(
+    () => Object.fromEntries(VERDICTS.map((v) => [v, rows.filter((r) => r.verdict === v).length])) as Record<Verdict, number>,
+    [rows],
+  );
   const daysPresent = [...new Set(rows.map((r) => r.day).filter((d): d is string => !!d))].sort();
   const causesPresent = [...new Set(rows.map((r) => r.cause).filter((c): c is Cause => !!c))];
   const verdictsPresent = VERDICTS.filter((v: Verdict) => rows.some((r) => r.verdict === v));
   return (
+    <div className="flex flex-col gap-2">
+    <VerdictTiles byVerdict={byVerdict} total={rows.length} columnFilters={columnFilters} onChange={setColumnFilters} />
     <DataTable
       columns={columns}
       data={rows}
       searchKey="trackingNumber"
       autoResetPageIndex={false}
       hideSelectionCount
+      columnFilters={columnFilters}
+      onColumnFiltersChange={setColumnFilters}
       filters={[
         ...(showDay ? [{ columnId: "day", title: "Día", options: daysPresent.map((d) => ({ label: dayLabel(d), value: d })) }] : []),
         { columnId: "verdict", title: "Resultado", options: verdictsPresent.map((v) => ({ label: VERDICT_LABEL[v], value: v })) },
@@ -169,5 +180,6 @@ export function ManualCountTable({
       ]}
       renderSubComponent={({ row }) => <ChainDetail row={row.original} />}
     />
+    </div>
   );
 }
