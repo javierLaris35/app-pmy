@@ -17,7 +17,11 @@ export interface OpsSettings {
   activeFrom: string;
   activeTo: string;
   uploadNotifyEnabled: boolean;
+  /** Grupos generales de WhatsApp (aviso de subida y alertas). */
   uploadNotifyGroups: { id: string; name: string }[] | null;
+  alertGroupsEnabled: boolean;
+  /** Desde qué aviso van las alertas a los grupos: 1 vencido · 2 · 3. */
+  alertGroupsLevel: number;
 }
 
 export interface OpsSubsidiaryConfig {

@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useUsers } from "@/hooks/services/users/use-users";
@@ -377,18 +378,42 @@ function UploadNotifyPanel({ settings, onSaved }: { settings: OpsSettings; onSav
   return (
     <Panel>
       <PanelHeader>
-        <PanelTitle>Aviso al subir desde la bandeja</PanelTitle>
+        <PanelTitle>Grupos generales de WhatsApp</PanelTitle>
         <PanelDescription>
-          Cuando alguien sube guías desde la Bandeja de correos, se manda un WhatsApp con quién lo subió, el archivo, la sucursal, los paquetes, F2, alto valor y cobros.
+          Grupos de toda la empresa (no de una sucursal). Reciben el aviso cuando alguien sube guías desde la Bandeja de correos y las alertas
+          operativas, juntas en un solo mensaje cada 5 minutos.
         </PanelDescription>
       </PanelHeader>
       <PanelContent className="space-y-3">
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <Switch checked={settings.uploadNotifyEnabled} disabled={saving} onCheckedChange={(v) => save({ uploadNotifyEnabled: v }, v ? "Aviso activado" : "Aviso pausado")} />
-          {settings.uploadNotifyEnabled ? "Aviso activo" : "Aviso pausado"}
+        <label className="flex items-center gap-2 text-sm">
+          <Switch checked={settings.uploadNotifyEnabled} disabled={saving} onCheckedChange={(v) => save({ uploadNotifyEnabled: v }, v ? "Aviso de subida activado" : "Aviso de subida pausado")} />
+          <span className="font-medium">Aviso al subir desde la bandeja</span>
+          <span className="text-xs text-slate-500">quién subió, archivo, sucursal, paquetes, F2, alto valor y cobros</span>
         </label>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Switch checked={settings.alertGroupsEnabled} disabled={saving} onCheckedChange={(v) => save({ alertGroupsEnabled: v }, v ? "Alertas a grupos activadas" : "Alertas a grupos pausadas")} />
+          <span className="font-medium">Alertas operativas</span>
+          <span className="text-xs text-slate-500">mandar desde</span>
+          <Select
+            value={String(settings.alertGroupsLevel ?? 1)}
+            disabled={saving || !settings.alertGroupsEnabled}
+            onValueChange={(v) => save({ alertGroupsLevel: Number(v) }, "Guardado")}
+          >
+            <SelectTrigger className="h-8 w-56 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1" className="text-xs">que se vence el plazo</SelectItem>
+              <SelectItem value="2" className="text-xs">{`el 2º aviso (+${settings.escalate1Min} min)`}</SelectItem>
+              <SelectItem value="3" className="text-xs">{`el 3er aviso (+${settings.escalate2Min} min)`}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {!settings.enabled && settings.alertGroupsEnabled && (
+          <p className="text-[11px] text-amber-700">Las alertas operativas están pausadas arriba: mientras sigan así no se manda nada a los grupos.</p>
+        )}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Grupos que reciben el aviso ({sel.length})</Label>
+          <Label className="text-xs font-semibold">Grupos ({sel.length})</Label>
           {!sel.length && <p className="text-[11px] text-slate-500">Si no eliges ninguno, se usan los grupos llamados “PMY (Monitoreo)” y “Sistemas PMY”.</p>}
           {error ? (
             <p className="text-xs text-amber-700">WhatsApp no está conectado. Vincula el número en Configuración → WhatsApp para elegir grupos.</p>
