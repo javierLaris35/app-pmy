@@ -29,7 +29,7 @@ function ReportesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-5">
+      <div className="space-y-3">
         <OperationHeader
           icon={FileSpreadsheet}
           title="Reportes"

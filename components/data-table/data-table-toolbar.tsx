@@ -1,6 +1,7 @@
 "use client"
 
 import { Cross2Icon } from "@radix-ui/react-icons"
+import type { ReactNode } from "react"
 import type { Table } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,9 +21,11 @@ interface DataTableToolbarProps<TData> {
   }[]
   /** Texto del buscador (default "Buscar..."). */
   searchPlaceholder?: string
+  /** Botones extra a la derecha (antes del selector de columnas). */
+  actions?: ReactNode
 }
 
-export function DataTableToolbar<TData>({ table, setGlobalFilter, filters, searchPlaceholder = "Buscar..." }: DataTableToolbarProps<TData>) {
+export function DataTableToolbar<TData>({ table, setGlobalFilter, filters, searchPlaceholder = "Buscar...", actions }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter
 
   // Buscar columnas de manera segura
@@ -139,6 +142,7 @@ export function DataTableToolbar<TData>({ table, setGlobalFilter, filters, searc
           </Button>
         )}
       </div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       <DataTableViewOptions table={table} />
     </div>
   )
