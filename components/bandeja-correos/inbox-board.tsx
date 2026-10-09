@@ -141,7 +141,10 @@ export function InboxBoard({ from, to, subsidiaryId, active, onOpenMessage }: Pr
                             <Badge variant="secondary" className="w-14 justify-center px-1.5 py-0 text-[11px]">
                               {CONS_KIND_LABEL[t.kind] ?? t.kind}
                             </Badge>
-                            <span className="w-28 font-mono text-slate-700">{t.consNumber}</span>
+                            <span className="w-28 font-mono text-slate-700" title={t.uploadedAs ? `Se subió con el número ${t.uploadedAs}` : undefined}>
+                              {t.consNumber}
+                              {t.uploadedAs && <span className="block font-sans text-[10px] text-slate-500">subido como {t.uploadedAs}</span>}
+                            </span>
                             <span className="w-24 text-slate-500">{t.guides ? `${t.guides} guías` : t.announcedCount ? `${t.announcedCount} anunciadas` : ""}</span>
                             <span className="w-32 text-slate-500">Llegó {formatDateTime(t.receivedAt)}</span>
                             <div className="min-w-0 flex-1">

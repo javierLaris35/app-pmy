@@ -52,6 +52,8 @@ export interface TrackingItem {
   inboxConsolidationId: string;
   inboxMessageId: string;
   consNumber: string;
+  /** Se subió con otro número (p. ej. la F2 con el número del master). */
+  uploadedAs?: string | null;
   kind: "master" | "aereo" | "f2" | "high_value" | "dhl" | "cod";
   subsidiaryId: string;
   announcedCount: number | null;

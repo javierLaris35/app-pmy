@@ -106,10 +106,17 @@ export function InboxGuidesStep({ messageId, subject, ready, canUpload, onChange
             {c.insideSheet ? (
               <span className="text-slate-600">Viene en la hoja “{c.insideSheet}” del archivo master; se sube junto con él.</span>
             ) : c.uploaded ? (
-              <span className="flex items-center gap-1 text-emerald-700">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Ya está en el sistema ({formatDateTime(c.uploaded.at)}
-                {c.uploaded.byName ? ` · ${c.uploaded.byName}` : ""})
-              </span>
+              c.uploaded.as && c.uploaded.asKind && c.uploaded.asKind !== (c.kind === "f2" ? "f2" : "master") ? (
+                <span className="flex items-center gap-1 text-amber-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Subido como {c.uploaded.asKind === "f2" ? "carga" : "paquete"} en {c.uploaded.as} (tipo equivocado)
+                  {c.uploaded.byName ? ` · ${c.uploaded.byName}` : ""}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-emerald-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Ya está en el sistema{c.uploaded.as ? ` como ${c.uploaded.as}` : ""} ({formatDateTime(c.uploaded.at)}
+                  {c.uploaded.byName ? ` · ${c.uploaded.byName}` : ""})
+                </span>
+              )
             ) : (
               <span className="text-amber-700">El correo lo menciona, pero no trae su archivo. Pídeselo a FedEx o súbelo cuando llegue.</span>
             )}
