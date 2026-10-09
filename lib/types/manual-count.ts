@@ -83,10 +83,49 @@ export interface ManualCountReport {
   fedexFailures: number;
   totals: ManualCountTotals;
   rows: DiagnosisRow[];
+  /** Solo si se pegaron recolecciones. */
+  collections?: CollectionReport;
 }
 
 export interface ManualLists {
   pod: string[];
   dex07: string[];
   dex08: string[];
+  /** Recolecciones contadas a mano (opcional: vacío = no se revisan). */
+  recolecciones?: string[];
+}
+
+// ───────────────────────── Recolecciones ─────────────────────────
+
+export type CollectionCause =
+  | 'REC_NO_EXISTE'
+  | 'REC_OTRA_SUCURSAL'
+  | 'REC_OTRO_DIA'
+  | 'REC_FALTA_CONTEO'
+  | 'REC_SIN_COBRO'
+  | 'REC_DUPLICADO'
+  | 'REC_MONTO'
+  | 'REC_COBRO_OTRO_DIA'
+  | 'REC_COBRO_315'
+  | 'REC_REGLA_315';
+
+export interface CollectionRow {
+  trackingNumber: string;
+  day: string;
+  counted: boolean;
+  systemLabel: string;
+  fedexLabel: string;
+  chargedLabel: string;
+  pickedUpThatDay: boolean;
+  chargedCount: number;
+  verdict: Verdict;
+  cause: CollectionCause | null;
+  explanation: string;
+  chain: ChainStep[];
+  incomeIds: string[];
+}
+
+export interface CollectionReport {
+  totals: { manual: number; fedex: number; charged: number; byVerdict: Record<Verdict, number> };
+  rows: CollectionRow[];
 }

@@ -1,4 +1,4 @@
-import type { Cause, DayOutcome, Verdict } from "@/lib/types/manual-count";
+import type { Cause, CollectionCause, DayOutcome, Verdict } from "@/lib/types/manual-count";
 
 /** Textos en llano del "Conteo manual vs sistema". */
 
@@ -58,3 +58,17 @@ export function outcomeLabel(o: DayOutcome): string {
   if (o === "OTRO") return "Otro estatus";
   return "—";
 }
+
+/** Causas de las recolecciones (espejo de COLLECTION_CAUSE_TEXT en pmy-api). */
+export const COLLECTION_CAUSE_LABEL: Record<CollectionCause, string> = {
+  REC_NO_EXISTE: "No está registrada como recolección",
+  REC_OTRA_SUCURSAL: "Registrada en otra sucursal",
+  REC_OTRO_DIA: "Registrada otro día",
+  REC_FALTA_CONTEO: "Falta en el conteo",
+  REC_SIN_COBRO: "Falta el cobro",
+  REC_DUPLICADO: "Cobro duplicado",
+  REC_MONTO: "Monto incorrecto",
+  REC_COBRO_OTRO_DIA: "Cobro en otro día",
+  REC_COBRO_315: "Cobro de más (ruta 31.5)",
+  REC_REGLA_315: "Ruta 31.5: no se cobra",
+};
