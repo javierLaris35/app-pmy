@@ -22,6 +22,8 @@ export interface OpsSettings {
   alertGroupsEnabled: boolean;
   /** Desde qué aviso van las alertas a los grupos: 1 vencido · 2 · 3. */
   alertGroupsLevel: number;
+  /** Solo en desarrollo: número de prueba al que llegan los WhatsApp (permite "Probar alertas ahora"). */
+  devTestNumber?: string | null;
 }
 
 export interface OpsSubsidiaryConfig {
@@ -79,6 +81,7 @@ export const getOpsSubsidiaries = async (): Promise<OpsSubsidiaryConfig[]> => (a
 export const updateOpsSubsidiary = async (id: string, patch: Partial<OpsSubsidiaryConfig>) => (await axiosConfig.put(`${base}/subsidiaries/${id}`, patch)).data;
 export const getWhatsappGroups = async (): Promise<{ id: string; subject: string; participants: number }[]> => (await axiosConfig.get(`${base}/whatsapp-groups`)).data;
 export const evaluateOpsAlerts = async () => (await axiosConfig.post(`${base}/evaluate`)).data;
+export const testOpsDigest = async (): Promise<{ sent: number; groups: number; message?: string }> => (await axiosConfig.post(`${base}/test-digest`)).data;
 export const getTracking = async (p: { from?: string; to?: string; subsidiaryId?: string }): Promise<TrackingItem[]> => (await axiosConfig.get(`${base}/tracking`, { params: p })).data;
 export const getTrackingForMessage = async (id: string): Promise<TrackingItem[]> => (await axiosConfig.get(`${base}/tracking/message/${id}`)).data;
 export const getOpenAlerts = async (): Promise<OpenAlert[]> => (await axiosConfig.get(`${base}/open`)).data;

@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useUsers } from "@/hooks/services/users/use-users";
 import {
   evaluateOpsAlerts,
+  testOpsDigest,
   getOpsSettings,
   getOpsSubsidiaries,
   getWhatsappGroups,
@@ -25,7 +26,7 @@ import {
   updateOpsSubsidiary,
 } from "@/lib/services/ops-alerts";
 import { toast } from "@/lib/toast";
-import { Loader2, Pencil, Play, Save } from "lucide-react";
+import { FlaskConical, Loader2, Pencil, Play, Save } from "lucide-react";
 
 const errText = (e: unknown, f: string) => {
   const m = (e as any)?.response?.data?.message;
@@ -96,6 +97,19 @@ export function OpsAlertsPanel() {
     }
   }
 
+  const [testing, setTesting] = useState(false);
+  async function testNow() {
+    setTesting(true);
+    try {
+      const r = await testOpsDigest();
+      toast.success(r.message ?? `Prueba mandada al ${form?.devTestNumber}: ${r.sent} pendiente(s)`);
+    } catch (e) {
+      toast.error(errText(e, "No se pudo mandar la prueba"));
+    } finally {
+      setTesting(false);
+    }
+  }
+
   if (!form || !subs) {
     return (
       <div className="flex h-32 items-center justify-center text-sm text-slate-500">
@@ -120,7 +134,19 @@ export function OpsAlertsPanel() {
               {form.enabled ? "Alertas activas" : "Alertas pausadas"}
             </label>
             {form.enabled && form.enabledAt && <span className="text-xs text-slate-500">Lo que ya estaba atrasado antes de activarlas se muestra, pero no se avisa.</span>}
-            <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={runNow}>
+            {form.devTestNumber && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto gap-1.5 border-violet-200 text-violet-700"
+                onClick={testNow}
+                disabled={testing}
+                title={`Desarrollo: manda el mensaje de grupos con todo lo vencido al ${form.devTestNumber}`}
+              >
+                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />} Probar alertas ahora
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className={form.devTestNumber ? "gap-1.5" : "ml-auto gap-1.5"} onClick={runNow}>
               <Play className="h-4 w-4" /> Revisar ahora
             </Button>
           </div>
