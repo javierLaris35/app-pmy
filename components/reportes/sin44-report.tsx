@@ -148,7 +148,12 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
     if (rows.length === 0) return;
     setIsExporting(true);
     try {
-      const blob = await buildVisibility44Excel(rows);
+      const zoneName = zones.find((z: any) => z.id === zoneId)?.name;
+      const subNames = subsidiaries.filter((s: any) => effectiveSubsidiaryIds.includes(s.id)).map((s: any) => s.name).join(", ");
+      const blob = await buildVisibility44Excel(rows, {
+        scope: mode === "zona" ? `Zona ${zoneName || ""}: ${subNames}` : `Sucursales: ${subNames}`,
+        period: "FedEx activos (pendiente / en bodega) dados de alta en octubre 2026",
+      });
       saveAs(blob, `sin_44_${mode === "zona" ? (zones.find((z: any) => z.id === zoneId)?.name || "zona") : "sucursales"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch {
       toast.error("No se pudo exportar el Excel.");
