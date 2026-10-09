@@ -77,8 +77,8 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
       setRows((details || []).filter(isFedexRow));
       setSummary({
         Paquetes: summary?.paquetes ?? (details?.length || 0),
-        "Con código hoy": summary?.conCodigoHoy ?? 0,
-        "Sin código hoy": summary?.sinCodigo ?? 0,
+        "Al día": summary?.conCodigoHoy ?? 0,
+        "Con días sin código": summary?.sinCodigo ?? 0,
         Nunca: summary?.nunca ?? 0,
       });
       setHasRun(true);
@@ -195,14 +195,14 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
       accessorFn: (r) => (r.daysSinceLastCode == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLastCode)),
       cell: ({ row }) => {
         const r = row.original;
-        return r.daysSinceLastCode == null ? "Nunca" : r.daysSinceLastCode === 0 ? "Hoy (0)" : String(r.daysSinceLastCode);
+        return r.daysSinceLastCode == null ? "Nunca" : r.daysSinceLastCode === 0 ? "Al día (0)" : String(r.daysSinceLastCode);
       },
     },
     { id: "lastCodeDate", accessorFn: (r) => r.lastCodeDate, header: "Último escaneo", cell: ({ row }) => row.original.lastCodeDate ? new Date(row.original.lastCodeDate).toLocaleDateString("es-MX") : "—" },
     {
       id: "categoria",
       header: "Visibilidad",
-      accessorFn: (r) => (r.category === "hoy" ? "Con código hoy" : r.category === "nunca" ? "Nunca" : "Sin código hoy"),
+      accessorFn: (r) => (r.category === "hoy" ? "Al día" : r.category === "nunca" ? "Nunca" : "Con días sin código"),
       filterFn: inArray,
     },
     { id: "recipientName", accessorFn: (r) => r.recipientName, header: "Destinatario" },
@@ -254,7 +254,7 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
         .sort()
         .map((v) => ({ label: String(v), value: String(v) }));
     return [
-      { columnId: "categoria", title: "Visibilidad", options: opts((r) => (r.category === "hoy" ? "Con código hoy" : r.category === "nunca" ? "Nunca" : "Sin código hoy")) },
+      { columnId: "categoria", title: "Visibilidad", options: opts((r) => (r.category === "hoy" ? "Al día" : r.category === "nunca" ? "Nunca" : "Con días sin código")) },
       { columnId: "scanCode", title: "Código", options: opts((r) => String(r.scanCode ?? "67")) },
       { columnId: "tipo", title: "Tipo", options: opts((r) => tipoLabel(r.shipmentType)) },
       { columnId: "status", title: "Estatus", options: opts((r) => prettyStatus(r.status)) },
