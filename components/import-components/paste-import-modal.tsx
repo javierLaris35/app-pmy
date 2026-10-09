@@ -33,7 +33,7 @@ import {
   UploadPreview,
 } from "@/lib/services/shipments";
 import {
-  buildMappedTable, mergePayments, mergeHighValue, parsePaymentsPaste, parseHvPaste, applyCommitChecks,
+  buildMappedTable, mergePayments, mergeHighValue, parsePaymentsPaste, parseHvPaste, applyCommitChecks, recoverExcelNumbers,
   MappedTable, MappedRow, ParsedPayment, ParsedHv, CommitEdits, CommitCheck,
 } from "@/lib/fedex-header-map";
 import { format as formatDateFns, parseISO } from "date-fns";
@@ -53,6 +53,8 @@ export type SubmitResult = {
   cobrosUnmatched?: number;
   hvMarked?: number;
   hvFailed?: boolean;
+  /** La respuesta del servidor no llegó, pero se comprobó que sí guardó todo. */
+  confirmedByCheck?: boolean;
 };
 
 /** Datos de muestra para "Pegar ejemplo" (incluye encabezados + un cobro). */
@@ -196,6 +198,9 @@ export function PasteImportModal({
   const [isHalfTon, setIsHalfTon] = useState(false);
   const [secondAbord, setSecondAbord] = useState(false);
   const [sending, setSending] = useState(false);
+  // Segundos importando (la subida consulta FedEx guía por guía y puede tardar minutos).
+  const [sendingSecs, setSendingSecs] = useState(0);
+  const [sendingNote, setSendingNote] = useState("");
   const [result, setResult] = useState<SubmitResult | null>(null);
   // Tutorial ilustrado: se abre una sola vez en el primer uso (motor genérico).
   const [tutorialOpen, setTutorialOpen] = useTutorialFirstView("hasSeenPasteTutorial", open);
@@ -334,6 +339,19 @@ export function PasteImportModal({
     return () => { if (previewTimer.current) clearTimeout(previewTimer.current); };
   }, [kind, isAereo, notRemoveCharge, table, localSubsidiaryId, consNumber, consDate]);
 
+  // Excel copia en texto lo que SE VE (2.234E+11 si la columna es angosta), pero su HTML
+  // trae el número real: se recuperan las guías antes de que lleguen a la tabla.
+  const onMainPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const html = e.clipboardData.getData("text/html");
+    if (!html) return;
+    const { text, recovered } = recoverExcelNumbers(e.clipboardData.getData("text/plain"), html);
+    if (!recovered) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    setRaw(raw.slice(0, el.selectionStart) + text + raw.slice(el.selectionEnd));
+    toast.success(`Se recuperaron ${recovered} guía(s) que Excel mostraba cortadas (ej. 2.23E+11).`);
+  };
+
   const reset = () => {
     setRaw(""); setConsNumber(""); setConsDate(todayLocalISO()); setPaymentsRaw(""); setHvRaw("");
     setAppliedPayments([]); setAppliedHv([]); setPreview(null); setResult(null);
@@ -377,6 +395,10 @@ export function PasteImportModal({
   const blockReason = useMemo(() => {
     if (!table || !table.hasTracking) return "Falta la columna de Guía/Tracking en lo pegado.";
     if ((c?.withTracking ?? 0) === 0) return "No hay guías válidas para importar.";
+    if ((c?.badTracking ?? 0) > 0) {
+      const ej = table.rows.find((r) => r.badTracking)?.values.trackingNumber;
+      return `${c!.badTracking} guía(s) vienen cortadas por Excel (ej. ${ej}). Vuelve a copiarlas desde Excel y pégalas aquí, o dale formato de Número a la columna de guía.`;
+    }
     const needsSub = true;
     if (needsSub && !localSubsidiaryId) return "Selecciona una sucursal.";
     // consNumber obligatorio también en F2 (agrupa las cargas, ancla el 2º request de
@@ -400,15 +422,62 @@ export function PasteImportModal({
     return null;
   }, [table, c, localSubsidiaryId, consNumber, kind, preview, commitCheck]);
 
+  // Cronómetro mientras se importa.
+  useEffect(() => {
+    if (!sending) { setSendingSecs(0); setSendingNote(""); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setSendingSecs(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [sending]);
+
+  /**
+   * Espera la subida principal, pero si tarda revisa con la validación del backend si el
+   * servidor ya guardó todo: a veces el proceso termina y la respuesta nunca llega, y la
+   * pantalla se quedaba en "Importando…" aunque sí se había importado. La subida va en
+   * una sola transacción: o están todas las guías en el consolidado o ninguna.
+   */
+  const uploadWithWatch = async (file: File, upload: () => Promise<any>): Promise<{ res: any; confirmed: boolean }> => {
+    const baseline = Number(preview?.alreadyImportedCount ?? 0);
+    const savedOnServer = async () => {
+      try {
+        const pv = await previewShipmentFile(file, localSubsidiaryId, consNumber, consDate, "fedex", kind, notRemoveCharge);
+        return pv.newCount === 0 && (pv.recycledCount ?? 0) === 0 && pv.alreadyImportedCount > baseline;
+      } catch {
+        return false;
+      }
+    };
+    let settled = false;
+    const main = upload().finally(() => { settled = true; });
+    const watch = new Promise<"confirmed">((resolve) => {
+      const tick = async () => {
+        if (settled) return;
+        if (await savedOnServer()) { resolve("confirmed"); return; }
+        if (!settled) setTimeout(tick, 20_000);
+      };
+      setTimeout(tick, 45_000);
+    });
+    try {
+      const r = await Promise.race([main, watch]);
+      if (r === "confirmed") { main.catch(() => {}); return { res: null, confirmed: true }; }
+      return { res: r, confirmed: false };
+    } catch (e) {
+      // Sin respuesta o error: antes de reportarlo, comprobar si el servidor sí guardó.
+      setSendingNote("No llegó respuesta del servidor; comprobando si sí se guardó…");
+      if (await savedOnServer()) return { res: null, confirmed: true };
+      throw e;
+    }
+  };
+
   const submit = async () => {
     if (!table || blockReason) return;
     setSending(true);
     try {
-      const good = table.rows.filter((r) => !r.missingTracking);
+      const good = table.rows.filter((r) => !r.missingTracking && !r.badTracking);
       const file = buildXlsx(table.fields, good.map((r) => r.values), `pegado_${kind}_${Date.now()}.xlsx`);
       const summary: SubmitResult = { kind, saved: good.length };
       if (kind === "master") {
-        const res: any = await uploadShipmentFile(file, localSubsidiaryId, consNumber, consDate || undefined, isAereo);
+        const { res, confirmed } = await uploadWithWatch(file, () => uploadShipmentFile(file, localSubsidiaryId, consNumber, consDate || undefined, isAereo));
+        summary.confirmedByCheck = confirmed || undefined;
         // El preview (mismo cálculo del backend) trae el desglose nuevas/reingresos/ya importadas.
         summary.saved = Number(preview?.newCount ?? res?.saved ?? res?.summary?.migrated ?? res?.count ?? good.length) || good.length;
         summary.recycled = Number(preview?.recycledCount ?? 0) || undefined;
@@ -425,7 +494,8 @@ export function PasteImportModal({
           catch (e: any) { summary.hvFailed = true; toast.error(`Se importaron los envíos, pero falló marcar Alto Valor: ${e?.message ?? ""}`); }
         }
       } else {
-        const res: any = await uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon, secondAbord);
+        const { res, confirmed } = await uploadWithWatch(file, () => uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon, secondAbord));
+        summary.confirmedByCheck = confirmed || undefined;
         const insertedNew = Number(res?.summary?.insertedNew ?? 0);
         const migrated = Number(res?.summary?.migrated ?? 0);
         const savedF2 = insertedNew + migrated;
@@ -492,8 +562,9 @@ export function PasteImportModal({
         const val = r.values[f.field] ?? "";
         if (f.field === "trackingNumber") {
           return (
-            <span className={`font-mono font-semibold ${r.missingTracking ? "text-rose-600" : r.duplicateTracking ? "text-amber-600" : "text-gray-900"}`}>
+            <span className={`font-mono font-semibold ${r.missingTracking || r.badTracking ? "text-rose-600" : r.duplicateTracking ? "text-amber-600" : "text-gray-900"}`}>
               {val || "— sin guía —"}
+              {r.badTracking && <span className="ml-1 font-sans text-[10px] font-normal">(cortada por Excel)</span>}
               {r.manual && <span className="ml-1 text-[10px] font-normal text-sky-600">(manual)</span>}
             </span>
           );
@@ -563,7 +634,7 @@ export function PasteImportModal({
 
   // Prioridad: problemas (rojo/ámbar) → HV (morado) → cobro (verde) → normal.
   const rowClassName = (r: MappedRow) => {
-    if (r.missingTracking || r.commitIssue === "fecha_invalida" || r.commitIssue === "hora_invalida") return "bg-rose-50 hover:bg-rose-100/70";
+    if (r.missingTracking || r.badTracking || r.commitIssue === "fecha_invalida" || r.commitIssue === "hora_invalida") return "bg-rose-50 hover:bg-rose-100/70";
     if (r.duplicateTracking || r.paymentNoType || r.commitIssue || r.commitWarn) return "bg-amber-50 hover:bg-amber-100/70";
     if (r.isHighValue) return "bg-purple-50/70 hover:bg-purple-100/60";
     if (r.hasPayment) return "bg-emerald-50/60 hover:bg-emerald-100/50";
@@ -577,6 +648,7 @@ export function PasteImportModal({
       <CountChip label="A importar" value={Math.max(0, c.withTracking - c.duplicates)} tone="green" />
       {c.duplicates > 0 && <CountChip label="Duplicadas" value={c.duplicates} tone="amber" />}
       {c.missingTracking > 0 && <CountChip label="Sin guía" value={c.missingTracking} tone="red" />}
+      {c.badTracking > 0 && <CountChip label="Guía cortada" value={c.badTracking} tone="red" />}
       {c.withPayment > 0 && <CountChip label="Con pago" value={c.withPayment} tone="green" />}
       {c.paymentsNoType > 0 && <CountChip label="Pago s/type" value={c.paymentsNoType} tone="amber" />}
       {c.highValue > 0 && <CountChip label="Alto Valor" value={c.highValue} tone="purple" />}
@@ -789,6 +861,7 @@ export function PasteImportModal({
             <Textarea
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
+              onPaste={onMainPaste}
               placeholder={"Tracking No\tRecip Name\tRecip Addr\tRecip City\tRecip Postal\tCommit Date\n123456789\tJuan Pérez\tCalle 1\tHermosillo\t83000\t8/20/2026"}
               className="min-h-[160px] w-full resize-none whitespace-pre rounded-xl border-gray-200 bg-white p-4 font-mono text-xs shadow-sm"
             />
@@ -805,6 +878,13 @@ export function PasteImportModal({
                 {detDate && <Badge variant="secondary" className="text-[11px]">Fecha {detDate}</Badge>}
                 <span className="text-muted-foreground">(puedes editarlos arriba)</span>
               </div>
+            )}
+            {table && (table.meta.blocks ?? 1) > 1 && (
+              <p className="flex items-center gap-1.5 text-[12px] text-amber-700">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                Pegaste {table.meta.blocks} consolidados
+                {table.meta.consNumbers?.length ? ` (${table.meta.consNumbers.join(", ")})` : ""}. Se suben juntos en el consolidado {consNumber.trim() || "que captures arriba"}.
+              </p>
             )}
           </div>
 
@@ -963,7 +1043,14 @@ export function PasteImportModal({
   const overlays = (
     <>
       {/* Loader bloqueante mientras el backend valida (revalida en cada cambio). */}
-      {previewing && <LoaderWithOverlay overlay text="Validando…" className="z-[100]" />}
+      {previewing && !sending && <LoaderWithOverlay overlay text="Validando…" className="z-[100]" />}
+      {sending && (
+        <LoaderWithOverlay
+          overlay
+          className="z-[100]"
+          text={sendingNote || `Importando… ${Math.floor(sendingSecs / 60)}:${String(sendingSecs % 60).padStart(2, "0")} — se consulta FedEx guía por guía y puede tardar varios minutos. No cierres esta pantalla.`}
+        />
+      )}
 
       {/* ¿Usar COD por defecto cuando el pago no trae tipo? */}
       <AlertDialog open={!!pendingPayments} onOpenChange={(o) => { if (!o) setPendingPayments(null); }}>
@@ -1032,6 +1119,11 @@ export function PasteImportModal({
                 {typeof result?.cobrosUnmatched === "number" && result.cobrosUnmatched > 0 && (
                   <p className="flex items-center gap-1.5 text-[12px] text-amber-600">
                     <AlertTriangle className="h-3.5 w-3.5" /> {result.cobrosUnmatched} cobro(s) sin coincidencia de guía.
+                  </p>
+                )}
+                {result?.confirmedByCheck && (
+                  <p className="flex items-center gap-1.5 text-[12px] text-sky-700">
+                    <Info className="h-3.5 w-3.5" /> La respuesta del servidor tardó en llegar; se comprobó que las guías sí quedaron guardadas.
                   </p>
                 )}
                 {result?.hvFailed && (

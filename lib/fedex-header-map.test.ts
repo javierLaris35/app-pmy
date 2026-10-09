@@ -9,6 +9,8 @@ import {
   parsePaymentCell,
   normalizeTrackingValue,
   normalizePhoneValue,
+  splitPasteBlocks,
+  recoverExcelNumbers,
 } from "./fedex-header-map";
 
 describe("buildMappedTable (pegar FedEx)", () => {
@@ -304,8 +306,8 @@ describe("normalizeTrackingValue / normalizePhoneValue (limpieza automática)", 
     expect(normalizeTrackingValue("3830 1203 6065")).toBe("383012036065");
     expect(normalizeTrackingValue("383-012-036-065")).toBe("383012036065");
   });
-  it("expande notación científica (best-effort)", () => {
-    expect(normalizeTrackingValue("3.83E+11")).toBe("383000000000");
+  it("NO inventa dígitos con notación científica (la deja tal cual para marcarla)", () => {
+    expect(normalizeTrackingValue("3.83E+11")).toBe("3.83E+11");
   });
   it("no toca IDs alfanuméricos (DHL JD…)", () => {
     expect(normalizeTrackingValue("JD014600003926438011")).toBe("JD014600003926438011");
@@ -323,5 +325,83 @@ describe("normalizeTrackingValue / normalizePhoneValue (limpieza automática)", 
     expect(t).not.toBeNull();
     expect(t!.rows[0].values.trackingNumber).toBe("383012036065");
     expect(t!.rows[0].values.recipientPhone).toBe("6621234567");
+  });
+});
+
+describe("varios consolidados en un mismo pegado", () => {
+  const block1 = [
+    ["305794238300", "ALBERTO GUTIERREZ", "SALIDA AEREA", "", "", "05/06/2026"],
+    ["", "Tracking No", "Recip Name", "Recip Addr", "Recip Postal", "Commit Date"],
+    ["1", "381432222844", "LAITA OLIMON", "SALOMON 512", "23454", "06/08/2026"],
+    ["2", "381634876530", "JORGE ARANA", "AV LOS CABOS", "23473", "06/09/2026"],
+  ];
+  const block2 = [
+    ["305794239999", "ALBERTO GUTIERREZ", "SALIDA AEREA", "", "", "05/06/2026"],
+    ["", "Tracking No", "Recip Name", "Recip Addr", "Recip Postal", "Commit Date"],
+    ["1", "381432220001", "ANA LOPEZ", "REFORMA 22", "23400", "06/08/2026"],
+  ];
+
+  it("parte el pegado en un bloque por consolidado", () => {
+    const blocks = splitPasteBlocks([...block1, ...block2]);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[1][0][0]).toBe("305794239999"); // la fila meta va con su bloque
+  });
+
+  it("no mete el encabezado ni la fila meta del 2º consolidado como guías", () => {
+    const t = buildMappedTable([...block1, ...block2])!;
+    const tracks = t.rows.map((r) => r.values.trackingNumber);
+    expect(tracks).toEqual(["381432222844", "381634876530", "381432220001"]);
+    expect(t.counts.missingTracking).toBe(0);
+    expect(t.meta.consNumber).toBe("305794238300");
+    expect(t.meta.consNumbers).toEqual(["305794238300", "305794239999"]);
+  });
+
+  it("el 2º consolidado puede traer las columnas en otro orden", () => {
+    const b2 = [
+      ["Recip Name", "Tracking No", "Recip Postal", "Recip Addr"],
+      ["ANA LOPEZ", "381432220001", "23400", "REFORMA 22"],
+    ];
+    const t = buildMappedTable([...block1, ...b2])!;
+    const last = t.rows[t.rows.length - 1].values;
+    expect(last.trackingNumber).toBe("381432220001");
+    expect(last.recipientName).toBe("ANA LOPEZ");
+    expect(last.recipientZip).toBe("23400");
+    expect(t.rows[0].values.commitDate).toBe("06/08/2026");
+    expect(last.commitDate ?? "").toBe("");
+  });
+
+  it("un solo consolidado sigue igual", () => {
+    expect(splitPasteBlocks(block1)).toHaveLength(1);
+  });
+});
+
+describe("guías en notación científica (2.234E+11)", () => {
+  it("se marcan como guía cortada en vez de inventar ceros", () => {
+    const t = buildMappedTable([
+      ["Tracking No", "Recip Name", "Recip Postal"],
+      ["2.234E+11", "JUAN", "83000"],
+      ["383012036065", "ANA", "83100"],
+    ])!;
+    expect(t.rows[0].values.trackingNumber).toBe("2.234E+11");
+    expect(t.rows[0].badTracking).toBe(true);
+    expect(t.rows[1].badTracking).toBe(false);
+    expect(t.counts.badTracking).toBe(1);
+  });
+
+  it("recupera los dígitos reales desde el HTML que copia Excel (x:num)", () => {
+    const plain = "Tracking No\tRecip Name\r\n2.23401E+11\tJUAN\r\n3.83012E+11\tANA\r\n";
+    const html =
+      "<table><tr><td>Tracking No</td><td>Recip Name</td></tr>" +
+      "<tr><td class=xl65 align=right x:num=\"223401234567\">2.23401E+11</td><td>JUAN</td></tr>" +
+      "<tr><td x:num=\"383012036065\">3.83012E+11</td><td>ANA</td></tr></table>";
+    const r = recoverExcelNumbers(plain, html);
+    expect(r.recovered).toBe(2);
+    expect(r.text).toContain("223401234567\tJUAN");
+    expect(r.text).toContain("383012036065\tANA");
+  });
+
+  it("sin HTML (o sin x:num) no toca nada", () => {
+    expect(recoverExcelNumbers("2.2E+11\tJUAN", "").recovered).toBe(0);
+    expect(recoverExcelNumbers("2.2E+11\tJUAN", "<tr><td>2.2E+11</td><td>JUAN</td></tr>").recovered).toBe(0);
   });
 });

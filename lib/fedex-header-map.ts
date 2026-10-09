@@ -73,6 +73,8 @@ const TIME_FIELD = CANONICAL_FIELDS.find((f) => f.field === "commitTime")!;
 export interface MappedRow {
   values: Record<string, string>; // campo canónico → valor (incluye 'cod')
   missingTracking: boolean;
+  /** Guía cortada por Excel (notación científica, p. ej. 2.234E+11): los dígitos reales se perdieron. */
+  badTracking: boolean;
   duplicateTracking: boolean;
   badDate: boolean;
   /** Problema de vencimiento (lo llena `applyCommitChecks`). */
@@ -91,6 +93,8 @@ export interface MappedCounts {
   total: number;
   withTracking: number;
   missingTracking: number;
+  /** Guías en notación científica (no se pueden subir). */
+  badTracking: number;
   duplicates: number;
   withPayment: number;
   paymentsNoType: number;
@@ -104,6 +108,10 @@ export interface DetectedMeta {
   date?: string;
   /** true si la fila meta menciona "AEREA/AEREO". undefined si no hay señal. */
   aereo?: boolean;
+  /** Consolidados detectados cuando se pegan varios seguidos (cada uno con su fila meta). */
+  consNumbers?: string[];
+  /** Cuántos bloques (consolidado = fila meta + encabezado + guías) traía el pegado. */
+  blocks?: number;
 }
 
 export interface ColumnProblem {
@@ -382,6 +390,7 @@ function analyzeRow(values: Record<string, string>, manual: boolean): MappedRow 
   return {
     values,
     missingTracking: tracking === "",
+    badTracking: SCI_NOTATION_RE.test(tracking),
     duplicateTracking: false, // se calcula al final (necesita el set completo)
     badDate: isBadDate(values["commitDate"] ?? ""),
     hasPayment,
@@ -464,6 +473,7 @@ function recompute(table: {
     total: table.rows.length,
     withTracking: table.rows.filter((r) => !r.missingTracking).length,
     missingTracking: table.rows.filter((r) => r.missingTracking).length,
+    badTracking: table.rows.filter((r) => r.badTracking).length,
     duplicates: table.rows.filter((r) => r.duplicateTracking).length,
     withPayment: table.rows.filter((r) => r.hasPayment).length,
     paymentsNoType: table.rows.filter((r) => r.paymentNoType).length,
@@ -491,19 +501,17 @@ function recompute(table: {
 /**
  * Normaliza una GUÍA que a veces no llega en formato limpio (Excel la trae como número):
  *  - "383012036065.0"  → "383012036065"      (float con .0)
- *  - "3.83E+11"         → "383000000000"       (notación científica; best-effort)
  *  - "3830 1203 6065"   → "383012036065"      (espacios/guiones si el resto es numérico)
- * Caveat: si el ORIGEN ya guardó la guía como 3.83E+11 los dígitos reales se perdieron;
- * la expansión no siempre recupera el número exacto. No toca IDs alfanuméricos (DHL JD…).
+ * La notación científica ("2.234E+11") NO se expande: Excel ya perdió los dígitos y
+ * expandirla inventa una guía falsa (223400000000). Se deja tal cual y la fila se marca
+ * `badTracking`; los dígitos reales se recuperan al pegar con `recoverExcelNumbers`.
+ * No toca IDs alfanuméricos (DHL JD…).
  */
 export function normalizeTrackingValue(v: string | number | null | undefined): string {
   let s = String(v ?? "").trim();
   if (!s) return "";
   if (/^\d+\.0+$/.test(s)) s = s.split(".")[0];
-  if (/^\d(\.\d+)?[eE][+-]?\d+$/.test(s)) {
-    const n = Number(s);
-    if (Number.isFinite(n)) s = n.toLocaleString("fullwide", { useGrouping: false });
-  }
+  if (SCI_NOTATION_RE.test(s)) return s.toUpperCase();
   const stripped = s.replace(/[\s-]/g, "");
   if (/^\d+$/.test(stripped)) s = stripped;
   return s;
@@ -518,7 +526,130 @@ export function normalizePhoneValue(v: string | number | null | undefined): stri
   return plus + s.replace(/[^\d]/g, "");
 }
 
+/** Guía en notación científica tal como la muestra Excel con la columna angosta/General. */
+const SCI_NOTATION_RE = /^\d(\.\d+)?[eE][+-]?\d+$/;
+/** Celda que es una guía (o lo que queda de ella en notación científica). */
+const TRACKING_LIKE_RE = /^(\d{10,}|\d(\.\d+)?[eE][+-]?\d+)$/;
+
+const nonEmptyCells = (row: string[]) => row.filter((c) => String(c ?? "").trim() !== "").length;
+const hasTrackingLikeCell = (row: string[]) => row.some((c) => TRACKING_LIKE_RE.test(String(c ?? "").trim()));
+
+/** Valores que solo aparecen en filas de datos (CP, teléfono, fecha), nunca en un encabezado. */
+const DATA_VALUE_RE = /^(\d{4,}|\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})$/;
+
+/** Columnas reconocidas como encabezado; 0 si la fila trae valores de datos (guía, CP, fecha). */
+function headerScore(row: string[]): number {
+  if (row.some((c) => DATA_VALUE_RE.test(String(c ?? "").trim())) || hasTrackingLikeCell(row)) return 0;
+  const fields = Object.keys(FIELD_PRIMARY) as Field[];
+  let recognized = 0;
+  for (const cell of row) {
+    const tk = tokenize(String(cell ?? ""));
+    if (fields.some((f) => scoreHeaderForField(tk, f) > 0)) recognized++;
+  }
+  return recognized;
+}
+
+/**
+ * Parte el pegado cuando trae VARIOS consolidados seguidos (cada uno con su fila meta
+ * + encabezado + guías). Sin esto, el encabezado y la fila meta del 2º consolidado se
+ * leían como guías. Cada bloque se mapea por separado (sus columnas pueden venir en
+ * otro orden). Un solo consolidado → un solo bloque (sin cambios).
+ */
+export function splitPasteBlocks(rows: string[][]): string[][][] {
+  const scores = rows.map(headerScore);
+  const first = scores.findIndex((s) => s >= 2);
+  if (first < 0) return [rows];
+  // Un encabezado repetido reconoce casi las mismas columnas que el primero.
+  const minScore = Math.max(2, Math.ceil(scores[first] * 0.6));
+  const headers = scores.map((s, i) => (i >= first && s >= minScore ? i : -1)).filter((i) => i >= 0);
+  if (headers.length <= 1) return [rows];
+
+  const starts = [0];
+  let lastHeader = headers[0];
+  for (const h of headers.slice(1)) {
+    // Encabezado sin guías desde el anterior (p. ej. encabezado en 2 renglones): mismo bloque.
+    if (!rows.slice(lastHeader + 1, h).some(hasTrackingLikeCell)) continue;
+    // La(s) fila(s) meta del nuevo bloque van justo antes de su encabezado: se reconocen
+    // porque NO traen guía en la columna de guía de ese encabezado y vienen más vacías.
+    const trackCol = resolveColumns(rows.slice(h)).map["trackingNumber"];
+    const headerFilled = nonEmptyCells(rows[h]);
+    let s = h;
+    while (s - 1 > lastHeader && h - (s - 1) <= 3) {
+      const prev = rows[s - 1];
+      const trackCell = trackCol !== undefined ? String(prev[trackCol] ?? "").trim() : "";
+      if (TRACKING_LIKE_RE.test(trackCell) || nonEmptyCells(prev) >= headerFilled) break;
+      s--;
+    }
+    starts.push(s);
+    lastHeader = h;
+  }
+  return starts.map((s, i) => rows.slice(s, starts[i + 1] ?? rows.length));
+}
+
+/**
+ * Recupera las guías que Excel copia en notación científica (2.234E+11). El texto plano
+ * del portapapeles trae lo que se VE en la celda, pero el HTML que copia Excel trae el
+ * valor real en `x:num`. Se reemplaza solo la celda de la misma posición y solo si el
+ * texto visible coincide (si no cuadra, no se toca nada).
+ */
+export function recoverExcelNumbers(plain: string, html: string): { text: string; recovered: number } {
+  const lines = String(plain ?? "").split(/\r?\n/);
+  const hasSci = lines.some((l) => l.split("\t").some((c) => SCI_NOTATION_RE.test(c.trim())));
+  if (!html || !hasSci) return { text: plain, recovered: 0 };
+
+  const htmlRows: { text: string; num: string | null }[][] = [];
+  for (const tr of html.match(/<tr[\s\S]*?<\/tr>/gi) ?? []) {
+    const cells: { text: string; num: string | null }[] = [];
+    for (const td of tr.match(/<td[\s\S]*?<\/td>/gi) ?? []) {
+      const open = td.match(/^<td([^>]*)>/i)?.[1] ?? "";
+      const num = open.match(/x:num="?([^"\s>]+)"?/i)?.[1] ?? null;
+      const text = td.replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").trim();
+      cells.push({ text, num });
+      const span = Number(open.match(/colspan="?(\d+)/i)?.[1] ?? 1);
+      for (let k = 1; k < span; k++) cells.push({ text: "", num: null });
+    }
+    htmlRows.push(cells);
+  }
+
+  let recovered = 0;
+  const out = lines.map((line, r) =>
+    line.split("\t").map((cell, c) => {
+      const h = htmlRows[r]?.[c];
+      if (!h?.num || !SCI_NOTATION_RE.test(cell.trim()) || h.text !== cell.trim()) return cell;
+      const n = Number(h.num);
+      if (!Number.isSafeInteger(n) || n <= 0) return cell;
+      recovered++;
+      return String(n);
+    }).join("\t"),
+  );
+  return { text: out.join("\n"), recovered };
+}
+
 export function buildMappedTable(rawRows: string[][]): MappedTable | null {
+  const blocks = splitPasteBlocks(rawRows);
+  const built = blocks.map(buildBlock);
+  const ok = built.filter((b): b is NonNullable<typeof b> => b !== null);
+  if (!ok.length) return null;
+  if (blocks.length === 1) return recompute(ok[0]);
+
+  // Varios consolidados: una sola tabla con la unión de columnas (cada bloque ya se
+  // mapeó con su propio encabezado) y los consolidados detectados en `meta`.
+  const fields = CANONICAL_FIELDS.filter((f) => ok.some((b) => b.fields.some((bf) => bf.field === f.field)));
+  const consNumbers = [...new Set(ok.map((b) => b.meta.consNumber).filter((x): x is string => !!x))];
+  const problems = [...ok[0].problems];
+  const skipped = built.length - ok.length;
+  if (skipped > 0) problems.push({ level: "warn", message: `${skipped} bloque(s) pegado(s) no traían columna de guía y se ignoraron.` });
+  return recompute({
+    fields,
+    rows: ok.flatMap((b) => b.rows),
+    meta: { ...ok[0].meta, consNumbers, blocks: ok.length },
+    problems,
+    sources: ok[0].sources,
+  });
+}
+
+/** Mapea UN bloque (fila meta + encabezado + guías) con su propio encabezado. */
+function buildBlock(rawRows: string[][]) {
   const { headerRowIndex, map, sources, problems } = resolveColumns(rawRows);
   if (map["trackingNumber"] === undefined) return null;
 
@@ -545,7 +676,7 @@ export function buildMappedTable(rawRows: string[][]): MappedTable | null {
   });
 
   const meta = detectMeta(rawRows, headerRowIndex >= 0 ? headerRowIndex : 0);
-  return recompute({ fields, rows, meta, problems, sources });
+  return { fields, rows, meta, problems, sources };
 }
 
 // ---------------------------------------------------------------------------
