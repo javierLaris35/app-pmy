@@ -131,6 +131,13 @@ export const sidebarMenu = {
           icon: ListChecks,
           roles: allowedPageRoles.correo.bandeja,
           isActive: false
+        },
+        {
+          name: "Historial de avisos",
+          url: "/correos/historial",
+          icon: HistoryIcon,
+          roles: allowedPageRoles.correo.bandeja,
+          isActive: false
         }
       ]
     },

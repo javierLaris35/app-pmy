@@ -90,3 +90,73 @@ export const STEP_LABEL: Record<OpsStep, string> = {
   closure: "Ruta cerrada",
   inventory: "Inventario",
 };
+
+// ------------------------------------------------------------------ Mandar aviso + historial
+
+export type FindingCode =
+  | "no_subido"
+  | "subida_parcial"
+  | "entregadas_sin_desembarque"
+  | "ruta_sin_desembarque"
+  | "desembarque_incompleto"
+  | "sin_ruta"
+  | "ruta_sin_cierre"
+  | "sin_pendientes";
+
+export interface NoticeFinding {
+  code: FindingCode;
+  severity: "alta" | "media" | "info";
+  text: string;
+  count: number;
+  samples: string[];
+}
+
+export interface NoticeAnalysis {
+  consolidation: { id: string; consNumber: string; kind: string; kindLabel: string; receivedAt: string; subsidiaryId: string | null; subsidiaryName: string | null; inboxMessageId: string };
+  progress: { total: number; unloaded: number; routed: number; closed: number };
+  findings: NoticeFinding[];
+  recipients: { groups: { id: string; name: string }[]; subsidiaryUsers: number; managers: { id: string; name: string }[]; numbers: string[] };
+}
+
+export interface NoticeRequest {
+  findings: FindingCode[];
+  note?: string;
+  withSamples?: boolean;
+  targets: { groups?: boolean; subsidiary?: boolean; managers?: boolean; numbers?: boolean };
+}
+
+export interface NoticeSendResult {
+  channel: "whatsapp" | "campana" | "correo";
+  recipientName: string | null;
+  status: "enviado" | "fallido" | "en_cola";
+  error?: string | null;
+}
+
+export const getNoticeAnalysis = async (id: string): Promise<NoticeAnalysis> => (await axiosConfig.get(`${base}/notice/${id}`)).data;
+export const previewNotice = async (id: string, body: NoticeRequest): Promise<{ text: string; planned: { channel: string; recipientName: string }[] }> =>
+  (await axiosConfig.post(`${base}/notice/${id}/preview`, body)).data;
+export const sendNotice = async (id: string, body: NoticeRequest): Promise<{ text: string; results: NoticeSendResult[] }> =>
+  (await axiosConfig.post(`${base}/notice/${id}/send`, body)).data;
+
+export interface SendLogItem {
+  id: string;
+  createdAt: string;
+  channel: "whatsapp" | "campana" | "correo";
+  origin: "alerta" | "subida" | "manual";
+  recipientType: "grupo" | "numero" | "usuario";
+  recipientId: string;
+  recipientName: string | null;
+  sentById: string | null;
+  sentByName: string | null;
+  subsidiaryId: string | null;
+  subsidiaryName: string | null;
+  consNumber: string | null;
+  inboxMessageId: string | null;
+  title: string | null;
+  body: string;
+  status: "enviado" | "fallido" | "en_cola";
+  error: string | null;
+}
+
+export const getSendLog = async (p: { from?: string; to?: string; subsidiaryId?: string; channel?: string; origin?: string; q?: string; page?: number; pageSize?: number }) =>
+  (await axiosConfig.get<{ items: SendLogItem[]; total: number; page: number; pageSize: number }>(`${base}/send-log`, { params: p })).data;

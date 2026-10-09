@@ -20,9 +20,10 @@ import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { InboxGuidesStep } from "./inbox-guides-step";
+import { NoticeDialog } from "./notice-dialog";
 import { AttachmentViewer, ViewerTarget } from "./attachment-viewer";
-import { ATTACHMENT_LABEL, SIGNAL_LABEL, formatDateTime, knownByPhrase } from "./labels";
-import { AlertTriangle, CheckCircle2, ChevronDown, Download, Eye, EyeOff, HelpCircle, Loader2, MailOpen, MoreHorizontal } from "lucide-react";
+import { ATTACHMENT_LABEL, CONS_KIND_LABEL, SIGNAL_LABEL, formatDateTime, knownByPhrase } from "./labels";
+import { AlertTriangle, CheckCircle2, ChevronDown, Download, Eye, EyeOff, HelpCircle, Loader2, MailOpen, Megaphone, MoreHorizontal } from "lucide-react";
 
 const KIND_OPTIONS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "ccp", "ccp_ignored", "dhl", "pdf", "other"];
 const GUIDE_KINDS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "dhl"];
@@ -45,7 +46,10 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [viewer, setViewer] = useState<ViewerTarget | null>(null);
   // Confirmar, ignorar y subir requieren "Confirmar sucursal y subir guías"; sin él se ve todo pero no se cambia nada.
-  const canAct = hasPermission(useAuthStore((s) => s.user), "correo.subir");
+  const authUser = useAuthStore((s) => s.user);
+  const canAct = hasPermission(authUser, "correo.subir");
+  const canNotify = hasPermission(authUser, "correo.avisar");
+  const [noticeOpen, setNoticeOpen] = useState(false);
 
   const m = data?.message;
   const d = data?.detection;
@@ -120,6 +124,10 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
   }
 
   const infoFiles = data.attachments.filter((a) => !GUIDE_KINDS.includes(kinds[a.id] ?? a.kind));
+  // Consolidados del correo sobre los que se puede mandar aviso (los que sí se suben).
+  const noticeTargets = data.consolidations
+    .filter((c) => c.linkStatus !== "no_aplica")
+    .map((c) => ({ id: c.id, consNumber: c.consNumber, kindLabel: CONS_KIND_LABEL[c.kind] ?? c.kind }));
   const selector = (
     <div className="flex flex-wrap items-center gap-2">
       <div className="w-60">
@@ -150,7 +158,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
             {m.fromAddress} · {formatDateTime(m.receivedAt)}
           </p>
         </div>
-        {m.status !== "ignorado" && canAct && (
+        {((m.status !== "ignorado" && canAct) || (canNotify && noticeTargets.length > 0)) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Más acciones">
@@ -158,9 +166,16 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setIgnoreOpen(true)}>
-                <EyeOff className="mr-2 h-4 w-4" /> Ignorar este correo
-              </DropdownMenuItem>
+              {canNotify && noticeTargets.length > 0 && (
+                <DropdownMenuItem onSelect={() => setNoticeOpen(true)}>
+                  <Megaphone className="mr-2 h-4 w-4" /> Mandar aviso
+                </DropdownMenuItem>
+              )}
+              {m.status !== "ignorado" && canAct && (
+                <DropdownMenuItem onSelect={() => setIgnoreOpen(true)}>
+                  <EyeOff className="mr-2 h-4 w-4" /> Ignorar este correo
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -367,6 +382,8 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
       </div>
 
       <AttachmentViewer target={viewer} onClose={() => setViewer(null)} />
+
+      {noticeOpen && <NoticeDialog open={noticeOpen} onOpenChange={setNoticeOpen} consolidations={noticeTargets} />}
 
       <Dialog open={ignoreOpen} onOpenChange={setIgnoreOpen}>
         <DialogContent className="sm:max-w-md">

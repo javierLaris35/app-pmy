@@ -48,6 +48,7 @@ export const allowedPageRoles = {
     correo: {
         bandeja: [UserRoleEnum.SUPERADMIN], // ver bandeja y seguimiento
         subir: [UserRoleEnum.SUPERADMIN], // confirmar sucursal, ignorar y subir guías
+        avisar: [UserRoleEnum.SUPERADMIN], // mandar avisos a mano (WhatsApp / campana / correo)
         configurar: [UserRoleEnum.SUPERADMIN], // buzón, cobertura de CP, alertas
     },
     configuracion: [UserRoleEnum.SUPERADMIN],

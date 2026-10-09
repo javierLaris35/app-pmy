@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils";
 import { CONS_KIND_LABEL, formatDateTime } from "./labels";
 import { TrackingSteps } from "./tracking-steps";
 import { InboxRoutes } from "./inbox-routes";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Inbox, Loader2 } from "lucide-react";
+import { NoticeDialog } from "./notice-dialog";
+import { useAuthStore } from "@/store/auth.store";
+import { hasPermission } from "@/lib/access/permissions";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Inbox, Loader2, Megaphone } from "lucide-react";
 
 interface Props {
   from: string;
@@ -42,6 +45,8 @@ export function InboxBoard({ from, to, subsidiaryId, active, onOpenMessage }: Pr
   const { data, isLoading } = useSWR(active ? ["/ops-alerts/tracking", from, to, subsidiaryId ?? ""] : null, () => getTracking({ from, to, subsidiaryId }), { refreshInterval: 60_000 });
   const { subsidiaries } = useSubsidiaries();
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const canNotify = hasPermission(useAuthStore((s) => s.user), "correo.avisar");
+  const [notice, setNotice] = useState<TrackingItem | null>(null);
   const nameOf = (id: string) => (subsidiaries as Subsidiary[]).find((s) => s.id === id)?.name ?? "Sucursal";
 
   const { days, totals } = useMemo(() => {
@@ -142,6 +147,11 @@ export function InboxBoard({ from, to, subsidiaryId, active, onOpenMessage }: Pr
                             <div className="min-w-0 flex-1">
                               <TrackingSteps item={t} />
                             </div>
+                            {canNotify && (
+                              <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs text-sky-700" onClick={() => setNotice(t)}>
+                                <Megaphone className="h-3.5 w-3.5" /> Avisar
+                              </Button>
+                            )}
                             <Button variant="link" className="h-auto shrink-0 p-0 text-xs" onClick={() => onOpenMessage(t.inboxMessageId)}>
                               Ver correo
                             </Button>
@@ -155,6 +165,14 @@ export function InboxBoard({ from, to, subsidiaryId, active, onOpenMessage }: Pr
           </ul>
         </section>
       ))}
+
+      {notice && (
+        <NoticeDialog
+          open={!!notice}
+          onOpenChange={(o) => !o && setNotice(null)}
+          consolidations={[{ id: notice.inboxConsolidationId, consNumber: notice.consNumber, kindLabel: CONS_KIND_LABEL[notice.kind] ?? notice.kind }]}
+        />
+      )}
     </div>
   );
 }
