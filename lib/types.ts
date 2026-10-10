@@ -53,6 +53,8 @@ export type Subsidiary = {
   closureAcceptsAnyDayDelivery?: boolean
   /** Cierre de ruta: cuenta lo que pasó hasta que la guía sale en otra ruta (no solo el día de la ruta). */
   closureUntilNextDispatch?: boolean
+  /** Ingresos del cierre: fecha = evento FedEx real (entrega/DEX), aunque sea de otro día (hoy Loreto). */
+  closureIncomeAtFedexEventTime?: boolean
   /** Cobros: sumar el segundo abordo (secondAbordAmount) al costo de cargas F2/31.5 normales. */
   chargeSecondAbord?: boolean
   /** Cobros: solo la primera carga del día genera cobro; las demás del mismo día se registran en $0. */

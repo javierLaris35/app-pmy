@@ -17,6 +17,7 @@ import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { AnomaliesDialog } from "@/components/consolidador/anomalies-dialog";
 import { CobrosAuditPanel } from "@/components/consolidador/cobros-audit-panel";
 import { ManualCountPanel } from "@/components/consolidador/manual-count-panel";
+import { DateRealignDialog } from "@/components/consolidador/date-realign-dialog";
 import { useAuthStore } from "@/store/auth.store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/w
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, Loader2, PlusCircle, History, AlertTriangle } from "lucide-react";
+import { SlidersHorizontal, Loader2, PlusCircle, History, AlertTriangle, CalendarCheck2 } from "lucide-react";
 
 type TabKey = "por-ruta" | "por-consolidado" | "ingresos" | "buscar" | "auditoria" | "conteo";
 
@@ -39,6 +40,7 @@ function ConsolidadorPage() {
   const [addDefaultTracking, setAddDefaultTracking] = useState<string | undefined>(undefined);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
+  const [realignOpen, setRealignOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("por-ruta");
   // "Conteo manual vs sistema" es solo para superadmin (expone detalle interno y prompt).
   const role = String(useAuthStore((s) => s.user)?.role ?? "").toLowerCase();
@@ -203,6 +205,18 @@ function ConsolidadorPage() {
               >
                 <AlertTriangle className="h-4 w-4" /> Anomalías
               </Button>
+              {isGlobal && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRealignOpen(true)}
+                  disabled={!subsidiaryId}
+                  className="gap-2 border-sky-300 bg-white text-sky-700 hover:bg-sky-50"
+                  title="Pasa al día real de entrega FedEx los ingresos que el cierre dejó en el día de la ruta"
+                >
+                  <CalendarCheck2 className="h-4 w-4" /> Corregir fechas
+                </Button>
+              )}
               <Button onClick={() => { setAddDefaultTracking(undefined); setAddOpen(true); }} disabled={!subsidiaryId} size="sm" className="gap-2">
                 <PlusCircle className="h-4 w-4" /> Agregar ingreso
               </Button>
@@ -276,6 +290,15 @@ function ConsolidadorPage() {
           week={week}
           onChanged={() => mutate()}
         />
+        {isGlobal && (
+          <DateRealignDialog
+            open={realignOpen}
+            onOpenChange={setRealignOpen}
+            subsidiaryId={subsidiaryId}
+            week={week}
+            onChanged={() => mutate()}
+          />
+        )}
       </div>
     </AppLayout>
   );
