@@ -8,7 +8,7 @@ const tipoLabel = (t?: string) => {
   if (v === "dhl") return "DHL";
   return v ? v.toUpperCase() : "Otro";
 };
-const catLabel = (c?: string, code: string = "67") => (c === "hoy" ? `Con ${code} hoy` : c === "nunca" ? "Nunca" : `Sin ${code} hoy`);
+const catLabel = (c?: string) => (c === "hoy" ? "Al día" : c === "nunca" ? "Nunca" : "Con días sin código");
 const invTypeLabel = (t?: string) => {
   const v = String(t || "").toLowerCase();
   if (v === "initial") return "Inicial";
@@ -28,7 +28,7 @@ export async function buildInventoryReportExcel(rows: any[]): Promise<Blob> {
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet("Inventarios");
 
-  const title = sheet.addRow(["📦 Reporte de Inventarios (Visibilidad 67)"]);
+  const title = sheet.addRow(["📦 Reporte de Inventarios (escaneo 44 / 67)"]);
   sheet.mergeCells(`A${title.number}:K${title.number}`);
   title.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   title.alignment = { vertical: "middle", horizontal: "center" };
@@ -62,8 +62,8 @@ export async function buildInventoryReportExcel(rows: any[]): Promise<Blob> {
       fmtDate(r.createdAt),
       daysWithPackageLabel(r.createdAt),
       r.last67Date ? fmtDate(r.last67Date) : "—",
-      r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67,
-      catLabel(r.category, String(r.scanCode ?? "67")),
+      r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Al día" : r.daysSinceLast67,
+      catLabel(r.category),
       r.recipientName || "",
       r.recipientZip || "",
     ];

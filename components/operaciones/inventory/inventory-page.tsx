@@ -7,7 +7,7 @@ import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
-import { Eye, PackageCheckIcon, Sheet } from "lucide-react"
+import { Eye, PackageCheckIcon, Plus, Sheet } from "lucide-react"
 import { columns } from "./columns"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,10 +17,12 @@ import { useAuthStore } from "@/store/auth.store"
 import InventoryForm from "./inventory-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateInventoryExcel } from "@/lib/services/inventory/inventory-excel-generator"
+import { orderWarehousePackages } from "@/components/warehouse/shared/warehouse-scan"
+import { mapToPackageInfo } from "@/lib/utils"
 import InventoryDetails from "./inventory-details"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
-import type { PaginationState } from "@tanstack/react-table"
+import type { ColumnDef, PaginationState, Row } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -53,7 +55,7 @@ export default function InventoryPageControl() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  const { inventories, totalPages, isError, isLoading, mutate } = useInventories(
+  const { inventories, totalPages, isLoading, mutate } = useInventories(
     selectedSucursalId,
     {
       page: pagination.pageIndex + 1,
@@ -74,17 +76,15 @@ export default function InventoryPageControl() {
   const effectiveSucursalId = hasHydrated ? (selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || null) : null
   const effectiveSucursalName = hasHydrated ? (selectedSucursalName || user?.subsidiary?.name || user?.subsidiaryName || "") : ""
   
-  // SOLUCIÓN: Solo inicializar la sucursal cuando auth esté hidratado
+  // Solo inicializar la sucursal cuando auth esté hidratado
   useEffect(() => {
     if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
-      console.log("[UnloadingPage] Initializing with user subsidiary:", user.subsidiary.id, user.subsidiary.name)
       setSelectedSucursalId(user.subsidiary.id)
       setSelectedSucursalName(user.subsidiary.name || "")
     }
-    
+
     // También manejar el caso antiguo donde subsidiaryId y subsidiaryName son propiedades directas
     if (hasHydrated && user?.subsidiaryId && !selectedSucursalId && !user?.subsidiary?.id) {
-      console.log("[UnloadingPage] Initializing with user subsidiary (legacy):", user.subsidiaryId, user.subsidiaryName)
       setSelectedSucursalId(user.subsidiaryId)
       setSelectedSucursalName(user.subsidiaryName || "")
     }
@@ -132,18 +132,20 @@ export default function InventoryPageControl() {
     if (!row?.id) return
     try {
       const full = await getInventoryDetail(row.id)
-      return await generateInventoryExcel(full, true)
+      // Desde el historial sale agrupado por paquetería (FedEx primero, luego DHL).
+      const packages = orderWarehousePackages(mapToPackageInfo(full.shipments, full.chargeShipments), "carrier")
+      return await generateInventoryExcel(full, true, { packages })
     } catch (error) {
       console.error("[InventoryPage] Error al generar el Excel:", error)
       toast.error("No se pudo generar el Excel")
     }
   }
 
-  const updatedColumns = columns.map((col) =>
+  const updatedColumns: ColumnDef<Inventory>[] = columns.map((col) =>
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) => (
+          cell: ({ row }: { row: Row<Inventory> }) => (
             <div className="flex gap-2">
               <Button
                 variant="ghost"
@@ -200,7 +202,8 @@ export default function InventoryPageControl() {
           title="Inventarios"
           description="Gestiona los inventarios de paquetes."
           actions={
-            <div className="w-full sm:w-[250px]">
+            <div className="flex items-center gap-2">
+            <div className="w-56">
               <SucursalSelector
                 value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
                 returnObject={true}
@@ -216,21 +219,13 @@ export default function InventoryPageControl() {
                 }}
               />
             </div>
+            <Button onClick={openInventoryDialog} disabled={!selectedSucursalId} size="sm" className="gap-1.5 whitespace-nowrap">
+              <Plus className="h-4 w-4" />
+              Nuevo inventario
+            </Button>
+            </div>
           }
         />
-
-        {/* Main Action Button */}
-        <div className="flex justify-end">
-          <Button
-            onClick={openInventoryDialog}
-            disabled={!selectedSucursalId}
-            size="lg"
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-          >
-            <PackageCheckIcon className="mr-2 h-5 w-5" />
-            Nuevo Inventario
-          </Button>
-        </div>
 
         {/* Inventories Table */}
         <Card>
@@ -301,7 +296,7 @@ export default function InventoryPageControl() {
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle></DialogTitle>
+            <DialogTitle className="sr-only">Detalle de inventario</DialogTitle>
           </DialogHeader>
           {isDetailLoading ? (
             <div className="flex h-[200px] items-center justify-center">

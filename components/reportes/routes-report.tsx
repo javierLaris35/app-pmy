@@ -6,7 +6,6 @@ import {
   ArrowLeft, Download, Loader2, Search, RefreshCw, Eye,
   AlertTriangle, Truck, Users, Package, CalendarClock, Undo2, Banknote, CheckCircle2,
 } from "lucide-react";
-// @ts-expect-error - file-saver no trae tipos empaquetados (igual que en report-runner)
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
@@ -271,8 +270,8 @@ export function RoutesReport({ onBack }: { onBack: () => void }) {
     { id: "ld", accessorFn: (r) => (r.isLD ? "LD" : "OK"), header: "LD", filterFn: inArray,
       cell: ({ row }) => row.original.isLD ? <Badge variant="destructive" className="text-[10px]">LD</Badge> : <span className="text-emerald-600 text-xs">OK</span> },
     { id: "invAyer", accessorFn: (r) => (r.inLastInventoryYesterday ? "Sí" : "No"), header: "En inv. ayer", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span> },
-    { id: "s67ayer", accessorFn: (r) => (r.has67Yesterday ? "Sí" : "No"), header: "67 ayer", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span> },
-    { id: "s67hoy", accessorFn: (r) => (r.has67Today ? "Sí" : "No"), header: "67 hoy", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span> },
+    { id: "s67ayer", accessorFn: (r) => (r.has67Yesterday == null ? "No aplica" : r.has67Yesterday ? "Sí" : "No"), header: "Escaneo 44/67 ayer", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span> },
+    { id: "s67hoy", accessorFn: (r) => (r.has67Today == null ? "No aplica" : r.has67Today ? "Sí" : "No"), header: "Escaneo 44/67 hoy", cell: ({ getValue }) => <span className="text-xs">{String(getValue())}</span> },
     { accessorKey: "recipientName", header: "Destinatario", cell: ({ getValue }) => <span className="text-xs">{String(getValue() ?? "—")}</span> },
     { accessorKey: "recipientZip", header: "CP", cell: ({ getValue }) => <span className="text-xs">{String(getValue() ?? "—")}</span> },
   ], []);

@@ -33,7 +33,13 @@ export interface WelcomeWithoutDEXPackage extends WelcomeContactFields {
   recipientName: string;
   subsidiaryName: string;
   carrier: string;
+  /** "Código 44 · 2 días sin escaneo" / "Código 67 · Nunca escaneado" (mismo motor que el reporte 44). */
   missingDocument: string;
+  /** Último código que dio FedEx (44 o 67); si nunca hubo, el configurado de la sucursal. */
+  scanCode?: "44" | "67";
+  /** Días completos sin escaneo (hora Hermosillo); null = nunca escaneado. */
+  daysSinceLastCode?: number | null;
+  lastCodeDate?: string | null;
   status?: string;
 }
 
@@ -47,11 +53,32 @@ export interface WelcomeExpiringPackage extends WelcomeContactFields {
   status?: string;
 }
 
+export interface WelcomeDhlIncidentPackage extends WelcomeContactFields {
+  id: string;
+  trackingNumber: string;
+  recipientName: string;
+  subsidiaryName: string;
+  /** NH | BA | RD | CM | SC (sin código). */
+  dhlCode: string;
+  /** "NH · Cliente no disponible". */
+  incident: string;
+  status?: string;
+  createdAt: string;
+}
+
 export interface WelcomeDashboardData {
+  /** Totales (compatibilidad). La UI muestra SIEMPRE por paquetería (`byCarrier`). */
   stats: { pendingYesterday: number; withoutDEX: number; expiringToday: number };
+  /** Conteos por paquetería: FedEx y DHL nunca se mezclan. */
+  byCarrier?: {
+    fedex: { expiringToday: number; pendingYesterday: number; withoutScan: number };
+    dhl: { expiringToday: number; pendingYesterday: number; incidents: number; incidentsByCode: Record<string, { label: string; count: number }> };
+  };
   pendingPackages: WelcomePendingPackage[];
   withoutDEXPackages: WelcomeWithoutDEXPackage[];
   expiringPackages: WelcomeExpiringPackage[];
+  /** Incidencias DHL con sus códigos (NH/BA/RD/CM). */
+  dhlIncidentPackages?: WelcomeDhlIncidentPackage[];
 }
 
 /**

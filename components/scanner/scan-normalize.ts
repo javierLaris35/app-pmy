@@ -51,9 +51,31 @@ export function addNewCodes(existing: PackageInfo[], normalizedCodes: string[]):
   return toAdd;
 }
 
-/** Empareja un paquete local con su versión validada (por tracking/variante/dhlUniqueId). */
-export function matchValidatedPackage(local: PackageInfo, validated: PackageInfo[]): PackageInfo | null {
-  const localKeys = new Set(keysOf(local));
-  const found = validated.find((v) => keysOf(v).some((k) => localKeys.has(k)));
-  return found ? ({ ...found, isPendingValidation: false } as PackageInfo) : null;
+/**
+ * Casa TODO el buffer con lo validado, en dos pasadas:
+ *  1. Por identidad (JD o tracking, ver `keysOf`).
+ *  2. Los que siguen pendientes y se escanearon por la guía maestra DHL (el waybill,
+ *     sin JD): toman una pieza validada con ese trackingNumber que NADIE más haya
+ *     tomado. Antes se quedaban en "Validando…" y nunca mostraban su JD.
+ * El "nadie más la tomó" evita que piezas hermanas terminen con el mismo JD.
+ */
+export function matchValidatedPackages(locals: PackageInfo[], validated: PackageInfo[]): PackageInfo[] {
+  const claimed = new Set<PackageInfo>();
+  const firstPass = locals.map((local) => {
+    const localKeys = new Set(keysOf(local));
+    const found = validated.find((v) => !claimed.has(v) && keysOf(v).some((k) => localKeys.has(k)));
+    if (found) claimed.add(found);
+    return found ? ({ ...found, isPendingValidation: false } as PackageInfo) : null;
+  });
+  return locals.map((local, i) => {
+    if (firstPass[i]) return firstPass[i] as PackageInfo;
+    if ((local as any).dhlUniqueId || !local.trackingNumber) return local;
+    const code = String(local.trackingNumber).trim().toUpperCase();
+    const found = validated.find(
+      (v) => !claimed.has(v) && String(v.trackingNumber || "").trim().toUpperCase() === code,
+    );
+    if (!found) return local;
+    claimed.add(found);
+    return { ...found, isPendingValidation: false } as PackageInfo;
+  });
 }

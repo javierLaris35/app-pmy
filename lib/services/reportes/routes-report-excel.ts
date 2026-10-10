@@ -54,7 +54,7 @@ export async function buildRoutesReportExcel(rows: any[], byDriver?: any[], meta
   const s2 = wb.addWorksheet("Detalle");
   const headers = [
     "Guía", "Tipo", "Chofer", "Categoría", "Estatus", "Vencimiento", "Del día", "LD",
-    "Fuente LD", "En inv. ayer", "67 ayer", "67 hoy", "¿Movido ayer?", "DEV", "Destinatario", "Dirección", "CP", "Costo (MXN)",
+    "Fuente LD", "En inv. ayer", "Escaneo 44/67 ayer", "Escaneo 44/67 hoy", "¿Movido ayer?", "DEV", "Destinatario", "Dirección", "CP", "Costo (MXN)",
   ];
   const hr = s2.addRow(headers);
   hr.font = { bold: true, color: { argb: "FFFFFF" } };
@@ -66,7 +66,7 @@ export async function buildRoutesReportExcel(rows: any[], byDriver?: any[], meta
       r.trackingNumber || "", tipoLabel(r.shipmentType), r.driver || "—", catLabel(r.category),
       r.status || "", r.commitDateTime ? fmtDateTime(r.commitDateTime) : "—",
       siNo(r.dueOnFilterDate), r.isLD ? "LD" : "OK", r.ldSource === "fedex" ? "FedEx" : "Local",
-      siNo(r.inLastInventoryYesterday), siNo(r.has67Yesterday), siNo(r.has67Today),
+      siNo(r.inLastInventoryYesterday), r.has67Yesterday == null ? "No aplica" : siNo(r.has67Yesterday), r.has67Today == null ? "No aplica" : siNo(r.has67Today),
       siNo(r.movedYesterday), siNo(r.isDev), r.recipientName || "", r.recipientAddress || "",
       r.recipientZip || "", money(r.costPackage),
     ]);

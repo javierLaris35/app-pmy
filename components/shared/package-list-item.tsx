@@ -86,7 +86,8 @@ export interface ReasonPicker {
 
 export interface PackageListItemProps {
   pkg: PackageInfo;
-  onRemove: (identifier: string) => void;
+  /** Sin `onRemove` la fila es de solo lectura (no muestra el bote de basura). */
+  onRemove?: (identifier: string) => void;
   isLoading?: boolean;
   /** Si se pasa, las guías inválidas muestran el selector de motivo. */
   reasonPicker?: ReasonPicker;
@@ -129,7 +130,7 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
   return (
     <div className={cn("flex border-l-4 hover:bg-muted/30 transition-colors border-b", accent)}>
       {index != null && (
-        <div className="shrink-0 select-none self-stretch flex items-start justify-end border-r bg-muted/40 px-2 pt-3 text-xs font-mono tabular-nums text-muted-foreground min-w-[2.25rem]">
+        <div className="shrink-0 select-none self-stretch flex items-center justify-center border-r bg-muted/40 px-2 text-xs font-mono tabular-nums text-muted-foreground min-w-[2.75rem]">
           {index}
         </div>
       )}
@@ -166,34 +167,35 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
               </span>
             )}
 
-            {pkg.isValid && pkg.recipientZip && (
-              <span className="ml-auto inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[12px] font-mono font-semibold text-slate-700 shrink-0">
-                <MapPin className="h-3 w-3" />
-                {pkg.recipientZip}
-              </span>
+            {/* Indicadores (vence, cobro, F2, alto valor, prioridad) a la izquierda del CP */}
+            {(hasFlags || (pkg.isValid && pkg.recipientZip)) && (
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+                {hasFlags && (
+                  <TooltipProvider delayDuration={100}>
+                    {expiresToday && <FlagChip icon={Clock} label="Hoy" tooltip="Vence hoy" className="bg-red-100 text-red-700" />}
+                    {expiresTomorrow && <FlagChip icon={Clock} label="Mañana" tooltip="Vence mañana" className="bg-amber-100 text-amber-700" />}
+                    {hasPayment && (
+                      <FlagChip
+                        icon={BanknoteIcon}
+                        label={`${pkg.payment?.type} $${pkg.payment?.amount}`}
+                        tooltip="A cobrar"
+                        className="bg-blue-100 text-blue-700"
+                      />
+                    )}
+                    {pkg.isCharge && <FlagChip icon={Package} label="F2" tooltip="Carga / F2 / 31.5" className="bg-green-100 text-green-700" />}
+                    {pkg.isHighValue && <FlagChip icon={GemIcon} tooltip="Alto valor" className="bg-violet-100 text-violet-700" />}
+                    {pkg.priority === "alta" && <FlagChip icon={CircleAlertIcon} label="ALTA" tooltip="Prioridad alta" className="bg-orange-100 text-orange-700" />}
+                  </TooltipProvider>
+                )}
+                {pkg.isValid && pkg.recipientZip && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[12px] font-mono font-semibold text-slate-700 shrink-0">
+                    <MapPin className="h-3 w-3" />
+                    {pkg.recipientZip}
+                  </span>
+                )}
+              </div>
             )}
           </div>
-
-          {/* Indicadores */}
-          {hasFlags && (
-            <TooltipProvider delayDuration={100}>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {expiresToday && <FlagChip icon={Clock} label="Hoy" tooltip="Vence hoy" className="bg-red-100 text-red-700" />}
-                {expiresTomorrow && <FlagChip icon={Clock} label="Mañana" tooltip="Vence mañana" className="bg-amber-100 text-amber-700" />}
-                {hasPayment && (
-                  <FlagChip
-                    icon={BanknoteIcon}
-                    label={`${pkg.payment?.type} $${pkg.payment?.amount}`}
-                    tooltip="A cobrar"
-                    className="bg-blue-100 text-blue-700"
-                  />
-                )}
-                {pkg.isCharge && <FlagChip icon={Package} label="F2" tooltip="Carga / F2 / 31.5" className="bg-green-100 text-green-700" />}
-                {pkg.isHighValue && <FlagChip icon={GemIcon} tooltip="Alto valor" className="bg-violet-100 text-violet-700" />}
-                {pkg.priority === "alta" && <FlagChip icon={CircleAlertIcon} label="ALTA" tooltip="Prioridad alta" className="bg-orange-100 text-orange-700" />}
-              </div>
-            </TooltipProvider>
-          )}
 
           {/* Destinatario / motivo */}
           {pkg.isValid ? (
@@ -289,7 +291,7 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
             </Popover>
           )}
 
-          {!pkg.isPendingValidation && (
+          {!pkg.isPendingValidation && onRemove && (
             <Button
               variant="ghost"
               size="icon"

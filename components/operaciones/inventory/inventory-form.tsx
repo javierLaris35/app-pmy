@@ -9,24 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  AlertCircle,
   Check,
-  ChevronsUpDown,
   CircleAlertIcon,
-  DollarSignIcon,
   GemIcon,
-  MapPin,
   Package,
   PackageCheckIcon,
-  Phone,
-  Scan,
   Send,
   Trash2,
-  User,
   Loader2,
-  Search,
-  Filter,
-  ChevronDown,
   Download,
   X,
   Clock,
@@ -39,20 +29,21 @@ import {
   uploadFiles,
   InventoryValidationPayload
 } from "@/lib/services/inventories";
-import { InventoryRequest, PackageInfo, Inventory } from "@/lib/types";
+import { InventoryRequest, InventoryRejectedTracking, PackageInfo, Inventory } from "@/lib/types";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
 import { InventoryPDFReport } from "@/lib/services/inventory/inventory-pdf-generator";
 import { pdf } from "@react-pdf/renderer";
 import { generateInventoryExcel } from "@/lib/services/inventory/inventory-excel-generator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LoaderWithOverlay } from "@/components/loader";
-import { ExpirationAlertModal } from "@/components/ExpirationAlertModal";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { StatBar, StatItem } from "@/components/shared/stat-bar";
 import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
-import { PackageFilters } from "@/components/shared/package-filters";
-import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
+import { PackageFilters, computePackageFilterCounts } from "@/components/shared/package-filters";
+import { daysUntilCommit } from "@/components/shared/package-list-item";
+import { PackagesList } from "@/components/shared/packages-list";
+import { CarrierFilter, InventoryPackageToolbar, useInventoryPackageView } from "./inventory-package-view";
 import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
 import {
   initScannerFeedback,
@@ -76,17 +67,21 @@ function useLocalStorage<T>(key: string, initialValue: T) {
     }
   });
 
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+  // Actualización funcional sobre el valor VIGENTE: antes `value(storedValue)` usaba el
+  // valor del último render y, al quitar/agregar guías seguidas, se perdían cambios.
+  const setValue = useCallback((value: T | ((val: T) => T)) => {
+    setStoredValue((prev) => {
+      const valueToStore = value instanceof Function ? value(prev) : value;
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        }
+      } catch (error) {
+        console.error(`Error setting localStorage key "${key}":`, error);
       }
-    } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
-    }
-  };
+      return valueToStore;
+    });
+  }, [key]);
 
   return [storedValue, setValue] as const;
 }
@@ -107,16 +102,9 @@ export enum InventoryType {
   FINAL = "final"          // Inventario Final
 }
 
-// Types para manejo de expiración
-interface ExpiringPackage {
-  trackingNumber: string;
-  recipientName?: string;
-  recipientAddress?: string;
-  commitDateTime?: string;
-  daysUntilExpiration: number;
-  priority?: string;
-}
 
+
+const INVALID_FORMAT_REASON = "Formato de guía inválido";
 
 export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId: propSubsidiaryId, subsidiaryName: propSubsidiaryName, onClose, onSuccess }: Props) {
   // Estados persistentes
@@ -126,14 +114,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   );
   const [packages, setPackages] = useLocalStorage<PackageInfo[]>(
     'inventory_packages', 
-    []
-  );
-  const [missingTrackings, setMissingTrackings] = useLocalStorage<string[]>(
-    'inventory_missing_trackings', 
-    []
-  );
-  const [unScannedTrackings, setUnScannedTrackings] = useLocalStorage<string[]>(
-    'inventory_unscanned_trackings', 
     []
   );
   // Estado para el tipo de inventario
@@ -148,16 +128,12 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [filterCarrier, setFilterCarrier] = useState<string>("all");
   const [onlyToday, setOnlyToday] = useState(false);
   const [onlyPayment, setOnlyPayment] = useState(false);
   const [isValidationPackages, setIsValidationPackages] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-  // Estados para manejo de expiración
-  const [expirationAlertOpen, setExpirationAlertOpen] = useState(false);
-  const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
-  const [currentExpiringIndex, setCurrentExpiringIndex] = useState(0);
+  // Guías cuyo aviso de vencimiento ya se dio (para no repetirlo en cada validación).
   const [shownExpiringPackages, setShownExpiringPackages] = useState<Set<string>>(new Set());
 
   const barScannerInputRef = useRef<ScanInputHandle>(null);
@@ -197,52 +173,35 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const playNotFoundSnd = useCallback(() => playNotFoundSound(), []);
   const playInvalidSnd = useCallback(() => playInvalidSound(), []);
 
+  // Aviso de vencimiento SIN ventana: la ventana bloqueante se quitó en ene-2026 porque
+  // cortaba el escaneo. Antes, además, la lista de "mañana" sobrescribía la de "hoy".
   const handleExpirationCheck = useCallback((newPackages: PackageInfo[]) => {
-    const expiringToday: ExpiringPackage[] = [];
-    const expiringTomorrow: ExpiringPackage[] = [];
-
+    const today: string[] = [];
+    const tomorrow: string[] = [];
     newPackages.forEach(pkg => {
-      if (!pkg.isValid || !pkg.commitDateTime) return;
+      if (!pkg.isValid || !pkg.commitDateTime || shownExpiringPackages.has(pkg.trackingNumber)) return;
       const days = getDaysUntilExpiration(pkg.commitDateTime);
-      if (days === 0 && !shownExpiringPackages.has(pkg.trackingNumber)) {
-        expiringToday.push({
-          trackingNumber: pkg.trackingNumber,
-          recipientName: pkg.recipientName || undefined,
-          recipientAddress: pkg.recipientAddress || undefined,
-          commitDateTime: pkg.commitDateTime || undefined,
-          daysUntilExpiration: 0,
-          priority: pkg.priority || undefined
-        });
-      } else if (days === 1 && !shownExpiringPackages.has(pkg.trackingNumber)) {
-        expiringTomorrow.push({
-          trackingNumber: pkg.trackingNumber,
-          recipientName: pkg.recipientName || undefined,
-          recipientAddress: pkg.recipientAddress || undefined,
-          commitDateTime: pkg.commitDateTime || undefined,
-          daysUntilExpiration: 1,
-          priority: pkg.priority || undefined
-        });
-      }
+      if (days === 0) today.push(pkg.dhlUniqueId || pkg.trackingNumber);
+      else if (days === 1) tomorrow.push(pkg.dhlUniqueId || pkg.trackingNumber);
+    });
+    if (today.length === 0 && tomorrow.length === 0) return;
+
+    if (today.length > 0) playExpirationSound();
+    else playTomorrowExpirationSound();
+    toast({
+      title: today.length > 0 ? `Vence hoy: ${today.length} guía(s)` : `Vence mañana: ${tomorrow.length} guía(s)`,
+      description: [
+        today.length > 0 ? `Hoy: ${today.join(", ")}` : "",
+        tomorrow.length > 0 ? `Mañana: ${tomorrow.join(", ")}` : "",
+      ].filter(Boolean).join(" · "),
+      variant: today.length > 0 ? "destructive" : undefined,
     });
 
-    if (expiringToday.length > 0) {
-      setExpiringPackages(expiringToday);
-      setCurrentExpiringIndex(0);
-      playExpirationSound();
-      const newShown = new Set(shownExpiringPackages);
-      expiringToday.forEach(p => newShown.add(p.trackingNumber));
-      setShownExpiringPackages(newShown);
-    }
-
-    if (expiringTomorrow.length > 0) {
-      setExpiringPackages(expiringTomorrow);
-      setCurrentExpiringIndex(0);
-      playTomorrowExpirationSound();
-      const newShown = new Set(shownExpiringPackages);
-      expiringTomorrow.forEach(p => newShown.add(p.trackingNumber));
-      setShownExpiringPackages(newShown);
-    }
-  }, [getDaysUntilExpiration, shownExpiringPackages, setShownExpiringPackages, playExpirationSound, playTomorrowExpirationSound]);
+    const keys = newPackages
+      .filter(p => p.commitDateTime && [0, 1].includes(getDaysUntilExpiration(p.commitDateTime)))
+      .map(p => p.trackingNumber);
+    setShownExpiringPackages(prev => new Set([...prev, ...keys]));
+  }, [getDaysUntilExpiration, shownExpiringPackages, playExpirationSound, playTomorrowExpirationSound, toast]);
 
   // Prepara el feedback sonoro y enlaza el desbloqueo por gesto (autoplay policy).
   useEffect(() => {
@@ -297,21 +256,11 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     };
   }, []);
 
-  const simulateScannerEnter = (inputElement: HTMLTextAreaElement | null) => {
-    if (!inputElement) return;
-    const enterKeyEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
-    inputElement.dispatchEvent(enterKeyEvent);
-    const enterKeyUpEvent = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
-    inputElement.dispatchEvent(enterKeyUpEvent);
-    const inputEvent = new Event('input', { bubbles: true });
-    inputElement.dispatchEvent(inputEvent);
-  };
-
   const clearAllStorage = useCallback(() => {
     const keys = [
       'inventory_scanned_packages',
       'inventory_packages',
-      'inventory_missing_trackings',
+      'inventory_missing_trackings', // claves viejas: se limpian si quedaron
       'inventory_unscanned_trackings',
       'inventory_type'
     ];
@@ -321,8 +270,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
 
     setScannedPackages([]);
     setPackages([]);
-    setMissingTrackings([]);
-    setUnScannedTrackings([]);
     setInventoryType(InventoryType.INITIAL);
     setShownExpiringPackages(new Set());
     // Resetear la firma para que volver a escanear el mismo set vuelva a validar.
@@ -333,37 +280,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       title: "Datos limpiados",
       description: "Todos los datos locales han sido eliminados.",
     });
-  }, [setScannedPackages, setPackages, setMissingTrackings, setUnScannedTrackings, setInventoryType]);
-
-  const handleNextExpiring = useCallback(() => {
-    const packagesDueToday = expiringPackages.filter(pkg => pkg.daysUntilExpiration === 0);
-    if (currentExpiringIndex < packagesDueToday.length - 1) {
-      setCurrentExpiringIndex(prev => prev + 1);
-    } else {
-      setExpirationAlertOpen(false);
-      setCurrentExpiringIndex(0);
-      setTimeout(() => {
-        if (barScannerInputRef.current) {
-          barScannerInputRef.current.focus();
-          try {
-            const inputElement = barScannerInputRef.current.getInputElement();
-            if (inputElement) {
-              inputElement.setSelectionRange(inputElement.value.length, inputElement.value.length);
-              simulateScannerEnter(inputElement);
-            }
-          } catch (e) {
-            console.log("No se pudo ajustar el campo de entrada:", e);
-          }
-        }
-      }, 100);
-    }
-  }, [currentExpiringIndex, expiringPackages]);
-
-  const handlePreviousExpiring = useCallback(() => {
-    if (currentExpiringIndex > 0) {
-      setCurrentExpiringIndex(prev => prev - 1);
-    }
-  }, [currentExpiringIndex]);
+  }, [setScannedPackages, setPackages, setInventoryType, toast]);
 
   const handleValidatePackages = async () => {
     if (isLoading || isValidationPackages) return;
@@ -424,7 +341,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
         id: `invalid-${Date.now()}-${Math.random()}`,
         trackingNumber: tn,
         isValid: false,
-        reason: "Formato de guía inválido",
+        reason: INVALID_FORMAT_REASON,
         isPendingValidation: false,
       } as unknown as PackageInfo));
 
@@ -464,8 +381,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       // Reflejar en el escáner (pendiente -> validado) y refrescar la lista.
       barScannerInputRef.current?.updateValidatedPackages?.(allProcessedPackages);
       setPackages(allProcessedPackages);
-      setMissingTrackings(invalidNumbers);
-      setUnScannedTrackings([]);
 
       handleExpirationCheck(newlyValidated);
 
@@ -488,7 +403,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
         } as unknown as PackageInfo));
 
         setPackages((prev) => [...prev, ...offlinePackages]);
-        setMissingTrackings(invalidNumbers);
         
         toast({
           title: "Modo offline activado",
@@ -523,6 +437,12 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   // CORRECCIÓN: ELIMINAR BASADO EN UNIQUE ID
   // ==========================================
   const handleRemovePackage = useCallback((identifier: string) => {
+    // Quitarla también del escáner: si no, la guía seguía visible arriba y volvía a validarse.
+    const pkg = packages.find(p => ((p as any).dhlUniqueId || p.trackingNumber) === identifier);
+    const codes = new Set([identifier, `J${identifier}`, identifier.startsWith("JJD") ? identifier.slice(1) : identifier]);
+    if (pkg?.trackingNumber) codes.add(pkg.trackingNumber);
+    codes.forEach(code => barScannerInputRef.current?.removeByTracking(code));
+
     setPackages(prev => prev.filter(p => {
       const pId = (p as any).dhlUniqueId || p.trackingNumber;
       return pId !== identifier;
@@ -537,9 +457,26 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       newSet.delete(identifier);
       return newSet;
     });
-  }, [setPackages, setScannedPackages, setShownExpiringPackages]);
+  }, [packages, setPackages, setScannedPackages, setShownExpiringPackages]);
 
-  const validPackages = packages.filter(p => p.isValid && !p.isPendingValidation);
+  const validPackages = useMemo(() => packages.filter(p => p.isValid && !p.isPendingValidation), [packages]);
+
+  // Escaneadas que NO entran al inventario (se guardan con su motivo para el registro).
+  const rejectedTrackings = useMemo<InventoryRejectedTracking[]>(() =>
+    packages
+      .filter(p => !p.isValid && !p.isPendingValidation)
+      .map(p => ({
+        trackingNumber: p.dhlUniqueId || p.trackingNumber,
+        reason: p.reason || "No válida",
+        kind: p.isOffline
+          ? "sin_conexion"
+          : p.reason === INVALID_FORMAT_REASON
+            ? "formato"
+            : p.subsidiary
+              ? "otra_sucursal"
+              : "no_encontrada",
+      })),
+  [packages]);
 
   // Contadores estandarizados (StatBar) para el resumen de la jornada.
   const inventoryStats = useMemo<StatItem[]>(() => {
@@ -560,149 +497,11 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       { label: "Con cobro", value: withPayment, valueClassName: "text-blue-600", icon: BanknoteIcon },
       { label: "F2 / Carga", value: f2, valueClassName: "text-green-600" },
       { label: "Alto valor", value: highValue, valueClassName: "text-violet-600", icon: GemIcon },
-      { label: "Sin escaneo", value: unScannedTrackings.length, valueClassName: "text-amber-600" },
-      { label: "Faltantes", value: missingTrackings.length, valueClassName: "text-red-600" },
+      { label: "No incluidas", value: rejectedTrackings.length, valueClassName: "text-red-600" },
     ];
-  }, [validPackages, packages.length, unScannedTrackings.length, missingTrackings.length]);
+  }, [validPackages, packages.length, rejectedTrackings.length]);
 
-  const handleSaveInventory = async () => {
-    if (!selectedSubsidiaryId) {
-      toast({ title: "Error", description: "Selecciona una sucursal antes de guardar.", variant: "destructive" });
-      return;
-    }
-    if (validPackages.length === 0) {
-      toast({ title: "Sin paquetes válidos", description: "No hay paquetes válidos para guardar.", variant: "destructive" });
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const payload = {
-        subsidiary: { id: selectedSubsidiaryId, name:  selectedSubsidiaryName ?? "" },
-        shipments: validPackages.filter(s => !s.isCharge).map(s => s.id),
-        chargeShipments: validPackages.filter(s => s.isCharge).map(s => s.id),
-        missingTrackings,
-        inventoryDate: new Date().toISOString(),
-        unScannedTrackings,
-        inventoryType: inventoryType,  
-      } as InventoryRequest;
-
-      const saved = await saveInventory(payload);
-      await handleSendEmail(saved)
-      
-      toast({ title: "Inventario guardado", description: `Inventario ${getInventoryTypeLabel(inventoryType)} guardado con éxito.` });
-      clearAllStorage();
-      onSuccess?.();
-    } catch (error) {
-      console.error("saveInventory error", error);
-      toast({ title: "Error", description: "Hubo un problema al guardar el inventario.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getInventoryTypeLabel = (type: InventoryType): string => {
-    switch (type) {
-      case InventoryType.INITIAL: return "Inicial";
-      case InventoryType.DEX: return "DEX";
-      case InventoryType.FINAL: return "Final";
-      default: return "Inicial";
-    }
-  };
-
-  const buildInventoryReport = (): InventoryRequest => {
-    const validForExport = packages.filter(p => p.isValid && !p.isPendingValidation);
-    return {
-      id: `INV-${Date.now()}`,
-      trackingNumber: "1234567890123",
-      inventoryDate: new Date().toISOString(),
-      subsidiary: { id: selectedSubsidiaryId ?? "", name: selectedSubsidiaryName ?? "" },
-      shipments: validForExport.filter(p => !p.isCharge),
-      chargeShipments: validForExport.filter(p => p.isCharge),
-      missingTrackings,
-      unScannedTrackings,
-      inventoryType,
-    } as unknown as InventoryRequest;
-  };
-
-  const handleExportPDF = async () => {
-    setIsLoading(true);
-    try {
-      const report = buildInventoryReport();
-      const blob = await pdf(<InventoryPDFReport report={report} />).toBlob();
-      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-      window.open(blobUrl, "_blank");
-      await handleExportExcel();
-    } catch (err) {
-      console.error("PDF export error", err);
-      toast({ title: "Error", description: "No se pudo generar el PDF.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleExportExcel = async () => {
-    setIsLoading(true);
-    try {
-      const report = buildInventoryReport();
-      await generateInventoryExcel(report, true);
-    } catch (err) {
-      console.error("Excel export error", err);
-      toast({ title: "Error", description: "No se pudo generar el Excel.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendEmail = async (inventory: Inventory) => {
-    setIsLoading(true);
-    try {
-      // PDF
-      const blob = await pdf(<InventoryPDFReport report={inventory as any} />).toBlob();
-      const blobUrl = URL.createObjectURL(blob) + `#${Date.now()}`;
-      window.open(blobUrl, "_blank");
-
-      const currentDate = new Date().toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-      const inventoryTypeLabel = getInventoryTypeLabel(inventoryType);
-      const safeDate = currentDate.replace(/\//g, "-");
-
-      const pdfFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${safeDate}.pdf`;
-      const pdfFile = new File([blob], pdfFileName, { type: "application/pdf" });
-
-      // Excel
-      const excelBuffer = await generateInventoryExcel(inventory as any, true);
-      const excelBlob = new Blob([excelBuffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const excelFileName = `INVENTARIO-${inventoryTypeLabel.toUpperCase()}--${selectedSubsidiaryName}--${safeDate}.xlsx`;
-      const excelFile = new File([excelBlob], excelFileName, {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-
-      // IMPORTANTE: enviar el id del inventario para que el backend resuelva el
-      // correo de la sucursal correcta (fix que se había perdido al condensar el archivo).
-      await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName ?? "", inventory.id);
-    } catch (err) {
-      console.error("Error enviando inventario:", err);
-      toast({
-        title: "Error",
-        description: "No se pudo generar o enviar el inventario.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ==========================================
-  // CORRECCIÓN: BÚSQUEDA POR UNIQUE ID
-  // ==========================================
-  // Predicado de filtros compartido por las pestañas (Todos y Válidos).
+  // Filtros de búsqueda/chips (la paquetería y la ciudad van en la barra de vista).
   const matchesFilters = useCallback((pkg: PackageInfo) => {
     const term = searchTerm.trim().toLowerCase();
     const uniqueId = (pkg.dhlUniqueId || "").toLowerCase();
@@ -716,19 +515,21 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     const matchesStatus = filterStatus === "all" ||
       (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
       (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
-    const matchesCarrier = filterCarrier === "all" || pkg.shipmentType === filterCarrier;
     const matchesToday = !onlyToday || daysUntilCommit(pkg.commitDateTime) === 0;
     const matchesPayment = !onlyPayment || !!pkg.payment;
-    return matchesSearch && matchesPriority && matchesStatus && matchesCarrier && matchesToday && matchesPayment;
-  }, [searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment]);
+    return matchesSearch && matchesPriority && matchesStatus && matchesToday && matchesPayment;
+  }, [searchTerm, filterPriority, filterStatus, onlyToday, onlyPayment]);
 
-  const filteredValidPackages = useMemo(() => validPackages.filter(matchesFilters), [validPackages, matchesFilters]);
-  const filteredPackages = useMemo(() => packages.filter(matchesFilters), [packages, matchesFilters]);
+  const filterCounts = useMemo(() => computePackageFilterCounts(packages, daysUntilCommit), [packages]);
+  const searchedPackages = useMemo(() => packages.filter(matchesFilters), [packages, matchesFilters]);
+  // Paquetería + ciudad + orden (igual que Entrada/Salida de bodega).
+  const view = useInventoryPackageView(searchedPackages);
+  const visibleValid = useMemo(() => view.visible.filter(p => p.isValid && !p.isPendingValidation), [view.visible]);
+  const visibleRejected = useMemo(() => view.visible.filter(p => !p.isValid && !p.isPendingValidation), [view.visible]);
 
   const activeFilterCount =
     (filterPriority !== "all" ? 1 : 0) +
     (filterStatus !== "all" ? 1 : 0) +
-    (filterCarrier !== "all" ? 1 : 0) +
     (onlyToday ? 1 : 0) +
     (onlyPayment ? 1 : 0);
 
@@ -736,9 +537,129 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     setSearchTerm("");
     setFilterPriority("all");
     setFilterStatus("all");
-    setFilterCarrier("all");
     setOnlyToday(false);
     setOnlyPayment(false);
+    view.setCarrier("all");
+    view.setCity("all");
+  };
+
+  const getInventoryTypeLabel = (type: InventoryType): string => {
+    switch (type) {
+      case InventoryType.INITIAL: return "Inicial";
+      case InventoryType.DEX: return "DEX";
+      case InventoryType.FINAL: return "Final";
+      default: return "Inicial";
+    }
+  };
+
+  /** Descarga un archivo generado (no abre pestaña: el navegador bloquea ventanas tras un await). */
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const fileStamp = () =>
+    new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+
+  /** Inventario en captura para PDF/Excel. */
+  const buildDraftReport = () => ({
+    inventoryDate: new Date().toISOString(),
+    subsidiary: { id: selectedSubsidiaryId ?? "", name: selectedSubsidiaryName ?? "" },
+    rejectedTrackings,
+  });
+
+  /** Exporta lo que se ve: paquetes válidos con el filtro y el orden elegidos. */
+  const handleExportPDF = async () => {
+    setIsLoading(true);
+    try {
+      const report = buildDraftReport();
+      const options = { packages: visibleValid, filterLabel: view.filterLabel };
+      const blob = await pdf(<InventoryPDFReport report={report} {...options} />).toBlob();
+      const typeLabel = getInventoryTypeLabel(inventoryType).toUpperCase();
+      downloadBlob(blob, `INVENTARIO-${typeLabel}--${selectedSubsidiaryName ?? ""}--${fileStamp()}.pdf`);
+      await generateInventoryExcel(report, true, options);
+    } catch (err) {
+      console.error("PDF export error", err);
+      toast({ title: "Error", description: "No se pudo generar el PDF.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /** PDF + Excel del inventario guardado (todos los paquetes, en el orden elegido) y envío por correo. */
+  const handleSendEmail = async (inventory: Inventory): Promise<boolean> => {
+    try {
+      const options = { packages: view.orderAll(validPackages) };
+      const inventoryTypeLabel = getInventoryTypeLabel(inventoryType).toUpperCase();
+      const baseName = `INVENTARIO-${inventoryTypeLabel}--${selectedSubsidiaryName}--${fileStamp()}`;
+
+      const blob = await pdf(<InventoryPDFReport report={inventory} {...options} />).toBlob();
+      downloadBlob(blob, `${baseName}.pdf`);
+      const pdfFile = new File([blob], `${baseName}.pdf`, { type: "application/pdf" });
+
+      const excelBuffer = await generateInventoryExcel(inventory, true, options);
+      const excelFile = new File([excelBuffer], `${baseName}.xlsx`, {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      // IMPORTANTE: enviar el id del inventario para que el backend resuelva el
+      // correo de la sucursal correcta (fix que se había perdido al condensar el archivo).
+      await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName ?? "", inventory.id);
+      return true;
+    } catch (err) {
+      console.error("Error enviando inventario:", err);
+      return false;
+    }
+  };
+
+  const handleSaveInventory = async () => {
+    if (!selectedSubsidiaryId) {
+      toast({ title: "Error", description: "Selecciona una sucursal antes de guardar.", variant: "destructive" });
+      return;
+    }
+    if (validPackages.length === 0) {
+      toast({ title: "Sin paquetes válidos", description: "No hay paquetes válidos para guardar.", variant: "destructive" });
+      return;
+    }
+
+    setIsLoading(true);
+    const subsidiary = { id: selectedSubsidiaryId, name: selectedSubsidiaryName ?? "" };
+    let saved: Inventory;
+    try {
+      const payload: InventoryRequest = {
+        subsidiary,
+        shipments: validPackages.filter(s => !s.isCharge).map(s => s.id as string),
+        chargeShipments: validPackages.filter(s => s.isCharge).map(s => s.id as string),
+        inventoryDate: new Date().toISOString(),
+        type: inventoryType,
+        rejectedTrackings,
+      };
+      saved = await saveInventory(payload);
+    } catch (error) {
+      console.error("saveInventory error", error);
+      toast({ title: "Error", description: "No se pudo guardar el inventario. Intenta de nuevo.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
+
+    // Ya quedó guardado: si falla el correo se avisa, pero la captura no se pierde.
+    const sent = await handleSendEmail({ ...saved, subsidiary: saved.subsidiary ?? subsidiary, rejectedTrackings });
+    if (sent) {
+      toast({ title: "Inventario guardado", description: `Inventario ${getInventoryTypeLabel(inventoryType)} guardado y enviado por correo.` });
+    } else {
+      toast({
+        title: "Inventario guardado, sin correo",
+        description: "Se guardó, pero no se pudo enviar el correo. Descarga el PDF y el Excel desde el historial.",
+        variant: "destructive",
+      });
+    }
+    clearAllStorage();
+    setIsLoading(false);
+    onSuccess?.();
   };
 
   return (
@@ -866,8 +787,9 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                   searchTerm={searchTerm}
                   onSearchChange={setSearchTerm}
                   searchPlaceholder="Buscar ID de pieza, tracking maestro, CP, destinatario..."
-                  carrier={filterCarrier}
-                  onCarrierChange={setFilterCarrier}
+                  carrier={view.carrier}
+                  onCarrierChange={(v) => view.setCarrier(v as CarrierFilter)}
+                  showCarrier={false}
                   onlyToday={onlyToday}
                   onToggleToday={() => setOnlyToday((v) => !v)}
                   onlyPayment={onlyPayment}
@@ -878,115 +800,73 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                   onTypeChange={setFilterStatus}
                   activeFilterCount={activeFilterCount}
                   onClear={clearFilters}
+                  counts={filterCounts}
                 />
 
                 {/* Listado Principal */}
                 {packages.length > 0 ? (
                   <>
+                    <InventoryPackageToolbar view={view} />
+
                     <Tabs defaultValue="todos" className="w-full">
-                      <TabsList className="grid w-full grid-cols-4 mb-4">
+                      <TabsList className="grid w-full grid-cols-3 mb-3">
                         <TabsTrigger value="todos" className="flex items-center gap-1 text-xs py-2">
                           <Package className="h-3 w-3" /> Todos
-                          <Badge variant="secondary" className="ml-1 text-xs">{packages.length}</Badge>
+                          <Badge variant="secondary" className="ml-1 text-xs">{view.visible.length}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="validos" className="flex items-center gap-1 text-xs py-2">
                           <Check className="h-3 w-3" /> Válidos
-                          <Badge variant="secondary" className="ml-1 text-xs">{validPackages.length}</Badge>
+                          <Badge variant="secondary" className="ml-1 text-xs">{visibleValid.length}</Badge>
                         </TabsTrigger>
-                        <TabsTrigger value="sin-escaneo" className="flex items-center gap-1 text-xs py-2">
-                          <AlertCircle className="h-3 w-3" /> Sin escaneo
-                          <Badge variant="secondary" className="ml-1 text-xs">{unScannedTrackings.length}</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="faltantes" className="flex items-center gap-1 text-xs py-2">
-                          <CircleAlertIcon className="h-3 w-3" /> Faltantes
-                          <Badge variant="secondary" className="ml-1 text-xs">{missingTrackings.length}</Badge>
+                        <TabsTrigger value="no-incluidas" className="flex items-center gap-1 text-xs py-2">
+                          <CircleAlertIcon className="h-3 w-3" /> No incluidas
+                          <Badge variant="secondary" className="ml-1 text-xs">{visibleRejected.length}</Badge>
                         </TabsTrigger>
                       </TabsList>
 
-                      <TabsContent value="todos" className="space-y-3">
-                        <div className="max-h-[400px] overflow-y-auto rounded-md border">
-                          <div className="grid grid-cols-1 divide-y">
-                            {filteredPackages.map(pkg => {
-                              const pkgId = pkg.dhlUniqueId || pkg.trackingNumber;
-                              return (
-                                <PackageListItem
-                                  key={`todos-${pkgId}`}
-                                  pkg={pkg}
-                                  onRemove={handleRemovePackage}
-                                  isLoading={isLoading || isValidationPackages}
-                                  onTransfer={canTransfer ? setTransferPkg : undefined}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
+                      <TabsContent value="todos">
+                        <PackagesList
+                          packages={view.visible}
+                          showFilters={false}
+                          groupBy={view.groupBy}
+                          showRowNumbers={view.showRowNumbers}
+                          onRemove={handleRemovePackage}
+                          onTransfer={canTransfer ? setTransferPkg : undefined}
+                          isLoading={isLoading || isValidationPackages}
+                          maxHeightClass="max-h-[400px]"
+                          emptyTitle="Sin coincidencias"
+                          emptyDescription="Ninguna guía coincide con la paquetería o ciudad elegida."
+                        />
                       </TabsContent>
 
-                      <TabsContent value="validos" className="space-y-3">
-                        {filteredValidPackages.length > 0 ? (
-                          <div className="max-h-[400px] overflow-y-auto rounded-md border">
-                            <div className="grid grid-cols-1 divide-y">
-                              {filteredValidPackages.map(pkg => {
-                                const pkgId = pkg.dhlUniqueId || pkg.trackingNumber;
-                                return (
-                                  <PackageListItem
-                                    key={`validos-${pkgId}`}
-                                    pkg={pkg}
-                                    onRemove={handleRemovePackage}
-                                    isLoading={isLoading}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-12 text-muted-foreground border rounded-md">
-                            <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                            <p>No se encontraron paquetes válidos</p>
-                          </div>
-                        )}
+                      <TabsContent value="validos">
+                        <PackagesList
+                          packages={visibleValid}
+                          showFilters={false}
+                          groupBy={view.groupBy}
+                          showRowNumbers={view.showRowNumbers}
+                          onRemove={handleRemovePackage}
+                          isLoading={isLoading}
+                          maxHeightClass="max-h-[400px]"
+                          emptyTitle="Sin paquetes válidos"
+                          emptyDescription="No hay paquetes válidos con estos filtros."
+                        />
                       </TabsContent>
 
-                      <TabsContent value="sin-escaneo" className="space-y-3">
-                        {unScannedTrackings.length > 0 ? (
-                          <div className="max-h-[300px] overflow-y-auto rounded-md border">
-                            <div className="p-4">
-                              <div className="grid gap-2">
-                                {unScannedTrackings.map(tracking => (
-                                  <div key={`unscanned-${tracking}`} className="flex justify-between items-center p-3 rounded-md bg-amber-50 border border-amber-200">
-                                    <span className="font-mono text-sm">{tracking}</span>
-                                    <Badge variant="outline" className="bg-amber-100 text-amber-800 text-xs">Sin escaneo</Badge>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-muted-foreground border rounded-md">
-                            <p>No hay guías sin escaneo</p>
-                          </div>
-                        )}
-                      </TabsContent>
-
-                      <TabsContent value="faltantes" className="space-y-3">
-                        {missingTrackings.length > 0 ? (
-                          <div className="max-h-[300px] overflow-y-auto rounded-md border">
-                            <div className="p-4">
-                              <div className="grid gap-2">
-                                {missingTrackings.map(tracking => (
-                                  <div key={`missing-${tracking}`} className="flex justify-between items-center p-3 rounded-md bg-red-50 border border-red-200">
-                                    <span className="font-mono text-sm">{tracking}</span>
-                                    <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">Faltante</Badge>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-muted-foreground border rounded-md">
-                            <p>No hay guías faltantes</p>
-                          </div>
-                        )}
+                      {/* Escaneadas que no entran: no existen, son de otra sucursal o el formato es inválido. */}
+                      <TabsContent value="no-incluidas">
+                        <PackagesList
+                          packages={visibleRejected}
+                          showFilters={false}
+                          groupBy={view.groupBy}
+                          showRowNumbers={view.showRowNumbers}
+                          onRemove={handleRemovePackage}
+                          onTransfer={canTransfer ? setTransferPkg : undefined}
+                          isLoading={isLoading || isValidationPackages}
+                          maxHeightClass="max-h-[400px]"
+                          emptyTitle="Todo entra al inventario"
+                          emptyDescription="No hay guías rechazadas."
+                        />
                       </TabsContent>
                     </Tabs>
                   </>
@@ -1024,15 +904,6 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <ExpirationAlertModal
-        isOpen={expirationAlertOpen}
-        onClose={handleNextExpiring}
-        packages={expiringPackages}
-        currentIndex={currentExpiringIndex}
-        onNext={handleNextExpiring}
-        onPrevious={handlePreviousExpiring}
-      />
 
       <TransferPackageDialog
         open={!!transferPkg}

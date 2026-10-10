@@ -9,7 +9,10 @@ import {
 } from "@/lib/services/dashboard";
 import {
   daysOverdue,
+  EMPTY_CARRIER_STATS,
+  type CarrierStats,
   type DashboardStats,
+  type DhlIncidentPackage,
   type ExpiringPackage,
   type FeedItem,
   type PendingPackage,
@@ -37,6 +40,8 @@ export function useWelcomeDashboard({ subsidiaryIds, enabled = true }: UseWelcom
   const [pendingPackages, setPendingPackages] = useState<PendingPackage[]>([]);
   const [withoutDEXPackages, setWithoutDEXPackages] = useState<WithoutDEXPackage[]>([]);
   const [expiringPackages, setExpiringPackages] = useState<ExpiringPackage[]>([]);
+  const [dhlIncidentPackages, setDhlIncidentPackages] = useState<DhlIncidentPackage[]>([]);
+  const [byCarrier, setByCarrier] = useState<CarrierStats>(EMPTY_CARRIER_STATS);
 
   // Re-verificación FedEx (read-only): mapa guía -> último estatus fresco.
   const [fedexResults, setFedexResults] = useState<Map<string, FedexVerifyResult>>(new Map());
@@ -52,12 +57,16 @@ export function useWelcomeDashboard({ subsidiaryIds, enabled = true }: UseWelcom
       setPendingPackages(data.pendingPackages ?? []);
       setWithoutDEXPackages(data.withoutDEXPackages ?? []);
       setExpiringPackages(data.expiringPackages ?? []);
+      setDhlIncidentPackages(data.dhlIncidentPackages ?? []);
+      setByCarrier(data.byCarrier ?? EMPTY_CARRIER_STATS);
       setStats(data.stats ?? EMPTY_STATS);
     } catch (error) {
       console.error("Error fetching welcome dashboard:", error);
       setPendingPackages([]);
       setWithoutDEXPackages([]);
       setExpiringPackages([]);
+      setDhlIncidentPackages([]);
+      setByCarrier(EMPTY_CARRIER_STATS);
       setStats(EMPTY_STATS);
     } finally {
       setIsLoading(false);
@@ -88,6 +97,7 @@ export function useWelcomeDashboard({ subsidiaryIds, enabled = true }: UseWelcom
         trackingNumber: p.trackingNumber,
         recipientName: p.recipientName,
         subsidiaryName: p.subsidiaryName,
+        carrier: p.carrier,
         metric: h <= 0 ? "Vence hoy" : `Vence en ${h} h`,
         sub: p.expiryDate ? `Compromiso ${format(new Date(p.expiryDate), "HH:mm")}` : undefined,
         actionLabel: "Gestionar",
@@ -105,7 +115,7 @@ export function useWelcomeDashboard({ subsidiaryIds, enabled = true }: UseWelcom
         recipientName: p.recipientName,
         subsidiaryName: p.subsidiaryName,
         carrier: p.carrier,
-        metric: `Falta ${p.missingDocument}`,
+        metric: p.missingDocument, // "Código 44 · 2 días sin escaneo" (motor del reporte 44)
         sub: "Bloquea procesamiento",
         actionLabel: "Revisar en inventario",
         route: "/operaciones/inventarios",
@@ -122,6 +132,7 @@ export function useWelcomeDashboard({ subsidiaryIds, enabled = true }: UseWelcom
         trackingNumber: p.trackingNumber,
         recipientName: p.recipientName,
         subsidiaryName: p.subsidiaryName,
+        carrier: p.carrier,
         metric: d > 0 ? `Vencido hace ${d} ${d === 1 ? "día" : "días"}` : "Pendiente",
         sub: p.status,
         actionLabel: "Dar seguimiento",
@@ -129,12 +140,30 @@ export function useWelcomeDashboard({ subsidiaryIds, enabled = true }: UseWelcom
       });
     });
 
-    return items.sort((a, b) => a.rank - b.rank);
-  }, [expiringPackages, withoutDEXPackages, pendingPackages]);
+    // DHL: sus incidencias con sus códigos (NH/BA/RD/CM) — no tiene escaneo 44/67.
+    dhlIncidentPackages.forEach((p, i) => {
+      items.push({
+        key: `dhl-${p.id}-${i}`,
+        kind: "dhlIncident",
+        tone: "warn",
+        rank: 20,
+        trackingNumber: p.trackingNumber,
+        recipientName: p.recipientName,
+        subsidiaryName: p.subsidiaryName,
+        carrier: "DHL",
+        metric: p.incident,
+        sub: p.status,
+        actionLabel: "Dar seguimiento",
+        route: "/operaciones/monitoreo",
+      });
+    });
 
-  /** Re-verifica contra FedEx todas las guías del feed actual (dedup, cap 200). */
+    return items.sort((a, b) => a.rank - b.rank);
+  }, [expiringPackages, withoutDEXPackages, pendingPackages, dhlIncidentPackages]);
+
+  /** Re-verifica contra FedEx las guías FedEx del feed actual (dedup, cap 200). DHL no se manda a FedEx. */
   const verifyFedex = useCallback(async () => {
-    const trackings = [...new Set(feed.map((f) => f.trackingNumber).filter(Boolean))];
+    const trackings = [...new Set(feed.filter((f) => f.carrier?.toUpperCase() !== "DHL").map((f) => f.trackingNumber).filter(Boolean))];
     if (!trackings.length) return;
     setIsVerifying(true);
     try {
@@ -154,6 +183,8 @@ export function useWelcomeDashboard({ subsidiaryIds, enabled = true }: UseWelcom
     pendingPackages,
     withoutDEXPackages,
     expiringPackages,
+    dhlIncidentPackages,
+    byCarrier,
     feed,
     refetch: fetchData,
     // FedEx

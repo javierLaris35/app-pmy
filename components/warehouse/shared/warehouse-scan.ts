@@ -53,17 +53,45 @@ export function sortWarehouseByCarrier(a: PackageInfo, b: PackageInfo): number {
   return CARRIER_RANK[warehouseCarrier(a)] - CARRIER_RANK[warehouseCarrier(b)];
 }
 
+/**
+ * Ciudad del paquete para agrupar: `zoneCity` viene del backend (memoria de CP por
+ * sucursal, con la ciudad de la guía de respaldo); si no, la ciudad de la guía.
+ */
+export function warehouseCityLabel(p: PackageInfo): string {
+  const city = String(p?.zoneCity || p?.recipientCity || "").trim().toUpperCase();
+  // "BODEGA ..." es el nombre de la sucursal que pone la importación DHL, no una ciudad.
+  return city && city !== "N/A" && !city.startsWith("BODEGA ") ? city : "Sin ciudad";
+}
+
+/** Orden "Por ciudad": ciudad (A→Z, "Sin ciudad" al final) → CP → paquetería. */
+export function sortWarehouseByCity(a: PackageInfo, b: PackageInfo): number {
+  const ca = warehouseCityLabel(a);
+  const cb = warehouseCityLabel(b);
+  if (ca !== cb) {
+    if (ca === "Sin ciudad") return 1;
+    if (cb === "Sin ciudad") return -1;
+    return ca.localeCompare(cb, "es");
+  }
+  const zip = (p: PackageInfo) => String(p?.recipientZip ?? "").trim();
+  const cmpZ = zip(a).localeCompare(zip(b), undefined, { numeric: true });
+  if (cmpZ !== 0) return cmpZ;
+  return sortWarehouseByCarrier(a, b);
+}
+
+export type WarehouseOrderMode = "carrier" | "city" | "cp" | "scan";
+
 /** Comparador según el modo del toggle (`undefined` = como se escanearon). */
 export function warehouseSortComparator(
-  mode: "carrier" | "cp" | "scan",
+  mode: WarehouseOrderMode,
 ): ((a: PackageInfo, b: PackageInfo) => number) | undefined {
   if (mode === "carrier") return sortWarehouseByCarrier;
+  if (mode === "city") return sortWarehouseByCity;
   if (mode === "cp") return sortWarehousePackages;
   return undefined;
 }
 
 /** Copia ordenada según el modo; es el mismo orden que llevan el PDF y el Excel. */
-export function orderWarehousePackages<T extends PackageInfo>(packages: T[], mode: "carrier" | "cp" | "scan"): T[] {
+export function orderWarehousePackages<T extends PackageInfo>(packages: T[], mode: WarehouseOrderMode): T[] {
   const cmp = warehouseSortComparator(mode);
   return cmp ? [...packages].sort(cmp) : [...packages];
 }
