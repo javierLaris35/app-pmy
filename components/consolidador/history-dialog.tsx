@@ -13,6 +13,8 @@ const ACTION_LABEL: Record<string, string> = {
   second_abord: "2º a bordo",
   manual_create: "Alta manual",
   status_fix: "Corrigió estatus",
+  date_edit: "Cambió fecha",
+  date_fix: "Fecha real FedEx",
 };
 
 const ACTION_CLASS: Record<string, string> = {
@@ -20,6 +22,8 @@ const ACTION_CLASS: Record<string, string> = {
   second_abord: "bg-violet-50 text-violet-700 border-violet-200",
   manual_create: "bg-rose-50 text-rose-700 border-rose-200",
   status_fix: "bg-blue-50 text-blue-700 border-blue-200",
+  date_edit: "bg-sky-50 text-sky-700 border-sky-200",
+  date_fix: "bg-sky-50 text-sky-700 border-sky-200",
 };
 
 function fmtDate(iso: string): string {

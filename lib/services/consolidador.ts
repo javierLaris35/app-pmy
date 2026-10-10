@@ -123,6 +123,37 @@ export const reassignIncomeSubsidiary = async (incomeId: string, subsidiaryId: s
 export const editIncomeDate = async (incomeId: string, date: string, reason: string) =>
   (await axiosConfig.patch(`${baseUrl}/income/${incomeId}/date`, { date, reason })).data;
 
+// ───────────── Corregir fechas de ingresos del cierre (solo superadmin) ─────────────
+
+/** Ingreso FedEx fechado a las 00:00 del día de la ruta, con su fecha correcta (evento FedEx). */
+export interface DateRealignRow {
+  incomeId: string;
+  trackingNumber: string;
+  incomeType: string;
+  nonDeliveryStatus: string | null;
+  cost: number;
+  currentDate: string;
+  currentDay: string;
+  correctDate: string | null;
+  correctDay: string | null;
+  basis: string | null;
+  action: "fix" | "no_event";
+}
+
+/** GET: vista previa de la corrección de fechas de la semana. */
+export const getDateRealignPreview = async (subsidiaryId: string, from: string, to: string): Promise<DateRealignRow[]> =>
+  (await axiosConfig.get<DateRealignRow[]>(`${baseUrl}/${subsidiaryId}/${from}/${to}/date-realign`)).data;
+
+/** POST: aplica la corrección (el servidor la recalcula) con bitácora en el historial del ingreso. */
+export const applyDateRealign = async (
+  subsidiaryId: string,
+  from: string,
+  to: string,
+  incomeIds: string[],
+  reason: string,
+): Promise<{ fixed: number }> =>
+  (await axiosConfig.post<{ fixed: number }>(`${baseUrl}/${subsidiaryId}/${from}/${to}/date-realign`, { incomeIds, reason })).data;
+
 // ───────────── Conteo manual vs sistema (solo superadmin) ─────────────
 
 /** POST: consulta FedEx en vivo para un bloque de ≤25 guías (precalienta la caché del backend). */

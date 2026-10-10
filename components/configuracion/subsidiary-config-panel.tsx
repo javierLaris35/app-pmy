@@ -26,6 +26,7 @@ type FlagKey =
   | "allowRouteClosureWithOtherStatus"
   | "closureAcceptsAnyDayDelivery"
   | "closureUntilNextDispatch"
+  | "closureIncomeAtFedexEventTime"
   | "chargeDex03"
   | "chargeDex07"
   | "chargeDex08"
@@ -57,6 +58,7 @@ const INCOME_FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "generateDhlIncomeOnDelivery", label: "Ingreso DHL al entregar", hint: "Genera el ingreso DHL al detectar la entrega, no solo en cierre de ruta." },
   { key: "countTransfersAsIncome", label: "Traslados cuentan", hint: "Tyco / aeropuerto / traslado especial cuentan como ingreso en finanzas." },
   { key: "chargeSecondAbord", label: "Cobrar 2do abordo (F2/31.5)", hint: "Suma el Monto 2do Abordo de la sucursal al costo de las cargas F2/31.5 normales (no aplica a 1.5 ton ni al sobreprecio de domingo/festivo)." },
+  { key: "closureIncomeAtFedexEventTime", label: "Cierre cobra con la fecha real de entrega", hint: "El cierre de ruta registra el ingreso con la fecha y hora en que FedEx entregó (o dejó el DEX), aunque sea días después de la salida a ruta. Apagado = el cierre solo cobra lo que pasó el día de la ruta." },
   { key: "chargeOnlyFirstOfDay", label: "Solo cobrar la 1ra carga del día", hint: "Para consolidados de tipo carga: solo la primera carga del día cobra; las demás del mismo día se registran igual pero con ingreso $0. Apagado = todas cobran (histórico)." },
 ];
 
