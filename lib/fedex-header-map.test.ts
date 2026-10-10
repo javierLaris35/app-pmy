@@ -10,7 +10,6 @@ import {
   normalizeTrackingValue,
   normalizePhoneValue,
   splitPasteBlocks,
-  recoverExcelNumbers,
 } from "./fedex-header-map";
 
 describe("buildMappedTable (pegar FedEx)", () => {
@@ -388,20 +387,7 @@ describe("guías en notación científica (2.234E+11)", () => {
     expect(t.counts.badTracking).toBe(1);
   });
 
-  it("recupera los dígitos reales desde el HTML que copia Excel (x:num)", () => {
-    const plain = "Tracking No\tRecip Name\r\n2.23401E+11\tJUAN\r\n3.83012E+11\tANA\r\n";
-    const html =
-      "<table><tr><td>Tracking No</td><td>Recip Name</td></tr>" +
-      "<tr><td class=xl65 align=right x:num=\"223401234567\">2.23401E+11</td><td>JUAN</td></tr>" +
-      "<tr><td x:num=\"383012036065\">3.83012E+11</td><td>ANA</td></tr></table>";
-    const r = recoverExcelNumbers(plain, html);
-    expect(r.recovered).toBe(2);
-    expect(r.text).toContain("223401234567\tJUAN");
-    expect(r.text).toContain("383012036065\tANA");
-  });
-
-  it("sin HTML (o sin x:num) no toca nada", () => {
-    expect(recoverExcelNumbers("2.2E+11\tJUAN", "").recovered).toBe(0);
-    expect(recoverExcelNumbers("2.2E+11\tJUAN", "<tr><td>2.2E+11</td><td>JUAN</td></tr>").recovered).toBe(0);
+  it("teléfono en notación científica se deja vacío (no se inventa)", () => {
+    expect(normalizePhoneValue("5.26421E+11")).toBe("");
   });
 });

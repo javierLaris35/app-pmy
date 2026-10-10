@@ -14,9 +14,13 @@ export type AttachmentKind =
 export type ConsolidationKind = "master" | "f2" | "aereo" | "high_value" | "dhl" | "cod";
 export type LinkStatus = "pendiente" | "subido" | "no_aplica";
 
+/** Paquetería del correo (por el dominio del remitente). */
+export type InboxCarrier = "fedex" | "dhl";
+
 export interface InboxListItem {
   id: string;
   uploadState: UploadState;
+  carrier: InboxCarrier;
   receivedAt: string;
   fromAddress: string;
   fromName: string | null;
@@ -38,6 +42,11 @@ export interface InboxListResult {
   page: number;
   pageSize: number;
   counts: Record<InboxView, number>;
+  carrier: InboxCarrier;
+  /** Correos pendientes (falta confirmar + listos) por paquetería. */
+  carrierCounts: Record<InboxCarrier, number>;
+  /** Correos de esta vista que quedan fuera de las fechas elegidas (null = ninguno). */
+  outsideDates: { count: number; oldestDay: string } | null;
 }
 
 export interface InboxSignal {
@@ -57,8 +66,18 @@ export interface Cobro {
 }
 
 export interface InboxDetail {
+  /** Solo correos DHL: lo que se lleva al asistente "Importar DHL". */
+  dhl: {
+    /** Cuerpo del correo desde el primer bloque "AWB :" (null = el cuerpo no trae guías). */
+    pasteText: string | null;
+    /** Vencimientos del Excel DHL de 3 hojas: guía o JD → yyyy-MM-dd. */
+    dueDates: Record<string, string>;
+    /** Adjunto del Excel DHL de 3 hojas (con vencimientos); null si no viene. */
+    excelAttachmentId: string | null;
+  } | null;
   message: {
     id: string;
+    carrier: InboxCarrier;
     receivedAt: string;
     fromAddress: string;
     fromName: string | null;

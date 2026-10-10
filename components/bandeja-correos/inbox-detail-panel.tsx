@@ -20,6 +20,7 @@ import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { InboxGuidesStep } from "./inbox-guides-step";
+import { InboxDhlStep } from "./inbox-dhl-step";
 import { NoticeDialog } from "./notice-dialog";
 import { AttachmentViewer, ViewerTarget } from "./attachment-viewer";
 import { ATTACHMENT_LABEL, CONS_KIND_LABEL, SIGNAL_LABEL, formatDateTime, knownByPhrase } from "./labels";
@@ -280,8 +281,12 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
             {/* ② Guías */}
             <section>
               <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">② Guías que trae el correo</h3>
-              <InboxGuidesStep messageId={m.id} subject={m.subject} ready={decided && !editing} canUpload={canAct} onChanged={onChanged} onView={setViewer} />
-              {infoFiles.length > 0 && (
+              {m.carrier === "dhl" ? (
+                <InboxDhlStep detail={data} ready={decided && !editing} canUpload={canAct} onChanged={() => { void mutate(); onChanged(); }} />
+              ) : (
+                <InboxGuidesStep messageId={m.id} subject={m.subject} ready={decided && !editing} canUpload={canAct} onChanged={onChanged} onView={setViewer} />
+              )}
+              {m.carrier !== "dhl" && infoFiles.length > 0 && (
                 <p className="mt-2 text-xs text-slate-500">
                   No se suben (son informativos): {infoFiles.map((a) => a.filename).join(", ")}.
                 </p>

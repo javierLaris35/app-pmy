@@ -504,7 +504,7 @@ function recompute(table: {
  *  - "3830 1203 6065"   → "383012036065"      (espacios/guiones si el resto es numérico)
  * La notación científica ("2.234E+11") NO se expande: Excel ya perdió los dígitos y
  * expandirla inventa una guía falsa (223400000000). Se deja tal cual y la fila se marca
- * `badTracking`; los dígitos reales se recuperan al pegar con `recoverExcelNumbers`.
+ * `badTracking`; los dígitos reales solo están en el archivo (ver lib/excel-to-rows.ts).
  * No toca IDs alfanuméricos (DHL JD…).
  */
 export function normalizeTrackingValue(v: string | number | null | undefined): string {
@@ -517,10 +517,12 @@ export function normalizeTrackingValue(v: string | number | null | undefined): s
   return s;
 }
 
-/** Normaliza un TELÉFONO a solo dígitos (conserva un "+" inicial). */
+/** Normaliza un TELÉFONO a solo dígitos (conserva un "+" inicial). Notación científica → vacío. */
 export function normalizePhoneValue(v: string | number | null | undefined): string {
   let s = String(v ?? "").trim();
   if (!s) return "";
+  // 5.26421E+11: Excel ya perdió los dígitos; mejor sin teléfono que uno inventado (52642111).
+  if (SCI_NOTATION_RE.test(s)) return "";
   if (/^\d+\.0+$/.test(s)) s = s.split(".")[0];
   const plus = s.startsWith("+") ? "+" : "";
   return plus + s.replace(/[^\d]/g, "");
@@ -530,6 +532,26 @@ export function normalizePhoneValue(v: string | number | null | undefined): stri
 const SCI_NOTATION_RE = /^\d(\.\d+)?[eE][+-]?\d+$/;
 /** Celda que es una guía (o lo que queda de ella en notación científica). */
 const TRACKING_LIKE_RE = /^(\d{10,}|\d(\.\d+)?[eE][+-]?\d+)$/;
+
+/**
+ * ¿Parece guía? Una sola palabra alfanumérica con al menos 6 dígitos (FedEx 12 dígitos,
+ * DHL JD0146…). Descarta encabezados repetidos ("Tracking No", "trackingNumber"),
+ * totales ("TOTAL") y demás texto que no es guía. La notación científica (3.83961E+11)
+ * NO es plausible: se maneja aparte como guía cortada.
+ */
+export function isPlausibleTracking(value: string): boolean {
+  const t = String(value ?? "").trim();
+  return /^[A-Za-z0-9]+$/.test(t) && (t.match(/\d/g)?.length ?? 0) >= 6;
+}
+
+/** Palabras de la fila "meta" que FedEx pone arriba del encabezado de cada consolidado. */
+const META_WORDS_RE = /\b(SALIDA|AERE[AO]|TERRESTRE|ORDINARIA|CONSOLIDADO)\b/i;
+
+/** Fila meta ("305794238300  ALBERTO GUTIERREZ  SALIDA AEREA  05/06/2026"): pocas celdas + palabras de salida. */
+function isMetaRow(row: string[], headerFilled: number): boolean {
+  const filled = row.filter((c) => String(c ?? "").trim() !== "").length;
+  return filled > 0 && filled <= Math.max(5, Math.floor(headerFilled * 0.4)) && META_WORDS_RE.test(row.join(" "));
+}
 
 const nonEmptyCells = (row: string[]) => row.filter((c) => String(c ?? "").trim() !== "").length;
 const hasTrackingLikeCell = (row: string[]) => row.some((c) => TRACKING_LIKE_RE.test(String(c ?? "").trim()));
@@ -577,52 +599,13 @@ export function splitPasteBlocks(rows: string[][]): string[][][] {
     while (s - 1 > lastHeader && h - (s - 1) <= 3) {
       const prev = rows[s - 1];
       const trackCell = trackCol !== undefined ? String(prev[trackCol] ?? "").trim() : "";
-      if (TRACKING_LIKE_RE.test(trackCell) || nonEmptyCells(prev) >= headerFilled) break;
+      if (!isMetaRow(prev, headerFilled) && (TRACKING_LIKE_RE.test(trackCell) || nonEmptyCells(prev) >= headerFilled)) break;
       s--;
     }
     starts.push(s);
     lastHeader = h;
   }
   return starts.map((s, i) => rows.slice(s, starts[i + 1] ?? rows.length));
-}
-
-/**
- * Recupera las guías que Excel copia en notación científica (2.234E+11). El texto plano
- * del portapapeles trae lo que se VE en la celda, pero el HTML que copia Excel trae el
- * valor real en `x:num`. Se reemplaza solo la celda de la misma posición y solo si el
- * texto visible coincide (si no cuadra, no se toca nada).
- */
-export function recoverExcelNumbers(plain: string, html: string): { text: string; recovered: number } {
-  const lines = String(plain ?? "").split(/\r?\n/);
-  const hasSci = lines.some((l) => l.split("\t").some((c) => SCI_NOTATION_RE.test(c.trim())));
-  if (!html || !hasSci) return { text: plain, recovered: 0 };
-
-  const htmlRows: { text: string; num: string | null }[][] = [];
-  for (const tr of html.match(/<tr[\s\S]*?<\/tr>/gi) ?? []) {
-    const cells: { text: string; num: string | null }[] = [];
-    for (const td of tr.match(/<td[\s\S]*?<\/td>/gi) ?? []) {
-      const open = td.match(/^<td([^>]*)>/i)?.[1] ?? "";
-      const num = open.match(/x:num="?([^"\s>]+)"?/i)?.[1] ?? null;
-      const text = td.replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").trim();
-      cells.push({ text, num });
-      const span = Number(open.match(/colspan="?(\d+)/i)?.[1] ?? 1);
-      for (let k = 1; k < span; k++) cells.push({ text: "", num: null });
-    }
-    htmlRows.push(cells);
-  }
-
-  let recovered = 0;
-  const out = lines.map((line, r) =>
-    line.split("\t").map((cell, c) => {
-      const h = htmlRows[r]?.[c];
-      if (!h?.num || !SCI_NOTATION_RE.test(cell.trim()) || h.text !== cell.trim()) return cell;
-      const n = Number(h.num);
-      if (!Number.isSafeInteger(n) || n <= 0) return cell;
-      recovered++;
-      return String(n);
-    }).join("\t"),
-  );
-  return { text: out.join("\n"), recovered };
 }
 
 export function buildMappedTable(rawRows: string[][]): MappedTable | null {
@@ -635,14 +618,14 @@ export function buildMappedTable(rawRows: string[][]): MappedTable | null {
   // Varios consolidados: una sola tabla con la unión de columnas (cada bloque ya se
   // mapeó con su propio encabezado) y los consolidados detectados en `meta`.
   const fields = CANONICAL_FIELDS.filter((f) => ok.some((b) => b.fields.some((bf) => bf.field === f.field)));
-  const consNumbers = [...new Set(ok.map((b) => b.meta.consNumber).filter((x): x is string => !!x))];
-  const problems = [...ok[0].problems];
+  const consNumbers = [...new Set(ok.flatMap((b) => b.meta.consNumbers ?? [b.meta.consNumber]).filter((x): x is string => !!x))];
+  const problems = ok.flatMap((b) => b.problems).filter((p, i, all) => all.findIndex((q) => q.message === p.message) === i);
   const skipped = built.length - ok.length;
   if (skipped > 0) problems.push({ level: "warn", message: `${skipped} bloque(s) pegado(s) no traían columna de guía y se ignoraron.` });
   return recompute({
     fields,
     rows: ok.flatMap((b) => b.rows),
-    meta: { ...ok[0].meta, consNumbers, blocks: ok.length },
+    meta: { ...ok[0].meta, consNumbers, blocks: Math.max(ok.length, consNumbers.length) },
     problems,
     sources: ok[0].sources,
   });
@@ -655,7 +638,26 @@ function buildBlock(rawRows: string[][]) {
 
   const addr2Index = map["recipientAddress2"];
   const dataFrom = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
-  const dataRows = rawRows.slice(dataFrom).filter((r) => r.some((c) => String(c ?? "").trim() !== ""));
+  const headerFilled = headerRowIndex >= 0 ? nonEmptyCells(rawRows[headerRowIndex]) : Math.max(0, ...rawRows.map(nonEmptyCells));
+  const trackCol = map["trackingNumber"];
+  // Basura: fila meta de otro consolidado pegada sin su encabezado, encabezados repetidos
+  // o "trackingNumber", totales… Se quitan (y se avisa); la guía vacía o cortada se queda
+  // porque esa sí hay que mostrarla para que la corrijan.
+  const extraConsNumbers: string[] = [];
+  let garbage = 0;
+  const dataRows = rawRows.slice(dataFrom).filter((r) => {
+    if (!r.some((c) => String(c ?? "").trim() !== "")) return false;
+    if (isMetaRow(r, headerFilled)) {
+      const cons = r.join(" ").match(/\b\d{6,}\b/)?.[0];
+      if (cons) extraConsNumbers.push(cons);
+      garbage++;
+      return false;
+    }
+    const t = normalizeTrackingValue(String(r[trackCol] ?? ""));
+    if (t && !isPlausibleTracking(t) && !SCI_NOTATION_RE.test(t)) { garbage++; return false; }
+    return true;
+  });
+  if (garbage > 0) problems.push({ level: "warn", message: `Se quitaron ${garbage} renglón(es) que no son guías (encabezados repetidos, totales o datos del consolidado).` });
 
   const fields = CANONICAL_FIELDS.filter((f) => map[f.field] !== undefined);
 
@@ -676,6 +678,11 @@ function buildBlock(rawRows: string[][]) {
   });
 
   const meta = detectMeta(rawRows, headerRowIndex >= 0 ? headerRowIndex : 0);
+  if (extraConsNumbers.length) {
+    const all = [...new Set([meta.consNumber, ...extraConsNumbers].filter((x): x is string => !!x))];
+    meta.consNumbers = all;
+    meta.blocks = all.length;
+  }
   return { fields, rows, meta, problems, sources };
 }
 
@@ -711,7 +718,7 @@ export function parsePaymentsPaste(raw: string): ParsedPayment[] {
     const { headerRowIndex, map } = detected;
     for (const r of rows.slice(headerRowIndex + 1)) {
       const tracking = String(r[map["trackingNumber"]] ?? "").trim();
-      if (!tracking) continue;
+      if (!isPlausibleTracking(tracking)) continue; // encabezado repetido, total, vacío…
       const codCell = String(r[map["cod"]] ?? "");
       const { type, amount } = parsePaymentCell(codCell);
       out.push({ tracking, amount, type, raw: codCell.trim() });
@@ -780,7 +787,7 @@ export function parseHvPaste(raw: string): ParsedHv[] {
   if (mapped) {
     for (const r of mapped.rows) {
       const tracking = String(r.values["trackingNumber"] ?? "").trim();
-      if (!tracking) continue;
+      if (!isPlausibleTracking(tracking)) continue;
       out.push({ tracking, address: String(r.values["recipientAddress"] ?? "").trim(), values: { ...r.values } });
     }
     return out;
@@ -805,7 +812,7 @@ export function mergePayments(table: MappedTable, payments: ParsedPayment[]): Ma
   let fields = table.fields.some((f) => f.field === "cod") ? table.fields : [...table.fields, COD_FIELD];
 
   for (const p of payments) {
-    if (!p.tracking) continue;
+    if (!isPlausibleTracking(p.tracking)) continue;
     const codText = `${p.type ? p.type + " " : ""}${p.amount ?? p.raw}`.trim();
     const existing = byTracking.get(p.tracking);
     if (existing) {
@@ -834,7 +841,7 @@ export function mergeHighValue(table: MappedTable, hv: ParsedHv[]): MappedTable 
   const usedFields = new Set(table.fields.map((f) => f.field));
   const filled = (v: unknown) => String(v ?? "").trim() !== "";
   for (const h of hv) {
-    if (!h.tracking) continue;
+    if (!isPlausibleTracking(h.tracking)) continue;
     const incoming: Record<string, string> = { ...(h.values ?? {}), trackingNumber: h.tracking };
     if (h.address && !filled(incoming["recipientAddress"])) incoming["recipientAddress"] = h.address;
     const existing = byTracking.get(h.tracking);

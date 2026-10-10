@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, ColumnFiltersState } from "@tanstack/react-table";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ClipboardPaste, FlaskConical, Info, Check, X, AlertTriangle, DollarSign, Diamond, Plus, Trash2, HelpCircle, CheckCircle2, Sparkles, Plane, Package } from "lucide-react";
+import { ClipboardPaste, FileSpreadsheet, FlaskConical, Info, Check, X, AlertTriangle, DollarSign, Diamond, Plus, Trash2, HelpCircle, CheckCircle2, Sparkles, Plane, Package } from "lucide-react";
 import { PasteTutorial, PASTE_SPOTLIGHT, PasteEmptyHint } from "./paste-tutorial";
 import { LoaderWithOverlay } from "@/components/loader";
 import { runSpotlight, useTutorialFirstView } from "@/components/shared/tutorial";
@@ -33,9 +33,13 @@ import {
   UploadPreview,
 } from "@/lib/services/shipments";
 import {
-  buildMappedTable, mergePayments, mergeHighValue, parsePaymentsPaste, parseHvPaste, applyCommitChecks, recoverExcelNumbers,
+  buildMappedTable, mergePayments, mergeHighValue, parsePaymentsPaste, parseHvPaste, applyCommitChecks,
   MappedTable, MappedRow, ParsedPayment, ParsedHv, CommitEdits, CommitCheck,
 } from "@/lib/fedex-header-map";
+import { readExcelFiles, rowsToTsv } from "@/lib/excel-to-rows";
+import {
+  ALTO_VALOR_OPTIONS, COBRO_OPTIONS, REVISION_OPTIONS, altoValorFacet, cobroFacet, matchesAnySelected, revisionFacets,
+} from "@/lib/paste-row-facets";
 import { format as formatDateFns, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -137,7 +141,11 @@ function CommitPanel({ check, consDate, bulkDate, setBulkDate, onApplyBulk }: {
   );
 }
 
-function CountChip({ label, value, tone = "neutral" }: { label: string; value: number; tone?: "neutral" | "green" | "amber" | "red" | "purple" | "blue" }) {
+function CountChip({ label, value, tone = "neutral", onClick, active = false }: {
+  label: string; value: number; tone?: "neutral" | "green" | "amber" | "red" | "purple" | "blue";
+  /** Si viene, el contador filtra la tabla al darle clic. */
+  onClick?: () => void; active?: boolean;
+}) {
   const tones: Record<string, string> = {
     neutral: "bg-slate-100 text-slate-700",
     green: "bg-emerald-100 text-emerald-700",
@@ -146,11 +154,23 @@ function CountChip({ label, value, tone = "neutral" }: { label: string; value: n
     purple: "bg-purple-100 text-purple-700",
     blue: "bg-sky-100 text-sky-700",
   };
-  return (
-    <div className={`flex min-w-[92px] flex-col rounded-lg px-3 py-2 ${tones[tone]}`}>
+  const body = (
+    <>
       <span className="text-lg font-bold leading-none">{value}</span>
       <span className="mt-1 text-[11px] font-medium uppercase tracking-wide opacity-80">{label}</span>
-    </div>
+    </>
+  );
+  if (!onClick) return <div className={`flex min-w-[92px] flex-col rounded-lg px-3 py-2 ${tones[tone]}`}>{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={active ? "Quitar filtro" : "Ver solo estas"}
+      className={`flex min-w-[92px] flex-col rounded-lg px-3 py-2 text-left transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4D148C]/40 ${tones[tone]} ${active ? "ring-2 ring-current" : ""}`}
+    >
+      {body}
+    </button>
   );
 }
 
@@ -220,6 +240,8 @@ export function PasteImportModal({
   const [pendingPayments, setPendingPayments] = useState<ParsedPayment[] | null>(null);
   // Correcciones de vencimiento hechas en la tabla (por índice de fila) + fecha para "poner a todas".
   const [commitEdits, setCommitEdits] = useState<CommitEdits>({});
+  // Filtros de la tabla (Cobro / Alto Valor / Revisión); los contadores de arriba también los usan.
+  const [tableFilters, setTableFilters] = useState<ColumnFiltersState>([]);
   const [bulkDate, setBulkDate] = useState("");
 
   // Preview del backend (solo master/aéreo).
@@ -273,7 +295,7 @@ export function PasteImportModal({
   const table: MappedTable | null = checked?.table ?? null;
   const commitCheck: CommitCheck | null = checked?.check ?? null;
   // Pegado nuevo → las correcciones anteriores ya no aplican.
-  useEffect(() => { setCommitEdits({}); }, [raw]);
+  useEffect(() => { setCommitEdits({}); setTableFilters([]); }, [raw]);
   const setCommitEdit = (i: number, patch: { commitDate?: string; commitTime?: string }) =>
     setCommitEdits((prev) => ({ ...prev, [i]: { ...prev[i], ...patch } }));
   const applyBulkDate = () => {
@@ -339,17 +361,36 @@ export function PasteImportModal({
     return () => { if (previewTimer.current) clearTimeout(previewTimer.current); };
   }, [kind, isAereo, notRemoveCharge, table, localSubsidiaryId, consNumber, consDate]);
 
-  // Excel copia en texto lo que SE VE (2.234E+11 si la columna es angosta), pero su HTML
-  // trae el número real: se recuperan las guías antes de que lleguen a la tabla.
+  // Excel copia lo que SE VE: con formato General toda guía de 12 dígitos sale como
+  // 3.83961E+11 y el número real no viaja en lo copiado (ni en texto ni en HTML). En el
+  // ARCHIVO sí está completo: por eso se puede abrir/arrastrar el Excel aquí mismo.
+  const excelInputRef = useRef<HTMLInputElement>(null);
+  const [readingFile, setReadingFile] = useState(false);
+  const loadExcelFiles = async (files: File[]) => {
+    if (!files.length) return;
+    setReadingFile(true);
+    try {
+      const rows = await readExcelFiles(files);
+      if (!rows.length) { toast.error("El archivo no trae datos."); return; }
+      setRaw(rowsToTsv(rows));
+      toast.success(files.length > 1 ? `Se leyeron ${files.length} archivos.` : "Se leyó el archivo.");
+    } catch {
+      toast.error("No se pudo leer el archivo. Debe ser de Excel (.xlsx, .xls) o .csv.");
+    } finally {
+      setReadingFile(false);
+    }
+  };
   const onMainPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const html = e.clipboardData.getData("text/html");
-    if (!html) return;
-    const { text, recovered } = recoverExcelNumbers(e.clipboardData.getData("text/plain"), html);
-    if (!recovered) return;
+    const text = e.clipboardData.getData("text/plain");
+    if (/(^|[\t\n])\d(\.\d+)?E\+\d+(?=[\t\r\n]|$)/i.test(text)) {
+      toast.error("Excel cortó las guías al copiarlas (ej. 3.83961E+11). Arrastra aquí el archivo de Excel o usa \"Abrir archivo\" para leerlas completas.");
+    }
+  };
+  const onMainDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (!files.length) return; // texto arrastrado: comportamiento normal
     e.preventDefault();
-    const el = e.currentTarget;
-    setRaw(raw.slice(0, el.selectionStart) + text + raw.slice(el.selectionEnd));
-    toast.success(`Se recuperaron ${recovered} guía(s) que Excel mostraba cortadas (ej. 2.23E+11).`);
+    void loadExcelFiles(files);
   };
 
   const reset = () => {
@@ -397,7 +438,7 @@ export function PasteImportModal({
     if ((c?.withTracking ?? 0) === 0) return "No hay guías válidas para importar.";
     if ((c?.badTracking ?? 0) > 0) {
       const ej = table.rows.find((r) => r.badTracking)?.values.trackingNumber;
-      return `${c!.badTracking} guía(s) vienen cortadas por Excel (ej. ${ej}). Vuelve a copiarlas desde Excel y pégalas aquí, o dale formato de Número a la columna de guía.`;
+      return `${c!.badTracking} guía(s) vienen cortadas por Excel (ej. ${ej}). Arrastra aquí el archivo de Excel o usa "Abrir archivo" para leerlas completas.`;
     }
     const needsSub = true;
     if (needsSub && !localSubsidiaryId) return "Selecciona una sucursal.";
@@ -534,6 +575,9 @@ export function PasteImportModal({
     // Columna de marcas (íconos $ / diamante) al inicio.
     const marks: ColumnDef<MappedRow> = {
       id: "marks",
+      accessorFn: cobroFacet,
+      filterFn: (row, id, value) => matchesAnySelected(row.getValue(id), value),
+      enableSorting: false,
       header: "",
       cell: ({ row }) => {
         const r = row.original;
@@ -615,7 +659,30 @@ export function PasteImportModal({
     }));
     // Columna HV (marca visual con diamante).
     cols.push({
+      id: "revision",
+      accessorFn: revisionFacets,
+      filterFn: (row, id, value) => matchesAnySelected(row.getValue(id), value),
+      enableSorting: false,
+      header: "Revisión",
+      cell: ({ row }) => {
+        const tags = revisionFacets(row.original).filter((t) => t !== "ok");
+        if (!tags.length) return <span className="text-gray-300">—</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {tags.map((t) => (
+              <span key={t} className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${t === "sin_guia" || t === "cortada" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                {REVISION_OPTIONS.find((o) => o.value === t)?.label}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    });
+    cols.push({
       id: "hv",
+      accessorFn: altoValorFacet,
+      filterFn: (row, id, value) => matchesAnySelected(row.getValue(id), value),
+      enableSorting: false,
       header: "Alto Valor",
       cell: ({ row }) => row.original.isHighValue
         ? <Badge className="gap-1 bg-purple-100 text-purple-700 hover:bg-purple-100"><Diamond className="h-3 w-3" /> HV</Badge>
@@ -641,17 +708,27 @@ export function PasteImportModal({
     return undefined;
   };
 
+  // Atajo: un contador activa/quita el filtro de su columna en la tabla.
+  const filterValue = (id: string) => (tableFilters.find((f) => f.id === id)?.value as string[] | undefined) ?? [];
+  const isChipActive = (id: string, values: string[]) => {
+    const cur = filterValue(id);
+    return cur.length === values.length && values.every((v) => cur.includes(v));
+  };
+  const toggleChip = (id: string, values: string[]) => () =>
+    setTableFilters(isChipActive(id, values) ? [] : [{ id, value: values }]);
+  const chip = (id: string, values: string[]) => ({ onClick: toggleChip(id, values), active: isChipActive(id, values) });
+
   // Chips de conteo (reutilizados en el header del modal y en la barra ligera de página).
   const countChips = c ? (
     <div className="flex flex-wrap gap-2">
-      <CountChip label="Guías" value={c.withTracking} />
+      <CountChip label="Guías" value={c.withTracking} onClick={() => setTableFilters([])} active={tableFilters.length === 0} />
       <CountChip label="A importar" value={Math.max(0, c.withTracking - c.duplicates)} tone="green" />
-      {c.duplicates > 0 && <CountChip label="Duplicadas" value={c.duplicates} tone="amber" />}
-      {c.missingTracking > 0 && <CountChip label="Sin guía" value={c.missingTracking} tone="red" />}
-      {c.badTracking > 0 && <CountChip label="Guía cortada" value={c.badTracking} tone="red" />}
-      {c.withPayment > 0 && <CountChip label="Con pago" value={c.withPayment} tone="green" />}
-      {c.paymentsNoType > 0 && <CountChip label="Pago s/type" value={c.paymentsNoType} tone="amber" />}
-      {c.highValue > 0 && <CountChip label="Alto Valor" value={c.highValue} tone="purple" />}
+      {c.duplicates > 0 && <CountChip label="Duplicadas" value={c.duplicates} tone="amber" {...chip("revision", ["duplicada"])} />}
+      {c.missingTracking > 0 && <CountChip label="Sin guía" value={c.missingTracking} tone="red" {...chip("revision", ["sin_guia"])} />}
+      {c.badTracking > 0 && <CountChip label="Guía cortada" value={c.badTracking} tone="red" {...chip("revision", ["cortada"])} />}
+      {c.withPayment > 0 && <CountChip label="Con pago" value={c.withPayment} tone="green" {...chip("marks", ["con_cobro", "sin_tipo"])} />}
+      {c.paymentsNoType > 0 && <CountChip label="Pago sin tipo" value={c.paymentsNoType} tone="amber" {...chip("marks", ["sin_tipo"])} />}
+      {c.highValue > 0 && <CountChip label="Alto Valor" value={c.highValue} tone="purple" {...chip("hv", ["si"])} />}
     </div>
   ) : null;
 
@@ -840,8 +917,26 @@ export function PasteImportModal({
           </div>
           <div id="paste-textarea" className="grid gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs font-semibold text-gray-700">Pega aquí (TSV desde Excel)</Label>
+              <Label className="text-xs font-semibold text-gray-700">Pega aquí desde Excel, o arrastra el archivo</Label>
               <div className="flex items-center gap-3">
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  multiple
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={(e) => { void loadExcelFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px]"
+                  disabled={readingFile}
+                  onClick={() => excelInputRef.current?.click()}
+                >
+                  <FileSpreadsheet className="mr-1 h-3.5 w-3.5" /> {readingFile ? "Leyendo…" : "Abrir archivo"}
+                </Button>
                 <button
                   type="button"
                   onClick={() => setRaw(SAMPLE_PASTE)}
@@ -862,6 +957,7 @@ export function PasteImportModal({
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
               onPaste={onMainPaste}
+              onDrop={onMainDrop}
               placeholder={"Tracking No\tRecip Name\tRecip Addr\tRecip City\tRecip Postal\tCommit Date\n123456789\tJuan Pérez\tCalle 1\tHermosillo\t83000\t8/20/2026"}
               className="min-h-[160px] w-full resize-none whitespace-pre rounded-xl border-gray-200 bg-white p-4 font-mono text-xs shadow-sm"
             />
@@ -1018,7 +1114,21 @@ export function PasteImportModal({
                 <span className="flex items-center gap-1"><Diamond className="h-3.5 w-3.5 text-purple-600" /><span className="text-[11px] text-muted-foreground">alto valor</span></span>
               </div>
               <div className="max-w-full overflow-x-auto">
-                <DataTable columns={columns} data={sortedRows} searchKey="trackingNumber" rowClassName={rowClassName} autoResetPageIndex={false} />
+                <DataTable
+                  columns={columns}
+                  data={sortedRows}
+                  searchKey="trackingNumber"
+                  searchPlaceholder="Buscar guía, nombre, dirección…"
+                  rowClassName={rowClassName}
+                  autoResetPageIndex={false}
+                  columnFilters={tableFilters}
+                  onColumnFiltersChange={setTableFilters}
+                  filters={[
+                    { columnId: "marks", title: "Cobro", options: COBRO_OPTIONS },
+                    { columnId: "hv", title: "Alto Valor", options: ALTO_VALOR_OPTIONS },
+                    { columnId: "revision", title: "Revisión", options: REVISION_OPTIONS },
+                  ]}
+                />
               </div>
             </div>
           )}
