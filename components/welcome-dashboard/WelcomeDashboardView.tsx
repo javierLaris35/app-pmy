@@ -21,6 +21,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CarrierSwitch } from "@/components/shared/carrier-switch";
 import {
   Select,
   SelectContent,
@@ -39,6 +40,8 @@ import {
   ALL_SUBSIDIARIES,
   TONE_ACCENT,
   TONE_CHIP,
+  carrierKeyOf,
+  type CarrierKey,
   type FeedItem,
   type FilterKey,
 } from "./types";
@@ -89,10 +92,11 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
 
   const {
     isLoading,
-    stats,
     expiringPackages,
     withoutDEXPackages,
     pendingPackages,
+    dhlIncidentPackages,
+    byCarrier,
     feed,
     refetch,
     fedexResults,
@@ -104,10 +108,35 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
   const [filter, setFilter] = useState<FilterKey>("all");
   const [isExporting, setIsExporting] = useState(false);
 
-  const criticalCount = feed.filter((f) => f.tone === "critical").length;
-  const totalAttention = stats.expiringToday + stats.withoutDEX + stats.pendingYesterday;
+  // FedEx y DHL NUNCA se mezclan: todo lo de abajo (conteos, barra, tarjetas y lista) es de la
+  // paquetería elegida. FedEx se mide por escaneo local 44/67; DHL por sus incidencias (NH/BA/RD/CM).
+  const [carrier, setCarrier] = useState<CarrierKey>("fedex");
+  const changeCarrier = (c: CarrierKey) => {
+    setCarrier(c);
+    setFilter("all");
+  };
+  const isDhl = carrier === "dhl";
+  const fedexTotal = byCarrier.fedex.expiringToday + byCarrier.fedex.withoutScan + byCarrier.fedex.pendingYesterday;
+  const dhlTotal = byCarrier.dhl.expiringToday + byCarrier.dhl.incidents + byCarrier.dhl.pendingYesterday;
+  const stats = {
+    expiringToday: byCarrier[carrier].expiringToday,
+    pendingYesterday: byCarrier[carrier].pendingYesterday,
+    // Tercera sección: FedEx = sin escaneo 44/67; DHL = incidencias con sus códigos.
+    third: isDhl ? byCarrier.dhl.incidents : byCarrier.fedex.withoutScan,
+  };
+  const thirdKey: FilterKey = isDhl ? "dhlIncident" : "dex";
+  const thirdLabel = isDhl ? "Incidencias DHL" : "Sin escaneo";
+  const dhlCodesHint =
+    Object.entries(byCarrier.dhl.incidentsByCode)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([code, v]) => `${code} ${v.count}`)
+      .join(" · ") || "Códigos DHL NH / BA / RD / CM";
 
-  const filtered = feed.filter((it) => {
+  const carrierFeed = feed.filter((it) => carrierKeyOf(it.carrier) === carrier);
+  const criticalCount = carrierFeed.filter((f) => f.tone === "critical").length;
+  const totalAttention = stats.expiringToday + stats.third + stats.pendingYesterday;
+
+  const filtered = carrierFeed.filter((it) => {
     if (filter === "all") return true;
     if (filter === "critical") return it.tone === "critical";
     return it.kind === filter;
@@ -122,15 +151,15 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
 
   const distribution = [
     { key: "expiring" as FilterKey, label: "Vencen hoy", value: stats.expiringToday, bar: "bg-red-500", dot: "bg-red-500" },
-    { key: "dex" as FilterKey, label: "Sin escaneo", value: stats.withoutDEX, bar: "bg-amber-500", dot: "bg-amber-500" },
+    { key: thirdKey, label: thirdLabel, value: stats.third, bar: "bg-amber-500", dot: "bg-amber-500" },
     { key: "pending" as FilterKey, label: "Pendientes", value: stats.pendingYesterday, bar: "bg-slate-400", dot: "bg-slate-400" },
   ];
 
   const segments: { key: FilterKey; label: string; count: number }[] = [
-    { key: "all", label: "Todos", count: feed.length },
+    { key: "all", label: "Todos", count: carrierFeed.length },
     { key: "critical", label: "Críticos", count: criticalCount },
     { key: "expiring", label: "Vencen hoy", count: stats.expiringToday },
-    { key: "dex", label: "Sin escaneo", count: stats.withoutDEX },
+    { key: thirdKey, label: thirdLabel, count: stats.third },
     { key: "pending", label: "Pendientes", count: stats.pendingYesterday },
   ];
 
@@ -150,10 +179,11 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
     setIsExporting(true);
     try {
       await exportWelcomeToExcel({
-        stats,
+        byCarrier,
         expiringPackages,
         withoutDEXPackages,
         pendingPackages,
+        dhlIncidentPackages,
         scopeLabel,
         fedexResults,
       });
@@ -196,7 +226,7 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 bg-background" onClick={verifyFedex} disabled={isVerifying || feed.length === 0}>
+          <Button variant="outline" size="sm" className="gap-1.5 bg-background" onClick={verifyFedex} disabled={isDhl || isVerifying || carrierFeed.length === 0} title={isDhl ? "Solo aplica a guías FedEx" : undefined}>
             {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
             {isVerifying ? "Comprobando…" : "Comprobar FedEx"}
           </Button>
@@ -219,7 +249,15 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
         </div>
       </div>
 
-      {fedexSummary && (
+      {/* Paquetería: FedEx y DHL nunca se mezclan; cada una con sus conteos. */}
+      <CarrierSwitch
+        value={carrier}
+        onChange={changeCarrier}
+        counts={{ fedex: fedexTotal, dhl: dhlTotal }}
+        countTitle="Requieren atención"
+      />
+
+      {fedexSummary && !isDhl && (
         <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Comprobación FedEx: <span className="font-semibold text-foreground">{fedexSummary.total}</span> guía(s)
           {" · "}
@@ -244,7 +282,7 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
           {/* Hero: magnitud + distribución */}
           <div className="rounded-xl border bg-gradient-to-br from-muted/40 to-background p-4 sm:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Requieren tu atención</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Requieren tu atención · {isDhl ? "DHL" : "FedEx"}</p>
               <span className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold", health.cls)}>
                 <health.Icon className="h-3.5 w-3.5" />
                 {health.label}
@@ -303,7 +341,11 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
           {/* KPIs accionables */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <KpiCard active={filter === "expiring"} onClick={() => setFilter("expiring")} icon={Clock} label="Vencen hoy" value={stats.expiringToday} hint={criticalCount > 0 ? `${criticalCount} en estado crítico` : "Próximos a vencer"} tone={stats.expiringToday > 0 ? (criticalCount > 0 ? "critical" : "warn") : "ok"} />
-            <KpiCard active={filter === "dex"} onClick={() => setFilter("dex")} icon={FileWarning} label="Sin escaneo local" value={stats.withoutDEX} hint="Sin código 67/44 según la sucursal" tone={stats.withoutDEX > 0 ? "warn" : "ok"} />
+            {isDhl ? (
+              <KpiCard active={filter === "dhlIncident"} onClick={() => setFilter("dhlIncident")} icon={FileWarning} label="Incidencias DHL" value={stats.third} hint={dhlCodesHint} tone={stats.third > 0 ? "warn" : "ok"} />
+            ) : (
+              <KpiCard active={filter === "dex"} onClick={() => setFilter("dex")} icon={FileWarning} label="Sin escaneo local" value={stats.third} hint="Sin código 44 ni 67 al día (igual que el reporte)" tone={stats.third > 0 ? "warn" : "ok"} />
+            )}
             <KpiCard active={filter === "pending"} onClick={() => setFilter("pending")} icon={Calendar} label="Pendientes" value={stats.pendingYesterday} hint="De días anteriores" tone={stats.pendingYesterday > 0 ? "info" : "ok"} />
           </div>
 

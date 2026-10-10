@@ -7,7 +7,7 @@ const tipoLabel = (t?: string) => {
   if (v === "dhl") return "DHL";
   return v ? v.toUpperCase() : "Otro";
 };
-const catLabel = (c?: string) => (c === "hoy" ? "Con 67 hoy" : c === "nunca" ? "Nunca" : "Sin 67 hoy");
+const catLabel = (c?: string) => (c === "hoy" ? "Al día" : c === "nunca" ? "Nunca" : "Con días sin código");
 
 /**
  * Excel del reporte "Visibilidad 67" generado en el CLIENTE a partir de las filas
@@ -20,7 +20,7 @@ export async function buildVisibility67Excel(rows: any[]): Promise<Blob> {
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet("Visibilidad 67");
 
-  const title = sheet.addRow(["📦 Reporte de Visibilidad 67"]);
+  const title = sheet.addRow(["📦 Reporte de Visibilidad 67 (escaneo 44 / 67)"]);
   sheet.mergeCells(`A${title.number}:J${title.number}`);
   title.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   title.alignment = { vertical: "middle", horizontal: "center" };
@@ -34,15 +34,16 @@ export async function buildVisibility67Excel(rows: any[]): Promise<Blob> {
     "Guía",
     "Tipo",
     "Estatus",
+    "Código",
     "Alta en sistema",
-    "Último 67",
-    "Días sin 67 (propio)",
+    "Último código",
+    "Días sin código (propio)",
     "Visibilidad",
     "Destinatario",
     "CP",
   ];
   if (consulted) {
-    headers.push("Días sin 67 (FedEx)", "Días faltantes", "Último movimiento", "Movimientos");
+    headers.push("Días sin código (FedEx)", "Días faltantes", "Último movimiento", "Movimientos");
   }
   const headerRow = sheet.addRow(headers);
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
@@ -56,9 +57,10 @@ export async function buildVisibility67Excel(rows: any[]): Promise<Blob> {
       r.trackingNumber || "",
       tipoLabel(r.shipmentType),
       r.status || "",
+      r.scanCode ? String(r.scanCode) : "—",
       fmtDate(r.createdAt),
       r.last67Date ? fmtDate(r.last67Date) : "—",
-      r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67,
+      r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Al día" : r.daysSinceLast67,
       catLabel(r.category),
       r.recipientName || "",
       r.recipientZip || "",
@@ -77,7 +79,7 @@ export async function buildVisibility67Excel(rows: any[]): Promise<Blob> {
   }
 
   // Anchos razonables.
-  const widths = [22, 8, 16, 16, 14, 14, 14, 26, 8, 16, 30, 34, 60];
+  const widths = [22, 8, 16, 8, 16, 14, 14, 18, 26, 8, 16, 30, 34, 60];
   sheet.columns.forEach((col, i) => { col.width = widths[i] ?? 16; });
 
   const buffer = await wb.xlsx.writeBuffer();

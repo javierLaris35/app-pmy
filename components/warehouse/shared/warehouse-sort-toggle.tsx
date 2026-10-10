@@ -2,63 +2,58 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ArrowDownWideNarrow, Layers, ScanLine } from "lucide-react";
+import { ArrowDownWideNarrow, Layers, MapPin, ScanLine, type LucideIcon } from "lucide-react";
 
-/** Modo de orden de la lista de bodega (Entrada / Salida). */
-export type WarehouseSortMode = "carrier" | "cp" | "scan";
+/** Modo de orden de la lista de bodega (Entrada / Salida / Inventario). */
+export type WarehouseSortMode = "carrier" | "city" | "cp" | "scan";
+
+const OPTIONS: Record<WarehouseSortMode, { label: string; icon: LucideIcon }> = {
+  carrier: { label: "Por paquetería", icon: Layers },
+  city: { label: "Por ciudad", icon: MapPin },
+  cp: { label: "Por CP", icon: ArrowDownWideNarrow },
+  scan: { label: "Por escaneo", icon: ScanLine },
+};
 
 /**
  * Toggle para ordenar la lista de paquetes de bodega:
  *  - "carrier": FedEx y DHL separados (FedEx primero), sin mezclarse (`sortWarehouseByCarrier`).
+ *  - "city": por ciudad (memoria de CP) → CP → paquetería (`sortWarehouseByCity`). Opcional.
  *  - "cp": orden por sucursal → CP → carrier (comportamiento histórico, `sortWarehousePackages`).
  *  - "scan": orden en que se fueron escaneando (orden de inserción del buffer).
  *
- * Compartido por Entrada y Salida para que ambas pantallas ofrezcan el mismo control.
+ * Compartido por Entrada, Salida e Inventarios para que ofrezcan el mismo control.
  */
 export function WarehouseSortToggle({
   value,
   onChange,
+  modes = ["carrier", "cp", "scan"],
   className,
 }: {
   value: WarehouseSortMode;
   onChange: (mode: WarehouseSortMode) => void;
+  /** Modos a mostrar, en orden. Default: los de Entrada/Salida. */
+  modes?: WarehouseSortMode[];
   className?: string;
 }) {
   return (
     <div className={cn("inline-flex overflow-hidden rounded-md border", className)}>
-      <Button
-        type="button"
-        size="sm"
-        variant={value === "carrier" ? "default" : "ghost"}
-        className="gap-1.5 rounded-none"
-        onClick={() => onChange("carrier")}
-        aria-pressed={value === "carrier"}
-      >
-        <Layers className="h-4 w-4" />
-        Por paquetería
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant={value === "cp" ? "default" : "ghost"}
-        className="gap-1.5 rounded-none border-l"
-        onClick={() => onChange("cp")}
-        aria-pressed={value === "cp"}
-      >
-        <ArrowDownWideNarrow className="h-4 w-4" />
-        Por CP
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant={value === "scan" ? "default" : "ghost"}
-        className="gap-1.5 rounded-none border-l"
-        onClick={() => onChange("scan")}
-        aria-pressed={value === "scan"}
-      >
-        <ScanLine className="h-4 w-4" />
-        Por escaneo
-      </Button>
+      {modes.map((mode, i) => {
+        const { label, icon: Icon } = OPTIONS[mode];
+        return (
+          <Button
+            key={mode}
+            type="button"
+            size="sm"
+            variant={value === mode ? "default" : "ghost"}
+            className={cn("gap-1.5 rounded-none", i > 0 && "border-l")}
+            onClick={() => onChange(mode)}
+            aria-pressed={value === mode}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </Button>
+        );
+      })}
     </div>
   );
 }

@@ -104,7 +104,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
             : r;
         }),
       );
-      toast.success("Visibilidad 67 confirmada con FedEx.");
+      toast.success("Escaneo 44/67 confirmado con FedEx.");
     } catch (e: any) {
       toast.error(e?.response?.data?.message || "No se pudo confirmar con FedEx.");
     } finally {
@@ -260,11 +260,11 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
       });
     }
 
-    // Columnas de confirmación 67 con FedEx (se llenan con "Confirmar 67 con FedEx").
+    // Columnas de confirmación del escaneo 44/67 con FedEx (se llenan con "Confirmar escaneo con FedEx").
     if (def.fedex67Check) {
       base.push({
         id: "__diasSin67",
-        header: "Días sin 67 (FedEx)",
+        header: "Días sin código (FedEx)",
         enableSorting: true,
         accessorFn: (r: any) => (r.__diasSin67 == null ? -1 : Number(r.__diasSin67)),
         cell: ({ row }: any) => {
@@ -411,7 +411,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
                   <Label htmlFor="inc-sundays" className="text-xs cursor-pointer">Incluir domingos</Label>
                 </div>
                 <Button variant="outline" onClick={handleFedex67Check} disabled={fedex67Loading}>
-                  {fedex67Loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar 67 con FedEx
+                  {fedex67Loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar escaneo con FedEx
                 </Button>
               </>
             )}

@@ -1,8 +1,11 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import type {
-  DashboardStats,
-  ExpiringPackage,
+import {
+  carrierKeyOf,
+  type CarrierKey,
+  type CarrierStats,
+  type DhlIncidentPackage,
+  type ExpiringPackage,
   PackageContactFields,
   PendingPackage,
   WithoutDEXPackage,
@@ -10,10 +13,12 @@ import type {
 import type { FedexVerifyResult } from "@/lib/services/dashboard";
 
 interface ExportWelcomeInput {
-  stats: DashboardStats;
+  /** Conteos por paquetería (FedEx y DHL nunca se mezclan). */
+  byCarrier: CarrierStats;
   expiringPackages: ExpiringPackage[];
   withoutDEXPackages: WithoutDEXPackage[];
   pendingPackages: PendingPackage[];
+  dhlIncidentPackages: DhlIncidentPackage[];
   /** Etiqueta del alcance (nombre de sucursal o "Todas las sucursales"). */
   scopeLabel: string;
   /** Resultados de la comprobación FedEx, si se ejecutó (para añadir columnas). */
@@ -65,12 +70,17 @@ function contactCells(p: ContactRow, fallbackDate?: string | null) {
   };
 }
 
-/** Exporta el resumen operativo a un .xlsx: hoja Resumen + 3 hojas de detalle. */
+/**
+ * Exporta el resumen operativo a un .xlsx: hoja Resumen (por paquetería) + hojas de detalle
+ * SEPARADAS por paquetería — FedEx (vencen hoy / sin escaneo 44-67 / pendientes) y DHL
+ * (vencen hoy / incidencias NH-BA-RD-CM / pendientes). Nunca se mezclan en una hoja.
+ */
 export async function exportWelcomeToExcel({
-  stats,
+  byCarrier,
   expiringPackages,
   withoutDEXPackages,
   pendingPackages,
+  dhlIncidentPackages,
   scopeLabel,
   fedexResults,
 }: ExportWelcomeInput) {
@@ -92,70 +102,79 @@ export async function exportWelcomeToExcel({
     return { fxStatus: r.status || "—", fxEvent: r.lastEvent?.description || "" };
   };
 
-  // --- Hoja 1: Resumen ---
+  // --- Hoja 1: Resumen (por paquetería) ---
   const resumen = wb.addWorksheet("Resumen");
   resumen.columns = [
-    { header: "Indicador", key: "k", width: 30 },
-    { header: "Valor", key: "v", width: 24 },
+    { header: "Indicador", key: "k", width: 34 },
+    { header: "FedEx", key: "fedex", width: 14 },
+    { header: "DHL", key: "dhl", width: 14 },
   ];
   styleHeader(resumen.getRow(1));
-  resumen.addRow({ k: "Alcance", v: scopeLabel });
-  resumen.addRow({ k: "Generado", v: new Date().toLocaleString("es-MX") });
-  resumen.addRow({ k: "Vencen hoy", v: stats.expiringToday });
-  resumen.addRow({ k: "Sin escaneo local", v: stats.withoutDEX });
-  resumen.addRow({ k: "Pendientes (días anteriores)", v: stats.pendingYesterday });
+  resumen.addRow({ k: "Alcance", fedex: scopeLabel });
+  resumen.addRow({ k: "Generado", fedex: new Date().toLocaleString("es-MX") });
+  resumen.addRow({ k: "Vencen hoy", fedex: byCarrier.fedex.expiringToday, dhl: byCarrier.dhl.expiringToday });
+  resumen.addRow({ k: "Sin escaneo local (44/67)", fedex: byCarrier.fedex.withoutScan, dhl: "No aplica" });
+  resumen.addRow({ k: "Incidencias DHL", fedex: "No aplica", dhl: byCarrier.dhl.incidents });
+  for (const [code, v] of Object.entries(byCarrier.dhl.incidentsByCode)) {
+    resumen.addRow({ k: `   ${code} · ${v.label}`, fedex: "", dhl: v.count });
+  }
+  resumen.addRow({ k: "Pendientes (días anteriores)", fedex: byCarrier.fedex.pendingYesterday, dhl: byCarrier.dhl.pendingYesterday });
 
-  // --- Hoja 2: Vencen hoy ---
-  const wsExp = wb.addWorksheet("Vencen hoy");
-  wsExp.columns = [
-    ...contactColumns,
-    { header: "Estatus", key: "status", width: 22 },
-    { header: "Horas restantes", key: "hoursRemaining", width: 16 },
-    ...fedexCols,
-  ];
-  styleHeader(wsExp.getRow(1));
-  expiringPackages.forEach((p) =>
-    wsExp.addRow({
-      ...contactCells(p, p.expiryDate),
-      status: p.status || "—",
-      hoursRemaining: p.hoursRemaining,
-      ...fedexCells(p.trackingNumber),
-    }),
-  );
+  const ofCarrier = <T extends { carrier?: string }>(rows: T[], c: CarrierKey) => rows.filter((r) => carrierKeyOf(r.carrier) === c);
+  const label: Record<CarrierKey, string> = { fedex: "FedEx", dhl: "DHL" };
 
-  // --- Hoja 3: Sin escaneo ---
-  const wsDex = wb.addWorksheet("Sin escaneo");
-  wsDex.columns = [
-    ...contactColumns,
-    { header: "Estatus", key: "status", width: 22 },
-    { header: "Falta", key: "missingDocument", width: 16 },
-    ...fedexCols,
-  ];
-  styleHeader(wsDex.getRow(1));
-  withoutDEXPackages.forEach((p) =>
-    wsDex.addRow({
-      ...contactCells(p),
-      status: p.status || "—",
-      missingDocument: p.missingDocument,
-      ...fedexCells(p.trackingNumber),
-    }),
-  );
+  for (const c of ["fedex", "dhl"] as CarrierKey[]) {
+    // La comprobación contra FedEx solo aplica a guías FedEx.
+    const cols = c === "fedex" ? fedexCols : [];
+    const fxCells = (t: string) => (c === "fedex" ? fedexCells(t) : {});
 
-  // --- Hoja 4: Pendientes ---
-  const wsPen = wb.addWorksheet("Pendientes");
-  wsPen.columns = [
-    ...contactColumns,
-    { header: "Estatus", key: "status", width: 22 },
-    ...fedexCols,
-  ];
-  styleHeader(wsPen.getRow(1));
-  pendingPackages.forEach((p) =>
-    wsPen.addRow({
-      ...contactCells(p, p.createdAt),
-      status: p.status || "—",
-      ...fedexCells(p.trackingNumber),
-    }),
-  );
+    // --- Vencen hoy ---
+    const wsExp = wb.addWorksheet(`${label[c]} · Vencen hoy`);
+    wsExp.columns = [
+      ...contactColumns,
+      { header: "Estatus", key: "status", width: 22 },
+      { header: "Horas restantes", key: "hoursRemaining", width: 16 },
+      ...cols,
+    ];
+    styleHeader(wsExp.getRow(1));
+    ofCarrier(expiringPackages, c).forEach((p) =>
+      wsExp.addRow({ ...contactCells(p, p.expiryDate), status: p.status || "—", hoursRemaining: p.hoursRemaining, ...fxCells(p.trackingNumber) }),
+    );
+
+    // --- FedEx: sin escaneo 44/67 · DHL: incidencias con sus códigos ---
+    if (c === "fedex") {
+      const wsDex = wb.addWorksheet("FedEx · Sin escaneo");
+      wsDex.columns = [
+        ...contactColumns,
+        { header: "Estatus", key: "status", width: 22 },
+        { header: "Escaneo", key: "missingDocument", width: 32 },
+        ...cols,
+      ];
+      styleHeader(wsDex.getRow(1));
+      ofCarrier(withoutDEXPackages, "fedex").forEach((p) =>
+        wsDex.addRow({ ...contactCells(p), status: p.status || "—", missingDocument: p.missingDocument, ...fxCells(p.trackingNumber) }),
+      );
+    } else {
+      const wsInc = wb.addWorksheet("DHL · Incidencias");
+      wsInc.columns = [
+        ...contactColumns,
+        { header: "Código DHL", key: "dhlCode", width: 12 },
+        { header: "Incidencia", key: "incident", width: 32 },
+      ];
+      styleHeader(wsInc.getRow(1));
+      dhlIncidentPackages.forEach((p) =>
+        wsInc.addRow({ ...contactCells({ ...p, carrier: "DHL" }, p.createdAt), dhlCode: p.dhlCode, incident: p.incident }),
+      );
+    }
+
+    // --- Pendientes ---
+    const wsPen = wb.addWorksheet(`${label[c]} · Pendientes`);
+    wsPen.columns = [...contactColumns, { header: "Estatus", key: "status", width: 22 }, ...cols];
+    styleHeader(wsPen.getRow(1));
+    ofCarrier(pendingPackages, c).forEach((p) =>
+      wsPen.addRow({ ...contactCells(p, p.createdAt), status: p.status || "—", ...fxCells(p.trackingNumber) }),
+    );
+  }
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

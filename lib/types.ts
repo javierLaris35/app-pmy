@@ -820,6 +820,8 @@ export interface PackageInfo {
   movedToAnotherRoute?: boolean
   /** Folio de la salida a ruta a la que se movió la guía (para el badge). */
   currentDispatchTrackingNumber?: string | null
+  /** Ciudad para agrupar (memoria de CP por sucursal; respaldo: ciudad de la guía). */
+  zoneCity?: string | null
 }
 
 export interface SearchShipmentDto {
@@ -967,6 +969,14 @@ export interface PackageInfoForInventory {
     amount: number;
   };
 }
+/** Guía escaneada que no entró al inventario, con su motivo. */
+export interface InventoryRejectedTracking {
+  trackingNumber: string;
+  reason: string;
+  /** formato | no_encontrada | otra_sucursal */
+  kind: string;
+}
+
 export interface InventoryRequest {
   id?: string;
   trackingNumber?: string;
@@ -978,9 +988,8 @@ export interface InventoryRequest {
 
   shipments: string[],
   chargeShipments: string[],
-  // Listas especiales
-  missingTrackings: string[];   // deberían estar pero no se escanearon
-  unScannedTrackings: string[]; // aparecieron extra, no registrados en sistema
+  type?: InventoryType;
+  rejectedTrackings?: InventoryRejectedTracking[];
 }
 
 export interface Inventory {
@@ -994,10 +1003,15 @@ export interface Inventory {
 
   shipments: Shipment[];
   chargeShipments: ChargeShipment[];
-  // Listas especiales
-  missingTrackings: string[];   // deberían estar pero no se escanearon
-  unScannedTrackings: string[]; // aparecieron extra, no registrados en sistema
   type: InventoryType
+  /** Solo en el detalle. */
+  rejectedTrackings?: InventoryRejectedTracking[] | null;
+  /** Solo en el listado (conteos). */
+  totalPackages?: number;
+  rejectedCount?: number;
+  /** Inventarios viejos (nunca se guardaron en BD); se conservan por compatibilidad. */
+  missingTrackings?: string[];
+  unScannedTrackings?: string[];
 }
 
 

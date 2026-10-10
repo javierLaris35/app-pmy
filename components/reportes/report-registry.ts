@@ -111,6 +111,26 @@ export interface ReportDef {
   emptyHint?: string;
 }
 
+/**
+ * Visibilidad del escaneo local de FedEx (44 o 67, el que haya dado FedEx — el backend ya no se
+ * fija en la config de la sucursal). "Días sin código" = días completos sin escaneo en hora
+ * Hermosillo: escaneada anoche = "Al día". Mismo criterio que el reporte "Sin código 44".
+ */
+const scanCodeLabel = (r: any) => (r.scanCode ? String(r.scanCode) : "—");
+const daysWithoutCodeLabel = (r: any) =>
+  r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Al día" : String(r.daysSinceLast67);
+const visibilityLabel = (category?: string) =>
+  category === "hoy" ? "Al día" : category === "nunca" ? "Nunca" : "Con días sin código";
+/** Chips del resumen: las tres suman el total (el backend manda `sin67` con "nunca" incluido). */
+const visibilitySummary = (summary: any) => ({
+  "Al día": summary?.con67Hoy ?? 0,
+  "Con días sin código": Math.max(0, (summary?.sin67 ?? 0) - (summary?.nunca ?? 0)),
+  Nunca: summary?.nunca ?? 0,
+});
+
+/** Sí/No del escaneo 44/67; `null` (DHL, que no tiene 44/67) → "No aplica". */
+const scanYesNo = (v: boolean | null | undefined) => (v == null ? "No aplica" : v ? "Sí" : "No");
+
 /** Etiqueta de tipo de paquete a partir de shipmentType. */
 const tipoLabel = (t?: string) => {
   const v = String(t || "").toLowerCase();
@@ -165,62 +185,65 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "recibidas67",
-    title: "Recibidas de FedEx (67)",
-    description: "Guías con evento 67 (llegada a estación) en el rango. Ordena por 'Días desde 67' para ver las atoradas.",
+    title: "Recibidas de FedEx (44 / 67)",
+    description: "Guías con escaneo local de FedEx (código 44 o 67) en el rango. Ordena por 'Días desde el escaneo' para ver las atoradas.",
     icon: PackageCheck,
     accent: "bg-rose-100 text-rose-600",
     dateRange: true,
     columns: [
       { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
-      { id: "fecha67", label: "Fecha 67", accessor: (r) => r.fecha67, cell: (v) => fmtDateTime(v) },
-      { id: "diasDesde67", label: "Días desde 67", accessor: (r) => Number(r.diasDesde67) },
+      { id: "scanCode", label: "Código", accessor: (r) => scanCodeLabel(r), mono: true },
+      { id: "fecha67", label: "Fecha del escaneo", accessor: (r) => r.fecha67, cell: (v) => fmtDateTime(v) },
+      { id: "diasDesde67", label: "Días desde el escaneo", accessor: (r) => Number(r.diasDesde67) },
       { id: "status", label: "Estatus", accessor: (r) => r.status, cell: (v) => prettyStatus(v) },
       { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
       { id: "recipientCity", label: "Ciudad", accessor: (r) => r.recipientCity },
       { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
     ],
-    filters: [{ columnId: "status", title: "Estatus" }],
+    filters: [{ columnId: "status", title: "Estatus" }, { columnId: "scanCode", title: "Código" }],
     run: async (subsidiaryId, range) => {
       const { summary, details } = await fetchReceived67Json(subsidiaryId, range?.start, range?.end);
       return { rows: details || [], summary: summary ?? { Total: details?.length || 0 } };
     },
     exportExcel: (subsidiaryId, range) => fetchReceived67Excel(subsidiaryId, range?.start, range?.end),
     fileName: (s) => `recibidas_67_${s}_${ts()}.xlsx`,
-    emptyHint: "No hay guías con 67 en el rango para esta sucursal.",
+    emptyHint: "No hay guías con escaneo 44 o 67 en el rango para esta sucursal.",
   },
   {
     id: "visibilidad67",
-    title: "Visibilidad 67 (sin 67 de hoy)",
-    description: "Paquetes activos (en bodega / pendientes) y sus días sin código 67. Regla FedEx: cada paquete debe tener un 67 cada día. Ordena por 'Días sin 67' para priorizar.",
+    title: "Visibilidad 67 (escaneo 44 / 67)",
+    description: "Paquetes activos (en bodega / pendientes) y sus días sin escaneo local de FedEx (cuenta el 44 o el 67, el que haya dado FedEx). Escaneada anoche = al día. Ordena por 'Días sin código' para priorizar.",
     icon: EyeOff,
     accent: "bg-orange-100 text-orange-600",
     columns: [
       { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
       { id: "tipo", label: "Tipo", accessor: (r) => tipoLabel(r.shipmentType) },
       { id: "status", label: "Estatus", accessor: (r) => r.status, cell: (v) => prettyStatus(v) },
+      { id: "scanCode", label: "Código", accessor: (r) => scanCodeLabel(r), mono: true },
       { id: "createdAt", label: "Alta en sistema", accessor: (r) => r.createdAt, cell: (v) => fmtDate(v) },
       {
         id: "diasSin67",
-        label: "Días sin 67",
+        label: "Días sin código",
         accessor: (r) => (r.daysSinceLast67 == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLast67)),
-        cell: (_v, r) => (r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Hoy (0)" : String(r.daysSinceLast67)),
+        cell: (_v, r) => daysWithoutCodeLabel(r),
       },
-      { id: "last67Date", label: "Último 67", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
+      { id: "last67Date", label: "Último código", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
       {
         id: "categoria",
         label: "Visibilidad",
-        accessor: (r) => (r.category === "hoy" ? "Con 67 hoy" : r.category === "nunca" ? "Nunca" : "Sin 67 hoy"),
+        accessor: (r) => visibilityLabel(r.category),
       },
       { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
       { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
     ],
     filters: [
       { columnId: "categoria", title: "Visibilidad" },
+      { columnId: "scanCode", title: "Código" },
       { columnId: "tipo", title: "Tipo" },
       { columnId: "status", title: "Estatus" },
     ],
     fedex67Check: {
-      // Solo guías FedEx (el 67 vive en el historial de escaneos de FedEx).
+      // Solo guías FedEx (el 44/67 vive en el historial de escaneos de FedEx).
       fetch: (rows, includeSundays) =>
         fetchVisibility67FedexCheck(
           rows.filter(isFedexRow).map((r) => ({ trackingNumber: r.trackingNumber, fedexUniqueId: r.fedexUniqueId })),
@@ -235,9 +258,7 @@ export const REPORTS: ReportDef[] = [
         rows: details || [],
         summary: {
           Activos: summary?.totalActivos ?? (details?.length || 0),
-          "Con 67 hoy": summary?.con67Hoy ?? 0,
-          "Sin 67 hoy": summary?.sin67 ?? 0,
-          Nunca: summary?.nunca ?? 0,
+          ...visibilitySummary(summary),
         },
       };
     },
@@ -249,8 +270,8 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "inventarios",
-    title: "Inventarios (visibilidad 67)",
-    description: "Paquetes de los inventarios de la sucursal en el rango (default: ayer) que SIGUEN en bodega (estatus actual = en bodega), con días sin 67 y en qué inventarios estuvieron. Mismo motor que Visibilidad 67.",
+    title: "Inventarios (visibilidad 44 / 67)",
+    description: "Paquetes de los inventarios de la sucursal en el rango (default: ayer) que SIGUEN en bodega (estatus actual = en bodega), con días sin escaneo 44 o 67 y en qué inventarios estuvieron. Mismo motor que Visibilidad 67.",
     icon: ClipboardList,
     accent: "bg-indigo-100 text-indigo-600",
     dateRange: true,
@@ -259,7 +280,7 @@ export const REPORTS: ReportDef[] = [
       { id: "trackingNumber", label: "Guía", accessor: (r) => r.trackingNumber, mono: true },
       { id: "tipo", label: "Tipo", accessor: (r) => tipoLabel(r.shipmentType) },
       { id: "status", label: "Estatus actual", accessor: (r) => r.status, cell: (v) => prettyStatus(v) },
-      { id: "scanCode", label: "Código", accessor: (r) => String(r.scanCode ?? "67"), mono: true },
+      { id: "scanCode", label: "Código", accessor: (r) => scanCodeLabel(r), mono: true },
       {
         id: "inventarios",
         label: "Inventarios",
@@ -281,13 +302,13 @@ export const REPORTS: ReportDef[] = [
         id: "diasSin67",
         label: "Días sin código",
         accessor: (r) => (r.daysSinceLast67 == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLast67)),
-        cell: (_v, r) => (r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Hoy (0)" : String(r.daysSinceLast67)),
+        cell: (_v, r) => daysWithoutCodeLabel(r),
       },
       { id: "last67Date", label: "Último código", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
       {
         id: "categoria",
         label: "Visibilidad",
-        accessor: (r) => { const code = r.scanCode ?? "67"; return r.category === "hoy" ? `Con ${code} hoy` : r.category === "nunca" ? "Nunca" : `Sin ${code} hoy`; },
+        accessor: (r) => visibilityLabel(r.category),
       },
       { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
       { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
@@ -310,9 +331,7 @@ export const REPORTS: ReportDef[] = [
         summary: {
           Inventarios: summary?.inventarios ?? 0,
           Paquetes: summary?.paquetes ?? (details?.length || 0),
-          "Con 67 hoy": summary?.con67Hoy ?? 0,
-          "Sin 67 hoy": summary?.sin67 ?? 0,
-          Nunca: summary?.nunca ?? 0,
+          ...visibilitySummary(summary),
         },
       };
     },
@@ -323,8 +342,8 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "desembarques",
-    title: "Desembarques (visibilidad 67)",
-    description: "Paquetes de los desembarques de la sucursal en el rango (default: ayer), con su estatus ACTUAL (todos los estatus), días sin 67 y en qué desembarque(s) estuvieron. Mismo motor que Visibilidad 67.",
+    title: "Desembarques (visibilidad 44 / 67)",
+    description: "Paquetes de los desembarques de la sucursal en el rango (default: ayer), con su estatus ACTUAL (todos los estatus), días sin escaneo 44 o 67 y en qué desembarque(s) estuvieron. Mismo motor que Visibilidad 67.",
     icon: Truck,
     accent: "bg-sky-100 text-sky-600",
     dateRange: true,
@@ -346,15 +365,15 @@ export const REPORTS: ReportDef[] = [
       { id: "createdAt", label: "Alta en sistema", accessor: (r) => r.createdAt, cell: (v) => fmtDate(v) },
       {
         id: "diasSin67",
-        label: "Días sin 67",
+        label: "Días sin código",
         accessor: (r) => (r.daysSinceLast67 == null ? Number.MAX_SAFE_INTEGER : Number(r.daysSinceLast67)),
-        cell: (_v, r) => (r.daysSinceLast67 == null ? "Nunca" : r.daysSinceLast67 === 0 ? "Hoy (0)" : String(r.daysSinceLast67)),
+        cell: (_v, r) => daysWithoutCodeLabel(r),
       },
-      { id: "last67Date", label: "Último 67", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
+      { id: "last67Date", label: "Último código", accessor: (r) => r.last67Date, cell: (v) => fmtDate(v) },
       {
         id: "categoria",
         label: "Visibilidad",
-        accessor: (r) => (r.category === "hoy" ? "Con 67 hoy" : r.category === "nunca" ? "Nunca" : "Sin 67 hoy"),
+        accessor: (r) => visibilityLabel(r.category),
       },
       { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
       { id: "recipientZip", label: "CP", accessor: (r) => r.recipientZip },
@@ -379,9 +398,7 @@ export const REPORTS: ReportDef[] = [
         summary: {
           Desembarques: summary?.desembarques ?? 0,
           Paquetes: summary?.paquetes ?? (details?.length || 0),
-          "Con 67 hoy": summary?.con67Hoy ?? 0,
-          "Sin 67 hoy": summary?.sin67 ?? 0,
-          Nunca: summary?.nunca ?? 0,
+          ...visibilitySummary(summary),
         },
       };
     },
@@ -413,8 +430,9 @@ export const REPORTS: ReportDef[] = [
       { id: "driver", label: "Chofer", accessor: (r) => r.driver || "—" },
       { id: "commitDateTime", label: "Vencimiento", accessor: (r) => r.commitDateTime, cell: (v) => (v ? fmtDateTime(v) : "—") },
       { id: "movidoAyer", label: "¿Movido ayer?", accessor: (r) => (r.movedYesterday ? "Sí" : "No") },
-      { id: "s67Ayer", label: "67 ayer", accessor: (r) => (r.has67Yesterday ? "Sí" : "No") },
-      { id: "s67Hoy", label: "67 hoy", accessor: (r) => (r.has67Today ? "Sí" : "No") },
+      // El escaneo 44/67 es solo de FedEx: en DHL el backend manda null → "No aplica".
+      { id: "s67Ayer", label: "Escaneo 44/67 ayer", accessor: (r) => scanYesNo(r.has67Yesterday) },
+      { id: "s67Hoy", label: "Escaneo 44/67 hoy", accessor: (r) => scanYesNo(r.has67Today) },
       { id: "enInvAyer", label: "En inv. de ayer", accessor: (r) => (r.inLastInventoryYesterday ? "Sí" : "No") },
       { id: "recipientName", label: "Destinatario", accessor: (r) => r.recipientName },
       { id: "recipientAddress", label: "Dirección", accessor: (r) => r.recipientAddress },
@@ -425,8 +443,8 @@ export const REPORTS: ReportDef[] = [
       { columnId: "tipo", title: "Tipo" },
       { columnId: "movidoAyer", title: "¿Movido ayer?" },
       { columnId: "enInvAyer", title: "En inv. de ayer" },
-      { columnId: "s67Ayer", title: "67 ayer" },
-      { columnId: "s67Hoy", title: "67 hoy" },
+      { columnId: "s67Ayer", title: "Escaneo ayer" },
+      { columnId: "s67Hoy", title: "Escaneo hoy" },
       { columnId: "status", title: "Estatus" },
     ],
     fedex67Check: {
@@ -447,8 +465,8 @@ export const REPORTS: ReportDef[] = [
           "No entregados": summary?.noEntregados ?? 0,
           "Sin inv. ayer": summary?.sinInventarioAyer ?? 0,
           "Movidos ayer": summary?.movidosAyer ?? 0,
-          "67 ayer": summary?.con67Ayer ?? 0,
-          "67 hoy": summary?.con67Hoy ?? 0,
+          "Escaneo ayer": summary?.con67Ayer ?? 0,
+          "Escaneo hoy": summary?.con67Hoy ?? 0,
           DEX: summary?.dex ?? 0,
           Entregados: summary?.entregados ?? 0,
         },
@@ -475,7 +493,7 @@ export const REPORTS: ReportDef[] = [
   {
     id: "inventario67",
     title: "Último inventario sin código (44/67)",
-    description: "Paquetes del último inventario que aún no tienen el código de escaneo local que monitorea la sucursal (44 o 67). Confirma con FedEx.",
+    description: "Paquetes del último inventario que nunca han tenido escaneo local de FedEx (ni 44 ni 67). Confirma con FedEx.",
     icon: Boxes,
     accent: "bg-indigo-100 text-indigo-600",
     columns: [

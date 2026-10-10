@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useCallback, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Package } from "lucide-react";
-import { PackageFilters } from "@/components/shared/package-filters";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Package } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PackageFilters, computePackageFilterCounts } from "@/components/shared/package-filters";
 import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
 import { PackageInfo } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,8 @@ interface PackagesListProps {
    * cambia el grupo. La lista debe venir ya ordenada por ese grupo.
    */
   groupBy?: (pkg: PackageInfo) => string;
+  /** Número de fila al inicio (estilo Excel / VS Code), según el orden mostrado. */
+  showRowNumbers?: boolean;
 
   className?: string;
 }
@@ -67,6 +70,7 @@ export function PackagesList({
   collapseLabel = "Ocultar piezas",
   getKey = defaultKey,
   groupBy,
+  showRowNumbers = false,
   className,
 }: PackagesListProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -112,6 +116,17 @@ export function PackagesList({
 
   const filtered = useMemo(() => packages.filter(matchesFilters), [packages, matchesFilters]);
 
+  const filterCounts = useMemo(() => computePackageFilterCounts(packages, daysUntilCommit), [packages]);
+
+  // Acordeón de grupos (por ciudad / paquetería): grupos contraídos.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (g: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(g) ? next.delete(g) : next.add(g);
+      return next;
+    });
+
   const groupCounts = useMemo(() => {
     const counts = new Map<string, number>();
     if (groupBy) filtered.forEach((p) => counts.set(groupBy(p), (counts.get(groupBy(p)) ?? 0) + 1));
@@ -155,6 +170,7 @@ export function PackagesList({
           onTypeChange={setType}
           activeFilterCount={activeFilterCount}
           onClear={clearFilters}
+          counts={filterCounts}
         />
       )}
 
@@ -167,6 +183,28 @@ export function PackagesList({
           </p>
         </div>
       ) : (
+        <div className="space-y-1.5">
+        {groupBy && groupCounts.size > 1 && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1 rounded-full px-2.5 text-xs text-muted-foreground"
+              onClick={() =>
+                setCollapsedGroups(
+                  collapsedGroups.size >= groupCounts.size ? new Set() : new Set(groupCounts.keys()),
+                )
+              }
+            >
+              {collapsedGroups.size >= groupCounts.size ? (
+                <><ChevronsUpDown className="h-3.5 w-3.5" /> Expandir todo</>
+              ) : (
+                <><ChevronsDownUp className="h-3.5 w-3.5" /> Contraer todo</>
+              )}
+            </Button>
+          </div>
+        )}
         <div className={cn("overflow-y-auto rounded-md border", maxHeightClass)}>
           {filtered.map((pkg, i) => {
             const key = getKey(pkg);
@@ -174,20 +212,35 @@ export function PackagesList({
             const isExpanded = expanded.has(key);
             const group = groupBy?.(pkg);
             const startsGroup = group !== undefined && (i === 0 || groupBy?.(filtered[i - 1]) !== group);
+            const groupCollapsed = group !== undefined && collapsedGroups.has(group);
+            if (groupCollapsed && !startsGroup) return null;
             return (
               <div key={key} className="border-b last:border-b-0">
                 {startsGroup ? (
-                  <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-muted px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group!)}
+                    aria-expanded={!groupCollapsed}
+                    className={cn(
+                      "sticky top-0 z-10 flex w-full items-center gap-1.5 bg-muted px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted/80 transition-colors",
+                      !groupCollapsed && "border-b",
+                    )}
+                  >
+                    {groupCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     <span>{group}</span>
-                    <span>{groupCounts.get(group!) ?? 0}</span>
-                  </div>
+                    <span className="ml-auto rounded-full bg-background px-1.5 text-[11px] tabular-nums">
+                      {groupCounts.get(group!) ?? 0}
+                    </span>
+                  </button>
                 ) : null}
+                {groupCollapsed ? null : (<>
                 <PackageListItem
                   pkg={pkg}
-                  onRemove={onRemove ?? (() => {})}
+                  onRemove={onRemove}
                   onTransfer={onTransfer}
                   onCompleteData={onCompleteData}
                   isLoading={isLoading}
+                  index={showRowNumbers ? i + 1 : undefined}
                 />
                 {extra ? (
                   <>
@@ -202,9 +255,11 @@ export function PackagesList({
                     {isExpanded ? extra : null}
                   </>
                 ) : null}
+                </>)}
               </div>
             );
           })}
+        </div>
         </div>
       )}
     </div>

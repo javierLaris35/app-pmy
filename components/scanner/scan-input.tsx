@@ -31,7 +31,7 @@ import {
 import { PackageInfo } from "@/lib/types";
 import type { WarehousePackageInfo } from "@/components/warehouse/shared/warehouse-package-list.helpers";
 import { normalizeScannedCode } from "@/lib/tracking/normalize-scan";
-import { addNewCodes, matchValidatedPackage } from "@/components/scanner/scan-normalize";
+import { addNewCodes, matchValidatedPackages } from "@/components/scanner/scan-normalize";
 import { useScanBuffer, type ScanView } from "@/components/scanner/use-scan-buffer";
 
 /**
@@ -241,7 +241,7 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
       onTrackingNumbersChange?.("");
     },
     updateValidatedPackages: (validated: PackageInfo[]) => {
-      setPackages((prev) => prev.map((p) => matchValidatedPackage(p, validated) ?? p));
+      setPackages((prev) => matchValidatedPackages(prev, validated));
     },
     attachPieces: (masterTracking: string, pieces: string[]) => {
       setPackages((prev) => {

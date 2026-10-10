@@ -20,7 +20,7 @@ export const columns: ColumnDef<Inventory>[] = [
     header: "Paquetes",
     cell: ({ row }) => {
       // El listado ahora devuelve conteos (no arrays) para no desbordar memoria.
-      const total = (row.original as any).totalPackages ?? 0;
+      const total = row.original.totalPackages ?? 0;
       if (!total) return "Sin paquetes";
       return (
         <span className="font-mono">
@@ -31,29 +31,13 @@ export const columns: ColumnDef<Inventory>[] = [
     enableSorting: true,
   },
   {
-    id: "missingTrackings",
-    header: "Faltantes",
+    id: "rejected",
+    header: "No incluidas",
     cell: ({ row }) => {
-      if(!row.original.missingTrackings || row.original.missingTrackings.length === 0) return "Sin paquetes";
-      return (
-        <span className="font-mono">
-          {row.original.missingTrackings.length}
-        </span>
-      )
-    }
-  },
-  {
-    id: "unScannedTrackings",
-    header: "Sin escaneo",
-    cell: ({ row }) => {
-      if(!row.original.unScannedTrackings || row.original.unScannedTrackings.length === 0) return "Sin paquetes";
-      return (
-        <span className="font-mono">
-          {row.original.unScannedTrackings.length}
-        </span>
-      )
+      // Escaneadas que no entraron (no existen, otra sucursal, formato). Antes de oct-2026 no se guardaban.
+      const n = row.original.rejectedCount ?? 0;
+      return n ? <span className="font-mono text-red-600">{n}</span> : <span className="text-muted-foreground">—</span>;
     },
-    enableSorting: true,
   },
   {
     id: "type",

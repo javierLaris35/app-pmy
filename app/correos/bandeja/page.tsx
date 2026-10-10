@@ -17,6 +17,7 @@ import { InboxCarrier, InboxView } from "@/lib/types/inbox";
 import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { CarrierSwitch } from "@/components/shared/carrier-switch";
 import { getInboxColumns } from "@/components/bandeja-correos/inbox-columns";
 import { InboxDetailSheet } from "@/components/bandeja-correos/inbox-detail-sheet";
 import { VIEW_LABEL, hmoDay } from "@/components/bandeja-correos/labels";
@@ -31,10 +32,7 @@ const EMPTY: Record<InboxView, string> = {
   ignorado: "No hay correos ignorados",
 };
 
-const CARRIERS: { value: InboxCarrier; label: string; active: string }[] = [
-  { value: "fedex", label: "FedEx", active: "bg-[#4D148C] text-white" },
-  { value: "dhl", label: "DHL", active: "bg-[#FFCC00] text-[#D40511]" },
-];
+const CARRIER_LABEL: Record<InboxCarrier, string> = { fedex: "FedEx", dhl: "DHL" };
 
 function BandejaCorreosPage() {
   const user = useAuthStore((s) => s.user);
@@ -109,34 +107,16 @@ function BandejaCorreosPage() {
 
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Paquetería: cada una con su propia lista (DHL = remitente de un dominio DHL). */}
-          <div className="mr-2 inline-flex rounded-full border bg-white p-0.5" role="tablist" aria-label="Paquetería">
-            {CARRIERS.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                role="tab"
-                aria-selected={carrier === c.value}
-                onClick={() => {
-                  setCarrier(c.value);
-                  resetPage();
-                }}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors",
-                  carrier === c.value ? c.active : "text-slate-600 hover:bg-slate-100",
-                )}
-              >
-                {c.label}
-                {(data?.carrierCounts?.[c.value] ?? 0) > 0 && (
-                  <span
-                    title="Pendientes"
-                    className={cn("rounded-full px-1.5 text-[11px] tabular-nums", carrier === c.value ? "bg-white/25" : "bg-slate-100 text-slate-600")}
-                  >
-                    {data?.carrierCounts?.[c.value]}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+          <CarrierSwitch
+            className="mr-2"
+            value={carrier}
+            onChange={(c) => {
+              setCarrier(c);
+              resetPage();
+            }}
+            counts={data?.carrierCounts}
+            countTitle="Pendientes"
+          />
           {VIEWS.map((v) => (
             <Button
               key={v}
@@ -172,7 +152,7 @@ function BandejaCorreosPage() {
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
             <CalendarRange className="h-4 w-4 shrink-0 text-sky-600" />
             <span>
-              Hay <b>{data.outsideDates.count}</b> correo(s) de {CARRIERS.find((c) => c.value === carrier)?.label} en “{VIEW_LABEL[view]}” fuera de estas fechas.
+              Hay <b>{data.outsideDates.count}</b> correo(s) de {CARRIER_LABEL[carrier]} en “{VIEW_LABEL[view]}” fuera de estas fechas.
             </span>
             <Button
               size="sm"

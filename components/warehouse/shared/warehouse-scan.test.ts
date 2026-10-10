@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { orderWarehousePackages, warehouseCarrierLabel } from "./warehouse-scan"
+import { orderWarehousePackages, warehouseCarrierLabel, warehouseCityLabel } from "./warehouse-scan"
 
 const pkgs: any[] = [
   { trackingNumber: "D1", shipmentType: "dhl", recipientZip: "83000" },
@@ -24,5 +24,23 @@ describe("orderWarehousePackages", () => {
   it("etiqueta de grupo", () => {
     expect(warehouseCarrierLabel(pkgs[3])).toBe("FedEx")
     expect(warehouseCarrierLabel(pkgs[0])).toBe("DHL")
+  })
+})
+
+describe("orden por ciudad", () => {
+  const byCity: any[] = [
+    { trackingNumber: "A", shipmentType: "dhl", recipientZip: "85000", zoneCity: "GUAYMAS" },
+    { trackingNumber: "B", shipmentType: "fedex", recipientZip: "83200", recipientCity: "hermosillo" },
+    { trackingNumber: "C", shipmentType: "fedex", recipientZip: "" },
+    { trackingNumber: "D", shipmentType: "fedex", recipientZip: "83100", zoneCity: "HERMOSILLO" },
+  ]
+
+  it("ciudad A→Z, luego CP; 'Sin ciudad' al final", () => {
+    expect(orderWarehousePackages(byCity, "city").map((p) => p.trackingNumber)).toEqual(["A", "D", "B", "C"])
+  })
+
+  it("la ciudad de la memoria de CP gana a la de la guía", () => {
+    expect(warehouseCityLabel({ zoneCity: "CAJEME", recipientCity: "obregon" } as any)).toBe("CAJEME")
+    expect(warehouseCityLabel({ recipientCity: "N/A" } as any)).toBe("Sin ciudad")
   })
 })
