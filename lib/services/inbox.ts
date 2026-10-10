@@ -2,6 +2,7 @@ import { axiosConfig } from "../axios-config";
 import {
   AttachmentKind,
   BoardRow,
+  InboxCarrier,
   InboxDetail,
   InboxListResult,
   InboxStatusInfo,
@@ -13,6 +14,7 @@ const baseUrl = "/inbox";
 
 export interface InboxListParams {
   status: InboxView;
+  carrier: InboxCarrier;
   subsidiaryId?: string;
   from?: string;
   to?: string;
@@ -60,6 +62,12 @@ export const addZipCoverage = async (body: { zip: string; subsidiaryId: string; 
 
 export const rebuildZipCoverage = async (): Promise<{ pairs: number; days: number }> =>
   (await axiosConfig.post(`${baseUrl}/zip-coverage/rebuild`)).data;
+
+/** Adjunto como File (p. ej. para pasarlo a un asistente de importación). */
+export async function getInboxAttachmentFile(id: string, filename: string): Promise<File> {
+  const res = await axiosConfig.get(`${baseUrl}/attachments/${id}/download`, { responseType: "blob" });
+  return new File([res.data as Blob], filename, { type: (res.data as Blob).type || "application/octet-stream" });
+}
 
 /** Descarga un adjunto con el token (no se puede con un <a href> directo). */
 export async function downloadInboxAttachment(id: string, filename: string): Promise<void> {

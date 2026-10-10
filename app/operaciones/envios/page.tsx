@@ -43,7 +43,7 @@ import { useRouter } from "next/navigation"
  */
 const PASTE_AS_PAGE = true
 import { SucursalSelector } from "@/components/sucursal-selector"
-import { updateFromDHL, uploadShipmentFileDhl, parseDhlExcelFile } from "@/lib/services/shipments"
+import { dhlFinalSave, dhlParseFile, dhlProcessText } from "@/lib/services/dhl-import"
 import { ImportDhlTextModal, ParsedDhlShipment, FinalDhlSubmission } from "@/components/import-components/import-dhl-text-modal" // <-- Importamos FinalDhlSubmission
 import { PasteImportModal } from "@/components/import-components/paste-import-modal"
 
@@ -76,12 +76,7 @@ function ShipmentsPage() {
   // Handler para el texto plano de DHL (Paso 1 del Wizard)
   const handleProcessDhlText = async (text: string): Promise<ParsedDhlShipment[]> => {
     try {
-      // IMPORTANTE: Asegúrate de que uploadShipmentFileDhl retorne el arreglo JSON
-      const responseData = await uploadShipmentFileDhl(text, (progress) => {
-        console.log(`Enviando texto: ${progress}%`);
-      });
-      
-      return responseData; // Retornamos el array para que el modal lo dibuje en el Paso 2
+      return await dhlProcessText(text); // el modal lo dibuja en el Paso 2
     } catch (error) {
       console.error("Error procesando texto plano:", error);
       toast.error("Hubo un error al procesar el texto.");
@@ -92,30 +87,13 @@ function ShipmentsPage() {
   // TEMPORAL: leer el Excel nativo de DHL (3 hojas) y devolver el preview
   // (combinado, con vencimientos precargados) para el Paso 2 del Wizard.
   const handleParseDhlFile = async (file: File): Promise<ParsedDhlShipment[]> => {
-    return parseDhlExcelFile(file)
+    return dhlParseFile(file)
   }
 
   // Handler para el guardado final (Paso 3 del Wizard)
   const handleFinalSaveDhl = async (data: FinalDhlSubmission) => {
-    const formData = new FormData();
-    formData.append('file', data.file);
-    formData.append('subsidiaryId', data.subsidiaryId);
-    
-    // Pasamos el string de la fecha tal cual (ej. "2026-04-29")
-    if (data.consDate) {
-      formData.append('consDate', data.consDate);
-    }
-    
-    // Pasamos el número de consolidado si existe
-    if (data.consNumber && data.consNumber.trim() !== '') {
-      formData.append('consNumber', data.consNumber.trim());
-    }
-
     try {
-      await updateFromDHL(formData, (progress) => {
-        console.log(`Subiendo archivo final: ${progress}%`);
-      });    
-      
+      await dhlFinalSave(data);
       toast.success("Envíos importados correctamente en la base de datos.");
     } catch (error) {
       console.error("Error al guardar en BD:", error);

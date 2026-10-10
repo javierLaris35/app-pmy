@@ -13,14 +13,14 @@ import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
 import { useInboxMessages } from "@/hooks/services/inbox/use-inbox";
 import { inboxErrorText, syncInbox } from "@/lib/services/inbox";
-import { InboxView } from "@/lib/types/inbox";
+import { InboxCarrier, InboxView } from "@/lib/types/inbox";
 import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { getInboxColumns } from "@/components/bandeja-correos/inbox-columns";
 import { InboxDetailSheet } from "@/components/bandeja-correos/inbox-detail-sheet";
 import { VIEW_LABEL, hmoDay } from "@/components/bandeja-correos/labels";
-import { Inbox, Loader2, RefreshCw, Search } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Search, CalendarRange } from "lucide-react";
 
 const VIEWS: InboxView[] = ["falta_confirmar", "listos", "subidos", "todos", "ignorado"];
 const EMPTY: Record<InboxView, string> = {
@@ -31,10 +31,16 @@ const EMPTY: Record<InboxView, string> = {
   ignorado: "No hay correos ignorados",
 };
 
+const CARRIERS: { value: InboxCarrier; label: string; active: string }[] = [
+  { value: "fedex", label: "FedEx", active: "bg-[#4D148C] text-white" },
+  { value: "dhl", label: "DHL", active: "bg-[#FFCC00] text-[#D40511]" },
+];
+
 function BandejaCorreosPage() {
   const user = useAuthStore((s) => s.user);
   const canConfigure = hasPermission(user, "correo.configurar");
 
+  const [carrier, setCarrier] = useState<InboxCarrier>("fedex");
   const [view, setView] = useState<InboxView>("falta_confirmar");
   const [subsidiaryId, setSubsidiaryId] = useState("");
   const [from, setFrom] = useState(() => hmoDay(-6));
@@ -45,6 +51,7 @@ function BandejaCorreosPage() {
   const [syncing, setSyncing] = useState(false);
 
   const { data, isLoading, mutate } = useInboxMessages({
+    carrier,
     status: view,
     subsidiaryId: subsidiaryId || undefined,
     from,
@@ -62,7 +69,7 @@ function BandejaCorreosPage() {
     try {
       const r = await syncInbox();
       if (r.skipped) toast.info(r.skipped);
-      else toast.success(r.saved ? `Llegaron ${r.saved} correos nuevos de FedEx` : "No hay correos nuevos");
+      else toast.success(r.saved ? `Llegaron ${r.saved} correos nuevos` : "No hay correos nuevos");
       await mutate();
     } catch (e) {
       toast.error(inboxErrorText(e, "No se pudo leer el correo"));
@@ -77,7 +84,7 @@ function BandejaCorreosPage() {
         <OperationHeader
           icon={Inbox}
           title="Bandeja de correos"
-          description="Archivos de FedEx (y pronto DHL) que llegan a sistemas@, listos para subir"
+          description="Archivos de FedEx y DHL que llegan a sistemas@, listos para subir"
           actions={
             <div className="flex items-center gap-2">
               <div className="w-56">
@@ -101,6 +108,35 @@ function BandejaCorreosPage() {
         />
 
         <div className="flex flex-wrap items-center gap-1.5">
+          {/* Paquetería: cada una con su propia lista (DHL = remitente de un dominio DHL). */}
+          <div className="mr-2 inline-flex rounded-full border bg-white p-0.5" role="tablist" aria-label="Paquetería">
+            {CARRIERS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                role="tab"
+                aria-selected={carrier === c.value}
+                onClick={() => {
+                  setCarrier(c.value);
+                  resetPage();
+                }}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors",
+                  carrier === c.value ? c.active : "text-slate-600 hover:bg-slate-100",
+                )}
+              >
+                {c.label}
+                {(data?.carrierCounts?.[c.value] ?? 0) > 0 && (
+                  <span
+                    title="Pendientes"
+                    className={cn("rounded-full px-1.5 text-[11px] tabular-nums", carrier === c.value ? "bg-white/25" : "bg-slate-100 text-slate-600")}
+                  >
+                    {data?.carrierCounts?.[c.value]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
           {VIEWS.map((v) => (
             <Button
               key={v}
@@ -131,6 +167,27 @@ function BandejaCorreosPage() {
             />
           </div>
         </div>
+
+        {data?.outsideDates && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+            <CalendarRange className="h-4 w-4 shrink-0 text-sky-600" />
+            <span>
+              Hay <b>{data.outsideDates.count}</b> correo(s) de {CARRIERS.find((c) => c.value === carrier)?.label} en “{VIEW_LABEL[view]}” fuera de estas fechas.
+            </span>
+            <Button
+              size="sm"
+              variant="link"
+              className="h-auto p-0 text-sky-700"
+              onClick={() => {
+                setFrom(data.outsideDates!.oldestDay);
+                setTo(hmoDay(0));
+                resetPage();
+              }}
+            >
+              Ver todos
+            </Button>
+          </div>
+        )}
 
         {isLoading && !data ? (
           <div className="flex h-32 items-center justify-center rounded-md border bg-white text-sm text-slate-500">

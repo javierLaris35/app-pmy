@@ -88,6 +88,20 @@ function WizardStepper({ step }: { step: number }) {
   )
 }
 
+/** Datos para abrir el asistente ya lleno (p. ej. desde la Bandeja de correos). Cambia `key` para volver a llenarlo. */
+export interface DhlPrefill {
+  key: string;
+  /** Texto a pegar (bloques "AWB :" del cuerpo del correo). */
+  text?: string | null;
+  /** Excel DHL de 3 hojas: si no hay texto, se lee directo. */
+  file?: File | null;
+  subsidiaryId?: string;
+  /** Vencimientos por guía o JD (yyyy-MM-dd) para precargar la tabla al procesar el texto. */
+  dueDates?: Record<string, string>;
+  /** Aviso de dónde salieron los datos ("Tomado del correo …"). */
+  sourceLabel?: string;
+}
+
 interface ImportDhlTextModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -95,6 +109,9 @@ interface ImportDhlTextModalProps {
   onFinalSave: (data: FinalDhlSubmission) => Promise<void>;
   /** TEMPORAL: parseo del Excel de DHL (combina 3 hojas) para armar el preview. */
   onParseFile?: (file: File) => Promise<ParsedDhlShipment[]>;
+  prefill?: DhlPrefill | null;
+  /** Se llama al terminar de guardar con éxito. */
+  onImported?: () => void;
   defaultSubsidiaryId?: string;
 }
 
@@ -104,7 +121,9 @@ export function ImportDhlTextModal({
   onProcessText,
   onFinalSave,
   onParseFile,
-  defaultSubsidiaryId = ""
+  defaultSubsidiaryId = "",
+  prefill = null,
+  onImported,
 }: ImportDhlTextModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [text, setText] = useState("")
@@ -133,6 +152,18 @@ export function ImportDhlTextModal({
     }
   }, [isOpen, defaultSubsidiaryId])
 
+  // Llenado desde fuera (Bandeja): mismo estado que al pegar a mano. Si solo hay Excel, se lee directo.
+  useEffect(() => {
+    if (!isOpen || !prefill) return
+    setStep(1)
+    setText(prefill.text ?? "")
+    setParsedData([])
+    setDueDates({})
+    setOrigin("paste")
+    if (prefill.subsidiaryId) setSubsidiaryId(prefill.subsidiaryId)
+    if (!prefill.text && prefill.file) void handleFileParse(prefill.file)
+  }, [isOpen, prefill?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleClose = () => {
     onOpenChange(false)
     setTimeout(() => {
@@ -160,9 +191,18 @@ export function ImportDhlTextModal({
       }
       setOrigin("paste")
       setParsedData(data)
-      setDueDates({})
+      // Vencimientos que trae el Excel del correo (por JD y, si no, por guía); el resto se captura.
+      const seeded: Record<string, string> = {}
+      if (prefill?.dueDates) {
+        data.forEach((item) => {
+          const d = (item.pid && prefill.dueDates?.[item.pid]) || prefill.dueDates?.[item.awb]
+          if (d) seeded[dueKey(item)] = d
+        })
+      }
+      setDueDates(seeded)
       setStep(2)
-      toast.success(`${data.length} paquete(s) detectado(s).`)
+      const n = Object.keys(seeded).length
+      toast.success(`${data.length} paquete(s) detectado(s).${n ? ` ${n} con vencimiento del Excel del correo.` : ""}`)
     } catch (error: any) {
       console.error("Error al procesar el texto", error)
       toast.error(error?.response?.data?.message || "No se pudo procesar el texto de DHL.")
@@ -249,6 +289,7 @@ export function ImportDhlTextModal({
       setIsLoading(true)
       await onFinalSave({ file: buildLayoutFile(), subsidiaryId, consDate, consNumber })
       toast.success("Envíos DHL importados correctamente.")
+      onImported?.()
       handleClose()
     } catch (error: any) {
       console.error("Error al guardar los envíos", error)
@@ -266,6 +307,7 @@ export function ImportDhlTextModal({
       setIsLoading(true)
       await onFinalSave({ file, subsidiaryId, consDate, consNumber })
       toast.success("Envíos DHL importados correctamente.")
+      onImported?.()
       handleClose()
     } catch (error: any) {
       console.error("Error al guardar los envíos finales", error)
@@ -389,6 +431,18 @@ export function ImportDhlTextModal({
           {/* --- PASO 1 --- */}
           {step === 1 && (
             <div className="grid gap-5 animate-in fade-in slide-in-from-right-4 duration-500 h-full flex-col flex">
+              {prefill?.sourceLabel && (
+                <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                  <p>
+                    {prefill.sourceLabel}
+                    {prefill.text ? " Revisa el texto y da clic en Procesar." : ""}
+                    {prefill.dueDates && Object.keys(prefill.dueDates).length > 0
+                      ? " Los vencimientos se toman del Excel del correo."
+                      : " El correo no trae vencimientos: se capturan en la tabla."}
+                  </p>
+                </div>
+              )}
               {/* TEMPORAL: subir el Excel nativo de DHL (3 hojas) — AL INICIO.
                   Combina Shipment+Piece y precarga los vencimientos (EDD). */}
               {onParseFile && (

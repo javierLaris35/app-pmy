@@ -2,7 +2,7 @@ import useSWR from "swr";
 import { getInboxBoard, getInboxMessage, getInboxMessages, getInboxStatus, getZipCoverage, InboxListParams } from "@/lib/services/inbox";
 
 export function useInboxMessages(p: InboxListParams) {
-  const key = ["/inbox/messages", p.status, p.subsidiaryId ?? "", p.from ?? "", p.to ?? "", p.q ?? "", p.page ?? 1, p.pageSize ?? 50];
+  const key = ["/inbox/messages", p.carrier, p.status, p.subsidiaryId ?? "", p.from ?? "", p.to ?? "", p.q ?? "", p.page ?? 1, p.pageSize ?? 50];
   const { data, isLoading, error, mutate } = useSWR(key, () => getInboxMessages(p), { refreshInterval: 60_000 });
   return { data, isLoading, isError: !!error, mutate };
 }
