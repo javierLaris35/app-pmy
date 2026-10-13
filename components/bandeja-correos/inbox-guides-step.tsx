@@ -297,6 +297,7 @@ export function InboxGuidesStep({ messageId, subject, ready, canUpload, onChange
         subsidiaryId={prefill?.subsidiaryId}
         prefill={prefill}
         onImported={handleImported}
+        uploadMethod="bandeja_correo"
       />
     </div>
   );

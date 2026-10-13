@@ -102,6 +102,7 @@ function ImportacionesPage() {
                 <TableHead>Consolidado</TableHead>
                 <TableHead className="text-right">Filas</TableHead>
                 <TableHead>Subió</TableHead>
+                <TableHead>Método</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead className="text-right">Descargar</TableHead>
               </TableRow>
@@ -109,14 +110,14 @@ function ImportacionesPage() {
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   </TableCell>
                 </TableRow>
               )}
               {!loading && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     Sin archivos para los filtros seleccionados.
                   </TableCell>
                 </TableRow>
@@ -129,6 +130,7 @@ function ImportacionesPage() {
                   <TableCell className="text-muted-foreground">{f.consNumber ?? "—"}</TableCell>
                   <TableCell className="text-right">{f.rowCount ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{f.uploadedByName ?? "—"}</TableCell>
+                  <TableCell className="max-w-64 text-xs text-muted-foreground">{f.uploadMethodLabel ?? "Sin dato del método"}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(String(f.createdAt))}</TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="outline" disabled={busyId === f.id} onClick={() => handleDownload(f)}>

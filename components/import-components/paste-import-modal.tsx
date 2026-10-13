@@ -23,6 +23,8 @@ import { PasteTutorial, PASTE_SPOTLIGHT, PasteEmptyHint } from "./paste-tutorial
 import { LoaderWithOverlay } from "@/components/loader";
 import { runSpotlight, useTutorialFirstView } from "@/components/shared/tutorial";
 import { toast } from "@/lib/toast";
+import { f2UploadWarnings } from "@/lib/f2-upload-warnings";
+import type { UploadMethod } from "@/lib/upload-method";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import {
   uploadShipmentFile,
@@ -191,7 +193,10 @@ export interface PastePrefill {
 
 export function PasteImportModal({
   open = true, onOpenChange, subsidiaryId, asPage = false, onClose, helpHandleRef, prefill, onImported,
+  uploadMethod = "pegar_fedex",
 }: {
+  /** Pantalla desde la que se sube (Importaciones y campana). Default: Pegar desde FedEx. */
+  uploadMethod?: UploadMethod;
   /** Abre el pegado ya lleno; cambia `key` para volver a llenarlo. */
   prefill?: PastePrefill | null;
   /** Se llama al terminar de importar con éxito. */
@@ -517,7 +522,7 @@ export function PasteImportModal({
       const file = buildXlsx(table.fields, good.map((r) => r.values), `pegado_${kind}_${Date.now()}.xlsx`);
       const summary: SubmitResult = { kind, saved: good.length };
       if (kind === "master") {
-        const { res, confirmed } = await uploadWithWatch(file, () => uploadShipmentFile(file, localSubsidiaryId, consNumber, consDate || undefined, isAereo));
+        const { res, confirmed } = await uploadWithWatch(file, () => uploadShipmentFile(file, localSubsidiaryId, consNumber, consDate || undefined, isAereo, undefined, uploadMethod));
         summary.confirmedByCheck = confirmed || undefined;
         // El preview (mismo cálculo del backend) trae el desglose nuevas/reingresos/ya importadas.
         summary.saved = Number(preview?.newCount ?? res?.saved ?? res?.summary?.migrated ?? res?.count ?? good.length) || good.length;
@@ -531,17 +536,18 @@ export function PasteImportModal({
             hvRows.map((r) => r.values),
             `hv_${Date.now()}.xlsx`,
           );
-          try { await uploadHighValueShipments(hvFile, localSubsidiaryId, consNumber, consDate || undefined); summary.hvMarked = hvRows.length; }
+          try { await uploadHighValueShipments(hvFile, localSubsidiaryId, consNumber, consDate || undefined, undefined, uploadMethod); summary.hvMarked = hvRows.length; }
           catch (e: any) { summary.hvFailed = true; toast.error(`Se importaron los envíos, pero falló marcar Alto Valor: ${e?.message ?? ""}`); }
         }
       } else {
-        const { res, confirmed } = await uploadWithWatch(file, () => uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon, secondAbord));
+        const { res, confirmed } = await uploadWithWatch(file, () => uploadF2ChargeShipments(file, localSubsidiaryId, consNumber, consDate || undefined, notRemoveCharge, isHalfTon, secondAbord, undefined, uploadMethod));
         summary.confirmedByCheck = confirmed || undefined;
         const insertedNew = Number(res?.summary?.insertedNew ?? 0);
         const migrated = Number(res?.summary?.migrated ?? 0);
         const savedF2 = insertedNew + migrated;
         summary.saved = savedF2 || (Array.isArray(res?.savedChargeShipments) ? res.savedChargeShipments.length : good.length);
         summary.duplicated = Number(res?.summary?.duplicated ?? res?.duplicated ?? 0) || undefined;
+        f2UploadWarnings(res).forEach((w) => toast.warning(w, { duration: 20000 }));
         // Cobros: aplica los pagos pegados a las cargas recién creadas (endpoint separado;
         // el backend resuelve la carga por consNumber+guía con resolveCobroTarget y hace upsert).
         const payRows = good.filter((r) => String(r.values["cod"] ?? "").trim().length > 0);
@@ -552,7 +558,7 @@ export function PasteImportModal({
             `cobros_f2_${Date.now()}.xlsx`,
           );
           try {
-            const payRes: any = await uploadShipmentPayments(payFile, consNumber || undefined);
+            const payRes: any = await uploadShipmentPayments(payFile, consNumber || undefined, undefined, uploadMethod);
             summary.cobrosApplied = (payRes?.applied ?? 0) + (payRes?.appliedToCharges ?? 0);
             summary.cobrosUnmatched = payRes?.unmatched ?? 0;
           } catch (e: any) {
@@ -874,7 +880,7 @@ export function PasteImportModal({
                   <>
                     <SwitchRow
                       label="Migrar de envíos a cargas"
-                      hint="Encendido = migra guías ya existentes. Apagado = las guarda directo como carga."
+                      hint="Encendido = si el master de este consolidado ya trae la guía como paquete, se quita de paquetes. Apagado = se guarda directo como carga sin quitar nada."
                       checked={!notRemoveCharge}
                       onCheckedChange={(v) => setNotRemoveCharge(!v)}
                     />

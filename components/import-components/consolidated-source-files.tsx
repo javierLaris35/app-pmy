@@ -62,6 +62,7 @@ export function ConsolidatedSourceFiles({ consolidatedId }: { consolidatedId: st
             <Badge variant="secondary" className="text-[11px]">{IMPORT_KIND_LABEL[f.kind] ?? f.kind}</Badge>
             {f.rowCount != null && <span className="text-muted-foreground">{f.rowCount} filas</span>}
             {f.uploadedByName && <span className="text-muted-foreground">· {f.uploadedByName}</span>}
+            {f.uploadMethodLabel && <span className="text-muted-foreground">· método: {f.uploadMethodLabel}</span>}
             <span className="text-muted-foreground">· {formatDate(String(f.createdAt))}</span>
             <Button size="sm" variant="outline" className="ml-auto" disabled={busyId === f.id} onClick={() => handleDownload(f)}>
               {busyId === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Download className="mr-1 h-4 w-4" /> Descargar</>}

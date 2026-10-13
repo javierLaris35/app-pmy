@@ -41,6 +41,7 @@ import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { IconTruckLoading } from "@tabler/icons-react"
 import { SwitchRow } from "@/components/shared/switch-row"
+import { f2UploadWarnings } from "@/lib/f2-upload-warnings"
 
 // Importación de Driver.js para el tutorial
 import { driver } from "driver.js"
@@ -295,13 +296,14 @@ export function ShipmentWizardModal({
       setLoading(true);
       let res: any = null
       let uploaded = false
-      if (step === 0 && files[0]) { res = await uploadShipmentFile(files[0], sucursalId, consNumber, date || ""); uploaded = true }
-      else if (step === 1 && files[1]) { res = await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true); uploaded = true }
-      else if (step === 2 && files[2]) { res = await uploadHighValueShipments(files[2], sucursalId, consNumber, date || ""); uploaded = true }
-      else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge, isHalfTon, secondAbord); uploaded = true }
-      else if (step === 4 && files[4]) { res = await uploadShipmentPayments(files[4], consNumber); uploaded = true }
+      if (step === 0 && files[0]) { res = await uploadShipmentFile(files[0], sucursalId, consNumber, date || "", false, undefined, "asistente"); uploaded = true }
+      else if (step === 1 && files[1]) { res = await uploadShipmentFile(files[1], sucursalId, consNumber, date || "", true, undefined, "asistente"); uploaded = true }
+      else if (step === 2 && files[2]) { res = await uploadHighValueShipments(files[2], sucursalId, consNumber, date || "", undefined, "asistente"); uploaded = true }
+      else if (step === 3 && files[3]) { res = await uploadF2ChargeShipments(files[3], sucursalId, consNumber, date || "", notRemoveCharge, isHalfTon, secondAbord, undefined, "asistente"); uploaded = true }
+      else if (step === 4 && files[4]) { res = await uploadShipmentPayments(files[4], consNumber, undefined, "asistente"); uploaded = true }
 
       if (res) toast.success(summarizeResult(step, res))
+      if (res && step === 3) f2UploadWarnings(res).forEach((w) => toast.warning(w, { duration: 20000 }))
       if (uploaded) setUploadedSteps((prev) => new Set(prev).add(step))
 
       if (step < steps.length - 1) {
@@ -328,7 +330,7 @@ export function ShipmentWizardModal({
       // Migrar (processFileF2): summary con migradas/nuevas/duplicadas.
       if (res?.summary) {
         const dup = res.summary.duplicated ? `, ${res.summary.duplicated} duplicadas` : ""
-        return `F2: ${res.summary.migrated ?? 0} migradas, ${res.summary.insertedNew ?? 0} nuevas${dup}${res.summary.failed ? `, ${res.summary.failed} con error` : ""}.`
+        return `F2: ${res.summary.migrated ?? 0} quitadas de paquetes, ${res.summary.insertedNew ?? 0} nuevas${dup}${res.summary.failed ? `, ${res.summary.failed} con error` : ""}.`
       }
       // Sin migrar (addChargeShipments): re-subida completa devuelve message.
       if (res?.message) return res.message
@@ -465,8 +467,8 @@ export function ShipmentWizardModal({
               label="Guardar F2 directo en cargos (no migrar)"
               hint={
                 notRemoveCharge
-                  ? "ACTIVO: las guías se guardan DIRECTO en cargos. No se elimina nada de shipments."
-                  : "INACTIVO (normal): las guías que ya estén en shipments se MIGRAN a cargos (se eliminan de shipments)."
+                  ? "ACTIVO: las guías se guardan directo como carga. No se quita nada de paquetes."
+                  : "INACTIVO (normal): si el master de este consolidado ya trae la guía como paquete, se quita de paquetes y queda solo como carga."
               }
               checked={notRemoveCharge}
               onCheckedChange={setNotRemoveCharge}

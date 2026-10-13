@@ -1,5 +1,6 @@
 "use client"
 
+import type { Subsidiary } from "@/lib/types"
 import { useState, useRef, useCallback } from "react"
 import {
   Upload,
@@ -119,9 +120,9 @@ export function CSVUploadModal({
       }
 
       if (activeTab === "file" && file) {
-        await uploadShipmentFile(file, selectedSucursalId)
+        await uploadShipmentFile(file, selectedSucursalId, "", undefined, false, undefined, "subida_rapida")
       } else if (activeTab === "text" && textInput.trim()) {
-        await uploadShipmentFileDhl(textInput, file) ///*, selectedSucursalId*/ aún no se ha implementado el ID de sucursal en esta función
+        await uploadShipmentFileDhl(textInput) // aún no recibe la sucursal
       } else {
         setError(
           activeTab === "file"
@@ -172,7 +173,7 @@ export function CSVUploadModal({
           <Label htmlFor="sucursal">Sucursal destino</Label>
           <SucursalSelector
             value={selectedSucursalId}
-            onValueChange={setSelectedSucursalId}
+            onValueChange={(v) => setSelectedSucursalId(typeof v === "string" ? v : (v as Subsidiary)?.id ?? "")}
           />
         </div>
 

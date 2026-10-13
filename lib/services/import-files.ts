@@ -13,6 +13,8 @@ export interface ImportFileItem {
   consNumber: string | null;
   consolidatedId: string | null;
   uploadedByName: string | null;
+  /** Desde dónde se subió, en llano ("Asistente de subida (paso a paso) · F2 directo…"). */
+  uploadMethodLabel?: string;
   createdAt: string;
 }
 

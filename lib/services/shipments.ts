@@ -3,6 +3,7 @@ import { axiosConfig } from "../axios-config";
 import { AddShipmentDto, SearchShipmentDto, Shipment } from "../types";
 import type { CreatedManualShipment } from "@/lib/manual-shipment";
 import { ParsedDhlShipment } from '@/components/import-components/import-dhl-text-modal';
+import type { UploadMethod } from "@/lib/upload-method";
 
 const url = '/shipments'
 
@@ -117,13 +118,15 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     consNumber: string = '',
     consDate?: string,
     isAereo: boolean = false,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    uploadMethod?: UploadMethod,
   ) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('subsidiaryId', subsidiaryId);
     formData.append('consNumber', consNumber);
     formData.append('isAereo', String(isAereo));
+    if (uploadMethod) formData.append('uploadMethod', uploadMethod);
 
     if (consDate) {
       try {
@@ -223,12 +226,14 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     subsidiaryId: string,
     consNumber: string = "",
     consDate?: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    uploadMethod?: UploadMethod,
   ) {
     const formData = new FormData()
     formData.append("file", file)
     formData.append("subsidiaryId", subsidiaryId)
     formData.append("consNumber", consNumber || "")
+    if (uploadMethod) formData.append("uploadMethod", uploadMethod)
 
     // Solo agrega consDate si existe
     if (consDate) {
@@ -257,9 +262,11 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
     notRemoveCharge: boolean = false,
     isHalfTon: boolean = false,
     secondAbord?: boolean,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    uploadMethod?: UploadMethod,
   ) {
     const formData = new FormData()
+    if (uploadMethod) formData.append("uploadMethod", uploadMethod)
     formData.append("file", file)
     formData.append("subsidiaryId", subsidiaryId)
     formData.append("consNumber", consNumber || "")
@@ -290,9 +297,11 @@ export function extractUploadError(error: any, fallback = "Error al procesar el 
   export async function uploadShipmentPayments(
     file?: File,
     consNumber?: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    uploadMethod?: UploadMethod,
   ) {
     const formData = new FormData()
+    if (uploadMethod) formData.append("uploadMethod", uploadMethod)
     if (file) formData.append("file", file)
     // consNumber acota el match del cobro al consolidado capturado en el wizard
     // (shipment o charge_shipment). Ver processFileCharges en el backend.
