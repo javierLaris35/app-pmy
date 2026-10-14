@@ -117,7 +117,17 @@ export default function ClosePackageDispatchWizard({
     }
   }, [dispatchId, toast]);
 
+  // `toast` y `onClose` por ref: el padre pasa `onClose` como función nueva en cada render, y
+  // tenerla en las dependencias re-disparaba la reconciliación con la primera aún en curso
+  // (ingresos duplicados en el mismo segundo: Santa Ana 383781147421, Sonoyta 05-oct).
+  const toastRef = useRef(toast);
+  const onCloseRef = useRef(onClose);
+  toastRef.current = toast;
+  onCloseRef.current = onClose;
+
   useEffect(() => {
+    const toast = toastRef.current;
+    const onClose = () => onCloseRef.current();
     const fetchDispatchData = async () => {
       setIsLoading(true);
       try {
@@ -156,7 +166,7 @@ export default function ClosePackageDispatchWizard({
     if (dispatchId) {
       fetchDispatchData();
     }
-  }, [dispatchId, toast, onClose]);
+  }, [dispatchId]);
 
   // Opciones del catálogo DHL (extendible desde Configuración → Catálogos).
   useEffect(() => {

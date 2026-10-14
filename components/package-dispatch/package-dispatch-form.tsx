@@ -138,18 +138,26 @@ const PackageDispatchForm: React.FC<Props> = ({
     'dispatch_route_date',
     new Date().toLocaleDateString('en-CA'), // 'YYYY-MM-DD' local
   );
+  // Rango permitido de la fecha de ruta: cualquier día pasado (backfill) y hasta MAÑANA (ruta que
+  // se arma la noche anterior). Más allá es un error de captura.
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const tomorrowStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString('en-CA');
+  })();
   const [is315, setIs315] = useLocalStorage<boolean>(
     'dispatch_is315',
     false,
   );
 
-  // Guarda del footgun: un `routeDate` persistido de un día ANTERIOR no debe acarrearse
-  // silenciosamente al reabrir el formulario (eso dejaba rutas fechadas "ayer" sin querer,
-  // que luego blindaban el estatus en el sync). Al montar se re-ancla a HOY; un backfill
-  // deliberado se vuelve a elegir en el momento y queda avisado abajo.
+  // Guarda del footgun: un `routeDate` persistido de OTRO día no debe acarrearse en silencio al
+  // reabrir el formulario (rutas fechadas "ayer" blindaban el estatus en el sync; una fecha
+  // futura recordada dejó la ruta c92b351d del 13-oct fechada el 14 y su DEX07 no se cobró).
+  // Al montar se re-ancla a HOY; un backfill o la ruta de mañana se eligen en el momento.
   useEffect(() => {
     const today = new Date().toLocaleDateString('en-CA');
-    if (routeDate && routeDate < today) setRouteDate(today);
+    if (routeDate && routeDate !== today) setRouteDate(today);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [packages, setPackages] = useLocalStorage<PackageInfo[]>(
@@ -878,15 +886,16 @@ const PackageDispatchForm: React.FC<Props> = ({
                 <Input
                   type="date"
                   value={routeDate}
-                  onChange={(e) => setRouteDate(e.target.value)}
+                  max={tomorrowStr}
+                  onChange={(e) => setRouteDate(e.target.value > tomorrowStr ? tomorrowStr : e.target.value)}
                   disabled={isLoading}
                   className="w-full"
                 />
-                {routeDate !== new Date().toLocaleDateString('en-CA') && (
+                {routeDate !== todayStr && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                     <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
-                      Fecha retroactiva: los paquetes se registrarán con la ruta del{" "}
+                      {routeDate > todayStr ? "Fecha futura" : "Fecha retroactiva"}: los paquetes se registrarán con la ruta del{" "}
                       <strong>
                         {new Date(`${routeDate}T00:00:00`).toLocaleDateString("es-MX", {
                           weekday: "short",
