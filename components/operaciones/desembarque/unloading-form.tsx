@@ -606,7 +606,6 @@ export default function UnloadingForm({
 
   const [completeDataModalOpen, setCompleteDataModalOpen] = useState(false);
   const [selectedPackageForData, setSelectedPackageForData] = useState<Shipment | null>(null);
-  const [packagesNeedingData, setPackagesNeedingData] = useState<Shipment[]>([]);
 
   const [correctTrackingModalOpen, setCorrectTrackingModalOpen] = useState(false);
   const [selectedTrackingToCorrect, setSelectedTrackingToCorrect] = useState<string>("");
@@ -670,17 +669,9 @@ export default function UnloadingForm({
   
   const { speak: speakMessage } = useBrowserVoice({ pitch: 0.8, rate: 1.3 });
 
-  const checkPackageNeedsData = useCallback((pkg: Shipment): boolean => {
-    return pkg.isValid && (!pkg.recipientName || !pkg.recipientAddress || !pkg.recipientPhone);
-  }, []);
-
-  const findPackagesNeedingData = useCallback((shipmentsList: Shipment[]): Shipment[] => {
-    return shipmentsList.filter(checkPackageNeedsData);
-  }, [checkPackageNeedsData]);
-
-  useEffect(() => {
-    setPackagesNeedingData(findPackagesNeedingData(safeShipments as unknown as Shipment[]));
-  }, [safeShipments, findPackagesNeedingData]);
+  // Los datos de contacto (nombre/dirección/teléfono) NO bloquean "Procesar": el
+  // desembarque solo envía los ids de las guías, así que exigirlos detenía la
+  // operación por una guía sin teléfono (p. ej. alta manual) sin guardar nada.
 
   const handleSavePackageData = useCallback((trackingNumber: string, data: { recipientName: string; recipientAddress: string; recipientPhone: string }) => {
     setShipments(prev => 
@@ -1719,7 +1710,7 @@ export default function UnloadingForm({
           <DialogFooter className="flex-row justify-between gap-2 border-t bg-background p-3 sm:p-4">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2">Cancelar</Button>
             <div className="flex gap-2">
-              <Button id="process-button" onClick={handleUnloading} disabled={isLoading || !canUnload || packagesNeedingData.length > 0} className="gap-2">
+              <Button id="process-button" onClick={handleUnloading} disabled={isLoading || !canUnload} className="gap-2">
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Procesar
               </Button>
               <Button variant="outline" onClick={handleExport} disabled={isLoading || shipmentsArray.length === 0} className="gap-2">
