@@ -35,6 +35,15 @@ interface SucursalSelectorProps {
   insideAModal?: boolean
   /** Para usarlo dentro de un campo del sistema nuevo (Field): sin borde ni ícono propios. */
   bare?: boolean
+  /** Sucursales que no deben aparecer (p. ej. la bodega de origen en un traspaso). */
+  excludeIds?: string[]
+  /**
+   * Si es true (default) y no hay valor, se preselecciona la sucursal del usuario.
+   * Apagarlo cuando la elección debe ser consciente (destino de un traspaso).
+   */
+  autoSelectDefault?: boolean
+  /** Marca el campo en rojo (validación del formulario). */
+  invalid?: boolean
 }
 
 export function SucursalSelector({
@@ -45,6 +54,9 @@ export function SucursalSelector({
   onlyWarehouses = false,
   insideAModal = false,
   bare = false,
+  excludeIds,
+  autoSelectDefault = true,
+  invalid = false,
 }: SucursalSelectorProps) {
   const { subsidiaries: rawSubsidiaries, isLoading } = useSubsidiaries()
   const [open, setOpen] = useState(false)
@@ -77,8 +89,12 @@ export function SucursalSelector({
       )
       list = list.filter((s) => allowedIds.has(s.id))
     }
+    if (excludeIds?.length) {
+      const excluded = new Set(excludeIds.filter(Boolean))
+      list = list.filter((s) => !excluded.has(s.id!))
+    }
     return list
-  }, [subsidiaries, onlyWarehouses, user])
+  }, [subsidiaries, onlyWarehouses, user, excludeIds])
 
   // 🧠 Memorizar selección basada en value
   useEffect(() => {
@@ -93,6 +109,9 @@ export function SucursalSelector({
       const selected = filteredSubsidiaries.find((s) => s.id === value)
       if (selected) {
         setSelectedSucursales([selected])
+      } else if (!value && !autoSelectDefault) {
+        // Sin valor y sin autollenado: el botón muestra el texto "Seleccionar…".
+        setSelectedSucursales([])
       } else if (!value && !defaultAppliedRef.current) {
         const defaultSucursal =
           filteredSubsidiaries.find((s) => s.id === user?.subsidiary?.id) || filteredSubsidiaries[0]
@@ -104,7 +123,7 @@ export function SucursalSelector({
         }
       }
     }
-  }, [filteredSubsidiaries, value, user, onValueChange, multi, returnObject])
+  }, [filteredSubsidiaries, value, user, onValueChange, multi, returnObject, autoSelectDefault])
 
   const handleSelect = useCallback(
     (sucursal: Subsidiary) => {
@@ -147,7 +166,11 @@ export function SucursalSelector({
           variant={bare ? "ghost" : "outline"}
           role="combobox"
           aria-expanded={open}
-          className={bare ? "h-auto w-full flex-1 justify-between px-0 py-3 font-normal hover:bg-transparent" : "w-full justify-between"}
+          aria-invalid={invalid || undefined}
+          className={cn(
+            bare ? "h-auto w-full flex-1 justify-between px-0 py-3 font-normal hover:bg-transparent" : "w-full justify-between",
+            invalid && !bare && "border-destructive text-destructive",
+          )}
         >
           {/* 2. Contenedor flex para alinear el icono y el texto. min-w-0 es necesario
              para que el truncate funcione dentro de un padre flex (si no, el texto

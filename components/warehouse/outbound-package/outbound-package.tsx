@@ -26,6 +26,7 @@ import { PackagesList } from "@/components/shared/packages-list"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { RutaSelector } from "@/components/selectors/ruta-selector"
 import { toast } from "@/components/ui/use-toast"
+import { apiError } from "@/components/maintenance/shared/confirm-action"
 
 // Servicios y tipos
 import { downloadOutboundFile, saveWarehouseOutbound, validateShipment } from "@/lib/services/warehouse/warehouse"
@@ -83,6 +84,8 @@ export default function OutboundPackage() {
   const [selectedKms, setSelectedKms] = useState<number | null>(0)
   const [destinationSubsidiary, setDestinationSubsidiary] = useState<string>("")
   const [destinationSubsidiaryName, setDestinationSubsidiaryName] = useState<string>("")
+  // Se prende al intentar finalizar: a partir de ahí el campo destino muestra su error.
+  const [showDestinationError, setShowDestinationError] = useState(false)
 
   // isReadyToFinish vive en el componente (no en el hook). La verificación de F2
   // se delega al hook vía onRequestFinish; usamos un ref para que el hook lea el
@@ -189,6 +192,24 @@ export default function OutboundPackage() {
   // ---- Stats derivadas de los paquetes locales (modelo PackageInfo con `payment`) ----
   const stats = useMemo(() => computeWarehouseStats(packages), [packages])
 
+  // Destino del traspaso: obligatorio y distinto de la bodega de origen.
+  const destinationError = useMemo(() => {
+    if (outputType !== OutboundTypeEnum.TRANSFER) return null
+    if (!destinationSubsidiary) return "Selecciona la sucursal destino del traspaso."
+    if (destinationSubsidiary === s.effectiveWarehouseId) {
+      return "La sucursal destino no puede ser la misma bodega de origen."
+    }
+    return null
+  }, [outputType, destinationSubsidiary, s.effectiveWarehouseId])
+
+  // Si cambian la bodega de origen a la que estaba como destino, se limpia el destino.
+  useEffect(() => {
+    if (destinationSubsidiary && destinationSubsidiary === s.effectiveWarehouseId) {
+      setDestinationSubsidiary("")
+      setDestinationSubsidiaryName("")
+    }
+  }, [s.effectiveWarehouseId, destinationSubsidiary])
+
   // Regla local de habilitación del cierre (deps completas).
   const isReadyToFinish = useMemo(() => {
     const hasPackages = packages.length > 0
@@ -197,7 +218,7 @@ export default function OutboundPackage() {
     const hasWarehouse = !!s.effectiveWarehouseId
 
     if (outputType === OutboundTypeEnum.TRANSFER) {
-      return hasPackages && hasVehicle && hasDrivers && hasWarehouse && !!destinationSubsidiary
+      return hasPackages && hasVehicle && hasDrivers && hasWarehouse && !destinationError
     }
 
     const hasRoutes = selectedRutas.length > 0
@@ -209,12 +230,18 @@ export default function OutboundPackage() {
     s.driverIds.length,
     s.effectiveWarehouseId,
     outputType,
-    destinationSubsidiary,
+    destinationError,
     selectedRutas,
     selectedKms,
   ])
 
   requestFinishRef.current = () => {
+    if (destinationError) {
+      setShowDestinationError(true)
+      toast({ title: "Falta la sucursal destino", description: destinationError, variant: "destructive" })
+      s.safeSpeak("Selecciona la sucursal destino")
+      return
+    }
     if (isReadyToFinish) {
       s.toggleModal("signatures", true)
     } else {
@@ -262,6 +289,7 @@ export default function OutboundPackage() {
     setSelectedKms(0)
     setDestinationSubsidiary("")
     setDestinationSubsidiaryName("")
+    setShowDestinationError(false)
     setSessionId(crypto.randomUUID())
   }
 
@@ -294,6 +322,11 @@ export default function OutboundPackage() {
         toast({ title: "Salida de bodega guardada", description: "PDF y Excel descargados." })
       } catch (error) {
         console.error("Error al guardar la salida de bodega:", error)
+        toast({
+          title: "No se guardó la salida",
+          description: apiError(error, "No se pudo guardar la salida de bodega"),
+          variant: "destructive",
+        })
         s.safeSpeak("Error al guardar en el servidor")
       }
     })
@@ -506,6 +539,9 @@ export default function OutboundPackage() {
                   <SucursalSelector
                     value={destinationSubsidiary}
                     returnObject
+                    excludeIds={[s.effectiveWarehouseId]}
+                    autoSelectDefault={false}
+                    invalid={showDestinationError && !!destinationError}
                     onValueChange={(val) => {
                       const id = typeof val === "object" && val !== null ? (val as any).id : val
                       const name = typeof val === "object" && val !== null ? (val as any).name : ""
@@ -513,6 +549,9 @@ export default function OutboundPackage() {
                       setDestinationSubsidiaryName(String(name ?? ""))
                     }}
                   />
+                  {showDestinationError && destinationError && (
+                    <p className="text-[11px] font-medium text-destructive">{destinationError}</p>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -538,8 +577,8 @@ export default function OutboundPackage() {
               )}
 
               <Button
-                onClick={() => s.toggleModal("signatures", true)}
-                disabled={!isReadyToFinish}
+                onClick={requestFinish}
+                disabled={!isReadyToFinish && !destinationError}
                 className="w-full bg-green-600 hover:bg-green-700 text-white shadow-sm h-12 text-sm font-bold tracking-wide"
               >
                 <CheckCircle2 className="mr-2 h-5 w-5" /> FINALIZAR SALIDA
