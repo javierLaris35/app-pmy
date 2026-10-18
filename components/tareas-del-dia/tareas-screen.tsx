@@ -190,7 +190,7 @@ export default function TareasScreen() {
                 ) : (
                   <div className="max-h-48 overflow-y-auto">
                     {data.possibleLd.map((g) => (
-                      <div key={g.trackingNumber} className="flex items-center gap-2 border-b py-1 text-sm last:border-b-0">
+                      <div key={g.pieceKey} className="flex items-center gap-2 border-b py-1 text-sm last:border-b-0">
                         <span className="font-mono text-xs">{g.trackingNumber}</span>
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{g.bucket}</span>
                         <span className="ml-auto text-xs text-muted-foreground">{g.consNumber ? `cons. ${g.consNumber}` : ""}</span>

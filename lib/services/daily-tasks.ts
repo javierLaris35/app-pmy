@@ -31,7 +31,7 @@ export interface DayTasks {
   subsidiary: TaskRow[];
   consolidated: DayConsolidated[];
   carriedOver: { day: string; consNumber: string; refType: string; refId: string; lateSteps: TaskStep[] }[];
-  possibleLd: { trackingNumber: string; consNumber: string; bucket: string }[];
+  possibleLd: { trackingNumber: string; pieceKey: string; consNumber: string; bucket: string }[];
 }
 
 export interface WeekTasks {
