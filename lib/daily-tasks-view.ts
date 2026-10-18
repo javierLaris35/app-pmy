@@ -1,7 +1,7 @@
 /** Funciones puras de la pantalla Tareas del día. */
 
 export type TaskStatus = "pending" | "partial" | "done" | "late";
-export type TaskStep = "upload" | "unloading" | "dispatch" | "closure" | "devolutions" | "inventory_initial" | "inventory_final";
+export type TaskStep = "upload" | "unloading" | "dispatch" | "closure" | "inventory_initial" | "inventory_final";
 
 export function stepVisual(status: TaskStatus): { icon: "done" | "partial" | "pending" | "late"; strike: boolean; tone: "success" | "warning" | "muted" | "danger" } {
   if (status === "done") return { icon: "done", strike: true, tone: "success" };
@@ -15,7 +15,6 @@ const LABEL: Record<TaskStep, string> = {
   unloading: "Desembarque",
   dispatch: "Salidas a ruta",
   closure: "Cierre de rutas",
-  devolutions: "Devoluciones",
   inventory_initial: "Inventario inicial",
   inventory_final: "Inventario final de día",
 };
@@ -26,7 +25,6 @@ const LINK: Record<TaskStep, string> = {
   unloading: "/operaciones/desembarques",
   dispatch: "/operaciones/salidas-a-ruta",
   closure: "/operaciones/salidas-a-ruta",
-  devolutions: "/operaciones/devoluciones",
   inventory_initial: "/operaciones/inventarios",
   inventory_final: "/operaciones/inventarios",
 };
@@ -43,16 +41,39 @@ export function dayPct(tasks: { status: TaskStatus }[]): number {
   return tasks.length ? Math.round((tasks.filter((t) => t.status === "done").length / tasks.length) * 100) : 0;
 }
 
-const LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
+const DAY_NAMES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-/** Los 7 días (lunes a domingo) de la semana que empieza en `monday` (YYYY-MM-DD). */
-export function weekDays(monday: string): { day: string; letter: string }[] {
-  const base = Date.parse(`${monday}T12:00:00.000Z`);
-  return LETTERS.map((letter, i) => ({ day: new Date(base + i * 86_400_000).toISOString().slice(0, 10), letter }));
+/** "Lunes 12 - Oct" para un día YYYY-MM-DD. */
+export function dayLabel(day: string): string {
+  const d = new Date(`${day}T12:00:00.000Z`);
+  return `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} - ${MONTHS[d.getUTCMonth()]}`;
 }
 
-/** HH:MM en Hermosillo (UTC−7) de un instante. */
-export const hermosilloTime = (iso: string | Date) => new Date(new Date(iso).getTime() - 7 * 3_600_000).toISOString().slice(11, 16);
+/** Los 7 días (lunes a domingo) de la semana que empieza en `monday` (YYYY-MM-DD). */
+export function weekDays(monday: string): { day: string; label: string }[] {
+  const base = Date.parse(`${monday}T12:00:00.000Z`);
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(base + i * 86_400_000).toISOString().slice(0, 10);
+    return { day, label: dayLabel(day) };
+  });
+}
+
+/** Hora de Hermosillo (UTC−7) en formato de 12 horas: "6:40 a. m.". */
+export function hermosilloTime(iso: string | Date): string {
+  const [h, m] = new Date(new Date(iso).getTime() - 7 * 3_600_000).toISOString().slice(11, 16).split(":").map(Number);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "a. m." : "p. m."}`;
+}
+
+/** Rutas del día como hechos (no se sabe de antemano cuántas habrá): "4 salieron · 1 cerrada · 3 sin cerrar". */
+export function routesSummary(routes: { closed: boolean }[]): string {
+  if (!routes.length) return "No ha salido ninguna ruta";
+  const closed = routes.filter((r) => r.closed).length;
+  const open = routes.length - closed;
+  const head = `${routes.length} ${routes.length === 1 ? "salió" : "salieron"}`;
+  if (!open) return `${head} · todas cerradas`;
+  return closed ? `${head} · ${closed} ${closed === 1 ? "cerrada" : "cerradas"} · ${open} sin cerrar` : `${head} · ${open} sin cerrar`;
+}
 
 /** Hoy (YYYY-MM-DD) en Hermosillo. */
 export const hermosilloToday = () => new Date(Date.now() - 7 * 3_600_000).toISOString().slice(0, 10);

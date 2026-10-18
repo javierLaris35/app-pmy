@@ -32,6 +32,10 @@ export interface DayTasks {
   consolidated: DayConsolidated[];
   carriedOver: { day: string; consNumber: string; refType: string; refId: string; lateSteps: TaskStep[] }[];
   possibleLd: { trackingNumber: string; pieceKey: string; consNumber: string; bucket: string }[];
+  /** Salidas a ruta del día (no se sabe de antemano cuántas habrá). */
+  routes: { id: string; trackingNumber: string; drivers: string; guides: number; closed: boolean; closedAt: string | null }[];
+  /** Devoluciones registradas en el día: solo informan (no todos los DEX regresan a FedEx). */
+  devolutions: { trackingNumber: string; consNumber: string; reason: string; at: string }[];
 }
 
 export interface WeekTasks {
@@ -50,7 +54,7 @@ export interface PackageDetail {
     possibleLd: number;
     missingUnloading: number;
   };
-  guides: { trackingNumber: string; status: string; bucket: string; ld: string }[];
+  guides: { trackingNumber: string; status: string; bucket: string; ld: string; unloaded: boolean; dispatched: boolean; returned: boolean }[];
 }
 
 const base = "/daily-tasks";

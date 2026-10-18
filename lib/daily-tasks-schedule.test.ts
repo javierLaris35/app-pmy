@@ -20,9 +20,9 @@ describe("toSchedulePatch", () => {
     expect(toSchedulePatch({ closureTime: "", dispatchAfterUnloadMinutes: "90", inventoryFinalTime: "19:45" })).toMatchObject({ closureTime: null, dispatchAfterUnloadMinutes: 90, inventoryFinalTime: "19:45" });
   });
 
-  it("incluye los 8 horarios acordados", () => {
+  it("incluye los horarios de las tareas (devoluciones ya no tiene hora límite)", () => {
     expect(SCHEDULE_FIELDS.map((f) => f.key)).toEqual([
-      "uploadMinutes", "unloadingTime", "dispatchAfterUnloadMinutes", "dispatchNextDayTime", "closureTime", "inventoryInitialTime", "devolutionsTime", "inventoryFinalTime",
+      "uploadMinutes", "unloadingTime", "dispatchAfterUnloadMinutes", "dispatchNextDayTime", "closureTime", "inventoryInitialTime", "inventoryFinalTime",
     ]);
   });
 });

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { AlertTriangle, ListChecks, Loader2, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ClipboardCheck, ClipboardList, ListChecks, Loader2, RefreshCw, Truck, Undo2 } from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { SucursalSelector } from "@/components/sucursal-selector";
@@ -13,16 +14,124 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { useAuthStore } from "@/store/auth.store";
 import { getWeekRange, WeekRange } from "@/lib/week";
-import { dayPct, hermosilloToday, sortConsolidated, stepLabel, weekDays } from "@/lib/daily-tasks-view";
-import { getDayTasks, getWeekTasks, refreshDayTasks } from "@/lib/services/daily-tasks";
-import { ConsolidatedRow, TaskStepRow } from "./consolidated-row";
+import { dayLabel, dayPct, hermosilloTime, hermosilloToday, routesSummary, sortConsolidated, stepLabel, weekDays } from "@/lib/daily-tasks-view";
+import { DayTasks, getDayTasks, getWeekTasks, refreshDayTasks, TaskRow, WeekTasks } from "@/lib/services/daily-tasks";
+import { ConsolidatedRow, GuideList, PILL } from "./consolidated-row";
 
 function Kpi({ label, value, tone, children }: { label: string; value: string | number; tone?: "danger" | "warning"; children?: React.ReactNode }) {
   return (
-    <div className="rounded-md bg-muted/60 px-3 py-2">
+    <div className="rounded-lg bg-muted/60 px-3 py-2">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className={cn("text-lg font-semibold", tone === "danger" && "text-red-600", tone === "warning" && "text-amber-600")}>{value}</p>
       {children}
+    </div>
+  );
+}
+
+/** Cinta de la semana: "Lunes 12 - Oct" con barra de avance y estado. */
+function WeekStrip({ monday, today, selected, data, onPick }: { monday: string; today: string; selected: string; data?: WeekTasks; onPick: (d: string) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7">
+      {weekDays(monday).map((d) => {
+        const info = data?.days.find((x) => x.day === d.day);
+        const future = d.day > today;
+        const isToday = d.day === today;
+        const status = future ? "—" : !info?.total ? "Sin operación" : info.late ? `${info.late} atrasados` : info.pct === 100 ? "Todo listo" : `${info.pct}% listo`;
+        return (
+          <button
+            key={d.day}
+            type="button"
+            disabled={future}
+            onClick={() => onPick(d.day)}
+            className={cn(
+              "rounded-lg border bg-card px-2.5 py-1.5 text-left transition-colors",
+              d.day === selected ? "border-primary ring-1 ring-primary" : "hover:bg-muted",
+              isToday && d.day !== selected && "bg-primary/5",
+              future && "cursor-not-allowed opacity-40",
+            )}
+          >
+            <p className="truncate text-xs font-semibold">{d.label}</p>
+            <div className="my-1 h-1 rounded bg-slate-200">
+              {!!info?.total && <div className="h-1 rounded bg-emerald-500" style={{ width: `${info.pct}%` }} />}
+            </div>
+            <p className={cn("truncate text-[11px]", info?.late ? "text-red-600" : status === "Todo listo" ? "text-emerald-700" : "text-muted-foreground")}>
+              {isToday ? `Hoy · ${status}` : status}
+            </p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const TONE_CARD = { done: "bg-emerald-50/60", late: "bg-red-50", partial: "bg-amber-50/60", pending: "bg-muted/50" } as const;
+
+/** Tarjeta de inventario (inicial o final): se hizo, a qué hora y quién; o su hora límite. */
+function InventoryCard({ task, icon: Icon, title }: { task?: TaskRow; icon: React.ComponentType<{ className?: string }>; title: string }) {
+  if (!task) return null;
+  return (
+    <Link href="/operaciones/inventarios" className={cn("rounded-lg px-3 py-2 transition-opacity hover:opacity-80", TONE_CARD[task.status])}>
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" /> {title}</p>
+      {task.status === "done" ? (
+        <>
+          <p className="mt-1 text-sm font-medium text-emerald-700">Hecho · {task.doneAt ? hermosilloTime(task.doneAt) : ""}</p>
+          {task.doneByName && <p className="text-[11px] text-muted-foreground">{task.doneByName}</p>}
+        </>
+      ) : (
+        <>
+          <p className={cn("mt-1 text-sm font-medium", task.status === "late" ? "text-red-700" : "text-foreground")}>{task.status === "late" ? "No se hizo a tiempo" : "Pendiente"}</p>
+          <p className={cn("text-[11px]", task.status === "late" ? "text-red-600" : "text-muted-foreground")}>Límite {hermosilloTime(task.dueAt)}</p>
+        </>
+      )}
+    </Link>
+  );
+}
+
+function SubsidiaryPanel({ data }: { data: DayTasks }) {
+  const t = (s: TaskRow["step"]) => data.subsidiary.find((x) => x.step === s);
+  const closure = t("closure");
+  const open = data.routes.filter((r) => !r.closed);
+  if (!data.subsidiary.length && !data.routes.length && !data.devolutions.length) {
+    return <p className="rounded-xl border bg-card px-3 py-4 text-center text-sm text-muted-foreground">Sin operación este día: no llegaron consolidados ni salieron rutas.</p>;
+  }
+  return (
+    <div className="space-y-2 rounded-xl border bg-card px-3 py-3">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">Tareas de la sucursal · {dayLabel(data.day)}</span>
+        <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs", PILL[data.subsidiary.some((x) => x.status === "late") ? "danger" : "muted"])}>
+          {dayPct(data.subsidiary)}% listo
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <InventoryCard task={t("inventory_initial")} icon={ClipboardCheck} title="Inventario inicial" />
+        <Link href="/operaciones/salidas-a-ruta" className={cn("rounded-lg px-3 py-2 transition-opacity hover:opacity-80", closure ? TONE_CARD[closure.status] : TONE_CARD.pending)}>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Truck className="h-3.5 w-3.5" /> Rutas del día</p>
+          <p className="mt-1 text-sm font-medium">{routesSummary(data.routes)}</p>
+          {closure?.status === "late" && <p className="text-[11px] text-red-600">Cierre límite {hermosilloTime(closure.dueAt)}</p>}
+        </Link>
+        <Link href="/operaciones/devoluciones" className="rounded-lg bg-muted/50 px-3 py-2 transition-opacity hover:opacity-80">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Undo2 className="h-3.5 w-3.5" /> Devoluciones</p>
+          <p className="mt-1 text-sm font-medium">{data.devolutions.length ? `${data.devolutions.length} registradas` : "Ninguna registrada"}</p>
+          <p className="text-[11px] text-muted-foreground">Solo informa: no todos los DEX regresan</p>
+        </Link>
+        <InventoryCard task={t("inventory_final")} icon={ClipboardList} title="Inventario final de día" />
+      </div>
+      {(open.length > 0 || data.devolutions.length > 0) && (
+        <div className="space-y-1 rounded-md bg-muted/40 px-2.5 py-2">
+          {open.length > 0 && (
+            <p className="text-xs leading-relaxed">
+              <span className="font-medium text-red-700">{open.length === 1 ? "Ruta sin cerrar" : `${open.length} rutas sin cerrar`}: </span>
+              <span className="text-muted-foreground">
+                {open.map((r) => `${r.trackingNumber}${r.drivers ? ` (${r.drivers})` : ""} · ${r.guides} guías`).join(" — ")}
+              </span>
+            </p>
+          )}
+          <GuideList
+            title={data.devolutions.length === 1 ? "1 devolución registrada" : `${data.devolutions.length} devoluciones registradas`}
+            items={data.devolutions.map((d) => d.trackingNumber)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -113,34 +222,8 @@ export default function TareasScreen() {
           <WeekRangePicker value={week} onChange={changeWeek} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          {weekDays(week.from).map((d) => {
-            const info = weekData?.days.find((x) => x.day === d.day);
-            const future = d.day > today;
-            return (
-              <button
-                key={d.day}
-                type="button"
-                disabled={future}
-                onClick={() => setDay(d.day)}
-                className={cn(
-                  "flex min-w-[64px] flex-col items-center rounded-md border px-2 py-1 text-xs transition-colors",
-                  d.day === day ? "border-primary bg-primary/5 font-semibold" : "hover:bg-muted",
-                  future && "cursor-not-allowed opacity-40",
-                )}
-              >
-                <span>
-                  {d.letter} {Number(d.day.slice(8))}
-                  {d.day === today ? " · hoy" : ""}
-                </span>
-                <span className={cn("text-[11px]", info?.late ? "text-red-600" : "text-muted-foreground")}>
-                  {future || !info?.total ? "—" : info.late ? `${info.pct}% · ${info.late} tarde` : `${info.pct}%`}
-                </span>
-              </button>
-            );
-          })}
-          <span className="ml-auto text-xs text-muted-foreground">El sistema se suspende 21:30</span>
-        </div>
+        <WeekStrip monday={week.from} today={today} selected={day} data={weekData} onPick={setDay} />
+        <p className="text-right text-[11px] text-muted-foreground">El sistema se suspende a las 9:30 p. m.</p>
 
         {error ? (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">No se pudieron cargar las tareas. Revisa tu conexión e intenta de nuevo.</p>
@@ -158,13 +241,13 @@ export default function TareasScreen() {
             </div>
 
             {data.carriedOver.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
                 <p className="font-medium text-amber-800">Pendientes de días anteriores de esta semana</p>
                 <ul className="mt-1 space-y-0.5 text-xs text-amber-800">
                   {data.carriedOver.map((c) => (
                     <li key={c.refId}>
                       <button type="button" className="hover:underline" onClick={() => setDay(c.day)}>
-                        {c.refType === "charge" ? "F2" : "Consolidado"} {c.consNumber} ({Number(c.day.slice(8))}/{Number(c.day.slice(5, 7))})
+                        {c.refType === "charge" ? "F2" : "Consolidado"} {c.consNumber} ({dayLabel(c.day)})
                       </button>
                       {c.lateSteps.length ? ` · ${c.lateSteps.map(stepLabel).join(", ").toLowerCase()} atrasado` : " · a medias"}
                     </li>
@@ -173,37 +256,22 @@ export default function TareasScreen() {
               </div>
             )}
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg border bg-card px-3 py-2">
-                <p className="mb-1 text-xs text-muted-foreground">Tareas de la sucursal</p>
-                {data.subsidiary.length ? data.subsidiary.map((t) => <TaskStepRow key={t.step} task={t} />) : <p className="py-2 text-sm text-muted-foreground">Sin tareas de sucursal este día.</p>}
-              </div>
-              <div className={cn("rounded-lg border bg-card px-3 py-2", data.possibleLd.length > 0 && "border-amber-300")}>
-                <div className="flex items-center gap-1.5">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span className="text-sm font-medium">{data.isToday ? "Posibles LD hoy" : "LD del día"}</span>
+            <SubsidiaryPanel data={data} />
+
+            {data.possibleLd.length > 0 && (
+              <div className="rounded-xl border border-amber-300 bg-card px-3 py-2">
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" /> {data.isToday ? "Posibles LD hoy" : "LD del día"}
                   <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{data.possibleLd.length}</span>
-                </div>
+                </p>
                 <p className="mb-1 text-xs text-muted-foreground">Vencen ese día, sin entregar, sin DEX válido y sin movimiento de FedEx</p>
-                {data.possibleLd.length === 0 ? (
-                  <p className="py-2 text-sm text-muted-foreground">Ninguna guía en riesgo.</p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto">
-                    {data.possibleLd.map((g) => (
-                      <div key={g.pieceKey} className="flex items-center gap-2 border-b py-1 text-sm last:border-b-0">
-                        <span className="font-mono text-xs">{g.trackingNumber}</span>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{g.bucket}</span>
-                        <span className="ml-auto text-xs text-muted-foreground">{g.consNumber ? `cons. ${g.consNumber}` : ""}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <GuideList title={`${data.possibleLd.length} guías`} items={data.possibleLd.map((g) => `${g.trackingNumber} (${g.bucket.toLowerCase()})`)} tone="warning" />
               </div>
-            </div>
+            )}
 
             <div className="space-y-2">
               {consolidated.length === 0 ? (
-                <p className="rounded-lg border bg-card px-3 py-6 text-center text-sm text-muted-foreground">No llegaron consolidados este día.</p>
+                <p className="rounded-xl border bg-card px-3 py-6 text-center text-sm text-muted-foreground">No llegaron consolidados este día.</p>
               ) : (
                 consolidated.map((c, i) => <ConsolidatedRow key={`${c.refType}:${c.refId}`} item={c} defaultOpen={i === 0 && !c.tasks.every((t) => t.status === "done")} />)
               )}

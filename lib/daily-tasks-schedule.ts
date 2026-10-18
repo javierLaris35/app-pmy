@@ -7,7 +7,6 @@ export type ScheduleKey =
   | "dispatchNextDayTime"
   | "closureTime"
   | "inventoryInitialTime"
-  | "devolutionsTime"
   | "inventoryFinalTime";
 
 export type ScheduleForm = Partial<Record<ScheduleKey, string>>;
@@ -19,7 +18,6 @@ export const SCHEDULE_FIELDS: { key: ScheduleKey; label: string; kind: "time" | 
   { key: "dispatchNextDayTime", label: "Salida a ruta si se desembarcó tarde (día siguiente)", kind: "time", fallback: "10:00" },
   { key: "closureTime", label: "Cierre de rutas", kind: "time", fallback: "21:00" },
   { key: "inventoryInitialTime", label: "Inventario inicial", kind: "time", fallback: "10:00" },
-  { key: "devolutionsTime", label: "Devoluciones", kind: "time", fallback: "19:30" },
   { key: "inventoryFinalTime", label: "Inventario final de día", kind: "time", fallback: "20:00" },
 ];
 

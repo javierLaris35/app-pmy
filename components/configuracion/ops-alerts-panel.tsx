@@ -39,7 +39,6 @@ const STEP_COLS: { key: keyof OpsSubsidiaryConfig; label: string }[] = [
   { key: "stepUnloading", label: "Desembarque" },
   { key: "stepDispatch", label: "Salida a ruta" },
   { key: "stepClosure", label: "Cierre" },
-  { key: "stepDevolutions", label: "Devoluciones" },
   { key: "stepInventoryInitial", label: "Inv. inicial" },
   { key: "stepInventory", label: "Inv. final" },
 ];
