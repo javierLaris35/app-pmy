@@ -50,8 +50,8 @@ const STEP_TITLE: Partial<Record<TaskRow["step"], string>> = { upload: "Subido",
 /** Recorrido horizontal del consolidado. El último punto (devoluciones) solo informa. */
 function Stepper({ tasks, returned }: { tasks: TaskRow[]; returned: number | null }) {
   return (
-    <div className="relative flex items-start gap-1 overflow-x-auto pb-1">
-      <div className="pointer-events-none absolute left-[10%] right-[10%] top-3.5 h-0.5 bg-border" aria-hidden />
+    <div className="relative flex items-start gap-1 overflow-x-auto px-1 pb-1 pt-1.5">
+      <div className="pointer-events-none absolute left-[10%] right-[10%] top-5 h-0.5 bg-border" aria-hidden />
       {tasks.map((t) => {
         const v = stepVisual(t.status);
         return (
