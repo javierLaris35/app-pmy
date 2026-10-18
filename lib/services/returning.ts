@@ -10,6 +10,11 @@ export type ReturningDevolutionItem = {
   reason?: string
   /** El usuario confirmó anular el ingreso `entregado` de esta guía al devolverla. */
   annulEntregadoIncome?: boolean
+  /** Registro de la guía que se devuelve (cuando tiene varios). */
+  shipmentId?: string
+  chargeShipmentId?: string
+  /** Se confirmó que el registro va en una ruta sin cerrar y aun así se devuelve. */
+  confirmInRoute?: boolean
 }
 
 export type ReturningCollectionItem = {
@@ -55,7 +60,33 @@ export type ReturningKpis = {
 export type ReturningEmailResult = { status: "sent" | "error"; error?: string; to?: string }
 
 export type ReturningBatchDetail = ReturningBatch & {
-  devolutions: { trackingNumber: string; reason: string; date: string }[]
+  devolutions: {
+    id: string
+    trackingNumber: string
+    reason: string
+    date: string
+    /** Deshecha con autorización. */
+    undoneAt?: string | null
+    /** Hay una solicitud de "deshacer" esperando autorización. */
+    undoPending?: boolean
+    /** Quién capturó la devolución. */
+    createdByName?: string | null
+    /** Registros vivos de la guía (uno por consolidado). */
+    recordsCount?: number
+    /** El registro devuelto: para reconocer el paquete. */
+    record?: {
+      kind: "shipment" | "charge"
+      status: string
+      consNumber: string | null
+      consDate: string | null
+      recipientName: string | null
+      recipientAddress: string | null
+      recipientCity: string | null
+      recipientZip: string | null
+      lastRoute: { folio: string | null; routeDate: string | null; closed: boolean } | null
+      inOpenRoute: boolean
+    } | null
+  }[]
   collections: { trackingNumber: string; status: string; isPickUp: boolean; createdAt: string }[]
 }
 

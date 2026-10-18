@@ -5,7 +5,8 @@ export type ApprovalType =
   | "delete_route_dispatch"
   | "change_subsidiary_consolidado"
   | "change_date_consolidado"
-  | "change_type_consolidado";
+  | "change_type_consolidado"
+  | "undo_devolution";
 
 /** Acciones sobre consolidado (borrar / cambiar sucursal / cambiar fecha). El cambio de tipo tiene su propio diálogo. */
 export type ConsolidatedActionType = Extract<
@@ -72,6 +73,10 @@ export interface ApprovalImpact {
   summary?: ConsolidatedPlanSummary;
   warnings?: string[];
   change?: { from: string; to: string } | null;
+  // Solo al deshacer una devolución:
+  trackingNumber?: string;
+  records?: { kind: "shipment" | "charge"; id: string; consNumber: string | null; currentStatus: string; toStatus: string; willRevert: boolean }[];
+  incomes?: { id: string; cost: number }[];
 }
 
 export interface ApprovalRequestItem {
@@ -160,6 +165,7 @@ export const APPROVAL_TYPE_LABEL: Record<ApprovalType, string> = {
   change_subsidiary_consolidado: "Cambiar sucursal del consolidado",
   change_date_consolidado: "Cambiar fecha del consolidado",
   change_type_consolidado: "Cambiar tipo (paquete ↔ carga)",
+  undo_devolution: "Deshacer devolución",
 };
 
 export async function getMyApprovals(): Promise<ApprovalRequestItem[]> {

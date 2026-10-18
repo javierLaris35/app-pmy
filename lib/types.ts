@@ -552,7 +552,27 @@ export interface Devolution {
  * lo que `checkDevolutionInfo` arma desde `validateDevolution` + el motivo/fecha editables. Es un
  * tipo distinto de `Devolution` (el que consumen el PDF/Excel) para no mezclar responsabilidades.
  */
+/** Un registro de la guía (uno por consolidado) para elegir cuál se devuelve. */
+export type DevolutionRecordOption = {
+  kind: "shipment" | "charge"
+  id: string
+  createdAt: string
+  status: string
+  consNumber: string | null
+  /** yyyy-MM-dd del consolidado. */
+  consDate: string | null
+  subsidiaryName: string | null
+  lastRoute: { folio: string | null; routeDate: string | null; closed: boolean } | null
+  entregadoIncome: { id: string; cost: number } | null
+  /** Va hoy en una salida a ruta que no se ha cerrado. */
+  inOpenRoute: boolean
+}
+
 export type DevolutionRow = {
+  /** Registros de la guía (si hay más de uno, la persona elige). */
+  records?: DevolutionRecordOption[]
+  /** `kind:id` del registro elegido. */
+  selectedRecordKey?: string | null
   id: string
   trackingNumber: string
   status: string

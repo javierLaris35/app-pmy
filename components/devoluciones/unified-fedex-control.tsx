@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowRightLeft, FileText, Search, Loader2, RotateCcw, Package } from "lucide-react"
+import { ArrowRightLeft, FileText, Search, Loader2 } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import type { Subsidiary } from "@/lib/types"
 import { useReturnings } from "@/hooks/services/returning/use-returnings"
 import { useReturningKpis } from "@/hooks/services/returning/use-returning-kpis"
-import { getReturningDetail, ReturningBatchDetail } from "@/lib/services/returning"
+import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/auth.store"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
@@ -21,11 +21,6 @@ import type { PaginationState } from "@tanstack/react-table"
 import { columns } from "./columns"
 import ReturningRowActions from "./returning-row-actions"
 import UnifiedCollectionReturnForm from "./unified-collection-return-form"
-
-function formatDate(value?: string) {
-  if (!value) return "—"
-  return new Date(value).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" })
-}
 
 export default function UpdatedFedExControl() {
   const user = useAuthStore((s) => s.user)
@@ -39,10 +34,7 @@ export default function UpdatedFedExControl() {
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
 
-  // Detalle de una salida
-  const [detail, setDetail] = useState<ReturningBatchDetail | null>(null)
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const router = useRouter()
 
   // Debounce de búsqueda por número de rastreo (server-side).
   useEffect(() => {
@@ -86,16 +78,8 @@ export default function UpdatedFedExControl() {
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
-  const openDetail = async (id: string) => {
-    setIsDetailOpen(true)
-    setDetail(null)
-    setIsDetailLoading(true)
-    try {
-      setDetail(await getReturningDetail(id))
-    } finally {
-      setIsDetailLoading(false)
-    }
-  }
+  // El detalle de una salida vive en su propia pantalla (más espacio para revisar y deshacer).
+  const openDetail = (id: string) => router.push(`/operaciones/devoluciones/detalle?id=${encodeURIComponent(id)}`)
 
   const updatedColumns = columns.map((col) =>
     col.id === "actions"
@@ -229,71 +213,6 @@ export default function UpdatedFedExControl() {
         </DialogContent>
       </Dialog>
 
-      {/* Detalle de una salida */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {isDetailLoading ? "Cargando salida…" : `Salida ${detail?.trackingNumber} — ${formatDate(detail?.date)}`}
-            </DialogTitle>
-          </DialogHeader>
-
-          {isDetailLoading ? (
-            <div className="flex h-32 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : detail ? (
-            <div className="space-y-4">
-              <dl className="grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-3 text-sm">
-                <dt className="text-muted-foreground">Sucursal</dt>
-                <dd className="text-right font-medium">{detail.subsidiary?.name ?? "—"}</dd>
-                <dt className="text-muted-foreground">Chofer(es)</dt>
-                <dd className="text-right font-medium">{detail.drivers?.map((d) => d.name).join(", ") || "—"}</dd>
-                <dt className="text-muted-foreground">Unidad</dt>
-                <dd className="text-right font-medium">
-                  {detail.vehicle?.name || detail.vehicle?.code || detail.vehicle?.plateNumber || "—"}
-                </dd>
-              </dl>
-
-              <div>
-                <h4 className="mb-2 flex items-center gap-1 text-sm font-semibold">
-                  <RotateCcw className="h-4 w-4" /> Devoluciones ({detail.devolutions.length})
-                </h4>
-                {detail.devolutions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Sin devoluciones.</p>
-                ) : (
-                  <ul className="divide-y divide-border/40 rounded-md bg-muted/30 text-sm">
-                    {detail.devolutions.map((d) => (
-                      <li key={d.trackingNumber} className="flex justify-between px-3 py-1.5">
-                        <span className="font-mono">{d.trackingNumber}</span>
-                        <span className="text-muted-foreground">{d.reason || "—"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div>
-                <h4 className="mb-2 flex items-center gap-1 text-sm font-semibold">
-                  <Package className="h-4 w-4" /> Recolecciones ({detail.collections.length})
-                </h4>
-                {detail.collections.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Sin recolecciones.</p>
-                ) : (
-                  <ul className="divide-y divide-border/40 rounded-md bg-muted/30 text-sm">
-                    {detail.collections.map((c) => (
-                      <li key={c.trackingNumber} className="flex justify-between px-3 py-1.5">
-                        <span className="font-mono">{c.trackingNumber}</span>
-                        <span className="text-muted-foreground">{c.isPickUp ? "Pick Up" : c.status || "—"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </AppLayout>
   )
 }
