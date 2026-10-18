@@ -26,6 +26,7 @@ export const allowedPageRoles = {
         pagosFedex: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
         traslados: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
         salidasARutas: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
+        tareas: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.USER, UserRoleEnum.BODEGA, UserRoleEnum.AUXILIAR],
     },
     finanzas: {
         gastos: [UserRoleEnum.ADMIN, UserRoleEnum.SUBADMIN, UserRoleEnum.SUPERADMIN, UserRoleEnum.AUXILIAR],

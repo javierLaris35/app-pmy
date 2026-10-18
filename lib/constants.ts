@@ -148,6 +148,13 @@ export const sidebarMenu = {
       isActive: false,
       items: [
         {
+          name: "Tareas del día",
+          url: "/operaciones/tareas-del-dia",
+          icon: ListChecks,
+          roles: allowedPageRoles.operaciones.tareas,
+          isActive: false
+        },
+        {
           name: "Cargas",
           url: "/operaciones/cargas",
           icon: TruckIcon,
