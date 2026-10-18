@@ -25,6 +25,7 @@ import { Input } from "../ui/input"
 import { EnhancedFedExPDF } from "@/lib/services/pdf-generator"
 import { pdf } from "@react-pdf/renderer"
 import { generateFedExExcel } from "@/lib/services/returning/returning-excel-generator"
+import { recordRouteText, recordTitle, selectedRecord } from "@/lib/devolution-records"
 
 // Types
 // Fila de recolección del formulario. Estructuralmente compatible con `lib/types` Collection
@@ -86,6 +87,15 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   // ESTADO: Controla el aviso de paquetes sin Pick Up
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [showAnnulModal, setShowAnnulModal] = useState(false);
+  // Devoluciones de un registro que va en una ruta sin cerrar: se confirman antes de guardar.
+  const [showInRouteModal, setShowInRouteModal] = useState(false);
+  const [inRouteConfirmed, setInRouteConfirmedState] = useState(false);
+  // Ref además del estado: al confirmar, el guardado puede correr en el mismo clic (estado viejo).
+  const inRouteConfirmedRef = useRef(false);
+  const setInRouteConfirmed = (v: boolean) => {
+    inRouteConfirmedRef.current = v
+    setInRouteConfirmedState(v)
+  };
 
   // Refs a los escáneres para limpiar su buffer persistido tras un guardado exitoso.
   const collectionsScanRef = useRef<ScanInputHandle>(null);
@@ -196,9 +206,14 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         subsidiaryName: res.subsidiaryName,
         hasIncome: res.hasIncome,
         entregadoIncome: res.entregadoIncome ?? null,
+        isCharge: res.isCharge,
+        wasDispatched: res.wasDispatched,
         date: selectedDate,
         lastStatus: res.lastStatus || null,
         reason,
+        // Registros de la guía (uno por consolidado); arranca con el que sugiere el sistema.
+        records: res.records ?? [],
+        selectedRecordKey: res.suggestedRecordKey ?? null,
       }
     } catch (err) {
       console.error(`Error consultando info del tracking ${trackingNumber}`, err)
@@ -298,6 +313,27 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
             }
           : item,
       ),
+    )
+  }, [])
+
+  // Cambia el registro que se devuelve: su sucursal e ingreso "entregado" son los de ese registro.
+  const handleDevolutionRecordChange = useCallback((index: number, key: string) => {
+    setInRouteConfirmed(false)
+    setDevolutions((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item
+        const next = { ...item, selectedRecordKey: key }
+        const rec = selectedRecord(next)
+        return rec
+          ? {
+              ...next,
+              id: rec.id,
+              isCharge: rec.kind === "charge",
+              subsidiaryName: rec.subsidiaryName ?? item.subsidiaryName,
+              entregadoIncome: rec.kind === "shipment" ? rec.entregadoIncome : null,
+            }
+          : next
+      }),
     )
   }, [])
 
@@ -408,6 +444,15 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
           // Solo se llega a executeSave sin ingreso, o tras confirmar el modal de anulación:
           // marcar las guías con ingreso `entregado` para que el backend lo anule.
           annulEntregadoIncome: d.entregadoIncome ? true : undefined,
+          // Registro elegido de la guía y, si va en una ruta sin cerrar, la confirmación.
+          ...(() => {
+            const rec = selectedRecord(d)
+            if (!rec) return {}
+            return {
+              ...(rec.kind === "shipment" ? { shipmentId: rec.id } : { chargeShipmentId: rec.id }),
+              confirmInRoute: rec.inOpenRoute && inRouteConfirmedRef.current ? true : undefined,
+            }
+          })(),
         })),
         collections: collections.map((c) => ({
           trackingNumber: c.trackingNumber,
@@ -417,7 +462,11 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         })),
       })
 
-      toast(`Se guardaron ${collections.length} recolecciones y ${devolutions.length} devoluciones.`)
+      const skippedInRoute: string[] = salida?.devolutions?.inRoute ?? []
+      toast(
+        `Se guardaron ${collections.length} recolecciones y ${devolutions.length - skippedInRoute.length} devoluciones.` +
+          (skippedInRoute.length ? ` No se guardaron porque van en ruta: ${skippedInRoute.join(", ")}.` : ""),
+      )
 
       // La generación de archivos y el envío de correo se hacen DESPUÉS del guardado
       // y en su propio try/catch: si fallan, los datos ya quedaron a salvo, el spinner
@@ -440,6 +489,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       setHasValidatedDevolutions(false)
       setShowWarningModal(false)
       setShowAnnulModal(false)
+      setShowInRouteModal(false)
+      setInRouteConfirmed(false)
       // Limpieza del estado en memoria del escáner activo (el de la pestaña visible).
       collectionsScanRef.current?.clear()
       devolutionsScanRef.current?.clear()
@@ -461,8 +512,21 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
   // Último paso antes de guardar: si alguna devolución tiene ingreso `entregado` vigente, se pide
   // confirmación (se anulará ese cobro al regresar el paquete a FedEx). Si ninguna, guarda directo.
   // Todas las rutas hacia el guardado pasan por aquí para no saltarse la confirmación.
+  // Antes de la anulación: si alguna devolución es de un registro que va en una ruta sin cerrar,
+  // se pide confirmar que el paquete sí regresó (caso 384096861505).
+  const inRouteDevolutions = devolutions.filter((d) => selectedRecord(d)?.inOpenRoute)
+  const proceedToInRouteCheck = () => {
+    setShowWarningModal(false)
+    if (inRouteDevolutions.length > 0 && !inRouteConfirmed) {
+      setShowInRouteModal(true)
+      return
+    }
+    proceedToSaveOrConfirmAnnul()
+  }
+
   const proceedToSaveOrConfirmAnnul = () => {
     setShowWarningModal(false)
+    setShowInRouteModal(false)
     const devsWithIncome = devolutions.filter((d) => d.entregadoIncome)
     if (devsWithIncome.length > 0) {
       setShowAnnulModal(true)
@@ -508,8 +572,8 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       return
     }
 
-    // Si todo está perfecto, pasamos al gate de confirmación de anulación (o guarda directo).
-    proceedToSaveOrConfirmAnnul()
+    // Si todo está perfecto, pasamos a las confirmaciones (en ruta → anulación) o guarda directo.
+    proceedToInRouteCheck()
   }
 
   const totalItems = collections.length + devolutions.length
@@ -745,6 +809,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
                     handleChangeStatus={handleChangeDevolutionStatus}
                     handleReasonChange={handleDevolutionReasonChange}
                     handleRemove={handleRemoveDevolution}
+                    handleRecordChange={handleDevolutionRecordChange}
                   />
                 ))}
               </div>
@@ -789,11 +854,51 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
                 Cancelar y revisar
               </Button>
               <Button
-                onClick={proceedToSaveOrConfirmAnnul}
+                onClick={proceedToInRouteCheck}
                 disabled={isLoading}
                 className="bg-orange-600 hover:bg-orange-700 text-white"
               >
                 {isLoading ? "Guardando..." : "Sí, guardar con excepciones"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {showInRouteModal && (
+          <div className="bg-amber-50 p-4 rounded-lg mt-6 animate-in fade-in slide-in-from-bottom-2" data-testid="in-route-modal">
+            <h3 className="text-amber-900 font-bold flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Estos paquetes van en una ruta que no se ha cerrado
+            </h3>
+            <p className="text-sm text-amber-800 mt-2">
+              El sistema los tiene <strong>en ruta</strong>. Si de verdad ya regresaron, confirma. Si no, cancela y elige otro registro o quítalos de la lista.
+            </p>
+            <div className="mt-3 bg-white/60 rounded p-2 max-h-40 overflow-y-auto">
+              <ul className="text-sm text-amber-900 divide-y divide-amber-100">
+                {inRouteDevolutions.map((d) => {
+                  const rec = selectedRecord(d)!
+                  return (
+                    <li key={d.trackingNumber} className="py-1">
+                      <span className="font-mono font-medium">{d.trackingNumber}</span>
+                      <span className="text-amber-700"> · {recordTitle(rec)} · {recordRouteText(rec)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+            <div className="flex gap-3 mt-4">
+              <Button onClick={() => setShowInRouteModal(false)} variant="outline" className="bg-white hover:bg-gray-100">
+                Cancelar y revisar
+              </Button>
+              <Button
+                onClick={() => {
+                  setInRouteConfirmed(true)
+                  proceedToSaveOrConfirmAnnul()
+                }}
+                disabled={isLoading}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                Sí, ya regresaron
               </Button>
             </div>
           </div>
@@ -843,7 +948,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
         )}
 
         {/* Action buttons (Se ocultan si algún modal de confirmación está activo) */}
-        {!showWarningModal && !showAnnulModal && (
+        {!showWarningModal && !showAnnulModal && !showInRouteModal && (
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
               onClick={handleUnifiedSave}

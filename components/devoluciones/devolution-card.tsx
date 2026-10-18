@@ -1,7 +1,9 @@
 import { FC } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { AlertTriangle, Layers, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { recordKey, recordRouteText, recordTitle, selectedRecord } from "@/lib/devolution-records";
 import { SelectStatus } from "./select-status";
 import { DevolutionRow } from "@/lib/types";
 import { DEVOLUTION_REASON_MAP } from "@/lib/constants";
@@ -14,10 +16,12 @@ interface DevolutionCardProps {
   handleChangeStatus: (index: number, status: string) => void;
   handleReasonChange: (index: number, reason: string) => void;
   handleRemove: (trackingNumber: string) => void;
+  /** Cambia el registro de la guía que se devuelve (cuando tiene varios). */
+  handleRecordChange: (index: number, recordKey: string) => void;
 }
 
 /** Convierte un estatus snake_case del backend en una etiqueta legible. */
-function prettyStatus(raw?: string | null): string {
+export function prettyStatus(raw?: string | null): string {
   if (!raw) return "Sin estatus";
   const known: Record<string, string> = {
     entregado: "Entregado",
@@ -82,7 +86,7 @@ function incomeIndicator(item: DevolutionRow): { label: string; className: strin
 }
 
 /** Familia de color según la naturaleza del estatus (terminal bueno / devolución / excepción / tránsito). */
-function statusTone(raw?: string | null): string {
+export function statusTone(raw?: string | null): string {
   if (!raw) return "bg-slate-100 text-slate-600";
   if (raw.startsWith("entregado")) return "bg-emerald-50 text-emerald-700";
   if (["devuelto_a_fedex", "retorno_abandono_fedex", "acargo_de_fedex", "es_ocurre", "estacion_fedex"].includes(raw))
@@ -100,7 +104,10 @@ export const DevolutionCard: FC<DevolutionCardProps> = ({
   handleChangeStatus,
   handleReasonChange,
   handleRemove,
+  handleRecordChange,
 }) => {
+  const records = item.records ?? [];
+  const chosen = selectedRecord(item);
   const statusRaw = item.lastStatus?.type ?? item.status;
   const exceptionCode = item.lastStatus?.exceptionCode;
   const reasonLabel = exceptionCode ? DEVOLUTION_REASON_MAP[exceptionCode] : undefined;
@@ -138,6 +145,49 @@ export const DevolutionCard: FC<DevolutionCardProps> = ({
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Registro que regresa: una guía puede tener uno por consolidado */}
+      {records.length > 1 && (
+        <div className="space-y-1">
+          <label className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+            <Layers className="h-3 w-3" /> ¿Cuál regresa? Esta guía tiene {records.length} registros
+          </label>
+          <Select
+            value={item.selectedRecordKey ?? undefined}
+            onValueChange={(v) => handleRecordChange(index, v)}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="h-8 text-xs" data-testid={`record-select-${item.trackingNumber}`}>
+              <SelectValue placeholder="Elige el registro" />
+            </SelectTrigger>
+            <SelectContent>
+              {records.map((r) => (
+                <SelectItem key={recordKey(r)} value={recordKey(r)} className="text-xs">
+                  <span className="font-medium">{recordTitle(r)}</span>
+                  {r.inOpenRoute ? (
+                    <span className="text-amber-700"> · en ruta sin cerrar</span>
+                  ) : (
+                    <span className="text-slate-500"> · {prettyStatus(r.status)}</span>
+                  )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {chosen && !chosen.inOpenRoute && <p className="text-[11px] text-slate-500">{recordRouteText(chosen)}</p>}
+        </div>
+      )}
+
+      {chosen?.inOpenRoute && (
+        <div
+          className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800"
+          data-testid={`in-route-warning-${item.trackingNumber}`}
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            {recordRouteText(chosen)}. Revisa que el paquete sí haya regresado antes de devolverlo.
+          </span>
+        </div>
+      )}
 
       {/* Estatus actual (píldora protagonista) */}
       <div

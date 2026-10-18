@@ -105,6 +105,17 @@ export function ApprovalTray() {
                       {s.summary.amountAfter !== s.summary.amountBefore && <> → {fmtMoney(s.summary.amountAfter)}</>}
                     </p>
                   )}
+                  {r.type === "undo_devolution" && (s?.records ?? []).length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-[12px] text-muted-foreground">
+                      {s!.records!.map((x) => (
+                        <li key={x.id}>
+                          {x.consNumber ? `Consolidado ${x.consNumber}` : "Registro"}:{" "}
+                          {x.willRevert ? `${x.currentStatus.replace(/_/g, " ")} → ${x.toStatus.replace(/_/g, " ")}` : "no cambia"}
+                        </li>
+                      ))}
+                      {(s!.incomes ?? []).length > 0 && <li>Se reactivan {s!.incomes!.length} ingreso(s)</li>}
+                    </ul>
+                  )}
                   {r.executionError && (
                     <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-[12px] text-rose-700">No se pudo aplicar: {r.executionError}</p>
                   )}
