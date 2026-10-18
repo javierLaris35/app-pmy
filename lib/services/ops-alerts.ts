@@ -34,6 +34,17 @@ export interface OpsSubsidiaryConfig {
   stepDispatch: boolean;
   stepClosure: boolean;
   stepInventory: boolean;
+  stepDevolutions: boolean;
+  stepInventoryInitial: boolean;
+  /** Horarios de Tareas del día (null = usa el valor general). */
+  uploadMinutes: number | null;
+  unloadingTime: string | null;
+  dispatchAfterUnloadMinutes: number | null;
+  dispatchNextDayTime: string | null;
+  closureTime: string | null;
+  inventoryInitialTime: string | null;
+  devolutionsTime: string | null;
+  inventoryFinalTime: string | null;
   managerUserIds: string[];
   whatsappNumbers: string[];
   whatsappGroups: { id: string; name: string }[];
