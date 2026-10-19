@@ -241,7 +241,7 @@ export function ServerBackupPanel() {
                   </div>
                 )}
                 {logs.length > 0 && (
-                  <div className="rounded-xl border bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed max-h-64 overflow-auto">
+                  <div className="scroll-console rounded-xl border bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed max-h-64 overflow-auto">
                     {logs.map((l, i) => {
                       const color =
                         l.level === "phase" ? "text-sky-300"

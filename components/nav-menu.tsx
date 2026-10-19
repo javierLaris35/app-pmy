@@ -77,7 +77,8 @@ export function NavMenu({ items }: { items: any[] }) {
                     <ChevronRight className="ml-auto size-3.5 text-sidebar-foreground/40 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                   </SidebarMenuButton>
                 </CollapsibleTrigger>
-                <CollapsibleContent>
+                {/* Abre/cierra con animación de altura: sin ella el menú "brinca" de golpe. */}
+                <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down motion-reduce:animate-none">
                   <SidebarMenuSub className="mx-2.5 my-1 gap-0.5 border-l border-sidebar-border/70 pl-2">
                     {item.items.map((subItem: any) => {
                       const isSubActive = pathname === subItem.url

@@ -1,0 +1,6 @@
+{
+  "kind": "correccion",
+  "title": "Barras de desplazamiento más limpias",
+  "summary": "La barra del menú lateral ahora es delgada y solo aparece al pasar el mouse.",
+  "audience": "todos"
+}

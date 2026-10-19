@@ -10,6 +10,7 @@ import { ApprovalTray } from "./approvals/approval-tray"
 import { TasksTray } from "./tareas-del-dia/tasks-tray"
 import { PoAuthorizationTray } from "./maintenance/po-authorization-tray"
 import { NotificationPush } from "./notifications/notification-push"
+import { WhatsNewGate } from "./release-notes/whats-new-gate"
 import { useAuthStore } from "@/store/auth.store"
 import { usePageHeaderStore } from "@/store/page-header.store"
 import { Loader } from "./loader"
@@ -307,6 +308,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </header>
         <NotificationPush />
+        <WhatsNewGate />
         <div className="p-4 md:p-6">
           {children}
           <CommandPalette />

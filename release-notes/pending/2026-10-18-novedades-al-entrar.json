@@ -1,0 +1,12 @@
+{
+  "kind": "nuevo",
+  "title": "Novedades al entrar",
+  "summary": "Cuando el sistema tenga mejoras, al entrar verás qué cambió y cómo usarlo, con pasos cortos.",
+  "where": "Aparece solo, una vez, después de cada actualización",
+  "steps": [
+    "Lee qué cambió en cada novedad.",
+    "Usa \"Ir a verlo\" para abrir la pantalla.",
+    "Pulsa Entendido y no volverá a salir."
+  ],
+  "audience": "todos"
+}
