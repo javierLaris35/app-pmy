@@ -1,0 +1,6 @@
+{
+  "kind": "correccion",
+  "title": "Colores de estatus completos",
+  "summary": "Las etiquetas de estatus, la severidad del monitoreo de rutas y los tickets de soporte ya muestran todos sus colores.",
+  "audience": "todos"
+}

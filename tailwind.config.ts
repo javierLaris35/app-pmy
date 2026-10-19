@@ -7,6 +7,13 @@ export default {
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
+    // Mapas de estilos (estatus, severidad, tickets…) que viven fuera de components/app:
+    // sin estas rutas Tailwind no genera esas clases y salen sin color.
+    "./lib/**/*.{ts,tsx}",
+    "./utils/**/*.{ts,tsx}",
+    "./hooks/**/*.{ts,tsx}",
+    "./hoc/**/*.{ts,tsx}",
+    "./store/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {
@@ -79,12 +86,18 @@ export default {
           from: { height: "var(--radix-collapsible-content-height)", opacity: "1" },
           to: { height: "0", opacity: "0" },
         },
+        "caret-blink": {
+          "0%,70%,100%": { opacity: "1" },
+          "20%,50%": { opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "collapsible-down": "collapsible-down 0.2s ease-out",
         "collapsible-up": "collapsible-up 0.15s ease-out",
+        "caret-blink": "caret-blink 1.25s ease-out infinite",
+        "spin-slow": "spin 3s linear infinite",
       },
     },
   },
