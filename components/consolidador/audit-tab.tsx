@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/consolidador/underline-tabs";
 import { PmySpinner } from "@/components/ui/pmy-loader";
 import { CobrosAuditPanel } from "@/components/consolidador/cobros-audit-panel";
 import { ChargeGuidesTable, CollectionsAuditTable, NoVanTable } from "@/components/consolidador/audit-extra-tables";
@@ -23,9 +24,6 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
     </div>
   );
 }
-
-const Count = ({ n, tone }: { n: number; tone: "amber" | "sky" }) =>
-  n ? <span className={cn("ml-1.5 rounded-full px-1.5 text-[10px] font-semibold", tone === "amber" ? "bg-amber-100 text-amber-700" : "bg-sky-100 text-sky-700")}>{n}</span> : null;
 
 interface Props {
   scope: ConsolidadorScope;
@@ -63,12 +61,12 @@ export function AuditTab({ scope, from, to, active, summary, onChanged }: Props)
 
       <Tabs value={sub} onValueChange={(v) => setSub(v as Sub)}>
         <div className="flex items-center gap-3">
-          <TabsList>
-            <TabsTrigger value="reglas">Reglas de cobro</TabsTrigger>
-            <TabsTrigger value="cargas">Cargas<Count n={sumParts(s, (x) => x.doubles)} tone="amber" /></TabsTrigger>
-            <TabsTrigger value="recolecciones">Recolecciones</TabsTrigger>
-            <TabsTrigger value="novan">No VAN<Count n={sumParts(s, (x) => x.novan.total)} tone="sky" /></TabsTrigger>
-          </TabsList>
+          <UnderlineTabsList className="flex-1">
+            <UnderlineTabsTrigger size="sm" value="reglas" count={sumParts(s, (x) => x.missing.count + x.extra.count)} tone="amber">Reglas de cobro</UnderlineTabsTrigger>
+            <UnderlineTabsTrigger size="sm" value="cargas" count={sumParts(s, (x) => x.doubles)} tone="amber">Cargas</UnderlineTabsTrigger>
+            <UnderlineTabsTrigger size="sm" value="recolecciones" count={sumParts(s, (x) => x.collections.withoutCharge)} tone="rose">Recolecciones</UnderlineTabsTrigger>
+            <UnderlineTabsTrigger size="sm" value="novan" count={sumParts(s, (x) => x.novan.total)} tone="sky">No VAN</UnderlineTabsTrigger>
+          </UnderlineTabsList>
           {loading && <PmySpinner className="h-4 w-4 text-slate-400" />}
         </div>
 

@@ -6,7 +6,8 @@ import { AlertTriangle, CalendarCheck2, ChevronDown, PlusCircle, Search, Sliders
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/consolidador/underline-tabs";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-toolbar";
@@ -36,11 +37,6 @@ type TabKey = "resumen" | "conteo" | "auditoria" | "detalle";
 
 const isConsolidadorKey = (key: unknown) =>
   typeof key === "string" ? key.startsWith("/consolidador") : Array.isArray(key) && String(key[0] ?? "").startsWith("/consolidador");
-
-const Count = ({ n, tone }: { n: number; tone: "rose" | "amber" }) =>
-  n ? (
-    <span className={`ml-1.5 rounded-full px-1.5 text-[10px] font-semibold ${tone === "rose" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{n}</span>
-  ) : null;
 
 function ConsolidadorPage() {
   const [scope, setScopeState] = useState<ConsolidadorScope>(EMPTY_SCOPE);
@@ -191,15 +187,18 @@ function ConsolidadorPage() {
           <div className="rounded-md border border-amber-200 bg-amber-50 py-10 text-center text-sm text-amber-800">{zoneError}</div>
         ) : (
           <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-            <TabsList>
-              <TabsTrigger value="resumen">Resumen</TabsTrigger>
-              {canCount && <TabsTrigger value="conteo">Conteo manual</TabsTrigger>}
-              <TabsTrigger value="auditoria">
+            <UnderlineTabsList>
+              <UnderlineTabsTrigger value="resumen" hint="¿Dónde hay problema?">Resumen</UnderlineTabsTrigger>
+              {canCount && (
+                <UnderlineTabsTrigger value="conteo" count={sumParts(shown, (s) => s.lastManualCount?.differences ?? 0)} tone="rose">
+                  Conteo manual
+                </UnderlineTabsTrigger>
+              )}
+              <UnderlineTabsTrigger value="auditoria" count={sumParts(shown, (s) => s.missing.count + s.extra.count)} tone="amber">
                 Auditoría de cobros
-                <Count n={sumParts(shown, (s) => s.missing.count + s.extra.count)} tone="amber" />
-              </TabsTrigger>
-              <TabsTrigger value="detalle">Detalle</TabsTrigger>
-            </TabsList>
+              </UnderlineTabsTrigger>
+              <UnderlineTabsTrigger value="detalle" hint="rutas · consolidados · ingresos">Detalle</UnderlineTabsTrigger>
+            </UnderlineTabsList>
 
             <TabsContent value="resumen" className="mt-3">
               <SummaryView
