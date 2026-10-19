@@ -59,8 +59,8 @@ function Stepper({ tasks, returned }: { tasks: TaskRow[]; returned: number | nul
             <span className={cn("mb-1 grid h-7 w-7 place-items-center rounded-full ring-1", DOT[v.tone])}>
               <StepIcon status={t.status} />
             </span>
-            <span className="text-xs font-medium">{STEP_TITLE[t.step] ?? stepLabel(t.step)}</span>
-            <span className={cn("text-[11px] leading-tight", t.status === "late" ? "text-red-600" : "text-muted-foreground")}>{stepDetail(t)}</span>
+            <span className="text-sm font-medium">{STEP_TITLE[t.step] ?? stepLabel(t.step)}</span>
+            <span className={cn("text-xs leading-tight", t.status === "late" ? "text-red-600" : "text-muted-foreground")}>{stepDetail(t)}</span>
           </Link>
         );
       })}
@@ -68,8 +68,8 @@ function Stepper({ tasks, returned }: { tasks: TaskRow[]; returned: number | nul
         <span className="mb-1 grid h-7 w-7 place-items-center rounded-full bg-slate-50 text-slate-500 ring-1 ring-slate-200">
           <Undo2 className="h-3.5 w-3.5" aria-hidden />
         </span>
-        <span className="text-xs font-medium">Devoluciones</span>
-        <span className="text-[11px] leading-tight text-muted-foreground">{returned === null ? "…" : returned ? `${returned} registradas` : "Ninguna registrada"}</span>
+        <span className="text-sm font-medium">Devoluciones</span>
+        <span className="text-xs leading-tight text-muted-foreground">{returned === null ? "…" : returned ? `${returned} registradas` : "Ninguna registrada"}</span>
       </Link>
     </div>
   );
@@ -117,9 +117,9 @@ function Details({ data }: { data: PackageDetail }) {
       <div className="grid grid-cols-3 gap-2 border-t pt-2 sm:grid-cols-6">
         {stats.map((c) => (
           <div key={c.label} className="min-w-0">
-            <p className={cn("truncate text-[11px]", c.warn ? "text-amber-700" : "text-muted-foreground")}>{c.label}</p>
-            <p className={cn("text-sm font-semibold", c.warn && "text-amber-700")}>{c.value}</p>
-            {c.hint && <p className="truncate text-[11px] text-muted-foreground">{c.hint}</p>}
+            <p className={cn("truncate text-xs", c.warn ? "text-amber-700" : "text-muted-foreground")}>{c.label}</p>
+            <p className={cn("text-sm font-semibold tabular-nums", c.warn && "text-amber-700")}>{c.value}</p>
+            {c.hint && <p className="truncate text-xs text-muted-foreground">{c.hint}</p>}
           </div>
         ))}
       </div>
@@ -165,8 +165,8 @@ export function ConsolidatedRow({ item, defaultOpen }: { item: DayConsolidated; 
     <Collapsible open={open} onOpenChange={setOpen} className={cn("rounded-xl border bg-card transition-shadow", open && "shadow-sm")}>
       <CollapsibleTrigger className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left text-sm">
         {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-        <span className={cn("font-medium", allDone && "text-muted-foreground line-through")}>{name}</span>
-        <Badge variant="secondary" className="px-1.5 py-0 text-[11px] font-normal">
+        <span className={cn("font-semibold", allDone && "text-muted-foreground line-through")}>{name}</span>
+        <Badge variant="secondary" className="px-1.5 py-0 text-xs font-normal">
           {item.carrier === "dhl" ? "DHL" : "FedEx"} · {kind} · {item.guides} guías
         </Badge>
         <span className="ml-auto flex items-center gap-1" aria-hidden>
@@ -177,11 +177,11 @@ export function ConsolidatedRow({ item, defaultOpen }: { item: DayConsolidated; 
           ))}
         </span>
         {allDone ? (
-          <span className={cn("rounded-full px-2 py-0.5 text-xs", PILL.success)}>Completo</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", PILL.success)}>Completo</span>
         ) : late ? (
-          <span className={cn("rounded-full px-2 py-0.5 text-xs", PILL.danger)}>{STEP_TITLE[late.step]} atrasado</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", PILL.danger)}>{STEP_TITLE[late.step]} atrasado</span>
         ) : (
-          <span className={cn("rounded-full px-2 py-0.5 text-xs", PILL.warning)}>
+          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", PILL.warning)}>
             {done} de {item.tasks.length} pasos
           </span>
         )}

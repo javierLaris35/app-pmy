@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, ClipboardCheck, ClipboardList, ListChecks, Loader2, Lock, RefreshCw, Truck, Undo2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ClipboardCheck, ClipboardList, ListChecks, Flag, Loader2, RefreshCw, Truck, Undo2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -23,7 +23,7 @@ function Kpi({ label, value, tone, children }: { label: string; value: string | 
   return (
     <div className="rounded-lg bg-muted/60 px-3 py-2">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("text-lg font-semibold", tone === "danger" && "text-red-600", tone === "warning" && "text-amber-600")}>{value}</p>
+      <p className={cn("text-xl font-semibold tabular-nums", tone === "danger" && "text-red-600", tone === "warning" && "text-amber-600")}>{value}</p>
       {children}
     </div>
   );
@@ -51,11 +51,11 @@ function WeekStrip({ monday, today, selected, data, onPick }: { monday: string; 
               future && "cursor-not-allowed opacity-40",
             )}
           >
-            <p className="truncate text-xs font-semibold">{d.label}</p>
+            <p className="truncate text-sm font-medium">{d.label}</p>
             <div className="my-1 h-1 rounded bg-slate-200">
               {!!info?.total && <div className="h-1 rounded bg-emerald-500" style={{ width: `${info.pct}%` }} />}
             </div>
-            <p className={cn("truncate text-[11px]", info?.late ? "text-red-600" : status === "Todo listo" ? "text-emerald-700" : "text-muted-foreground")}>
+            <p className={cn("truncate text-xs", info?.late ? "text-red-600" : status === "Todo listo" ? "text-emerald-700" : "text-muted-foreground")}>
               {isToday ? `Hoy · ${status}` : status}
             </p>
           </button>
@@ -76,12 +76,12 @@ function InventoryCard({ task, icon: Icon, title }: { task?: TaskRow; icon: Reac
       {task.status === "done" ? (
         <>
           <p className="mt-1 text-sm font-medium text-emerald-700">Hecho · {task.doneAt ? hermosilloTime(task.doneAt) : ""}</p>
-          {task.doneByName && <p className="text-[11px] text-muted-foreground">{task.doneByName}</p>}
+          {task.doneByName && <p className="text-xs text-muted-foreground">{task.doneByName}</p>}
         </>
       ) : (
         <>
           <p className={cn("mt-1 text-sm font-medium", task.status === "late" ? "text-red-700" : "text-foreground")}>{task.status === "late" ? "No se hizo a tiempo" : "Pendiente"}</p>
-          <p className={cn("text-[11px]", task.status === "late" ? "text-red-600" : "text-muted-foreground")}>Límite {hermosilloTime(task.dueAt)}</p>
+          <p className={cn("text-xs", task.status === "late" ? "text-red-600" : "text-muted-foreground")}>Límite {hermosilloTime(task.dueAt)}</p>
         </>
       )}
     </Link>
@@ -98,8 +98,8 @@ function SubsidiaryPanel({ data }: { data: DayTasks }) {
   return (
     <div className="space-y-2 rounded-xl border bg-card px-3 py-3">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Tareas de la sucursal · {dayLabel(data.day)}</span>
-        <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs", PILL[data.subsidiary.some((x) => x.status === "late") ? "danger" : "muted"])}>
+        <span className="text-sm font-semibold">Tareas de la sucursal · {dayLabel(data.day)}</span>
+        <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs font-medium", PILL[data.subsidiary.some((x) => x.status === "late") ? "danger" : "muted"])}>
           {dayPct(data.subsidiary)}% listo
         </span>
       </div>
@@ -108,12 +108,12 @@ function SubsidiaryPanel({ data }: { data: DayTasks }) {
         <Link href="/operaciones/salidas-a-ruta" className={cn("rounded-lg px-3 py-2 transition-opacity hover:opacity-80", closure ? TONE_CARD[closure.status] : TONE_CARD.pending)}>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Truck className="h-3.5 w-3.5" /> Rutas del día</p>
           <p className="mt-1 text-sm font-medium">{routesSummary(data.routes)}</p>
-          {closure?.status === "late" && <p className="text-[11px] text-red-600">Cierre límite {hermosilloTime(closure.dueAt)}</p>}
+          {closure?.status === "late" && <p className="text-xs text-red-600">Cierre límite {hermosilloTime(closure.dueAt)}</p>}
         </Link>
         <Link href="/operaciones/devoluciones" className="rounded-lg bg-muted/50 px-3 py-2 transition-opacity hover:opacity-80">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Undo2 className="h-3.5 w-3.5" /> Devoluciones</p>
           <p className="mt-1 text-sm font-medium">{data.devolutions.length ? `${data.devolutions.length} registradas` : "Ninguna registrada"}</p>
-          <p className="text-[11px] text-muted-foreground">Solo informa: no todos los DEX regresan</p>
+          <p className="text-xs text-muted-foreground">Solo informa: no todos los DEX regresan</p>
         </Link>
         <InventoryCard task={t("inventory_final")} icon={ClipboardList} title="Inventario final de día" />
       </div>
@@ -127,13 +127,13 @@ function SubsidiaryPanel({ data }: { data: DayTasks }) {
           <CollapsibleContent>
             <ul className="divide-y">
               {open.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 text-sm">
+                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs">
                   <span className="font-mono text-xs">{r.trackingNumber}</span>
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.drivers || "Sin chofer asignado"}</span>
-                  <span className="text-xs text-muted-foreground">{r.guides} guías</span>
-                  <Button asChild size="sm" variant="outline" className="h-7 gap-1 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800">
+                  <span className="min-w-0 flex-1 truncate">{r.drivers || "Sin chofer asignado"}</span>
+                  <span className="text-muted-foreground tabular-nums">{r.guides} guías</span>
+                  <Button asChild size="sm" variant="secondary" className="h-7 gap-1.5 px-2.5 text-xs font-medium">
                     <Link href={closureLink(r)}>
-                      <Lock className="h-3.5 w-3.5" /> Cerrar ruta
+                      <Flag className="h-3.5 w-3.5" /> Cerrar ruta
                     </Link>
                   </Button>
                 </li>
@@ -241,7 +241,7 @@ export default function TareasScreen() {
         </div>
 
         <WeekStrip monday={week.from} today={today} selected={day} data={weekData} onPick={setDay} />
-        <p className="text-right text-[11px] text-muted-foreground">El sistema se suspende a las 9:30 p. m.</p>
+        <p className="text-right text-xs text-muted-foreground">El sistema se suspende a las 9:30 p. m.</p>
 
         {error ? (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">No se pudieron cargar las tareas. Revisa tu conexión e intenta de nuevo.</p>
@@ -278,7 +278,7 @@ export default function TareasScreen() {
 
             {data.possibleLd.length > 0 && (
               <div className="rounded-xl border border-amber-300 bg-card px-3 py-2">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
+                <p className="flex items-center gap-1.5 text-sm font-semibold">
                   <AlertTriangle className="h-4 w-4 text-amber-600" /> {data.isToday ? "Posibles LD hoy" : "LD del día"}
                   <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{data.possibleLd.length}</span>
                 </p>
