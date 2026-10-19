@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { PmySpinner } from "@/components/ui/pmy-loader";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { downloadInboxAttachment, getAttachmentObjectUrl, getAttachmentPreview } from "@/lib/services/inbox";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { Download, FileQuestion, Loader2 } from "lucide-react";
+import { Download, FileQuestion} from "lucide-react";
 
 export interface ViewerTarget {
   id: string;
@@ -16,6 +17,8 @@ export interface ViewerTarget {
   contentType?: string;
   /** Hoja con la que abre (p. ej. "F2" desde la tarjeta de F2). */
   sheet?: string;
+  /** Texto a señalar (guía o consolidado buscado): se resalta su renglón y se lleva a la vista. */
+  highlight?: string;
 }
 
 const TRACKING = /^(tracking\s*(number|no\.?)?|gu[ií]a|numero_guia|nro_guia)$/i;
@@ -52,6 +55,19 @@ export function AttachmentViewer({ target, onClose }: { target: ViewerTarget | n
   const current = useMemo(() => data?.sheets?.find((s) => s.name === sheet) ?? data?.sheets?.[0], [data, sheet]);
   const headerIdx = useMemo(() => current?.rows.slice(0, 15).findIndex((r) => r.some((c) => TRACKING.test(c))) ?? -1, [current]);
   const width = useMemo(() => Math.max(0, ...(current?.rows.map((r) => r.length) ?? [0])), [current]);
+  const needle = (target?.highlight ?? "").replace(/\s+/g, "").toUpperCase();
+  const hit = (r: string[]) => !!needle && r.some((c) => (c ?? "").replace(/\s+/g, "").replace(/^'+/, "").toUpperCase().includes(needle));
+  const firstHit = useMemo(() => (needle && current ? current.rows.findIndex(hit) : -1), [current, needle]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hitRef = useRef<HTMLTableRowElement | null>(null);
+  useEffect(() => {
+    if (firstHit >= 0) setTimeout(() => hitRef.current?.scrollIntoView({ block: "center" }), 50);
+  }, [firstHit]);
+  // Si lo buscado no está en la hoja abierta, se busca en las demás.
+  useEffect(() => {
+    if (!needle || !data?.sheets?.length || target?.sheet) return;
+    const withHit = data.sheets.find((s) => s.rows.some(hit));
+    if (withHit) setSheet(withHit.name);
+  }, [data, needle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
@@ -63,6 +79,7 @@ export function AttachmentViewer({ target, onClose }: { target: ViewerTarget | n
               {data?.type === "sheet" && current
                 ? `${data.sheets!.length} ${data.sheets!.length === 1 ? "hoja" : "hojas"} · hoja "${current.name}": ${Math.max(0, current.totalRows - (headerIdx + 1))} filas de datos`
                 : "Vista del archivo tal como llegó en el correo"}
+              {needle && data?.type === "sheet" && (firstHit >= 0 ? <span className="ml-2 font-medium text-amber-700">· Renglón {firstHit + 1}: {target?.highlight}</span> : <span className="ml-2 text-slate-500">· {target?.highlight} no está en esta hoja</span>)}
             </DialogDescription>
           </div>
           {target && (
@@ -79,7 +96,7 @@ export function AttachmentViewer({ target, onClose }: { target: ViewerTarget | n
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Abriendo archivo…
+            <PmySpinner className="mr-2 h-4 w-4" /> Abriendo archivo…
           </div>
         ) : error ? (
           <div className="flex flex-1 items-center justify-center text-sm text-red-600">No se pudo abrir el archivo.</div>
@@ -103,7 +120,9 @@ export function AttachmentViewer({ target, onClose }: { target: ViewerTarget | n
                   {current.rows.map((r, i) => (
                     <tr
                       key={i}
+                      ref={i === firstHit ? hitRef : undefined}
                       className={cn(
+                        hit(r) && i !== headerIdx && "bg-amber-200/70 font-semibold text-slate-900",
                         "border-b border-slate-100",
                         i === headerIdx && "sticky top-0 z-10 bg-slate-100 font-semibold text-slate-800 shadow-[0_1px_0_0_#e2e8f0]",
                         i < headerIdx && "bg-amber-50/60 text-slate-500",
@@ -127,7 +146,7 @@ export function AttachmentViewer({ target, onClose }: { target: ViewerTarget | n
             <iframe title={target?.filename} src={blobUrl} className="min-h-0 w-full flex-1 rounded-md border" />
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Abriendo PDF…
+              <PmySpinner className="mr-2 h-4 w-4" /> Abriendo PDF…
             </div>
           )
         ) : data?.type === "image" ? (
