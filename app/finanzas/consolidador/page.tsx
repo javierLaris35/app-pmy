@@ -118,7 +118,7 @@ function ConsolidadorPage() {
 
   return (
     <AppLayout>
-      <div className="relative flex min-h-screen flex-col gap-3 p-4 md:p-5">
+      <div className="relative flex flex-col gap-3">
         <OperationHeader
           icon={SlidersHorizontal}
           title="Consolidador de Finanzas"
@@ -126,7 +126,7 @@ function ConsolidadorPage() {
           actions={
             <div className="flex items-center gap-2">
               <ScopeSwitcher scope={scope} onChange={setScope} />
-              <Button variant="outline" size="icon" className="h-8 w-8 text-slate-600" onClick={() => setSearchOpen(true)} title="Buscar guía (Ctrl K)" aria-label="Buscar guía">
+              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 text-slate-600" onClick={() => setSearchOpen(true)} title="Buscar guía (Ctrl K)" aria-label="Buscar guía">
                 <Search className="h-4 w-4" />
               </Button>
               <DropdownMenu>
