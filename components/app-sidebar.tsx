@@ -72,7 +72,7 @@ export function AppSidebar({ user, ...props }: { user: User }) {
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="scroll-soft px-1">
+      <SidebarContent className="scroll-soft pl-1 pr-0">
         <NavMenu items={sidebarMenu.items} />
         <NavSecondary items={secondaryItems} className="mt-auto px-1 pb-4 group-data-[collapsible=icon]:px-0" />
       </SidebarContent>
