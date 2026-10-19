@@ -22,7 +22,10 @@ import { CarrierSwitch } from "@/components/shared/carrier-switch";
 import { getInboxColumns } from "@/components/bandeja-correos/inbox-columns";
 import { InboxDetailSheet } from "@/components/bandeja-correos/inbox-detail-sheet";
 import { VIEW_LABEL, hmoDay } from "@/components/bandeja-correos/labels";
-import { Inbox, RefreshCw, Search, CalendarRange } from "lucide-react";
+import { InboxSearch } from "@/components/bandeja-correos/lookup/inbox-search";
+import { LookupSheet, LookupView } from "@/components/bandeja-correos/lookup/lookup-sheet";
+import { EmailHighlight, EmailRef } from "@/lib/types/inbox-lookup";
+import { Inbox, RefreshCw, CalendarRange } from "lucide-react";
 
 const VIEWS: InboxView[] = ["falta_confirmar", "listos", "subidos", "todos", "ignorado"];
 const EMPTY: Record<InboxView, string> = {
@@ -44,10 +47,24 @@ function BandejaCorreosPage() {
   const [subsidiaryId, setSubsidiaryId] = useState("");
   const [from, setFrom] = useState(() => hmoDay(-6));
   const [to, setTo] = useState(() => hmoDay(0));
-  const [q, setQ] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
   const [openId, setOpenId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  // Buscador: correo abierto señalando lo encontrado + pila de detalles (consolidado ↔ guía).
+  const [highlight, setHighlight] = useState<EmailHighlight | null>(null);
+  const [stack, setStack] = useState<LookupView[]>([]);
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const pushLookup = (v: LookupView, reset = false) => {
+    setStack((s) => (reset ? [v] : [...s, v]));
+    setLookupOpen(true);
+  };
+  /** Abrir un correo desde el buscador o un detalle; al cerrarlo se regresa al detalle. */
+  const openEmail = (e: EmailRef, found: { text: string; label: string }, fromDetail: boolean) => {
+    if (!fromDetail) setStack([]);
+    setLookupOpen(false);
+    setHighlight({ ...found, attachmentId: e.attachmentId, sheet: e.sheet, where: e.where });
+    setOpenId(e.id);
+  };
 
   const { data, isLoading, mutate } = useInboxMessages({
     carrier,
@@ -55,7 +72,6 @@ function BandejaCorreosPage() {
     subsidiaryId: subsidiaryId || undefined,
     from,
     to,
-    q: q.trim() || undefined,
     page: pagination.pageIndex + 1,
     pageSize: pagination.pageSize,
   });
@@ -106,6 +122,12 @@ function BandejaCorreosPage() {
           }
         />
 
+        <InboxSearch
+          onOpenEmail={(e, found) => openEmail(e, found, false)}
+          onOpenConsolidated={(query) => pushLookup({ kind: "cons", query }, true)}
+          onOpenGuide={(tracking) => pushLookup({ kind: "guide", tracking }, true)}
+        />
+
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Paquetería: cada una con su propia lista (DHL = remitente de un dominio DHL). */}
           <CarrierSwitch
@@ -135,18 +157,6 @@ function BandejaCorreosPage() {
               </span>
             </Button>
           ))}
-          <div className="relative ml-auto w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-            <Input
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                resetPage();
-              }}
-              placeholder="Buscar asunto, remitente o consolidado"
-              className="h-9 pl-8"
-            />
-          </div>
         </div>
 
         {data?.outsideDates && (
@@ -185,12 +195,38 @@ function BandejaCorreosPage() {
             pagination={pagination}
             onPaginationChange={setPagination}
             autoResetPageIndex={false}
-            onRowClick={(r) => setOpenId(r.id)}
+            onRowClick={(r) => {
+              setHighlight(null);
+              setStack([]);
+              setOpenId(r.id);
+            }}
             activeRowId={(r) => r.id === openId}
           />
         )}
 
-        <InboxDetailSheet id={openId} onOpenChange={(o) => !o && setOpenId(null)} onChanged={() => mutate()} />
+        <InboxDetailSheet
+          id={openId}
+          highlight={highlight}
+          onOpenChange={(o) => {
+            if (o) return;
+            setOpenId(null);
+            setHighlight(null);
+            if (stack.length) setLookupOpen(true); // vuelve al detalle de donde se abrió
+          }}
+          onChanged={() => mutate()}
+        />
+
+        <LookupSheet
+          stack={stack}
+          open={lookupOpen}
+          onOpenChange={(o) => {
+            setLookupOpen(o);
+            if (!o) setStack([]);
+          }}
+          onPush={(v) => pushLookup(v)}
+          onBack={() => setStack((s) => s.slice(0, -1))}
+          onOpenEmail={(e, found) => openEmail(e, found, true)}
+        />
       </div>
     </AppLayout>
   );

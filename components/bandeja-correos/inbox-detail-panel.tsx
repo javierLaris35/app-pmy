@@ -17,6 +17,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
 import { confirmInboxMessage, downloadInboxAttachment, ignoreInboxMessage, inboxErrorText } from "@/lib/services/inbox";
 import { AttachmentKind } from "@/lib/types/inbox";
+import { EmailHighlight } from "@/lib/types/inbox-lookup";
 import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,7 @@ import { InboxDhlStep } from "./inbox-dhl-step";
 import { NoticeDialog } from "./notice-dialog";
 import { AttachmentViewer, ViewerTarget } from "./attachment-viewer";
 import { ATTACHMENT_LABEL, CONS_KIND_LABEL, SIGNAL_LABEL, formatDateTime, knownByPhrase } from "./labels";
-import { AlertTriangle, CheckCircle2, ChevronDown, Download, Eye, EyeOff, HelpCircle, MailOpen, Megaphone, MoreHorizontal } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Download, Eye, EyeOff, HelpCircle, MailOpen, Megaphone, MoreHorizontal, SearchCheck } from "lucide-react";
 
 const KIND_OPTIONS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "ccp", "ccp_ignored", "dhl", "pdf", "other"];
 const GUIDE_KINDS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "dhl"];
@@ -35,10 +36,12 @@ interface Props {
   onChanged: () => void;
   /** Dentro del panel lateral: sin borde y con espacio para la ✕ de cerrar. */
   bare?: boolean;
+  /** Abierto desde el buscador: qué se encontró y dónde (se señala en el correo). */
+  highlight?: EmailHighlight | null;
 }
 
 /** Correo seleccionado, como dos pasos: ① de qué sucursal es · ② subir sus guías. */
-export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
+export function InboxDetailPanel({ id, onChanged, bare = false, highlight = null }: Props) {
   const { data, isLoading, mutate } = useInboxMessage(id);
   const [editing, setEditing] = useState(false);
   const [subsidiaryId, setSubsidiaryId] = useState("");
@@ -184,6 +187,30 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
+        {highlight && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-950">
+            <SearchCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1">
+              <div>
+                Aquí llegó <b>{highlight.label}</b>
+              </div>
+              <div className="text-xs text-amber-800">{highlight.where}</div>
+            </div>
+            {highlight.attachmentId && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 gap-1 bg-white px-2 text-xs"
+                onClick={() => {
+                  const a = data.attachments.find((x) => x.id === highlight.attachmentId);
+                  if (a) setViewer({ id: a.id, filename: a.filename, contentType: a.contentType, sheet: highlight.sheet ?? undefined, highlight: highlight.text });
+                }}
+              >
+                <Eye className="h-3.5 w-3.5" /> Ver en el archivo
+              </Button>
+            )}
+          </div>
+        )}
         {m.status === "error" && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{m.errorMessage}</p>}
         {m.status === "ignorado" && (
           <p className="rounded-md border bg-slate-50 p-2 text-sm text-slate-600">Ignorado{m.ignoreReason ? `: ${m.ignoreReason}` : ""}. No se sube nada de este correo.</p>
@@ -327,7 +354,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
             <h3 className="mb-1 text-sm font-semibold text-slate-800">Archivos</h3>
             <ul className="divide-y rounded-md border">
                 {data.attachments.map((a) => (
-                  <li key={a.id} className="flex items-center gap-2 px-2 py-1.5 text-xs">
+                  <li key={a.id} className={cn("flex items-center gap-2 px-2 py-1.5 text-xs", highlight?.attachmentId === a.id && "bg-amber-50 ring-2 ring-inset ring-amber-300")}>
                     <span className="min-w-0 flex-1 truncate" title={a.filename}>
                       {a.filename}
                     </span>
@@ -348,7 +375,14 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                       variant="ghost"
                       size="sm"
                       className="h-7 gap-1 px-2 text-xs"
-                      onClick={() => setViewer({ id: a.id, filename: a.filename, contentType: a.contentType })}
+                      onClick={() =>
+                        setViewer({
+                          id: a.id,
+                          filename: a.filename,
+                          contentType: a.contentType,
+                          ...(highlight?.attachmentId === a.id ? { sheet: highlight.sheet ?? undefined, highlight: highlight.text } : {}),
+                        })
+                      }
                     >
                       <Eye className="h-4 w-4" /> Ver
                     </Button>
