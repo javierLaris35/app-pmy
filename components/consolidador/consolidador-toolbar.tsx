@@ -22,6 +22,8 @@ interface Props {
   onRouteChange: (value: string) => void;
   consOptions: string[];
   routeOptions: RouteOption[];
+  /** Solo la navegación de semana (sin filtros de consolidado/ruta). */
+  hideFilters?: boolean;
 }
 
 function FilterPopover({
@@ -114,6 +116,7 @@ export function ConsolidadorToolbar(props: Props) {
         </Button>
       </div>
 
+      {!props.hideFilters && <>
       <FilterPopover
           icon={Package2}
           title="Consolidado"
@@ -130,6 +133,7 @@ export function ConsolidadorToolbar(props: Props) {
           options={props.routeOptions.map((r) => ({ key: r.id, label: r.label }))}
           onChange={props.onRouteChange}
         />
+      </>}
     </div>
   );
 }

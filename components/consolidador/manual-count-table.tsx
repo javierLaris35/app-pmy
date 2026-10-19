@@ -11,6 +11,37 @@ import { VERDICTS } from "@/lib/types/manual-count";
 import { CAUSE_LABEL, VERDICT_LABEL, VERDICT_TONE, outcomeLabel } from "@/lib/consolidador/manual-count-labels";
 import { ReasonButton } from "@/components/consolidador/reason-button";
 import { DIFF_FILTERS, VerdictTiles } from "@/components/consolidador/verdict-tiles";
+import { sourceBadge, type BadgeTone } from "@/lib/consolidador/manual-count-kpis";
+
+/** Acciones de la tabla: generar el cobro de un envío, anular el cobro de un paquete doble o cobrar un No VAN. */
+export interface ManualCountActions {
+  onRepair?: (r: DiagnosisRow, reason: string) => Promise<void>;
+  onAnnulPackage?: (r: DiagnosisRow, reason: string) => Promise<void>;
+  onChargeNoVan?: (r: DiagnosisRow, reason: string) => Promise<void>;
+}
+
+const BADGE_TONE: Record<BadgeTone, string> = {
+  info: "border-sky-200 bg-sky-50 text-sky-700",
+  warn: "border-amber-200 bg-amber-50 text-amber-700",
+  bad: "border-rose-200 bg-rose-50 text-rose-700",
+  muted: "border-slate-200 bg-slate-50 text-slate-500",
+};
+
+/** "Dónde está en el sistema": etiqueta (Doble · No VAN · Carga · No existe) + el texto en llano. */
+const whereColumn: ColumnDef<DiagnosisRow> = {
+  id: "where",
+  accessorFn: (r) => r.where ?? "",
+  header: "Dónde está en el sistema",
+  cell: ({ row }) => {
+    const b = sourceBadge(row.original);
+    return (
+      <span className="inline-flex max-w-[16rem] items-center gap-1.5 text-xs text-slate-600">
+        {b && <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${BADGE_TONE[b.tone]}`}>{b.label}</Badge>}
+        {b?.label !== "No existe" && <span className="truncate">{row.original.where}</span>}
+      </span>
+    );
+  },
+};
 
 /** ¿Se puede generar/corregir el cobro desde aquí? Debía cobrar y no está cobrado ese código. */
 export const canRepair = (r: DiagnosisRow) =>
@@ -48,7 +79,8 @@ const dayColumn: ColumnDef<DiagnosisRow> = {
   cell: ({ getValue }) => <span className="whitespace-nowrap tabular-nums text-slate-700">{getValue() ? dayLabel(String(getValue())) : "—"}</span>,
 };
 
-function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<void>, showDay = false): ColumnDef<DiagnosisRow>[] {
+function buildColumns(actions: ManualCountActions, showDay = false): ColumnDef<DiagnosisRow>[] {
+  const { onRepair, onAnnulPackage, onChargeNoVan } = actions;
   return [
   {
     id: "expand",
@@ -68,6 +100,7 @@ function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<vo
   },
   ...(showDay ? [dayColumn] : []),
   { accessorKey: "trackingNumber", header: "Guía", cell: ({ row }) => <span className="font-mono text-sm">{row.original.trackingNumber}</span> },
+  whereColumn,
   { id: "manual", accessorFn: (r) => (r.manual ? outcomeLabel(r.manual) : "—"), header: "Contó", cell: ({ getValue }) => <Mark v={String(getValue())} /> },
   { id: "fedex", accessorFn: (r) => r.fedexLabel, header: "FedEx dice", cell: ({ getValue }) => <StatusText v={String(getValue())} /> },
   { id: "system", accessorFn: (r) => r.systemLabel, header: "Sistema", cell: ({ getValue }) => <StatusText v={String(getValue())} /> },
@@ -104,7 +137,7 @@ function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<vo
     header: "Causa",
     filterFn: inArray,
     cell: ({ row }) => (
-      <div className="max-w-md">
+      <div className="min-w-[18rem] max-w-md">
         {row.original.cause && <p className="text-sm font-medium text-slate-800">{CAUSE_LABEL[row.original.cause]}</p>}
         <p className="text-xs text-slate-500">{row.original.explanation}</p>
       </div>
@@ -114,10 +147,15 @@ function buildColumns(onRepair?: (r: DiagnosisRow, reason: string) => Promise<vo
     id: "actions",
     header: "",
     enableSorting: false,
-    cell: ({ row }) =>
-      onRepair && canRepair(row.original) ? (
-        <ReasonButton size="xs" label="Generar cobro" onConfirm={(reason) => onRepair(row.original, reason)} />
-      ) : null,
+    cell: ({ row }) => {
+      const r = row.original;
+      if (onRepair && canRepair(r)) return <ReasonButton size="xs" label="Generar cobro" onConfirm={(reason) => onRepair(r, reason)} />;
+      if (onAnnulPackage && r.cause === "DOBLE_PAQUETE_CARGA" && r.incomeIds.length)
+        return <ReasonButton size="xs" label="Anular cobro del paquete" onConfirm={(reason) => onAnnulPackage(r, reason)} />;
+      if (onChargeNoVan && r.cause === "NOVAN_SIN_COBRO" && r.expected)
+        return <ReasonButton size="xs" label="Generar cobro" onConfirm={(reason) => onChargeNoVan(r, reason)} />;
+      return null;
+    },
   },
   ];
 }
@@ -145,14 +183,18 @@ export function ChainDetail({ row }: { row: { chain: DiagnosisRow["chain"] } }) 
 export function ManualCountTable({
   rows,
   onRepair,
+  onAnnulPackage,
+  onChargeNoVan,
   showDay = false,
 }: {
   rows: DiagnosisRow[];
-  onRepair?: (r: DiagnosisRow, reason: string) => Promise<void>;
   /** Revisión por semana: columna y filtro de Día. */
   showDay?: boolean;
-}) {
-  const columns = React.useMemo(() => buildColumns(onRepair, showDay), [onRepair, showDay]);
+} & ManualCountActions) {
+  const columns = React.useMemo(
+    () => buildColumns({ onRepair, onAnnulPackage, onChargeNoVan }, showDay),
+    [onRepair, onAnnulPackage, onChargeNoVan, showDay],
+  );
   // Abre mostrando solo lo que tiene diferencia (todo menos "Cuadra").
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(DIFF_FILTERS);
   const byVerdict = React.useMemo(

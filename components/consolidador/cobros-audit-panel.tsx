@@ -167,12 +167,15 @@ export function CobrosAuditPanel({
   to,
   active,
   onFixed,
+  hideKpis = false,
 }: {
   subsidiaryId: string;
   from: string;
   to: string;
   active: boolean;
   onFixed?: () => void;
+  /** Dentro de un grupo por sucursal los KPIs ya están arriba (de toda la zona). */
+  hideKpis?: boolean;
 }) {
   const { data, isLoading, mutate } = useCobrosAudit(subsidiaryId, from, to, active && !!subsidiaryId);
   const [historyId, setHistoryId] = useState<string | null>(null);
@@ -247,7 +250,7 @@ export function CobrosAuditPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {!hideKpis && <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label="Guías evaluadas" value={String(data?.evaluated ?? 0)} tone="slate" />
         <Kpi label="Falta cobrar" value={String(data?.totals.missingCount ?? 0)} sub={formatCurrency(data?.totals.missingAmount ?? 0)} tone="amber" />
         <Kpi label="Cobra de más" value={String(data?.totals.extraCount ?? 0)} sub={formatCurrency(data?.totals.extraAmount ?? 0)} tone="rose" />
@@ -257,7 +260,7 @@ export function CobrosAuditPanel({
           sub="falta − de más"
           tone="slate"
         />
-      </div>
+      </div>}
 
       {rows.length === 0 && !isLoading ? (
         <div className="rounded-md border bg-white py-12 text-center text-sm text-emerald-600">

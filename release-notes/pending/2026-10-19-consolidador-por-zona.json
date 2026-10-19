@@ -1,0 +1,15 @@
+{
+  "kind": "nuevo",
+  "title": "Consolidador por zona",
+  "summary": "El Consolidador ya se puede revisar por zona: ves todas las sucursales juntas, cada una con su color de estado y qué revisar primero. La auditoría ahora también revisa cargas, recolecciones y No VAN.",
+  "where": "Finanzas → Consolidador",
+  "route": "/finanzas/consolidador",
+  "steps": [
+    "Arriba elige Zona y la zona (las zonas se arman en Administración → Zonas).",
+    "En Resumen, haz clic en una sucursal para ver solo esa en todas las pestañas.",
+    "En Auditoría de cobros revisa Cargas (guías cobradas como paquete y como carga), Recolecciones y No VAN.",
+    "En Conteo manual puedes pegar el conteo de toda la zona junto: cada guía se acomoda en su sucursal.",
+    "Buscar guía quedó en el botón de lupa de arriba (o Ctrl K)."
+  ],
+  "audience": "todos"
+}
