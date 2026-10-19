@@ -9,6 +9,55 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Scroll discreto: invisible hasta pasar el mouse (barra lateral, listas largas). */
+  .scroll-soft {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable;
+    transition: scrollbar-color 0.2s ease;
+  }
+  .scroll-soft:hover,
+  .scroll-soft:focus-within {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+
+  /* Scroll de consola oscura (Actualizar, Respaldo). */
+  .scroll-console {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(63 63 70) transparent; /* zinc-700 */
+  }
+  .scroll-console:hover {
+    scrollbar-color: rgb(113 113 122) transparent; /* zinc-500 */
+  }
+
+  /* Navegadores sin scrollbar-color (Safari): mismo look con ::-webkit-scrollbar. */
+  .scroll-soft::-webkit-scrollbar,
+  .scroll-console::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-soft::-webkit-scrollbar-track,
+  .scroll-console::-webkit-scrollbar-track,
+  .scroll-console::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  .scroll-soft::-webkit-scrollbar-thumb,
+  .scroll-console::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+    background-color: transparent;
+  }
+  .scroll-soft:hover::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.35);
+  }
+  .scroll-console::-webkit-scrollbar-thumb {
+    background-color: rgb(63 63 70);
+  }
+  .scroll-console:hover::-webkit-scrollbar-thumb {
+    background-color: rgb(113 113 122);
+  }
 }
 
 @layer base {

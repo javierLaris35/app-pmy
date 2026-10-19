@@ -27,7 +27,7 @@ export function DeployConsole({ lines, className }: { lines: ConsoleLine[]; clas
 
   if (!lines.length) return null
   return (
-    <div className={cn("max-h-72 overflow-auto rounded-xl border bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed", className)}>
+    <div className={cn("scroll-console max-h-72 overflow-auto rounded-xl border bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed", className)}>
       {lines.slice(-500).map((l, i) => (
         <div key={i} className={cn("whitespace-pre-wrap break-all", COLOR[l.type] ?? "text-zinc-300")}>
           {l.line}
