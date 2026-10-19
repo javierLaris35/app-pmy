@@ -3,14 +3,24 @@
 import { useEffect, useState } from "react"
 import { getCurrentRelease } from "@/lib/services/server-deploy"
 
-/** Versión actual del sistema, discreta, en el pie de la barra lateral. */
-export function AppVersion() {
-  const [version, setVersion] = useState<string | null>(null)
+/** Mientras responde la API se muestra la última versión conocida (sin parpadeo). */
+const FALLBACK = "2.0.0"
+let cached: string | null = null
+
+/**
+ * Versión real del sistema (la publica el botón Actualizar). Pública: también
+ * sirve en el login. Devuelve "v2.1.0".
+ */
+export function useAppVersion(): string {
+  const [version, setVersion] = useState<string>(cached ?? FALLBACK)
   useEffect(() => {
-    getCurrentRelease().then((r) => setVersion(r.version)).catch(() => undefined)
+    if (cached) return
+    getCurrentRelease()
+      .then((r) => {
+        cached = r.version
+        setVersion(r.version)
+      })
+      .catch(() => undefined)
   }, [])
-  if (!version) return null
-  return (
-    <p className="px-2 pt-1 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">v{version}</p>
-  )
+  return `v${version}`
 }

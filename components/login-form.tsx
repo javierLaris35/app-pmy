@@ -15,13 +15,14 @@ import { getLandingRoute } from "@/lib/access/permissions"
 import { getProfile } from "@/lib/services/profile"
 import { Mail } from "lucide-react"
 import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
+import { useAppVersion } from "@/components/release-notes/app-version"
 
-const APP_VERSION = "v2.0.0"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"form">) {
+  const appVersion = useAppVersion()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -74,7 +75,7 @@ export function LoginForm({
         </div>
         <div className="space-y-0.5">
           <h1 className="text-xl font-bold tracking-tight">PMY App</h1>
-          <p className="text-xs text-muted-foreground">Sistema de gestión logística · {APP_VERSION}</p>
+          <p className="text-xs text-muted-foreground">Sistema de gestión logística · {appVersion}</p>
         </div>
       </div>
 

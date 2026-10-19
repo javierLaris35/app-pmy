@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import { NavUser } from "./nav-user"
-import { AppVersion } from "./release-notes/app-version"
+import { useAppVersion } from "./release-notes/app-version"
 import Image from "next/image"
 import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
@@ -23,14 +23,12 @@ import { useFilteredMenu } from "@/hooks/use-filtered-menu"
 import { Route as RouteIcon, Radio, GitCompare } from "lucide-react"
 import { hasPermission } from "@/lib/access/permissions"
 
-/** Versión de la app (sube con cambios menores/medianos/mayores). */
-const APP_VERSION = "v2.0.0"
-
 /** Accesos visibles SOLO en desarrollo (herramientas experimentales). */
 const IS_DEV = process.env.NODE_ENV === "development"
 const DEV_ITEMS = [{ title: "Optimizador Rutas", url: "/dev/route-optimizer", icon: RouteIcon }]
 
 export function AppSidebar({ user, ...props }: { user: User }) {
+  const appVersion = useAppVersion()
   const sidebarMenu: any = useFilteredMenu()
   // Monitoreo de Rutas: experimental, exclusivo superadmin (permiso `monitoreoRutas`).
   // Va justo debajo del Optimizador de Rutas (dev) en el nav secundario.
@@ -66,7 +64,7 @@ export function AppSidebar({ user, ...props }: { user: User }) {
                 </div>
                 <div className="grid min-w-0 flex-1 text-left leading-tight">
                   <span className="truncate text-sm font-semibold">PMY App</span>
-                  <span className="truncate text-xs text-muted-foreground">{APP_VERSION}</span>
+                  <span className="truncate text-xs text-muted-foreground">{appVersion}</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -81,7 +79,6 @@ export function AppSidebar({ user, ...props }: { user: User }) {
 
       <SidebarFooter className="p-2">
         <NavUser user={user} />
-        <AppVersion />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
