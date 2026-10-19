@@ -274,7 +274,7 @@ function RecordDossier({ record }: { record: DossierRecord }) {
               {!record.active && <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Dado de baja</Badge>}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Badge className={cn("text-sm px-3 py-1", TONE_BADGE[statusTone(record.status)])}>
               {statusLabel(record.status)}
             </Badge>
@@ -441,17 +441,19 @@ const COMMIT_STYLE: Record<CommitLevel, { box: string; dot: string }> = {
 
 /** Semáforo del vencimiento: color + fecha + cuánto falta (o cuánto lleva vencida). */
 function CommitBadge({ commit, commitDateTime }: { commit: CommitTrafficLight; commitDateTime: string | null }) {
+  // Si la guía ya terminó (entregada/devuelta) el vencimiento ya no importa: no se muestra.
+  if (commit.level === "closed") return null
   const style = COMMIT_STYLE[commit.level]
+  const date = commitDateTime ? formatInstant(commitDateTime) : null
   return (
-    <div className={cn("inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left", style.box)}>
-      <span className={cn("h-3 w-3 shrink-0 rounded-full", style.dot)} />
-      <div className="leading-tight">
-        <p className="text-sm font-semibold">{commit.label}</p>
-        <p className="text-xs flex items-center gap-1 opacity-90">
-          <CalendarClock className="h-3 w-3" />
-          {commitDateTime ? `Vence ${formatInstant(commitDateTime)}` : "Sin fecha"}
-        </p>
-      </div>
+    <div className={cn("inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 whitespace-nowrap", style.box)}>
+      <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", style.dot)} />
+      <span className="text-sm font-semibold">{commit.label}</span>
+      {date && (
+        <span className="text-xs flex items-center gap-1 opacity-90">
+          <CalendarClock className="h-3 w-3" /> {date}
+        </span>
+      )}
     </div>
   )
 }
