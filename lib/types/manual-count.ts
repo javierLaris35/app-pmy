@@ -144,3 +144,10 @@ export interface CollectionReport {
   totals: { manual: number; fedex: number; charged: number; byVerdict: Record<Verdict, number> };
   rows: CollectionRow[];
 }
+
+/** Conteo manual de toda una zona: un reporte por sucursal + las guías que no están en ninguna. */
+export interface ZoneManualCountReport {
+  zoneId: string;
+  reports: ManualCountReport[];
+  unlocated: DiagnosisRow[];
+}

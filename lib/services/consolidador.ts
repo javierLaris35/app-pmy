@@ -11,7 +11,7 @@ import {
   SearchPackageResult,
   WarehouseKpi,
 } from "../types/consolidador";
-import { Cause, ManualCountReport, ManualCountScope, ManualLists } from "../types/manual-count";
+import { Cause, ManualCountReport, ManualCountScope, ManualLists, ZoneManualCountReport } from "../types/manual-count";
 
 const baseUrl = "/consolidador";
 
@@ -181,3 +181,21 @@ export const getManualCountPrompt = async (
   scope: ManualCountScope = "day",
 ): Promise<{ prompt: string }> =>
   (await axiosConfig.post(`${baseUrl}/${subsidiaryId}/${day}/manual-count/prompt`, { ...lists, causes, scope }, { timeout: 300_000 })).data;
+
+// ───────────── Consolidador por zona ─────────────
+
+/** GET genérico de una vista ya armada con `scopedUrl` (zona → ZonePart[]; sucursal → la respuesta sola). */
+export const getScopedView = async <T>(url: string): Promise<T> => (await axiosConfig.get<T>(url, { timeout: 300_000 })).data;
+
+/** POST: "Verificar con FedEx" de las auditorías (≤25 guías por bloque; quedan en caché 15 min). */
+export const prefetchFedex = async (trackingNumbers: string[]): Promise<{ done: number; failed: number }> =>
+  (await axiosConfig.post(`${baseUrl}/fedex/prefetch`, { trackingNumbers })).data;
+
+/** POST: conteo manual de TODA la zona (cada guía se ubica en su sucursal). */
+export const diagnoseManualCountZone = async (
+  zoneId: string,
+  day: string,
+  lists: ManualLists,
+  scope: ManualCountScope = "day",
+): Promise<ZoneManualCountReport> =>
+  (await axiosConfig.post<ZoneManualCountReport>(`${baseUrl}/zone/${zoneId}/${day}/manual-count`, { ...lists, scope }, { timeout: 600_000 })).data;
