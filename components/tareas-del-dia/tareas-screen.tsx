@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { useAuthStore } from "@/store/auth.store";
 import { getWeekRange, WeekRange } from "@/lib/week";
-import { closureLink, dayLabel, dayPct, hermosilloTime, hermosilloToday, routesSummary, sortConsolidated, stepLabel, weekDays } from "@/lib/daily-tasks-view";
+import { closureLink, dayLabel, driverName, dayPct, hermosilloTime, hermosilloToday, routesSummary, sortConsolidated, stepLabel, weekDays } from "@/lib/daily-tasks-view";
 import { DayTasks, getDayTasks, getWeekTasks, refreshDayTasks, TaskRow, WeekTasks } from "@/lib/services/daily-tasks";
 import { ConsolidatedRow, GuideList, PILL } from "./consolidated-row";
 
@@ -129,7 +129,7 @@ function SubsidiaryPanel({ data }: { data: DayTasks }) {
               {open.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs">
                   <span className="font-mono text-xs">{r.trackingNumber}</span>
-                  <span className="min-w-0 flex-1 truncate">{r.drivers || "Sin chofer asignado"}</span>
+                  <span className="min-w-0 flex-1 truncate">{driverName(r.drivers) || "Sin chofer asignado"}</span>
                   <span className="text-muted-foreground tabular-nums">{r.guides} guías</span>
                   <Button asChild size="sm" variant="secondary" className="h-7 gap-1.5 px-2.5 text-xs font-medium">
                     <Link href={closureLink(r)}>

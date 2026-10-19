@@ -81,3 +81,11 @@ export const hermosilloToday = () => new Date(Date.now() - 7 * 3_600_000).toISOS
 /** Liga a Salidas a ruta que enfoca la salida y abre su cierre (`cerrar`). */
 export const closureLink = (r: { id: string; trackingNumber: string }) =>
   `/operaciones/salidas-a-ruta?seguimiento=${encodeURIComponent(r.trackingNumber)}&cerrar=${encodeURIComponent(r.id)}`;
+
+/** Nombre(s) de chofer estandarizados en mayúsculas ("JUAN PÉREZ, ANA MUÑOZ"). */
+export const driverName = (name: string | null | undefined) =>
+  (name ?? "")
+    .split(",")
+    .map((n) => n.trim().replace(/\s+/g, " ").toLocaleUpperCase("es-MX"))
+    .filter(Boolean)
+    .join(", ");
