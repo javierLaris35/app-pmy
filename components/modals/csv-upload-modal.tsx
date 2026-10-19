@@ -1,12 +1,12 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import type { Subsidiary } from "@/lib/types"
 import { useState, useRef, useCallback } from "react"
 import {
   Upload,
   File as FileIcon,
   AlertCircle,
-  Loader2,
   ClipboardPaste,
   X
 } from "lucide-react"
@@ -283,7 +283,7 @@ export function CSVUploadModal({
           >
             {isLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <PmySpinner className="mr-2 h-4 w-4" />
                 Procesando...
               </>
             ) : (
@@ -291,6 +291,7 @@ export function CSVUploadModal({
             )}
           </Button>
         </div>
+        {isLoading && <PmyLoader variant="overlay" messages="upload" className="z-[100] rounded-lg" />}
       </DialogContent>
     </Dialog>
   )

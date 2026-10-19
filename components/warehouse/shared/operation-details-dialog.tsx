@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Package } from "lucide-react";
 import {
@@ -58,9 +59,7 @@ export function OperationDetailsDialog({ open, onOpenChange, opKind, operationId
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex h-40 items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-          </div>
+          <PmyLoader size="sm" className="h-40 py-0" />
         ) : isError ? (
           <div className="flex h-40 items-center justify-center text-red-600 text-sm">Error al cargar el detalle</div>
         ) : data ? (

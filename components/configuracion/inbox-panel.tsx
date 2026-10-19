@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,7 @@ export function InboxPanel() {
 
   if (isLoading || !data) {
     return (
-      <div className="flex h-32 items-center justify-center text-sm text-slate-500">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando…
-      </div>
+      <PmyLoader size="sm" className="h-32 py-0" />
     );
   }
   const h = HEALTH[data.health] ?? HEALTH.pausado;
@@ -90,7 +89,7 @@ export function InboxPanel() {
             disabled={busy !== null || !data.configured}
             onClick={() => run("sync", syncInbox, (r) => r.skipped ?? `Se leyeron ${r.read} correos`, "No se pudo leer el correo")}
           >
-            {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Leer ahora
+            {busy === "sync" ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Leer ahora
           </Button>
           <Button
             size="sm"
@@ -99,7 +98,7 @@ export function InboxPanel() {
             disabled={busy !== null}
             onClick={() => run("redetect", redetectInbox, (r) => `Se volvieron a evaluar ${r.updated} correos`, "No se pudo volver a evaluar")}
           >
-            {busy === "redetect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Volver a detectar pendientes
+            {busy === "redetect" ? <PmySpinner className="h-4 w-4" /> : <Wand2 className="h-4 w-4" />} Volver a detectar pendientes
           </Button>
         </div>
       </PanelContent>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
@@ -84,7 +85,7 @@ function SimpleFormDialog({ open, onOpenChange, title, row, withAbbreviation, wi
               finally { setSaving(false); }
             }}
           >
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {saving && <PmySpinner className="mr-2 h-4 w-4" />}
             Guardar
           </Button>
         </DialogFooter>

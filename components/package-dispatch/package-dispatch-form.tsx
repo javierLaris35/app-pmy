@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Trash2, Send, Scan, MapPin, User, Phone, BanknoteIcon, Package, ClipboardPasteIcon, CircleAlertIcon, GemIcon, Loader2, Search, X, Download, Clock } from "lucide-react";
+import { AlertCircle, Trash2, Send, Scan, MapPin, User, Phone, BanknoteIcon, Package, ClipboardPasteIcon, CircleAlertIcon, GemIcon, Search, X, Download, Clock } from "lucide-react";
 import { RepartidorSelector } from "../selectors/repartidor-selector";
 import { RutaSelector } from "../selectors/ruta-selector";
 import { UnidadSelector } from "../selectors/unidad-selector";
@@ -998,7 +999,7 @@ const PackageDispatchForm: React.FC<Props> = ({
                   variant="outline"
                 >
                   {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <PmySpinner className="h-4 w-4" />
                   ) : (
                     <Scan className="h-4 w-4" />
                   )}
@@ -1194,7 +1195,7 @@ const PackageDispatchForm: React.FC<Props> = ({
               <Download className="h-4 w-4" /> Solo generar PDF
             </Button>
             <Button onClick={handleDispatch} disabled={isLoading || !canDispatch} className="gap-2">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {isLoading ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               Procesar salida
             </Button>
           </div>

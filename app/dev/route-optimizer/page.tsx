@@ -1,9 +1,10 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
-import { Route as RouteIcon, MapPin, Fuel, Clock, Navigation, ScanLine, AlertTriangle, Loader2, FlaskConical, RotateCcw, Package, Truck, Gauge, ChevronRight, X, Trash2, Crosshair, Move, Locate, MoreHorizontal } from "lucide-react"
+import { Route as RouteIcon, MapPin, Fuel, Clock, Navigation, ScanLine, AlertTriangle, FlaskConical, RotateCcw, Package, Truck, Gauge, ChevronRight, X, Trash2, Crosshair, Move, Locate, MoreHorizontal } from "lucide-react"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
@@ -358,7 +359,7 @@ function RouteOptimizerContent() {
       return <Badge variant="outline" className={`${BADGE_SM} ${green ? "border-green-300 text-green-700" : "border-amber-300 text-amber-700"}`}>{text}</Badge>
     }
     if (s.geoStatus === "notfound") return <Badge variant="outline" className={`${BADGE_SM} border-red-300 text-red-700`}>sin ubicar</Badge>
-    return <Badge variant="outline" className={`${BADGE_SM} gap-1 text-muted-foreground`}><Loader2 className="h-3 w-3 animate-spin" />ubicando</Badge>
+    return <Badge variant="outline" className={`${BADGE_SM} gap-1 text-muted-foreground`}><PmySpinner className="h-3 w-3" />ubicando</Badge>
   }
 
   const metricTile = (icon: ReactNode, value: string, label: string) => (
@@ -428,7 +429,7 @@ function RouteOptimizerContent() {
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); handleScan() } }}
                 disabled={!subsidiaryId}
               />
-              {validating && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />}
+              {validating && <PmySpinner className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />}
             </div>
 
             {!origin && stops.length > 0 && (
@@ -448,7 +449,7 @@ function RouteOptimizerContent() {
                 <Badge variant="secondary" className="gap-1 rounded-full"><Package className="h-3.5 w-3.5" />{totalPackages} paquetes</Badge>
                 <Badge variant="secondary" className="gap-1 rounded-full"><MapPin className="h-3.5 w-3.5" />{stops.length} paradas · {okStops} ubicadas</Badge>
                 <Badge className="gap-1 rounded-full bg-red-500 hover:bg-red-500"><AlertTriangle className="h-3.5 w-3.5" />{priorityStops} prioritarias</Badge>
-                {computing && <Badge variant="outline" className="gap-1 rounded-full"><Loader2 className="h-3 w-3 animate-spin" />recalculando</Badge>}
+                {computing && <Badge variant="outline" className="gap-1 rounded-full"><PmySpinner className="h-3 w-3" />recalculando</Badge>}
               </div>
             )}
             {pendingCount > 0 && (
@@ -549,7 +550,7 @@ function RouteOptimizerContent() {
             ) : stops.length > 0 ? (
               <Card className="rounded-xl border-border/60 shadow-sm">
                 <CardContent className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <PmySpinner className="h-4 w-4" />
                   {pendingCount > 0 ? "Geocodificando paradas…" : "Calculando rutas…"}
                 </CardContent>
               </Card>

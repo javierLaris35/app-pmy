@@ -1,9 +1,10 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useMemo, useState, type ReactNode } from "react";
 import type { ColumnDef, ColumnFiltersState } from "@tanstack/react-table";
 import {
-  ArrowLeft, Download, Loader2, Search, RefreshCw, EyeOff, Check, DollarSign, FileSpreadsheet, MoreHorizontal,
+  ArrowLeft, Download, Search, RefreshCw, EyeOff, Check, DollarSign, FileSpreadsheet, MoreHorizontal,
 } from "lucide-react";
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
@@ -289,7 +290,7 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
         const busy = updating.has(rowKey(r));
         return (
           <Button size="sm" variant="outline" disabled={busy} onClick={() => handleUpdateRow(r)} className="h-7 px-2 text-xs">
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {busy ? <PmySpinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
             <span className="ml-1">Actualizar</span>
           </Button>
         );
@@ -347,7 +348,7 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
         </Select>
       )}
       <Button size="sm" onClick={load} disabled={isLoading || effectiveSubsidiaryIds.length === 0} className="h-9 shrink-0">
-        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+        {isLoading ? <PmySpinner className="h-4 w-4" /> : <Search className="h-4 w-4" />}
         <span className="ml-1">Generar</span>
       </Button>
       <DropdownMenu>
@@ -358,7 +359,7 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuItem onSelect={handleFedexCheck} disabled={!hasRun || rows.length === 0 || fedexLoading}>
-            {fedexLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            {fedexLoading ? <PmySpinner className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Confirmar con FedEx
           </DropdownMenuItem>
           <DropdownMenuCheckboxItem checked={includeSundays} onCheckedChange={(v) => setIncludeSundays(!!v)} onSelect={(e) => e.preventDefault()}>
@@ -366,7 +367,7 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={doExport} disabled={rows.length === 0 || isExporting}>
-            {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            {isExporting ? <PmySpinner className="mr-2 h-4 w-4" /> : <Download className="mr-2 h-4 w-4" />}
             Exportar Excel
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -390,7 +391,7 @@ export function Sin44Report({ onBack }: { onBack: () => void }) {
         actions={headerActions}
       />
 
-      {!hasRun ? emptyBox(<>Elige sucursales (o una zona) arriba y presiona <b>Generar</b>.</>)
+      {isLoading ? <div className="rounded-lg border bg-card"><PmyLoader messages="report" className="py-14" /></div> : !hasRun ? emptyBox(<>Elige sucursales (o una zona) arriba y presiona <b>Generar</b>.</>)
         : rows.length === 0 ? emptyBox("No hay paquetes FedEx activos (pendiente / en bodega) dados de alta en octubre 2026 para esa selección.")
         : (
           <>

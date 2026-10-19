@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import React, { useCallback, useMemo, useState } from "react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -27,7 +28,7 @@ import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/w
 import { Subsidiary } from "@/lib/types";
 import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, Loader2, PlusCircle, History, AlertTriangle, CalendarCheck2 } from "lucide-react";
+import { SlidersHorizontal, PlusCircle, History, AlertTriangle, CalendarCheck2 } from "lucide-react";
 
 type TabKey = "por-ruta" | "por-consolidado" | "ingresos" | "buscar" | "auditoria" | "conteo";
 
@@ -174,9 +175,8 @@ function ConsolidadorPage() {
       <div className="relative flex min-h-screen flex-col gap-4 p-4 md:p-5">
         {isLoading && tab === "ingresos" && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
-            <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-4 py-3 shadow-lg">
-              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-              <p className="text-sm font-medium text-slate-600">Cargando consolidado...</p>
+            <div className="rounded-xl border border-slate-100 bg-white px-8 py-2 shadow-lg">
+              <PmyLoader size="sm" text="Cargando consolidado…" className="py-4" />
             </div>
           </div>
         )}

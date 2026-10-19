@@ -1,8 +1,9 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { AlertTriangle, FileSpreadsheet, Loader2, Scale, Sparkles, Upload } from "lucide-react";
+import { AlertTriangle, FileSpreadsheet, Scale, Sparkles, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -233,7 +234,7 @@ export function ManualCountPanel({ subsidiaryId, from, to }: Props) {
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button size="sm" onClick={compare} disabled={running}>
-            {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Scale className="mr-1 h-4 w-4" />}
+            {running ? <PmySpinner className="mr-1 h-4 w-4" /> : <Scale className="mr-1 h-4 w-4" />}
             Comparar con el sistema
           </Button>
           {totalCounted === 0 && !running && (

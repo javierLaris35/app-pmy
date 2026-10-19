@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import {
   ArrowRightLeft,
@@ -7,7 +8,6 @@ import {
   AlertTriangle,
   BanknoteIcon,
   GemIcon,
-  Loader2,
   MapPin,
   Package,
   User,
@@ -201,7 +201,7 @@ export function TransferPackageDialog({
             Cancelar
           </Button>
           <Button onClick={handleConfirm} disabled={isSaving || !destinationId} className="gap-2">
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+            {isSaving ? <PmySpinner className="h-4 w-4" /> : <ArrowRightLeft className="h-4 w-4" />}
             Confirmar traspaso
           </Button>
         </DialogFooter>

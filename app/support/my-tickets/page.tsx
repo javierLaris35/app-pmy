@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader"
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +22,6 @@ import {
   User,
   RefreshCw,
   Plus,
-  Loader2,
 } from "lucide-react"
 import { Inbox } from "lucide-react"
 import Link from "next/link"
@@ -199,12 +199,7 @@ export default function MyTicketsPage() {
     return (
       <AppLayout>
         <OperationHeader icon={Inbox} title="Mis Solicitudes" description="Estado y seguimiento de tus solicitudes de soporte" />
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-muted-foreground">Cargando tus solicitudes...</p>
-          </div>
-        </div>
+        <PmyLoader text="Cargando tus solicitudes…" className="min-h-[400px] py-0" />
       </AppLayout>
     )
   }

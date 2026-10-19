@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,7 @@ export function CatalogPanel() {
   };
 
   if (loading) {
-    return <div className="flex h-48 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando catálogos…</div>;
+    return <PmyLoader size="sm" text="Cargando catálogos…" className="h-48 py-0" />;
   }
 
   return (
@@ -168,7 +169,7 @@ export function CatalogPanel() {
                         <div className="flex items-center gap-2">
                           <Input defaultValue={item.label} onBlur={(e) => saveLabel(item, e.target.value)} className="h-8 max-w-[240px]" />
                           {item.isSystem && <Badge variant="outline" className="text-[10px] shrink-0"><Lock className="h-2.5 w-2.5 mr-0.5" /> Sistema</Badge>}
-                          {busyId === item.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                          {busyId === item.id && <PmySpinner className="h-3.5 w-3.5 text-muted-foreground" />}
                         </div>
                       </TableCell>
                       <TableCell><code className="text-[11px] text-muted-foreground font-mono">{item.key}</code></TableCell>

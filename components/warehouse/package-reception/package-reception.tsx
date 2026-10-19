@@ -1,5 +1,6 @@
 'use client'
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader"
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Package,
@@ -13,7 +14,6 @@ import {
   PackageCheck,
   GemIcon,
   CheckCircle2,
-  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -295,9 +295,7 @@ export default function PackageReception() {
 
   if (!hasHydrated) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
-      </div>
+      <PmyLoader className="h-[60vh] py-0" />
     )
   }
 
@@ -418,7 +416,7 @@ export default function PackageReception() {
                 </div>
 
                 <Button onClick={handleScan} disabled={!scanInput.trim() || isScanning || !effectiveSucursalId} variant="outline" className="w-full gap-2">
-                  {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanBarcode className="h-4 w-4" />}
+                  {isScanning ? <PmySpinner className="h-4 w-4" /> : <ScanBarcode className="h-4 w-4" />}
                   {isScanning ? 'Consultando...' : 'Agregar'}
                 </Button>
 
@@ -435,7 +433,7 @@ export default function PackageReception() {
                   className={cn('w-full gap-2', showSuccess && 'bg-green-600 hover:bg-green-600 text-white')}
                 >
                   {isSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <PmySpinner className="h-4 w-4" />
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )}
@@ -628,9 +626,7 @@ function PickUpHistoryDialog({
 
         <div className="flex-1 overflow-y-auto rounded-md border">
           {isLoading ? (
-            <div className="flex h-40 items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
+            <PmyLoader size="sm" className="h-40 py-0" />
           ) : isError ? (
             <div className="flex h-40 items-center justify-center text-red-600 text-sm">Error al cargar el historial</div>
           ) : history.length === 0 ? (

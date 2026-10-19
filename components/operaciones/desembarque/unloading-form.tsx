@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import useUnloadingStore from "@/store/unloading.store";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
@@ -17,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Loader2, Search, Filter, ChevronDown, ChevronUp, Download, X, Eye, HelpCircle, MailIcon, Clock, BanknoteIcon } from "lucide-react";
+import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Search, Filter, ChevronDown, ChevronUp, Download, X, Eye, HelpCircle, MailIcon, Clock, BanknoteIcon } from "lucide-react";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { StatBar, StatItem } from "@/components/shared/stat-bar";
 import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
@@ -1711,7 +1712,7 @@ export default function UnloadingForm({
             <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2">Cancelar</Button>
             <div className="flex gap-2">
               <Button id="process-button" onClick={handleUnloading} disabled={isLoading || !canUnload} className="gap-2">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Procesar
+                {isLoading ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />} Procesar
               </Button>
               <Button variant="outline" onClick={handleExport} disabled={isLoading || shipmentsArray.length === 0} className="gap-2">
                 <Download className="h-4 w-4" />

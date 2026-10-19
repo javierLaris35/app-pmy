@@ -1,11 +1,11 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useState, useRef, useCallback, useEffect } from "react"
 import {
   Upload,
   CheckCircle,
   X,
-  Loader2,
   Truck,
   DollarSign,
   CheckSquare,
@@ -557,8 +557,8 @@ export function ShipmentWizardModal({
               {PREVIEW_STEPS.includes(step) && files[step] && (
                 <div>
                   {previewing ? (
-                    <div className="flex items-center gap-2 rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Validando archivo…
+                    <div className="rounded-xl border bg-muted/40">
+                      <PmyLoader size="sm" messages="upload" className="py-5" />
                     </div>
                   ) : preview ? (
                     <div className="space-y-2 rounded-xl border p-3 text-xs">
@@ -665,9 +665,9 @@ export function ShipmentWizardModal({
               disabled={isNextDisabled}
             >
               {loading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando…</>
+                <><PmySpinner className="mr-2 h-4 w-4" /> Procesando…</>
               ) : previewing ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Validando…</>
+                <><PmySpinner className="mr-2 h-4 w-4" /> Validando…</>
               ) : step === steps.length - 1 ? (
                 "Finalizar importación"
               ) : (
@@ -676,6 +676,7 @@ export function ShipmentWizardModal({
             </Button>
           </div>
         </DialogFooter>
+        {loading && <PmyLoader variant="overlay" messages="upload" className="z-[100] rounded-lg" />}
       </DialogContent>
     </Dialog>
   )

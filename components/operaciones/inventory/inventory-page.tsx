@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/app-layout"
@@ -299,9 +300,7 @@ export default function InventoryPageControl() {
             <DialogTitle className="sr-only">Detalle de inventario</DialogTitle>
           </DialogHeader>
           {isDetailLoading ? (
-            <div className="flex h-[200px] items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
+            <PmyLoader size="sm" className="h-[200px] py-0" />
           ) : selectedInventory ? (
             <InventoryDetails
               inventory={selectedInventory}

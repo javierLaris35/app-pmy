@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -149,7 +150,7 @@ export function VehicleSpecDialog({ vehicle, onOpenChange }: { vehicle: Maintena
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar ficha</Button>
+            <Button onClick={save} disabled={saving}>{saving && <PmySpinner className="mr-2 h-4 w-4" />}Guardar ficha</Button>
           </div>
         </DialogFooter>
       </DialogContent>

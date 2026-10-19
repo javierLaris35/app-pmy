@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/ui/panel";
@@ -14,7 +15,7 @@ import { addZipCoverage, inboxErrorText, rebuildZipCoverage, setZipCoverageStatu
 import { ZipCoverageRow } from "@/lib/types/inbox";
 import { Subsidiary } from "@/lib/types";
 import { toast } from "@/lib/toast";
-import { Ban, Check, Loader2, Plus, RefreshCw } from "lucide-react";
+import { Ban, Check, Plus, RefreshCw } from "lucide-react";
 
 const SOURCE: Record<ZipCoverageRow["source"], string> = { historial: "Historial", correo: "Correo confirmado", manual: "Manual" };
 const STATUS: Record<ZipCoverageRow["status"], { label: string; cls: string }> = {
@@ -154,15 +155,13 @@ export function ZipCoveragePanel() {
             </div>
           )}
           <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={rebuild} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Recalcular
+            {busy ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Recalcular
           </Button>
         </div>
         {!subsidiaryId ? (
           <div className="rounded-md border bg-white py-12 text-center text-sm text-slate-400">Selecciona una sucursal para ver sus códigos postales</div>
         ) : isLoading ? (
-          <div className="flex h-24 items-center justify-center text-sm text-slate-500">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando…
-          </div>
+          <PmyLoader size="sm" className="h-24 py-0" />
         ) : (
           <DataTable columns={columns} data={data ?? []} autoResetPageIndex={false} hideSelectionCount />
         )}

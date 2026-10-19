@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -16,9 +17,7 @@ function Redirector({ to, keepId }: { to: string; keepId?: boolean }) {
     router.replace(keepId && id ? `${to}?id=${encodeURIComponent(id)}` : to);
   }, [router, to, keepId, id]);
   return (
-    <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" /> Abriendo…
-    </div>
+    <PmyLoader size="sm" text="Abriendo…" className="p-10" />
   );
 }
 

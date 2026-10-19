@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import React, { useEffect, useState } from "react";
-import { Copy, Download, Loader2, Sparkles } from "lucide-react";
+import { Copy, Download, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -106,7 +107,7 @@ export function ManualCountPromptDialog({ open, onOpenChange, report, lists }: P
             </>
           )}
           <Button size="sm" onClick={generate} disabled={loading || selected.length === 0 || counts.length === 0}>
-            {loading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+            {loading ? <PmySpinner className="mr-1 h-4 w-4" /> : <Sparkles className="mr-1 h-4 w-4" />}
             {prompt ? "Volver a generar" : "Generar"}
           </Button>
         </DialogFooter>

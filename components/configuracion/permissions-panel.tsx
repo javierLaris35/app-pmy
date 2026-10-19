@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export function PermissionsPanel() {
   }, []);
 
   if (loading) {
-    return <div className="flex h-48 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>;
+    return <PmyLoader size="sm" className="h-48 py-0" />;
   }
 
   return (
@@ -187,7 +188,7 @@ function RolesMatrix({ groups, roles, reload }: { groups: Record<string, RbacPer
             <CardDescription>{draft.size} permiso(s) activo(s){selected?.isSystem && " · rol del sistema"}</CardDescription>
           </div>
           <Button size="sm" onClick={save} disabled={!dirty || saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
+            {saving ? <PmySpinner className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />} Guardar
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -344,7 +345,7 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
         </CardHeader>
         <CardContent className="p-2 max-h-[60vh] overflow-y-auto space-y-0.5">
           {usersLoading ? (
-            <div className="flex h-24 items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /></div>
+            <div className="flex h-24 items-center justify-center text-muted-foreground"><PmySpinner className="h-4 w-4" /></div>
           ) : filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground px-3 py-4 text-center">Sin coincidencias.</p>
           ) : (
@@ -390,12 +391,12 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
                 </CardDescription>
               </div>
               <Button size="sm" onClick={saveSubsidiaries} disabled={subsSaving || subsLoading}>
-                {subsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
+                {subsSaving ? <PmySpinner className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />} Guardar
               </Button>
             </CardHeader>
             <CardContent>
               {subsLoading ? (
-                <div className="flex h-16 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
+                <div className="flex h-16 items-center justify-center text-muted-foreground"><PmySpinner className="h-5 w-5 mr-2" /> Cargando…</div>
               ) : (
                 <SucursalSelector
                   multi
@@ -422,7 +423,7 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
             </div>
             {userId && (
               <Button size="sm" onClick={save} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
+                {saving ? <PmySpinner className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />} Guardar
               </Button>
             )}
           </CardHeader>
@@ -430,7 +431,7 @@ function UserOverrides({ groups }: { groups: Record<string, RbacPermission[]> })
             {!userId ? (
               <p className="text-sm text-muted-foreground py-12 text-center">Selecciona un usuario de la lista.</p>
             ) : loading ? (
-              <div className="flex h-32 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
+              <PmyLoader size="sm" className="h-32 py-0" />
             ) : (
               <div className="space-y-4">
                 {Object.entries(groups).map(([group, perms]) => (

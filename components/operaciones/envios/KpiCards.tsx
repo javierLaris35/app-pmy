@@ -1,3 +1,4 @@
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import {
   Truck,
   PackageCheck,
@@ -14,7 +15,7 @@ export default function KpiCardsCompact({ date, subsidiaryId }: { date: string, 
   
   console.log("🚀 ~ KpiCardsCompact ~ data:", data)
 
-  if (isLoading || !data) return <div className="p-4">Cargando KPIs...</div>;
+  if (isLoading || !data) return <PmyLoader size="sm" messages="report" />;
 
   const kpiData = [
     { label: "Total del día", value: data.total, icon: <Truck className="text-primary w-4 h-4" /> },

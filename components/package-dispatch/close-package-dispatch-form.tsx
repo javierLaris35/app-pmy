@@ -1,10 +1,10 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   X,
   Send,
-  Loader2,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -689,12 +689,7 @@ export default function ClosePackageDispatchWizard({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">
-          {isReconciling ? "Reconciliando estatus con FedEx..." : "Cargando datos de la ruta..."}
-        </span>
-      </div>
+      <PmyLoader size="sm" text={isReconciling ? "Reconciliando estatus con FedEx..." : "Cargando datos de la ruta..."} className="h-64 py-0" />
     );
   }
 
@@ -1329,7 +1324,7 @@ export default function ClosePackageDispatchWizard({
                         disabled={!noVanInput.trim() || isValidatingNoVan} 
                         className="w-full bg-slate-800 hover:bg-slate-900 h-12 rounded-xl font-bold shadow-md transition-all shrink-0"
                       >
-                        {isValidatingNoVan ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : "Validar y Agregar"}
+                        {isValidatingNoVan ? <PmySpinner className="h-4 w-4 mr-2" /> : "Validar y Agregar"}
                       </Button>
                     </div>
                     <div className="mt-6 p-4 bg-slate-800 rounded-2xl text-white flex items-center justify-between">
@@ -1469,7 +1464,7 @@ export default function ClosePackageDispatchWizard({
               disabled={isSubmitting || !actualKms.trim() || (parseInt(actualKms) < parseInt(dispatch.kms || "0")) || closureBlockedByOtherStatus}
               className="bg-green-600 hover:bg-green-700 px-8"
             >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : <><Send className="h-4 w-4 mr-2"/> Confirmar Cierre</>}
+              {isSubmitting ? <PmySpinner className="h-4 w-4" /> : <><Send className="h-4 w-4 mr-2"/> Confirmar Cierre</>}
             </Button>
           )}
         </div>

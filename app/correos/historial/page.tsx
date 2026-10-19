@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import React, { useMemo, useState } from "react";
 import useSWR from "swr";
 import { ColumnDef, PaginationState } from "@tanstack/react-table";
@@ -16,7 +17,7 @@ import { getSendLog, SendLogItem } from "@/lib/services/ops-alerts";
 import { Subsidiary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatDateTime, hmoDay } from "@/components/bandeja-correos/labels";
-import { Bell, History, Loader2, Mail, MessageCircle, Search } from "lucide-react";
+import { Bell, History, Mail, MessageCircle, Search } from "lucide-react";
 
 const CHANNEL: Record<SendLogItem["channel"], { label: string; icon: typeof Bell }> = {
   whatsapp: { label: "WhatsApp", icon: MessageCircle },
@@ -153,9 +154,7 @@ function HistorialAvisosPage() {
         </div>
 
         {isLoading && !data ? (
-          <div className="flex h-32 items-center justify-center rounded-md border bg-white text-sm text-slate-500">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando…
-          </div>
+          <PmyLoader size="sm" className="h-32 rounded-md border bg-white py-0" />
         ) : (data?.items?.length ?? 0) === 0 ? (
           <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">No se mandó nada en estas fechas</div>
         ) : (

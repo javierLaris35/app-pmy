@@ -1,11 +1,12 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Award, Check, CircleSlash, Loader2 } from "lucide-react";
+import { Award, Check, CircleSlash} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { saveSelection } from "@/lib/services/maintenance";
@@ -84,7 +85,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                     {editable && (
                       <button type="button" disabled={!!saving} onClick={() => chooseAll(q.id)}
                         className="mt-0.5 inline-flex items-center text-xs font-medium text-primary hover:underline disabled:opacity-50">
-                        {saving === `all-${q.id}` && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                        {saving === `all-${q.id}` && <PmySpinner className="mr-1 h-3 w-3" />}
                         Todo con este
                       </button>
                     )}
@@ -155,7 +156,7 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                               onClick={() => choose([{ requestItemId: row.requestItemId, quoteItemId: null }], row.requestItemId)}
                               aria-label="No comprar este renglón"
                             >
-                              {saving === row.requestItemId ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleSlash className={cn("h-4 w-4", none && "text-destructive")} />}
+                              {saving === row.requestItemId ? <PmySpinner className="h-4 w-4" /> : <CircleSlash className={cn("h-4 w-4", none && "text-destructive")} />}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>{none ? "Este renglón no se va a comprar" : "No comprar este renglón"}</TooltipContent>

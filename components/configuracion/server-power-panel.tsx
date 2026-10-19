@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,6 @@ import {
   PowerOff,
   Moon,
   Sun,
-  Loader2,
   Save,
   Mail,
   Plus,
@@ -188,9 +188,7 @@ export function ServerPowerPanel() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Cargando programación…
-      </div>
+      <PmyLoader size="sm" text="Cargando programación…" className="py-16" />
     );
   }
 
@@ -308,11 +306,11 @@ export function ServerPowerPanel() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={save} disabled={saving}>
-              {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
+              {saving ? <PmySpinner className="mr-1 h-4 w-4" /> : <Save className="mr-1 h-4 w-4" />}
               Guardar
             </Button>
             <Button variant="outline" onClick={sendTest} disabled={testing}>
-              {testing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Mail className="mr-1 h-4 w-4" />}
+              {testing ? <PmySpinner className="mr-1 h-4 w-4" /> : <Mail className="mr-1 h-4 w-4" />}
               Enviar correo de prueba
             </Button>
           </div>
@@ -373,7 +371,7 @@ export function ServerPowerPanel() {
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={suspending}>
                 {suspending ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <PmySpinner className="mr-1 h-4 w-4" />
                 ) : (
                   <PowerOff className="mr-1 h-4 w-4" />
                 )}

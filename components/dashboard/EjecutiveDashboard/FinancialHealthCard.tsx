@@ -1,7 +1,7 @@
 "use client"
 
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PmyLoader } from "@/components/ui/pmy-loader"
 
 interface FinancialHealthCardProps {
   profitMargin?: number
@@ -49,13 +49,8 @@ export function FinancialHealthCard({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <Skeleton className="h-6 w-48 mb-6" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-lg" />
-          ))}
-        </div>
+      <div className="bg-white rounded-xl shadow-sm">
+        <PmyLoader size="sm" messages="report" className="py-16" />
       </div>
     )
   }

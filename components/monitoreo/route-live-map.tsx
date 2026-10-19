@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -208,7 +209,7 @@ function RouteLiveMapImpl({ stops, loading, origin }: RouteLiveMapProps) {
     return (
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><MapPin className="h-4 w-4" /> Cargando mapa…</CardTitle></CardHeader>
-        <CardContent><div className="h-[300px] flex items-center justify-center bg-muted rounded-lg"><div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" /></div></CardContent>
+        <CardContent><PmyLoader size="sm" text="Cargando mapa…" className="h-[300px] rounded-lg bg-muted py-0" /></CardContent>
       </Card>
     );
   }
@@ -221,7 +222,7 @@ function RouteLiveMapImpl({ stops, loading, origin }: RouteLiveMapProps) {
         <CardTitle className="flex items-center justify-between text-base">
           <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-teal-600" /> Recorrido</span>
           {loading ? (
-            <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Ubicando paradas…</span>
+            <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground"><PmySpinner className="h-3 w-3" /> Ubicando paradas…</span>
           ) : withoutCoords > 0 ? (
             <span className="text-xs font-normal text-muted-foreground">{withoutCoords} sin ubicar</span>
           ) : null}
@@ -241,7 +242,7 @@ function RouteLiveMapImpl({ stops, loading, origin }: RouteLiveMapProps) {
               )}
               style={active.has(o.key) ? { backgroundColor: o.color, borderColor: o.color } : undefined}
             >
-              {overlayLoading.has(o.key) ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: active.has(o.key) ? "#fff" : o.color }} />}
+              {overlayLoading.has(o.key) ? <PmySpinner className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: active.has(o.key) ? "#fff" : o.color }} />}
               {o.label}
               {active.has(o.key) && overlayData[o.key] && (
                 <span className="opacity-85">· {overlayData[o.key]!.distanceKm.toFixed(1)} km</span>

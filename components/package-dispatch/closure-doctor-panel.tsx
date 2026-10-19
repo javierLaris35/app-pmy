@@ -5,8 +5,9 @@
 // y aplica los arreglos que el superadmin elija. El backend vuelve a revisar cada paquete antes
 // de escribir: si algo cambió, ese paquete no se toca y se pide revisarlo de nuevo.
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { Fragment, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, Stethoscope, Wrench } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw, Stethoscope, Wrench } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -196,7 +197,7 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
                 disabled={loading || applying}
                 aria-label="Volver a revisar"
               >
-                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                {loading ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent>Volver a revisar con FedEx</TooltipContent>
@@ -205,9 +206,7 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
 
         <ScrollArea className="max-h-[65vh]">
           {loading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-600">
-              <Loader2 className="h-4 w-4 animate-spin" /> Revisando con FedEx… puede tardar un poco.
-            </div>
+            <PmyLoader size="sm" text="Revisando con FedEx… puede tardar un poco." className="py-12" />
           )}
 
           {!loading && error && (
@@ -316,7 +315,7 @@ export function ClosureDoctorPanel({ dispatchId, open, onOpenChange, onApplied }
                 }}
                 disabled={applying}
               >
-                {applying && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />} Aplicar
+                {applying && <PmySpinner className="h-3.5 w-3.5 mr-1.5" />} Aplicar
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

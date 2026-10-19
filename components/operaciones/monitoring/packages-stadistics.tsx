@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import * as React from "react"
 import { Card } from "@/components/ui/card"
 import { CheckCircle, DollarSign, Eye, Package, TrendingUp, XCircle, Download } from "lucide-react"
@@ -585,9 +586,7 @@ function UndeliveredPackagesDialog({ isOpen, onClose, packages, count }: {
 
         <div className="flex-1 overflow-hidden">
             {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-muted-foreground">Cargando paquetes...</div>
-              </div>
+              <PmyLoader size="sm" text="Cargando paquetes…" className="py-12" />
             ) : (
               <DataTable
                 columns={undeliveredPackagesColumns}

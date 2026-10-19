@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Loader2, Mail, MessageCircle } from "lucide-react";
+import { AlertTriangle, Mail, MessageCircle } from "lucide-react";
 import { ContactChannel, formatKms, formatMoney, PurchaseOrder } from "@/lib/types/maintenance";
 import { FieldError, invalidClass } from "../shared/field-error";
 
@@ -62,7 +63,7 @@ export function ReasonDialog({
               try { await onConfirm(reason.trim(), notify); onOpenChange(false); } catch { /* el error ya se mostró; el diálogo sigue abierto */ } finally { setBusy(false); }
             }}
           >
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {busy && <PmySpinner className="mr-2 h-4 w-4" />}
             {confirmLabel}
           </Button>
         </DialogFooter>
@@ -148,7 +149,7 @@ export function SendOrderDialog({
               try { await onSend({ channel, contactId }); onOpenChange(false); } catch { /* el error ya se mostró; el diálogo sigue abierto */ } finally { setBusy(false); }
             }}
           >
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {busy && <PmySpinner className="mr-2 h-4 w-4" />}
             Enviar
           </Button>
         </DialogFooter>
@@ -261,7 +262,7 @@ export function CompleteOrderDialog({
               } catch { /* el error ya se mostró; el diálogo sigue abierto */ } finally { setBusy(false); }
             }}
           >
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {busy && <PmySpinner className="mr-2 h-4 w-4" />}
             Completar
           </Button>
         </DialogFooter>

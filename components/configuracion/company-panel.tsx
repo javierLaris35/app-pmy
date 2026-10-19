@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,9 +56,7 @@ export function CompanyPanel() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…
-          </div>
+          <PmyLoader size="sm" className="h-40 py-0" />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {FIELDS.map((f) => (
@@ -76,7 +75,7 @@ export function CompanyPanel() {
       </CardContent>
       <CardFooter className="flex justify-end">
         <Button onClick={handleSave} disabled={loading || saving}>
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          {saving ? <PmySpinner className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
           Guardar Cambios
         </Button>
       </CardFooter>

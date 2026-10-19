@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,7 +104,7 @@ function WhatsappConnectionCard() {
                 </div>
               </div>
               <Button variant="outline" onClick={handleLogout} disabled={busy}>
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Unlink className="mr-2 h-4 w-4" />} Desvincular
+                {busy ? <PmySpinner className="mr-2 h-4 w-4" /> : <Unlink className="mr-2 h-4 w-4" />} Desvincular
               </Button>
             </div>
 
@@ -120,7 +121,7 @@ function WhatsappConnectionCard() {
                   className="sm:max-w-xs"
                 />
                 <Button onClick={handleTest} disabled={testing} className="bg-emerald-600 text-white hover:bg-emerald-700">
-                  {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  {testing ? <PmySpinner className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}
                   {testing ? "Enviando…" : "Enviar prueba"}
                 </Button>
               </div>
@@ -131,13 +132,13 @@ function WhatsappConnectionCard() {
             <p className="text-sm text-muted-foreground">En tu teléfono: WhatsApp → <strong>Dispositivos vinculados</strong> → Vincular dispositivo, y escanea:</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={conn.qr} alt="QR de WhatsApp" className="h-56 w-56 rounded-lg border bg-white p-2" />
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Esperando escaneo…</p>
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><PmySpinner className="h-3.5 w-3.5" /> Esperando escaneo…</p>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-muted text-muted-foreground">
-                {status === "connecting" ? <Loader2 className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
+                {status === "connecting" ? <PmySpinner className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
               </span>
               <div>
                 <p className="font-semibold">{status === "connecting" ? "Conectando…" : "Sin vincular"}</p>
@@ -152,7 +153,7 @@ function WhatsappConnectionCard() {
             <div className="flex gap-2">
               <Button variant="ghost" size="icon" onClick={refresh} disabled={busy} aria-label="Actualizar estado"><RefreshCw className="h-4 w-4" /></Button>
               <Button onClick={handleLink} disabled={busy}>
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LinkIcon className="mr-2 h-4 w-4" />} Vincular número
+                {busy ? <PmySpinner className="mr-2 h-4 w-4" /> : <LinkIcon className="mr-2 h-4 w-4" />} Vincular número
               </Button>
             </div>
           </div>
@@ -240,9 +241,7 @@ function TemplatesManagerCard() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…
-          </div>
+          <PmyLoader size="sm" className="h-40 py-0" />
         ) : (
           <div className="grid gap-4 md:grid-cols-[220px_1fr]">
             {/* Lista de plantillas */}
@@ -299,7 +298,7 @@ function TemplatesManagerCard() {
                     </Button>
                   ) : <span />}
                   <Button onClick={handleSave} disabled={saving}>
-                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {saving ? <PmySpinner className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
                     {creating ? "Crear plantilla" : "Guardar"}
                   </Button>
                 </div>
@@ -351,9 +350,7 @@ export function WhatsappConfigPanel() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex h-16 items-center justify-center text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…
-            </div>
+            <PmyLoader size="sm" className="h-16 py-0" />
           ) : (
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">

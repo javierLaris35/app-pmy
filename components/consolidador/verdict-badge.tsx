@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { actionLabel, verdictTone } from "@/lib/consolidador/verdict";
 import { SuggestedAction, Verdict } from "@/lib/types/consolidador";
-import { CheckCircle2, AlertTriangle, ShieldAlert, Info, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ShieldAlert, Info} from "lucide-react";
 
 interface Props {
   verdict: Verdict;
@@ -88,7 +89,7 @@ export function VerdictBadge({ verdict, onAction, busy }: Props) {
                 Cancelar
               </Button>
               <Button size="sm" className="h-7" disabled={!canApply} onClick={apply}>
-                {saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />} Aplicar
+                {saving && <PmySpinner className="mr-1 h-3 w-3" />} Aplicar
               </Button>
             </div>
           </PopoverContent>

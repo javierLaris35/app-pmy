@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,7 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Search, MapPin, Pencil, Trash2, Loader2, ExternalLink, BrainCircuit } from "lucide-react"
+import { Search, MapPin, Pencil, Trash2, ExternalLink, BrainCircuit } from "lucide-react"
 import { toast } from "@/lib/toast"
 import {
   getGeocodeCache, updateGeocodeCache, deleteGeocodeCache, clearGeocodeCache,
@@ -130,9 +131,7 @@ export function GeocodePanel() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
-          </div>
+          <PmyLoader size="sm" className="py-12" />
         ) : items.length === 0 ? (
           <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
             No hay direcciones memorizadas todavía.
@@ -243,7 +242,7 @@ export function GeocodePanel() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
             <Button onClick={saveEdit} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar
+              {saving && <PmySpinner className="mr-2 h-4 w-4" />}Guardar
             </Button>
           </DialogFooter>
         </DialogContent>

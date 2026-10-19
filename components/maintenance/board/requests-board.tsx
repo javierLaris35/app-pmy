@@ -1,10 +1,11 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { KanbanSquare, List, Loader2, Search } from "lucide-react";
+import { KanbanSquare, List, Search } from "lucide-react";
 import { BoardCard, vehicleLabel } from "@/lib/types/maintenance";
 import { BOARD_VIEWS, BoardEmpty, BoardKanban, BoardList, BoardView, BoardViewsRail, ViewerRole } from "./board-views";
 
@@ -51,7 +52,7 @@ export function RequestsBoard({ cards, isLoading, role, views = BOARD_VIEWS, fil
           </ToggleGroup>
         </div>
         {isLoading && !cards.length ? (
-          <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <PmyLoader size="sm" className="p-10" />
         ) : cards.length === 0 ? (
           <BoardEmpty title={empty.title} text={empty.text} onCreate={empty.onCreate} />
         ) : layout === "kanban" ? (

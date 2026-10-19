@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { memo, useEffect, useRef, useState } from "react"
 import "leaflet/dist/leaflet.css"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -113,9 +114,7 @@ function InteractiveMapImpl({ branches, canSeeRevenue = true }: InteractiveMapPr
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-96 flex items-center justify-center bg-orange-100 rounded-lg">
-            <div className="animate-spin rounded-full h-10 w-10 border-2 border-orange-500"></div>
-          </div>
+          <PmyLoader text="Cargando mapa…" className="h-96 rounded-lg bg-orange-100 py-0" />
         </CardContent>
       </Card>
     )

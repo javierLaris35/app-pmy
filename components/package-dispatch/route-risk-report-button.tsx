@@ -4,8 +4,9 @@
 // "Ver simulación" arma el correo con datos reales sin enviarlo; "Enviar de prueba" lo manda
 // a los destinatarios de siempre (Javier, copia a sistemas) tras confirmar.
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useState, type ReactNode } from "react";
-import { AlertTriangle, Eye, Loader2, MailCheck, Send } from "lucide-react";
+import { AlertTriangle, Eye, MailCheck, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -98,7 +99,7 @@ export function RouteRiskReportButton() {
             <DateField label="Día de las rutas" size="sm" value={date} onChange={setDate} className="w-60" disabled={!!busy} />
             <div className="ml-auto flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={() => run(true)} disabled={!!busy || !date}>
-                {busy === "preview" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+                {busy === "preview" ? <PmySpinner className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
                 Ver simulación
               </Button>
               <Button size="sm" onClick={() => setConfirmOpen(true)} disabled={!!busy || !date}>
@@ -109,10 +110,7 @@ export function RouteRiskReportButton() {
 
           <div className="min-h-[50vh] bg-slate-50/60 p-4">
             {busy && (
-              <div className="flex h-[50vh] flex-col items-center justify-center gap-2 text-sm text-slate-600">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Revisando todas las rutas del día con FedEx… tarda alrededor de un minuto.
-              </div>
+              <PmyLoader size="sm" text="Revisando todas las rutas del día con FedEx… tarda alrededor de un minuto." className="h-[50vh] py-0" />
             )}
 
             {!busy && error && (
@@ -171,7 +169,7 @@ export function RouteRiskReportButton() {
               }}
               disabled={busy === "send"}
             >
-              {busy === "send" && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Enviar
+              {busy === "send" && <PmySpinner className="mr-1.5 h-3.5 w-3.5" />} Enviar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

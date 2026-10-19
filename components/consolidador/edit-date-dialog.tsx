@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,7 @@ export function EditDateDialog({ open, onOpenChange, currentDate, onSubmit }: Pr
             Cancelar
           </Button>
           <Button onClick={submit} disabled={saving || !valid}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar
+            {saving && <PmySpinner className="mr-2 h-4 w-4" />} Guardar
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useState, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -429,14 +430,14 @@ export default function TrackingPage() {
               {/* Estado de frescura: refuerza que SÍ se está actualizando desde FedEx. */}
               {isRefreshing ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
-                  <RefreshCw className="h-3 w-3 animate-spin" /> Actualizando desde FedEx…
+                  <PmySpinner className="h-3 w-3" /> Actualizando desde FedEx…
                 </span>
               ) : lastUpdatedAt ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
                   <Activity className="h-3 w-3" /> Actualizado {lastUpdatedAt.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
                 </span>
               ) : null}
-              <Button id="refresh-button" variant="outline" size="icon" onClick={handleRefresh} disabled={isRefreshing || isLoading}><RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} /></Button>
+              <Button id="refresh-button" variant="outline" size="icon" onClick={handleRefresh} disabled={isRefreshing || isLoading}>{isRefreshing ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}</Button>
               <Button id="tutorial-button" variant="outline" size="icon" onClick={startTutorial}><HelpCircle className="h-4 w-4" /></Button>
               <div><SucursalSelector value={effectiveSubsidiaryId || user?.subsidiary?.id || ""} returnObject={true} onValueChange={(val) => { if (typeof val === "string") setSelectedSubsidiaryId(val); else if (Array.isArray(val)) setSelectedSubsidiaryId(val[0]?.id ?? ""); else if (val && typeof val === "object") setSelectedSubsidiaryId((val as any).id); }} /></div>
 

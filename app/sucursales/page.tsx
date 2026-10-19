@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -236,7 +237,7 @@ function SucursalesPage() {
         />
 
         {isLoading ? (
-          <p className="text-muted-foreground">Cargando sucursales...</p>
+          <PmyLoader text="Cargando sucursales…" />
         ) : isError ? (
           <p className="text-red-500">Error al cargar las sucursales.</p>
         ) : isMobile ? (
@@ -685,7 +686,7 @@ function SucursalesPage() {
             >
               {isDeleting ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+                  <PmySpinner className="h-4 w-4 mr-2" />
                   Eliminando...
                 </>
               ) : (

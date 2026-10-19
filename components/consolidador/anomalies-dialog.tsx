@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef, FilterFn } from "@tanstack/react-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -234,9 +235,7 @@ export function AnomaliesDialog({ open, onOpenChange, subsidiaryId, week, onChan
 
         <div className="min-w-0 space-y-3">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <PmyLoader size="sm" className="py-16" />
           ) : rows.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">

@@ -1,6 +1,7 @@
 "use client";
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { useState } from "react";
-import { RefreshCw, Loader2 } from "lucide-react";
+import { RefreshCw} from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
@@ -13,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -165,7 +165,7 @@ function TrackingSyncContent() {
                   />
                 </div>
                 <Button onClick={runTracking} disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {loading && <PmySpinner className="mr-2 h-4 w-4" />}
                   {loading ? "Consultando…" : "Consultar FedEx ahora"}
                 </Button>
               </div>
@@ -183,7 +183,7 @@ function TrackingSyncContent() {
                     <Input id="day" type="date" className="w-44" value={day} onChange={(e) => setDay(e.target.value)} />
                   </div>
                   <Button onClick={search} disabled={searching}>
-                    {searching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {searching && <PmySpinner className="mr-2 h-4 w-4" />}
                     {searching ? "Buscando…" : "Buscar"}
                   </Button>
                 </div>
@@ -216,15 +216,7 @@ function TrackingSyncContent() {
           </Alert>
         )}
         {loading && (
-          <div className="space-y-2" aria-busy="true">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Consultando FedEx…
-            </div>
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-2/3" />
-          </div>
+          <PmyLoader messages="fedex" className="py-12" />
         )}
         {!loading && rows.length > 0 && <CompareTable rows={rows} onApply={onApply} />}
         {!loading && !error && attempted && rows.length === 0 && (

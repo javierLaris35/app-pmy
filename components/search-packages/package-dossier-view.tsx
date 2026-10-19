@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertCircle,
@@ -12,7 +13,6 @@ import {
   FilePlus2,
   Globe,
   Layers,
-  Loader2,
   Package,
   PackageSearch,
   Phone,
@@ -150,13 +150,15 @@ export function PackageDossierView() {
         {/* El centrado va en el contenedor: animate-spin usa transform y pisaría el -translate-y del ícono. */}
         {loading && (
           <span className="absolute right-7 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <PmySpinner className="h-5 w-5 text-primary" />
           </span>
         )}
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto bg-slate-50 p-4">
-        {error ? (
+        {loading ? (
+          <PmyLoader messages="search" className="h-full" />
+        ) : error ? (
           <EmptyState icon={AlertCircle} text={error} />
         ) : !dossier ? (
           <EmptyState icon={Search} text="Escribe una guía o un JD para ver su expediente completo" />

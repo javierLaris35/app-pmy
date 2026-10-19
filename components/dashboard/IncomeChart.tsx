@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
 import { ChartTooltip } from "@/components/dashboard/ChartTooltip"
-import { Loader } from "../loader";
+import { PmyLoader } from "@/components/ui/pmy-loader";
 
 interface IncomeChartProps {
   data: { date: string; amount: number }[],
@@ -30,7 +30,7 @@ export const IncomeChart = ({ data, isLoading }: IncomeChartProps) => {
           </ResponsiveContainer>
         ) : (
           <div className="flex h-[300px] items-center justify-center">
-            <p className="text-muted-foreground">{isLoading ? <Loader /> : "No hay datos de gastos para mostrar"}</p>
+            {isLoading ? <PmyLoader size="sm" messages="report" /> : <p className="text-muted-foreground">No hay datos de gastos para mostrar</p>}
           </div>
         )}
       </CardContent>

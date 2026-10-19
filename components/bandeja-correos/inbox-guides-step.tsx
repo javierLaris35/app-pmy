@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { PasteBatchView } from "@/lib/types/inbox";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { BATCH_LABEL, CONS_KIND_LABEL, formatDateTime, formatMinutes } from "./labels";
-import { AlertTriangle, ArrowLeftRight, CheckCircle2, Copy, Eye, Loader2, Package, Plane, Truck, Upload } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, Copy, Eye, Package, Plane, Truck, Upload } from "lucide-react";
 import { ViewerTarget } from "./attachment-viewer";
 import { TrackingSteps } from "./tracking-steps";
 import { getTrackingForMessage } from "@/lib/services/ops-alerts";
@@ -86,7 +87,7 @@ export function InboxGuidesStep({ messageId, subject, ready, canUpload, onChange
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 py-3 text-xs text-slate-500">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Revisando las guías del correo…
+        <PmySpinner className="h-3.5 w-3.5" /> Revisando las guías del correo…
       </div>
     );
   }

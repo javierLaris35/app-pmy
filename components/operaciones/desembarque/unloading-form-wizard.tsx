@@ -1,4 +1,5 @@
 "use client";
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { UnidadSelector } from "@/components/selectors/unidad-selector";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Loader2, Search, Filter, ChevronDown, ChevronUp, Download, X, ArrowRight, ArrowLeft, FileText, Mail } from "lucide-react";
+import { AlertCircle, Check, ChevronsUpDown, CircleAlertIcon, DollarSignIcon, GemIcon, MapPin, MapPinIcon, Package, PackageCheckIcon, Phone, Scan, Send, Trash2, User, Search, Filter, ChevronDown, ChevronUp, Download, X, ArrowRight, ArrowLeft, FileText, Mail } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { validateTrackingNumbers, saveUnloading, uploadPDFile, getConsolidatedsToStartUnloading } from "@/lib/services/unloadings";
 import { Consolidateds, PackageInfo, PackageInfoForUnloading, Unloading, UnloadingFormData, ValidTrackingAndConsolidateds } from "@/lib/types";
@@ -397,10 +398,7 @@ const Step1SelectConsolidates = ({
 
   if (loading) {
     return (
-      <div className="text-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-        <p>Cargando consolidados disponibles...</p>
-      </div>
+      <PmyLoader text="Cargando consolidados disponibles…" className="py-8" />
     );
   }
 
@@ -671,7 +669,7 @@ const Step2ScanAndValidate = ({
             variant="outline"
           >
             {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <PmySpinner className="h-4 w-4 mr-2" />
             ) : (
               <Scan className="h-4 w-4 mr-2" />
             )}
@@ -1103,7 +1101,7 @@ const Step3SummaryAndSend = ({
               className="flex-1"
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <PmySpinner className="h-4 w-4 mr-2" />
               ) : (
                 <Mail className="h-4 w-4 mr-2" />
               )}

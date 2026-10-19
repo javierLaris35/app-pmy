@@ -1,12 +1,12 @@
 // components/configuracion/plantillas/plantillas-panel.tsx
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { listTemplates, DocumentTemplate } from "@/lib/services/document-templates";
 import { CreateTemplateDialog } from "./create-template-dialog";
 import { toast } from "@/lib/toast";
@@ -31,7 +31,7 @@ export function PlantillasPanel() {
       </CardHeader>
       <CardContent>
         {rows === null ? (
-          <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          <PmyLoader size="sm" className="py-8" />
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">No hay plantillas. Crea la primera.</p>
         ) : (

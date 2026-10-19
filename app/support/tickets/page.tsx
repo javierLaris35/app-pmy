@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import type React from "react"
 
 import { useState } from "react"
@@ -24,7 +25,6 @@ import {
   ChevronRight,
   CheckCircle2,
   Info,
-  Loader2,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -748,7 +748,7 @@ export default function SupportTicketsPage() {
                       }
                       className="bg-primary"
                     >
-                      {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                      {isSubmitting ? <PmySpinner className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                       {isSubmitting ? "Enviando…" : "Enviar solicitud"}
                     </Button>
                   </div>

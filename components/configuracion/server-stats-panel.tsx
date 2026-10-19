@@ -1,10 +1,11 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Panel, PanelContent, PanelHeader, PanelTitle, PanelDescription } from "@/components/ui/panel"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Cpu, MemoryStick, HardDrive, Network, Server, ArrowDown, ArrowUp, Clock, Activity, Loader2, AlertTriangle } from "lucide-react"
+import { Cpu, MemoryStick, HardDrive, Network, Server, ArrowDown, ArrowUp, Clock, Activity, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getServerStats, type ServerStats } from "@/lib/services/server-stats"
 
@@ -126,9 +127,7 @@ export function ServerStatsPanel() {
             <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
           </div>
         ) : loadingFirst || !stats ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Leyendo métricas del servidor…
-          </div>
+          <PmyLoader size="sm" text="Leyendo métricas del servidor…" className="py-12" />
         ) : (
           <>
             {/* Gauges principales */}

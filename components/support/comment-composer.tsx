@@ -1,11 +1,12 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { ImagePlus, Loader2, MessageSquare, X } from "lucide-react"
+import { ImagePlus, MessageSquare, X } from "lucide-react"
 
 interface Props {
   /** Envía el comentario. Debe resolver para que el composer se limpie. */
@@ -87,7 +88,7 @@ export function CommentComposer({ onSubmit, showInternal = false, label = "Agreg
           )}
         </div>
         <Button onClick={submit} disabled={!texto.trim() || submitting} size="sm">
-          {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageSquare className="h-4 w-4 mr-2" />}
+          {submitting ? <PmySpinner className="h-4 w-4 mr-2" /> : <MessageSquare className="h-4 w-4 mr-2" />}
           Publicar
         </Button>
       </div>

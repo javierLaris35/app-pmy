@@ -1,12 +1,13 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Loader2, Package, Search, X, FileText } from "lucide-react";
+import { AlertCircle, Package, Search, X, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { searchPackageInfo } from "@/lib/services/shipments";
 import { SearchShipmentDto } from "@/lib/types";
@@ -205,7 +206,7 @@ export function CorrectTrackingModal({
               />
               {searchLoading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <PmySpinner className="h-3 w-3" />
                   Buscando información del paquete...
                 </div>
               )}
@@ -280,7 +281,7 @@ export function CorrectTrackingModal({
               <Button type="submit" disabled={loading || !packageInfo || searchLoading}>
                 {loading ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <PmySpinner className="h-4 w-4 mr-2" />
                     Corrigiendo...
                   </>
                 ) : (

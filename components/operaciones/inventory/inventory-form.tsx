@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,6 @@ import {
   PackageCheckIcon,
   Send,
   Trash2,
-  Loader2,
   Download,
   X,
   Clock,
@@ -768,7 +768,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                       className="w-full gap-2"
                       variant="outline"
                     >
-                      {isValidationPackages ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
+                      {isValidationPackages ? <PmySpinner className="h-4 w-4" /> : <Scan className="h-4 w-4" />}
                       {isValidationPackages ? "Validando..." : "Validar paquetes"}
                     </Button>*/}
                   </CardContent>
@@ -898,7 +898,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
               disabled={isLoading || isValidationPackages || validPackages.length === 0}
               className="gap-2"
             >
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {isLoading ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               Guardar {getInventoryTypeLabel(inventoryType)}
             </Button>
           </DialogFooter>

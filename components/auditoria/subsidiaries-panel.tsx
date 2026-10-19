@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useMemo, useState } from "react";
 import { fmtDateTime, fmtRelative } from "@/lib/audit-format";
 import {
@@ -9,7 +10,6 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +140,7 @@ function SubsidiaryDetailDialog({ selected, onClose, onFocus }: {
 
         <ScrollArea className="flex-1 -mx-2 px-2">
           {isLoading ? (
-            <div className="space-y-2 py-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+            <PmyLoader size="sm" className="py-10" />
           ) : !focus || focus.items.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
               <Icon className="h-9 w-9 mx-auto mb-2 opacity-40" />
@@ -334,7 +334,7 @@ export function SubsidiariesPanel() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}</div>
+          <PmyLoader size="sm" messages="report" className="py-16" />
         ) : subsidiaries.length === 0 ? (
           <Card><CardContent className="py-16 text-center text-muted-foreground">
             <Building2 className="h-10 w-10 mx-auto mb-2 opacity-40" />

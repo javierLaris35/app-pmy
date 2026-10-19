@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
 import {
   Dialog,
@@ -211,7 +212,7 @@ export function UserDialog({ user, open, onClose, onSubmit }: UserDialogProps) {
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmitting && <PmySpinner className="mr-2 h-4 w-4" />}
               {isEdit ? "Guardar cambios" : "Crear usuario"}
             </Button>
           </DialogFooter>

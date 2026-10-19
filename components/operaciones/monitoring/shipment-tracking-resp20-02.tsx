@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -799,7 +800,7 @@ export default function TrackingPage() {
             </div>
             <div className="flex gap-2">
               <Button id="refresh-button" variant="outline" size="icon" onClick={handleRefresh} disabled={isRefreshing}>
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                {isRefreshing ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
               <Button id="tutorial-button" variant="outline" size="icon" onClick={startTutorial}>
                 <HelpCircle className="h-4 w-4" />
@@ -1050,7 +1051,6 @@ export default function TrackingPage() {
              <div className="flex justify-center items-center h-64">
                <LoaderWithOverlay 
                  overlay
-                 text={"Cargando..."}
                  className="rounded-lg"
                />
              </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ComboField, MoneyField, TextField } from "@/components/ui/field";
@@ -69,7 +70,7 @@ export function CapturePriceForm({ need, onSaved, onCancel }: { need: NeedView; 
         <div className="flex gap-1.5">
           <Button type="button" size="sm" variant="ghost" className="h-9" onClick={onCancel} disabled={saving}>Cancelar</Button>
           <Button type="button" size="sm" className="h-9" onClick={save} disabled={saving}>
-            {saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Agregar
+            {saving && <PmySpinner className="mr-1 h-3.5 w-3.5" />} Agregar
           </Button>
         </div>
       </div>

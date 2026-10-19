@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/ui/panel";
@@ -26,7 +27,7 @@ import {
   updateOpsSubsidiary,
 } from "@/lib/services/ops-alerts";
 import { toast } from "@/lib/toast";
-import { FlaskConical, Loader2, Pencil, Play, Save } from "lucide-react";
+import { FlaskConical, Pencil, Play, Save } from "lucide-react";
 
 const errText = (e: unknown, f: string) => {
   const m = (e as any)?.response?.data?.message;
@@ -112,9 +113,7 @@ export function OpsAlertsPanel() {
 
   if (!form || !subs) {
     return (
-      <div className="flex h-32 items-center justify-center text-sm text-slate-500">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando…
-      </div>
+      <PmyLoader size="sm" className="h-32 py-0" />
     );
   }
 
@@ -143,7 +142,7 @@ export function OpsAlertsPanel() {
                 disabled={testing}
                 title={`Desarrollo: manda el mensaje de grupos con todo lo vencido al ${form.devTestNumber}`}
               >
-                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />} Probar alertas ahora
+                {testing ? <PmySpinner className="h-4 w-4" /> : <FlaskConical className="h-4 w-4" />} Probar alertas ahora
               </Button>
             )}
             <Button size="sm" variant="outline" className={form.devTestNumber ? "gap-1.5" : "ml-auto gap-1.5"} onClick={runNow}>
@@ -195,7 +194,7 @@ export function OpsAlertsPanel() {
 
           <div className="flex justify-end">
             <Button size="sm" className="gap-1.5" onClick={() => save()} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar plazos
+              {saving ? <PmySpinner className="h-4 w-4" /> : <Save className="h-4 w-4" />} Guardar plazos
             </Button>
           </div>
         </PanelContent>
@@ -343,7 +342,7 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
                 <p className="text-xs text-amber-700">WhatsApp no está conectado. Vincula el número en Configuración → WhatsApp para elegir grupos.</p>
               ) : !groups ? (
                 <p className="flex items-center gap-1 text-xs text-slate-500">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando grupos…
+                  <PmySpinner className="h-3.5 w-3.5" /> Cargando grupos…
                 </p>
               ) : groups.length === 0 ? (
                 <p className="text-xs text-slate-500">El número vinculado no está en ningún grupo.</p>
@@ -372,7 +371,7 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
             Cancelar
           </Button>
           <Button onClick={save} disabled={saving} className="gap-1.5">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar contactos
+            {saving ? <PmySpinner className="h-4 w-4" /> : <Save className="h-4 w-4" />} Guardar contactos
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -445,7 +444,7 @@ function UploadNotifyPanel({ settings, onSaved }: { settings: OpsSettings; onSav
             <p className="text-xs text-amber-700">WhatsApp no está conectado. Vincula el número en Configuración → WhatsApp para elegir grupos.</p>
           ) : !groups ? (
             <p className="flex items-center gap-1 text-xs text-slate-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando grupos…
+              <PmySpinner className="h-3.5 w-3.5" /> Cargando grupos…
             </p>
           ) : (
             <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-md border p-1">
@@ -466,7 +465,7 @@ function UploadNotifyPanel({ settings, onSaved }: { settings: OpsSettings; onSav
         </div>
         <div className="flex justify-end">
           <Button size="sm" className="gap-1.5" disabled={saving} onClick={() => save({ uploadNotifyGroups: sel }, "Grupos guardados")}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar grupos
+            {saving ? <PmySpinner className="h-4 w-4" /> : <Save className="h-4 w-4" />} Guardar grupos
           </Button>
         </div>
       </PanelContent>

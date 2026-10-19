@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useState, type ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  AlertTriangle, Calendar, Check, ChevronDown, Copy, Gavel, Loader2, MapPin, MessageCircle,
+  AlertTriangle, Calendar, Check, ChevronDown, Copy, Gavel, MapPin, MessageCircle,
   Network, RotateCcw, Sparkles, Tag, ThumbsDown, ThumbsUp, Timer, TimerReset, Wrench, X,
 } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
@@ -296,7 +297,7 @@ export function TicketDetailDialog({
                           onClick={() => generatePrompt("deterministico")}
                           disabled={loadingEngine !== null}
                         >
-                          {loadingEngine === "deterministico" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Network className="h-4 w-4" />}
+                          {loadingEngine === "deterministico" ? <PmySpinner className="h-4 w-4" /> : <Network className="h-4 w-4" />}
                           {prompt ? "Regenerar con grafo" : "Generar con grafo"}
                         </Button>
                         <Button
@@ -306,7 +307,7 @@ export function TicketDetailDialog({
                           disabled={loadingEngine !== null}
                           title="Mejora el prompt con DeepSeek, conservando los archivos reales"
                         >
-                          {loadingEngine === "ia" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                          {loadingEngine === "ia" ? <PmySpinner className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                           {loadingEngine === "ia" ? "Generando con IA…" : "Mejorar con IA"}
                         </Button>
                       </div>
@@ -488,7 +489,7 @@ export function TicketDetailDialog({
                           ) : (
                             <div className="flex flex-wrap gap-2">
                               <Button size="sm" className="bg-green-600 text-white hover:bg-green-700" onClick={doApprove} disabled={approving}>
-                                {approving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsUp className="mr-2 h-4 w-4" />} Aprobar
+                                {approving ? <PmySpinner className="mr-2 h-4 w-4" /> : <ThumbsUp className="mr-2 h-4 w-4" />} Aprobar
                               </Button>
                               <Button variant="outline" size="sm" onClick={() => setRejectMode(true)} disabled={approving}>
                                 <ThumbsDown className="mr-2 h-4 w-4" /> Rechazar
@@ -517,7 +518,7 @@ export function TicketDetailDialog({
               {/* Acciones */}
               <div className="space-y-2">
                 <Button variant="outline" size="sm" className="w-full justify-start bg-background" onClick={notifyStatus} disabled={notifying}>
-                  {notifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageCircle className="mr-2 h-4 w-4 text-green-600" />}
+                  {notifying ? <PmySpinner className="mr-2 h-4 w-4" /> : <MessageCircle className="mr-2 h-4 w-4 text-green-600" />}
                   Notificar estatus al solicitante
                 </Button>
                 {isResolved && (

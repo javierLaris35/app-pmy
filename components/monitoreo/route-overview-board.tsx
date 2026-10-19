@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,6 @@ import {
 } from "@/lib/services/monitoring/route-board-severity";
 import { todayHmo, fmtTime, fmtDateTimeShort, formatElapsed, fmtAgo } from "@/lib/services/monitoring/route-board-format";
 import { buildRouteBoardExcel, buildRouteBoardPdf } from "@/lib/services/monitoring/route-board-export";
-import { RouteBoardSkeleton } from "./route-board-skeleton";
 import { RouteBoardTable } from "./route-board-table";
 import { RouteBoardCharts } from "./route-board-charts";
 
@@ -164,12 +164,12 @@ export function RouteOverviewBoard({ onSelectRoute }: { onSelectRoute: (subsidia
       </div>
       <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 w-[150px]" />
       <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Actualizar
+        {loading ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Actualizar
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" disabled={!!exporting || items.length === 0}>
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar
+            {exporting ? <PmySpinner className="h-4 w-4" /> : <Download className="h-4 w-4" />} Exportar
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
@@ -205,7 +205,7 @@ export function RouteOverviewBoard({ onSelectRoute }: { onSelectRoute: (subsidia
       </div>
 
       {loading && items.length === 0 ? (
-        <RouteBoardSkeleton />
+        <PmyLoader messages="general" className="py-16" />
       ) : items.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">
           <Truck className="h-10 w-10 mx-auto mb-2 opacity-40" />

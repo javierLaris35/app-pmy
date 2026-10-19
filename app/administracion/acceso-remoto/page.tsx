@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useCallback, useRef, useState } from "react";
-import { MonitorCheck, Loader2, Maximize2, Power, PlugZap } from "lucide-react";
+import { MonitorCheck, Maximize2, Power, PlugZap } from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
@@ -64,7 +65,7 @@ function AccesoRemotoPage() {
                 </>
               ) : (
                 <Button size="sm" onClick={() => connect(protocol)} disabled={loading} className="gap-1">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />} Conectar
+                  {loading ? <PmySpinner className="h-4 w-4" /> : <PlugZap className="h-4 w-4" />} Conectar
                 </Button>
               )}
             </div>

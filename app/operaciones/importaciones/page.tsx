@@ -1,10 +1,11 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
-import { FileSpreadsheet, Download, Loader2, RefreshCcw } from "lucide-react";
+import { FileSpreadsheet, Download, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -111,7 +112,7 @@ function ImportacionesPage() {
               {loading && (
                 <TableRow>
                   <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                    <PmySpinner className="mx-auto h-5 w-5" />
                   </TableCell>
                 </TableRow>
               )}
@@ -134,7 +135,7 @@ function ImportacionesPage() {
                   <TableCell className="text-muted-foreground">{formatDate(String(f.createdAt))}</TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="outline" disabled={busyId === f.id} onClick={() => handleDownload(f)}>
-                      {busyId === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      {busyId === f.id ? <PmySpinner className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                     </Button>
                   </TableCell>
                 </TableRow>

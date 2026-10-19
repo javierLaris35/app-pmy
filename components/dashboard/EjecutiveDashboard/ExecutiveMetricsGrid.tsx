@@ -1,7 +1,7 @@
 "use client"
 
 import { DollarSign, Package, TrendingUp, Users, Clock, Shield } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PmyLoader } from "@/components/ui/pmy-loader"
 
 interface MetricCard {
   title: string
@@ -95,14 +95,8 @@ export function ExecutiveMetricsGrid({ metrics, isLoading, comparisonPeriod }: E
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl shadow-sm p-6">
-            <Skeleton className="h-4 w-32 mb-4" />
-            <Skeleton className="h-8 w-24 mb-2" />
-            <Skeleton className="h-4 w-48" />
-          </div>
-        ))}
+      <div className="bg-white rounded-xl shadow-sm">
+        <PmyLoader size="sm" messages="report" className="py-16" />
       </div>
     )
   }

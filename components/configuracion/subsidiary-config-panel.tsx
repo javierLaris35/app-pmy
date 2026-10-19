@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -118,7 +119,7 @@ export function SubsidiaryConfigPanel() {
         </div>
 
         {isLoading ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando…</div>
+          <PmyLoader size="sm" className="h-40 py-0" />
         ) : filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">No hay sucursales que coincidan.</p>
         ) : (
@@ -129,7 +130,7 @@ export function SubsidiaryConfigPanel() {
                   {toBool(sub.isWarehouse) ? <Warehouse className="h-4 w-4 text-primary" /> : <Building2 className="h-4 w-4 text-muted-foreground" />}
                   <span className="font-medium">{sub.name}</span>
                   {toBool(sub.isWarehouse) && <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Bodega</Badge>}
-                  {savingId === sub.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-1" />}
+                  {savingId === sub.id && <PmySpinner className="h-3.5 w-3.5 text-muted-foreground ml-1" />}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {FLAGS.map((f) => (

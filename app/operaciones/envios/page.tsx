@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useState, useCallback } from "react"
 import { DataTable } from "@/components/data-table/data-table"
 import { Button } from "@/components/ui/button"
@@ -24,7 +25,6 @@ import { Shipment } from "@/lib/types"
 import type { CellContext } from "@tanstack/react-table"
 import { AppLayout } from "@/components/app-layout"
 import { useShipments } from "@/hooks/services/shipments/use-shipments"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useIsMobile } from "@/hooks/use-mobile"
 import ShipmentFilters from "@/components/operaciones/envios/ShipmentFilters"
 import { filters } from "./filters"
@@ -202,44 +202,14 @@ function ShipmentsPage() {
 
         {/* KPI's */}
         {isLoading ? (
-          <div className="flex flex-row space-x-4">
-            {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-[110px] w-[250px] rounded-md" />
-            ))}
-          </div>
+          null
         ) : (
           <KPIShipmentCards date={new Date().toDateString()} />
         )}
 
         {/* Tabla de envíos */}
         {isLoading ? (
-          isMobile ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-28 w-full rounded-md" />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <div className="p-4 flex justify-between items-center">
-                <Skeleton className="h-8 w-64 rounded-md" />
-                <Skeleton className="h-8 w-32 rounded-md" />
-              </div>
-              <div className="space-y-2 p-4">
-                {[...Array(5)].map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full rounded-md" />
-                ))}
-              </div>
-              <div className="p-4 flex justify-between items-center">
-                <Skeleton className="h-8 w-32 rounded-md" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-8 w-8 rounded-md" />
-                  <Skeleton className="h-8 w-8 rounded-md" />
-                  <Skeleton className="h-8 w-8 rounded-md" />
-                </div>
-              </div>
-            </div>
-          )
+          <PmyLoader messages="general" className="rounded-md border py-16" />
         ) : isMobile ? (
           <ShipmentFilters shipments={shipments || []} />
         ) : (

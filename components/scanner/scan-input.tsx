@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import {
   useState,
   useCallback,
@@ -20,7 +21,6 @@ import {
   Check,
   HelpCircle,
   Inbox,
-  Loader2,
   Trash2,
   BanknoteIcon,
   BarcodeIcon,
@@ -490,7 +490,7 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
         />
         {mode === "perScan" && isScanning && (
           <span className="pointer-events-none absolute right-3 top-3 text-primary">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <PmySpinner className="h-4 w-4" />
           </span>
         )}
       </div>

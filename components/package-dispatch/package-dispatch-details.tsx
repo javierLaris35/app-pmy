@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { 
   AlertCircle, DollarSignIcon, GemIcon, MapPin, 
-  Phone, User, Loader2, Truck, Calendar, Map, Users, Search, X
+  Phone, User, Truck, Calendar, Map, Users, Search, X
 } from "lucide-react"; 
 import { PackageDispatch, PackageInfo } from "@/lib/types";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
@@ -156,9 +157,7 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
 
   if (isFetchingData) {
     return (
-      <div className="w-full min-h-[300px] flex items-center justify-center bg-white">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-      </div>
+      <PmyLoader size="sm" className="w-full min-h-[300px] bg-white py-0" />
     );
   }
 
@@ -196,7 +195,7 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
         <div className="flex gap-2 w-full md:w-auto">
           <Button variant="ghost" onClick={onClose} className="hidden md:flex text-slate-500">Cancelar</Button>
           <Button onClick={handlePdfCreate} disabled={isLoadingPdf} className="w-full md:w-auto shadow-sm">
-            {isLoadingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <IconPdf className="mr-2 h-4 w-4" />}
+            {isLoadingPdf ? <PmySpinner className="mr-2 h-4 w-4" /> : <IconPdf className="mr-2 h-4 w-4" />}
             Exportar Manifiesto
           </Button>
         </div>

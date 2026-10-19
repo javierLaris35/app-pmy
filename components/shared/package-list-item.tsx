@@ -1,3 +1,4 @@
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import * as React from "react";
 import {
   AlertCircle,
@@ -8,7 +9,6 @@ import {
   CircleAlertIcon,
   Clock,
   GemIcon,
-  Loader2,
   MapPin,
   Package,
   Phone,
@@ -158,7 +158,7 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
 
             {pkg.isPendingValidation && (
               <span className="inline-flex items-center gap-1 rounded-md bg-cyan-100 text-cyan-700 px-1.5 py-0.5 text-[10px] font-semibold">
-                <Loader2 className="h-3 w-3 animate-spin" /> Validando
+                <PmySpinner className="h-3 w-3" /> Validando
               </span>
             )}
             {(pkg as any).isOffline && (
