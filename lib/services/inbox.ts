@@ -121,3 +121,13 @@ export async function getAttachmentObjectUrl(id: string, contentType?: string): 
   const blob = contentType ? new Blob([res.data as Blob], { type: contentType }) : (res.data as Blob);
   return URL.createObjectURL(blob);
 }
+
+// ── Buscador de Correos ──
+export const searchInbox = async (q: string): Promise<import("../types/inbox-lookup").SearchResult> =>
+  (await axiosConfig.get(`${baseUrl}/search`, { params: { q } })).data;
+
+export const getConsolidatedLookup = async (p: { id?: string; cons?: string; type?: "paquete" | "carga" }): Promise<import("../types/inbox-lookup").ConsolidatedDetail> =>
+  (await axiosConfig.get(`${baseUrl}/lookup/consolidated`, { params: p })).data;
+
+export const getGuideLookup = async (tracking: string): Promise<import("../types/inbox-lookup").GuideDetail> =>
+  (await axiosConfig.get(`${baseUrl}/lookup/guide/${encodeURIComponent(tracking)}`)).data;
