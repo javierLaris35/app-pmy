@@ -3,7 +3,37 @@ import {
   classifyClosureBucket,
   packageBlocksClosure,
   isClosureBlockedByOtherStatus,
+  isDueOnRouteDay,
+  routeDayKey,
 } from './closure-status';
+
+describe('routeDayKey', () => {
+  it('toma routeDate tal cual (sin correr zona), venga como fecha o ISO', () => {
+    expect(routeDayKey('2026-10-17')).toBe('2026-10-17');
+    expect(routeDayKey('2026-10-17T00:00:00.000Z')).toBe('2026-10-17');
+  });
+
+  it('sin routeDate usa createdAt en hora Hermosillo', () => {
+    // 2026-10-18 03:00Z = sábado 17 a las 20:00 en Hermosillo
+    expect(routeDayKey(null, '2026-10-18T03:00:00.000Z')).toBe('2026-10-17');
+  });
+});
+
+describe('isDueOnRouteDay', () => {
+  it('ruta del sábado cerrada el lunes: un vencimiento del lunes NO es del día de la ruta', () => {
+    expect(isDueOnRouteDay('2026-10-19T23:59:00.000Z', '2026-10-17')).toBe(false);
+  });
+
+  it('un vencimiento del mismo día de la ruta sí lo es (hora Hermosillo)', () => {
+    // sábado 17 a las 20:00 Hermosillo = 18 03:00Z
+    expect(isDueOnRouteDay('2026-10-18T03:00:00.000Z', '2026-10-17')).toBe(true);
+  });
+
+  it('sin fecha compromiso o sin día de ruta nunca es del día de la ruta', () => {
+    expect(isDueOnRouteDay(undefined, '2026-10-17')).toBe(false);
+    expect(isDueOnRouteDay('2026-10-17T18:00:00.000Z', null)).toBe(false);
+  });
+});
 
 describe('classifyClosureBucket', () => {
   it('clasifica entregado como delivered', () => {

@@ -52,7 +52,7 @@ import { generateRouteClosureExcel } from "@/lib/services/route-closure/route-cl
 import { updateDataFromFedexByPackageDispatchId } from "@/lib/services/monitoring/monitoring";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCatalogOptions, CatalogItem } from "@/lib/services/catalog";
-import { classifyClosureBucket, isClosureBlockedByOtherStatus } from "@/lib/tracking/closure-status";
+import { classifyClosureBucket, isClosureBlockedByOtherStatus, isDueOnRouteDay, routeDayKey } from "@/lib/tracking/closure-status";
 import { ClosureDoctorPanel } from "./closure-doctor-panel";
 
 interface ClosePackageDispatchProps {
@@ -197,48 +197,18 @@ export default function ClosePackageDispatchWizard({
     }).format(new Date(utcDate));
   };
 
-  const isTodayInHermosillo = (utcDate?: string | Date) => {
-    if (!utcDate) return false;
-    const date = new Date(utcDate);
-    const formatter = new Intl.DateTimeFormat("es-MX", {
-      timeZone: "America/Hermosillo",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    const today = formatter.format(new Date());
-    const target = formatter.format(date);
-    return today === target;
-  };
+  // Día operativo de la ruta: el vencimiento se compara contra ESTE día, no contra "hoy".
+  // Así una ruta del sábado que se cierra el lunes no se bloquea por guías que vencen el lunes.
+  const routeDay = routeDayKey(dispatch?.routeDate, dispatch?.createdAt);
+  const dueOnRouteDay = (commitDateTime?: string | Date) => isDueOnRouteDay(commitDateTime, routeDay);
 
-  const isYesterdayInHermosillo = (utcDate?: string | Date) => {
-    if (!utcDate) return false;
-    const date = new Date(utcDate);
-    const formatter = new Intl.DateTimeFormat("es-MX", {
-      timeZone: "America/Hermosillo",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    const yesterdayFormatted = formatter.format(yesterday);
-    const target = formatter.format(date);
-    return yesterdayFormatted === target;
-  };
-
-  const hasOtherPackagesDueToday = (otherPackages: PackageInfo[]) => {
-    const dispatchWasYesterday = isYesterdayInHermosillo(dispatch?.createdAt);
-    return otherPackages.some(pkg => {
+  const hasOtherPackagesDueOnRouteDay = (otherPackages: PackageInfo[]) =>
+    otherPackages.some(pkg => {
       // Las guías que YA se re-escanearon en otra salida a ruta no son responsabilidad
       // de este cierre: se muestran informativas (badge) pero NUNCA bloquean.
       if (pkg.movedToAnotherRoute) return false;
-      if (!pkg.commitDateTime) return false;
-      const dueToday = isTodayInHermosillo(pkg.commitDateTime);
-      return dueToday && !dispatchWasYesterday;
+      return dueOnRouteDay(pkg.commitDateTime);
     });
-  };
 
   // Badge informativo "En otra ruta" (guía reasignada a otra salida). Se pinta junto al
   // tracking en las listas del cierre; no altera conteos ni bloquea.
@@ -426,10 +396,10 @@ export default function ClosePackageDispatchWizard({
   const kmsTraveled = calculateKmsTraveled();
   const pendingDhlUpdates = otherPackages.some(pkg => pkg.shipmentType?.toLowerCase() === 'dhl');
 
-  // ¿El cierre queda bloqueado por paquetes en "Otros Estatus" venciendo hoy? La sucursal
+  // ¿El cierre queda bloqueado por paquetes en "Otros Estatus" que vencen el día de la ruta? La sucursal
   // Hermosillo (flag allowRouteClosureWithOtherStatus) es la excepción: puede cerrar igual.
   const closureBlockedByOtherStatus = isClosureBlockedByOtherStatus(
-    hasOtherPackagesDueToday(otherPackages),
+    hasOtherPackagesDueOnRouteDay(otherPackages),
     dispatch?.subsidiary?.allowRouteClosureWithOtherStatus,
   );
 
@@ -878,14 +848,14 @@ export default function ClosePackageDispatchWizard({
           {closureBlockedByOtherStatus && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-3 text-red-700 text-sm">
               <AlertTriangle className="h-5 w-5 shrink-0" />
-              <p>Existen paquetes sin DEX (No entregados) con fecha compromiso para el día de hoy. <b>El cierre no podrá confirmarse.</b></p>
+              <p>Existen paquetes sin DEX (No entregados) con fecha compromiso del día de la ruta. <b>El cierre no podrá confirmarse.</b></p>
             </div>
           )}
 
-          {hasOtherPackagesDueToday(otherPackages) && !closureBlockedByOtherStatus && (
+          {hasOtherPackagesDueOnRouteDay(otherPackages) && !closureBlockedByOtherStatus && (
             <div className="p-3 bg-sky-50 border border-sky-200 rounded-md flex items-center gap-3 text-sky-700 text-sm">
               <AlertTriangle className="h-5 w-5 shrink-0" />
-              <p>Hay paquetes en "Otros Estatus" con fecha compromiso de hoy. Por configuración de la sucursal, <b>el cierre sí puede confirmarse.</b></p>
+              <p>Hay paquetes en "Otros Estatus" con fecha compromiso del día de la ruta. Por configuración de la sucursal, <b>el cierre sí puede confirmarse.</b></p>
             </div>
           )}
 
@@ -1083,17 +1053,17 @@ export default function ClosePackageDispatchWizard({
                             <div className="text-center py-4 text-gray-500">No hay otros estatus</div>
                           ) : (
                             otherPackages.map((pkg) => (
-                              <div key={pkg.id || pkg.trackingNumber} className={cn("p-3 rounded border space-y-2 transition-colors text-left", isTodayInHermosillo(pkg.commitDateTime) ? "bg-red-100 border-red-300 text-red-900" : "hover:bg-amber-50 border-transparent")}>
+                              <div key={pkg.id || pkg.trackingNumber} className={cn("p-3 rounded border space-y-2 transition-colors text-left", dueOnRouteDay(pkg.commitDateTime) ? "bg-red-100 border-red-300 text-red-900" : "hover:bg-amber-50 border-transparent")}>
                                 <div className="flex items-start justify-between gap-3">
                                   <span className="flex items-center gap-1.5 min-w-0"><span className="font-semibold text-sm">{pkg.trackingNumber}</span><MovedBadge pkg={pkg} /></span>
-                                  <Badge className={cn("whitespace-normal leading-tight max-w-[45%] text-left", isTodayInHermosillo(pkg.commitDateTime) ? "bg-red-200 text-red-900 border-red-400" : "bg-amber-100 text-amber-800 border-amber-300")}>
+                                  <Badge className={cn("whitespace-normal leading-tight max-w-[45%] text-left", dueOnRouteDay(pkg.commitDateTime) ? "bg-red-200 text-red-900 border-red-400" : "bg-amber-100 text-amber-800 border-amber-300")}>
                                     {pkg.status || "otro"}
                                   </Badge>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                   <span className="text-xs text-gray-600">{pkg.recipientName || "Sin destinatario"}</span>
                                   {pkg.commitDateTime && (
-                                    <span className={cn("text-xs", isTodayInHermosillo(pkg.commitDateTime) ? "text-red-700 font-medium" : "text-gray-500")}>
+                                    <span className={cn("text-xs", dueOnRouteDay(pkg.commitDateTime) ? "text-red-700 font-medium" : "text-gray-500")}>
                                       {formatDateHermosillo(pkg.commitDateTime)}
                                     </span>
                                   )}
