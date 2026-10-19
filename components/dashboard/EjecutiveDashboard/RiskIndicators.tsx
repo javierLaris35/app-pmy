@@ -1,7 +1,7 @@
 "use client"
 
 import { AlertTriangle, Shield, Clock, DollarSign, Truck, Users } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PmyLoader } from "@/components/ui/pmy-loader"
 
 interface RiskIndicator {
   id: string
@@ -124,13 +124,8 @@ export function RiskIndicators({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <Skeleton className="h-6 w-48 mb-6" />
-        <div className="grid grid-cols-2 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-lg" />
-          ))}
-        </div>
+      <div className="bg-white rounded-xl shadow-sm">
+        <PmyLoader size="sm" messages="report" className="py-16" />
       </div>
     )
   }

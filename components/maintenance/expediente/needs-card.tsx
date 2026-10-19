@@ -1,8 +1,9 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { Fragment, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, PencilLine, Plus, RefreshCw, Sparkles, X } from "lucide-react";
+import { Check, PencilLine, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { useProductCategories } from "@/hooks/services/maintenance/use-maintenance";
@@ -63,7 +64,7 @@ export function NeedsCard({ requestId, needs, editable, loading, onChanged }: {
         {editable && (
           <div className="ml-auto flex gap-1">
             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={!!busy} onClick={() => run("recalc", () => recalculateNeeds(requestId), "Lista actualizada", "No se pudo recalcular")}>
-              {busy === "recalc" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />} Recalcular
+              {busy === "recalc" ? <PmySpinner className="mr-1 h-3.5 w-3.5" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />} Recalcular
             </Button>
             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setAdding((v) => !v)}><Plus className="mr-1 h-3.5 w-3.5" /> Agregar</Button>
           </div>
@@ -77,13 +78,13 @@ export function NeedsCard({ requestId, needs, editable, loading, onChanged }: {
           <TextField size="sm" className="w-24" label="Cantidad" type="number" min={0.01} step="0.01" value={newQty} onChange={(e) => setNewQty(e.target.value)} />
           <Button size="sm" className="h-9" disabled={!newCat || !(Number(newQty) > 0) || busy === "add"}
             onClick={() => run("add", async () => { await addNeed(requestId, { categoryId: newCat!, quantity: Number(newQty) }); setNewCat(null); setNewQty("1"); setAdding(false); }, "Agregado a la lista", "No se pudo agregar")}>
-            {busy === "add" && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Agregar a la lista
+            {busy === "add" && <PmySpinner className="mr-1 h-3.5 w-3.5" />} Agregar a la lista
           </Button>
         </div>
       )}
 
       {loading ? (
-        <div className="flex justify-center p-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+        <div className="flex justify-center p-4"><PmySpinner className="h-4 w-4 text-muted-foreground" /></div>
       ) : needs.length === 0 ? (
         <p className="px-3 py-4 text-center text-xs text-muted-foreground">
           No se encontraron piezas ni insumos para lo que se pidió.{editable && " Agrégalos con \"Agregar\", o ponle receta al servicio en Mantenimiento → Servicios."}
@@ -132,7 +133,7 @@ export function NeedsCard({ requestId, needs, editable, loading, onChanged }: {
                                 chosen && "border-emerald-500 bg-emerald-50",
                               )}
                             >
-                              {busy === `pick-${o.offerId}` ? <Loader2 className="h-3 w-3 animate-spin" /> : chosen && <Check className="h-3 w-3 text-emerald-700" />}
+                              {busy === `pick-${o.offerId}` ? <PmySpinner className="h-3 w-3" /> : chosen && <Check className="h-3 w-3 text-emerald-700" />}
                               <span className={cn("text-[11px] font-bold uppercase tracking-wide", chosen ? "text-emerald-700" : o.labels.length ? "text-primary" : "text-muted-foreground")}>{label}</span>
                               <span className="max-w-[140px] truncate">{o.supplierName}</span>
                               <span className="font-semibold tabular-nums">{money0(o.price)}</span>

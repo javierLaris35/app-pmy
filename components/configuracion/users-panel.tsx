@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Loader2, Pencil, Plus, Trash2, AlertTriangle, MoreHorizontal, KeyRound, Building2, Sparkles, Copy, Eye, EyeOff } from "lucide-react";
@@ -145,7 +146,7 @@ export function UsersPanel() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando usuarios…</div>
+          <PmyLoader size="sm" text="Cargando usuarios…" className="h-40 py-0" />
         ) : isError ? (
           <p className="text-destructive text-sm">Error al cargar usuarios.</p>
         ) : (
@@ -220,7 +221,7 @@ function PasswordDialog({ user, onClose, onSaved }: { user: User | null; onClose
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={close}>Cancelar</Button>
-          <Button onClick={save} disabled={saving || pwd.length < 8}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar contraseña</Button>
+          <Button onClick={save} disabled={saving || pwd.length < 8}>{saving && <PmySpinner className="mr-2 h-4 w-4" />} Guardar contraseña</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -296,7 +297,7 @@ function SubsidiaryDialog({ user, isSuperAdmin, onClose, onSaved }: { user: User
         )}
         <DialogFooter>
           <Button variant="outline" onClick={close}>Cancelar</Button>
-          <Button onClick={save} disabled={saving || !subId}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar</Button>
+          <Button onClick={save} disabled={saving || !subId}>{saving && <PmySpinner className="mr-2 h-4 w-4" />} Guardar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

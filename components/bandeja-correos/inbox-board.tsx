@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import React, { useMemo, useState } from "react";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { InboxRoutes } from "./inbox-routes";
 import { NoticeDialog } from "./notice-dialog";
 import { useAuthStore } from "@/store/auth.store";
 import { hasPermission } from "@/lib/access/permissions";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Inbox, Loader2, Megaphone } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Inbox, Megaphone } from "lucide-react";
 
 interface Props {
   from: string;
@@ -71,9 +72,7 @@ export function InboxBoard({ from, to, subsidiaryId, active, onOpenMessage }: Pr
 
   if (isLoading) {
     return (
-      <div className="flex h-32 items-center justify-center text-sm text-slate-500">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando…
-      </div>
+      <PmyLoader size="sm" className="h-32 py-0" />
     );
   }
   if (!days.length) {

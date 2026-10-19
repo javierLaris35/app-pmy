@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
-import { CalendarCheck, CalendarX, FileText, Loader2, PackageOpen } from "lucide-react";
+import { CalendarCheck, CalendarX, FileText, PackageOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 import { DhlPrefill, ImportDhlTextModal } from "@/components/import-components/import-dhl-text-modal";
@@ -83,7 +84,7 @@ export function InboxDhlStep({ detail, ready, canUpload, onChanged }: Props) {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={open} disabled={!canImport || opening} className="bg-[#D40511] text-white hover:bg-[#b0040e]">
-          {opening ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <PackageOpen className="mr-1.5 h-4 w-4" />}
+          {opening ? <PmySpinner className="mr-1.5 h-4 w-4" /> : <PackageOpen className="mr-1.5 h-4 w-4" />}
           Importar en DHL
         </Button>
         {!ready && <span className="text-xs text-slate-500">Primero confirma la sucursal.</span>}

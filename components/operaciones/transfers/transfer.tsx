@@ -1,7 +1,8 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import React, { useState } from "react"
-import { MapPin, Send, Plus, Loader2, DollarSign, Car, Users, ForkliftIcon, Calendar as CalendarIcon } from "lucide-react"
+import { MapPin, Send, Plus, DollarSign, Car, Users, ForkliftIcon, Calendar as CalendarIcon } from "lucide-react"
 import { OperationHeader } from "@/components/shared/operation-header"
 
 // Componentes Shadcn UI
@@ -608,7 +609,7 @@ export default function TransferScreen() {
                     Cancelar
                   </Button>
                   <Button type="submit" className=" text-white" disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    {isSubmitting ? <PmySpinner className="w-4 h-4 mr-2" /> : null}
                     {isSubmitting ? "Guardando..." : "Guardar Traslado"}
                   </Button>
                 </DialogFooter>
@@ -621,10 +622,7 @@ export default function TransferScreen() {
       {/* DATA TABLE */}
       <div className="">
         {isLoading ? (
-          <div className="flex justify-center items-center p-8 text-slate-500">
-            <Loader2 className="w-6 h-6 animate-spin mr-2" />
-            Cargando traslados...
-          </div>
+          <PmyLoader size="sm" text="Cargando traslados..." className="p-8" />
         ) : (
           <DataTable columns={columns} data={transfers || []} />
         )}

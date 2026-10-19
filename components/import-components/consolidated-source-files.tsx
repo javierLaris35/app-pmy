@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
-import { FileSpreadsheet, Download, Loader2 } from "lucide-react";
+import { FileSpreadsheet, Download} from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { formatDate } from "@/utils/date.utils";
@@ -36,7 +37,7 @@ export function ConsolidatedSourceFiles({ consolidatedId }: { consolidatedId: st
   if (loading) {
     return (
       <div className="flex items-center gap-2 px-6 py-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Cargando archivo de origen…
+        <PmySpinner className="h-4 w-4" /> Cargando archivo de origen…
       </div>
     );
   }
@@ -65,7 +66,7 @@ export function ConsolidatedSourceFiles({ consolidatedId }: { consolidatedId: st
             {f.uploadMethodLabel && <span className="text-muted-foreground">· método: {f.uploadMethodLabel}</span>}
             <span className="text-muted-foreground">· {formatDate(String(f.createdAt))}</span>
             <Button size="sm" variant="outline" className="ml-auto" disabled={busyId === f.id} onClick={() => handleDownload(f)}>
-              {busyId === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Download className="mr-1 h-4 w-4" /> Descargar</>}
+              {busyId === f.id ? <PmySpinner className="h-4 w-4" /> : <><Download className="mr-1 h-4 w-4" /> Descargar</>}
             </Button>
           </div>
         ))}

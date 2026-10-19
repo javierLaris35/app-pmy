@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
-import { Inbox, Check, X, Loader2 } from "lucide-react";
+import { Inbox, Check, X} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -132,7 +133,7 @@ export function ApprovalTray() {
                       <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo del rechazo" className="min-h-[60px]" />
                       <div className="flex gap-2">
                         <Button size="sm" variant="destructive" disabled={busyId === r.id} onClick={() => doReject(r)}>
-                          {busyId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar rechazo"}
+                          {busyId === r.id ? <PmySpinner className="h-4 w-4" /> : "Confirmar rechazo"}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { setRejecting(null); setReason(""); }}>Cancelar</Button>
                       </div>
@@ -140,7 +141,7 @@ export function ApprovalTray() {
                   ) : (
                     <div className="mt-2 flex gap-2">
                       <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={busyId === r.id} onClick={() => doApprove(r)}>
-                        {busyId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-1 h-4 w-4" /> Aprobar</>}
+                        {busyId === r.id ? <PmySpinner className="h-4 w-4" /> : <><Check className="mr-1 h-4 w-4" /> Aprobar</>}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => setRejecting(r.id)}><X className="mr-1 h-4 w-4" /> Rechazar</Button>
                     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState, type ReactNode, type ComponentType } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,6 @@ import {
   type Severity, BORDER_LEFT_CLASS, CARD_TINT_CLASS, STRIPE_BG, STRIPE_TEXT, PILL_CLASS,
 } from "@/lib/services/monitoring/route-board-severity";
 import { RouteLiveMap } from "./route-live-map";
-import { RouteDetailSkeleton } from "./route-board-skeleton";
 import { SendDriverMessageButton } from "./send-driver-message";
 import { getWhatsappSettings, type WhatsappSettings, type DriverMessageContext } from "@/lib/services/whatsapp-settings";
 
@@ -304,10 +304,10 @@ export function RouteMonitorBoard({ subsidiaryId, dispatchId, onBack, onChangeRo
         </SelectContent>
       </Select>
       <Button variant="outline" size="sm" onClick={() => loadRoutes()} disabled={routesLoading}>
-        {routesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Rutas
+        {routesLoading ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Rutas
       </Button>
       <Button variant="outline" size="sm" onClick={() => loadLive(false, true)} disabled={refreshing}>
-        {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Actualizar (FedEx)
+        {refreshing ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Actualizar (FedEx)
       </Button>
       {lastCheckLabel && <span className="whitespace-nowrap text-xs text-muted-foreground">Chequeo FedEx: {lastCheckLabel}</span>}
     </>
@@ -328,7 +328,7 @@ export function RouteMonitorBoard({ subsidiaryId, dispatchId, onBack, onChangeRo
       </Card>
 
       {liveLoading && !live ? (
-        <RouteDetailSkeleton />
+        <PmyLoader text="Cargando la ruta…" className="py-16" />
       ) : live ? (
         <>
           {live.analysis.alerts.length > 0 && (

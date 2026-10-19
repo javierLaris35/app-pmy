@@ -1,4 +1,5 @@
-import { Eye, SearchIcon, Truck, Plane, RefreshCw, Loader2 } from "lucide-react";
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
+import { Eye, SearchIcon, Truck, Plane, RefreshCw} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IconTruckLoading } from "@tabler/icons-react";
@@ -6,7 +7,6 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import useSWR from "swr";
 import { getConsolidatedsToStartUnloading } from "@/lib/services/unloadings";
 import { Consolidateds } from "@/lib/types";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/store/auth.store";
 import { NotFoundShipmentDetails } from "./not-found-details";
 import { Checkbox } from "@/components/ui/checkbox"
@@ -39,7 +39,7 @@ const typeColors: Record<string, string> = {
 };
 
 // Añadir cache en memoria para consolidados por sucursal
-const consolidatedCache = new Map<string, any[]>();
+const consolidatedCache = new Map<string, Consolidateds>();
 
 export default function ConsolidateDetails({
   consolidatedData,
@@ -380,7 +380,7 @@ export default function ConsolidateDetails({
           disabled={!subsidiaryId || reloading}
           title="Recargar consolidados desde la base de datos"
         >
-          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {reloading ? <PmySpinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
           Recargar
         </Button>
       </div>
@@ -408,22 +408,8 @@ export default function ConsolidateDetails({
 
   if (loading) {
     return (
-      <div className="space-y-2 p-3 rounded-lg border bg-white">
-        <div className="flex items-center justify-between pb-2">
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-6 w-6 rounded-md" />
-        </div>
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center justify-between p-2 rounded-md bg-gray-50">
-            <Skeleton className="h-3 w-24" />
-            <div className="flex gap-4">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-3 w-20" />
-            </div>
-            <Skeleton className="h-6 w-6 rounded-md" />
-          </div>
-        ))}
+      <div className="rounded-lg border bg-white">
+        <PmyLoader size="sm" text="Cargando consolidados…" className="py-6" />
       </div>
     );
   }

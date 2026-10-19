@@ -1,9 +1,10 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Eye, FileText, FileSpreadsheet, Loader2 } from "lucide-react"
+import { Eye, FileText, FileSpreadsheet} from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { EmailStatus } from "@/lib/types"
 import type { ReturningBatch } from "@/lib/services/returning"
@@ -76,7 +77,7 @@ export default function ReturningRowActions({ batch, onView, onResent }: Props) 
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0" onClick={handlePdf} disabled={pdfLoading}>
-                {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                {pdfLoading ? <PmySpinner className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent>Descargar PDF</TooltipContent>
@@ -86,7 +87,7 @@ export default function ReturningRowActions({ batch, onView, onResent }: Props) 
             <TooltipTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0" onClick={handleExcel} disabled={excelLoading}>
                 {excelLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <PmySpinner className="h-4 w-4" />
                 ) : (
                   <FileSpreadsheet className="h-4 w-4" />
                 )}

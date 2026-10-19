@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,6 @@ import { SearchBatchItem } from "@/lib/types/consolidador";
 import { toast } from "@/lib/toast";
 import {
   Search,
-  Loader2,
   PackageSearch,
   RefreshCw,
   DollarSign,
@@ -83,7 +83,7 @@ function IconAction({
       <TooltipTrigger asChild>
         <span className="inline-flex">
           <Button size="icon" variant="outline" className={`h-8 w-8 ${className ?? ""}`} disabled={disabled} onClick={onClick}>
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
+            {loading ? <PmySpinner className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
           </Button>
         </span>
       </TooltipTrigger>
@@ -364,7 +364,7 @@ export function SearchPackageView({ selectedSubsidiaryId, onFixed, onAddIncome }
           />
           <div className="mt-2 flex justify-end">
             <Button onClick={doSearch} disabled={searching || parsed.length === 0} size="sm" className="gap-2">
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {searching ? <PmySpinner className="h-4 w-4" /> : <Search className="h-4 w-4" />}
               Buscar
             </Button>
           </div>

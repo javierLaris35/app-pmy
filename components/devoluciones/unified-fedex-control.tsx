@@ -1,10 +1,11 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowRightLeft, FileText, Search, Loader2 } from "lucide-react"
+import { ArrowRightLeft, FileText, Search} from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
 import { Card, CardContent } from "@/components/ui/card"
@@ -165,9 +166,7 @@ export default function UpdatedFedExControl() {
                 <p className="text-muted-foreground">Selecciona una sucursal para ver el historial</p>
               </div>
             ) : isLoading ? (
-              <div className="flex h-[200px] items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <PmyLoader size="sm" className="h-[200px] py-0" />
             ) : isError ? (
               <div className="flex h-[200px] flex-col items-center justify-center gap-3">
                 <p className="text-sm text-red-600">No se pudo cargar el historial.</p>

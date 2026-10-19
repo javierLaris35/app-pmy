@@ -3,7 +3,6 @@
 import { useState } from "react"
 import {
   Package,
-  Loader2,
   Truck,
   MapPin,
   AlertCircle,
@@ -26,6 +25,7 @@ import { cn } from "@/lib/utils"
 import { getFedexTrackingInfo, checkLdStatus, type LdCheckResult } from "@/lib/services/shipments"
 import { useUiStore } from "@/store/ui.store"
 import { PackageDossierView } from "./package-dossier-view"
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 
 // Un solo mapeo de color/ícono por estatus, reutilizado por las 3 pestañas y por
 // el timeline, para que "entregado", "en ruta", etc. se vean igual en todo el modal.
@@ -200,7 +200,9 @@ export function CommandPalette() {
                 <div className="p-4 md:p-6 h-full flex flex-col">
                   
                   {/* ESTADO INICIAL: Ingreso de guías */}
-                  {fedexResults.length === 0 ? (
+                  {isTrackingFedex ? (
+                    <PmyLoader messages="fedex" className="flex-1" />
+                  ) : fedexResults.length === 0 ? (
                     <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full pt-2">
                       <div className="mb-4">
                         <p className="text-sm text-slate-600">
@@ -224,7 +226,7 @@ export function CommandPalette() {
                         className="w-full h-12 rounded-xl font-bold"
                       >
                         {isTrackingFedex ? (
-                          <><Loader2 className="h-5 w-5 animate-spin" /> Consultando...</>
+                          <><PmySpinner className="h-5 w-5" /> Consultando...</>
                         ) : (
                           "Consultar Guías"
                         )}
@@ -306,7 +308,9 @@ export function CommandPalette() {
                 <div className="p-4 md:p-6 h-full flex flex-col">
 
                   {/* ESTADO INICIAL: Ingreso de guías */}
-                  {ldResults.length === 0 ? (
+                  {isCheckingLd ? (
+                    <PmyLoader messages="ld" className="flex-1" />
+                  ) : ldResults.length === 0 ? (
                     <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full pt-2">
                       <div className="mb-4">
                         <p className="text-sm text-slate-600">
@@ -330,7 +334,7 @@ export function CommandPalette() {
                         className="w-full h-12 rounded-xl font-bold"
                       >
                         {isCheckingLd ? (
-                          <><Loader2 className="h-5 w-5 animate-spin" /> Validando...</>
+                          <><PmySpinner className="h-5 w-5" /> Validando...</>
                         ) : (
                           "Validar Guías"
                         )}

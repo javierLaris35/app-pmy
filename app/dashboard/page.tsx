@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useState, useEffect } from "react"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
@@ -117,12 +118,7 @@ function DashboardContent() {
           {/* Métricas. Los INGRESOS solo se muestran a roles elevados (canSeeRevenue);
               los demás ven operativo + gastos (también blindado en el backend). */}
           {isDashboardLoading && !data ? (
-            <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed bg-muted/20">
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                Cargando métricas…
-              </div>
-            </div>
+            <PmyLoader messages="report" className="h-64 rounded-2xl border border-dashed bg-muted/20 py-0" />
           ) : (data && data.length > 0) ? (
             <>
               <SubsidiaryMetricsGrid data={data} canSeeRevenue={isAdmin} />

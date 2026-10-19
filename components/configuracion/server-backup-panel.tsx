@@ -1,12 +1,13 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Panel, PanelContent, PanelHeader, PanelTitle, PanelDescription } from "@/components/ui/panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
-import { DatabaseBackup, Download, Loader2, AlertTriangle, CheckCircle2, XCircle, ShieldAlert } from "lucide-react"
+import { DatabaseBackup, Download, AlertTriangle, CheckCircle2, XCircle, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getBackupStatus,
@@ -143,9 +144,7 @@ export function ServerBackupPanel() {
 
       <PanelContent className="space-y-4">
         {loadingStatus ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Verificando disponibilidad…
-          </div>
+          <PmyLoader size="sm" text="Verificando disponibilidad…" className="py-10" />
         ) : statusError ? (
           <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 shrink-0" /> {statusError}
@@ -182,7 +181,7 @@ export function ServerBackupPanel() {
 
             <div className="flex items-center gap-3">
               <Button onClick={start} disabled={running} className="gap-2">
-                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {running ? <PmySpinner className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                 {running ? "Respaldando…" : "Traer producción → local"}
               </Button>
               {running && (

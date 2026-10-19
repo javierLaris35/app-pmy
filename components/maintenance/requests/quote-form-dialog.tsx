@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   AddItemButton, ComboField, DateField, FormSection, ItemCard, MoneyField, SelectField, SwitchField, TextareaField, TextField,
 } from "@/components/ui/field";
-import { Boxes, Clock, Hash, Loader2, Package, Paperclip, PlusCircle, Store } from "lucide-react";
+import { Boxes, Clock, Hash, Package, Paperclip, PlusCircle, Store } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProducts, useSuppliers } from "@/hooks/services/maintenance/use-maintenance";
 import { createQuote, updateQuote, uploadQuoteAttachment } from "@/lib/services/maintenance";
@@ -341,7 +342,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={save} disabled={saving}>
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {saving && <PmySpinner className="mr-2 h-4 w-4" />}
                 Guardar cotización
               </Button>
             </div>

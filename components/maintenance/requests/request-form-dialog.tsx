@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AddItemButton, ChoiceCards, ComboField, Field, FormSection, ItemCard, MultiComboField, SelectField, TextareaField, TextField,
 } from "@/components/ui/field";
-import { Flag, Gauge, Hammer, Hash, ListChecks, Loader2, MessageSquareText, Package, ShoppingCart, Store, Truck, Wrench, type LucideIcon } from "lucide-react";
+import { Flag, Gauge, Hammer, Hash, ListChecks, MessageSquareText, Package, ShoppingCart, Store, Truck, Wrench, type LucideIcon } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { useVehiclesBySubsidiary } from "@/hooks/services/vehicles/use-vehicles";
@@ -238,7 +239,7 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
         <DialogFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button onClick={save} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {saving && <PmySpinner className="mr-2 h-4 w-4" />}
             {request ? "Guardar cambios" : "Enviar a Compras"}
           </Button>
         </DialogFooter>

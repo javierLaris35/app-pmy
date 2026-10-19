@@ -1,11 +1,12 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Gavel, Loader2, UserPlus, X } from "lucide-react"
+import { Gavel, UserPlus, X } from "lucide-react"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/hooks/use-toast"
 import { SupportTicketService, type ZoneAuthorizer } from "@/lib/services/support-ticket.service"
@@ -104,7 +105,7 @@ export function SupportAuthorizersCard() {
             </Select>
           </div>
           <Button size="sm" onClick={add} disabled={!zoneId || !userId || saving}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UserPlus className="h-4 w-4 mr-2" />} Agregar
+            {saving ? <PmySpinner className="h-4 w-4 mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />} Agregar
           </Button>
         </div>
 

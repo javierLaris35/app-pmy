@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, FileDown, Loader2, Send, XCircle } from "lucide-react";
+import { CheckCircle2, FileDown, Send, XCircle } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProducts, useSuppliers } from "@/hooks/services/maintenance/use-maintenance";
 import { openBlob, sendRfq } from "@/lib/services/maintenance";
@@ -203,7 +204,7 @@ export function RfqDialog({ open, onOpenChange, request, needs = [], onSent }: P
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
                 <Button onClick={send} disabled={busy || chosen.length === 0}>
-                  {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
+                  {busy ? <PmySpinner className="mr-1.5 h-4 w-4" /> : <Send className="mr-1.5 h-4 w-4" />}
                   Enviar a {chosen.length || ""} {chosen.length === 1 ? "proveedor" : "proveedores"}
                 </Button>
               </div>

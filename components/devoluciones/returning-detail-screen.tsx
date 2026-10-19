@@ -1,8 +1,9 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, ArrowRightLeft, FileSpreadsheet, FileText, Loader2, Package, RotateCcw } from "lucide-react"
+import { ArrowLeft, ArrowRightLeft, FileSpreadsheet, FileText, Package, RotateCcw } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { Button } from "@/components/ui/button"
@@ -86,7 +87,7 @@ export default function ReturningDetailScreen({ id }: { id: string }) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => download("pdf")} disabled={!!downloading} aria-label="Descargar PDF">
-                      {downloading === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                      {downloading === "pdf" ? <PmySpinner className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Descargar PDF</TooltipContent>
@@ -94,7 +95,7 @@ export default function ReturningDetailScreen({ id }: { id: string }) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => download("excel")} disabled={!!downloading} aria-label="Descargar Excel">
-                      {downloading === "excel" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                      {downloading === "excel" ? <PmySpinner className="h-4 w-4" /> : <FileSpreadsheet className="h-4 w-4" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Descargar Excel</TooltipContent>
@@ -106,9 +107,7 @@ export default function ReturningDetailScreen({ id }: { id: string }) {
       />
 
       {loading ? (
-        <div className="flex h-40 items-center justify-center text-muted-foreground">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cargando salida…
-        </div>
+        <PmyLoader size="sm" text="Cargando salida…" className="h-40 py-0" />
       ) : error ? (
         <div className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
       ) : detail ? (

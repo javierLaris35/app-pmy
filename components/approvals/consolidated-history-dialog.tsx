@@ -1,8 +1,9 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import { History, Loader2 } from "lucide-react";
+import { History} from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table/data-table";
@@ -108,7 +109,7 @@ export function ConsolidatedHistoryDialog({
         </DialogHeader>
 
         {loading && (
-          <div className="flex items-center gap-2 py-8 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando…</div>
+          <div className="flex items-center gap-2 py-8 text-muted-foreground"><PmySpinner className="h-4 w-4" /> Cargando…</div>
         )}
         {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 

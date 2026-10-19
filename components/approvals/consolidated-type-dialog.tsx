@@ -1,8 +1,9 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { AlertTriangle, ArrowLeftRight, ArrowRight, Loader2, Package, Search, Truck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ArrowRight, Package, Search, Truck } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -171,7 +172,7 @@ export function ConsolidatedTypeDialog({
 
           {loadingOptions ? (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Cargando guías…
+              <PmySpinner className="h-4 w-4" /> Cargando guías…
             </div>
           ) : (
             <>
@@ -254,7 +255,7 @@ export function ConsolidatedTypeDialog({
 
           {loading && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Calculando qué cambia…
+              <PmySpinner className="h-4 w-4" /> Calculando qué cambia…
             </div>
           )}
           {impactError && !loading && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{impactError}</p>}
@@ -310,7 +311,7 @@ export function ConsolidatedTypeDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={sending}>Cancelar</Button>
           <Button onClick={submit} disabled={sending || loading}>
-            {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Pedir cambio de tipo
+            {sending && <PmySpinner className="mr-2 h-4 w-4" />} Pedir cambio de tipo
           </Button>
         </DialogFooter>
       </DialogContent>

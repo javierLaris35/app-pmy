@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import { LoginForm } from "@/components/login-form"
 import { useAuthStore } from "@/store/auth.store";
 import { getLandingRoute } from "@/lib/access/permissions";
@@ -17,7 +18,7 @@ export default function LoginPage() {
     }, [hasHydrated, isAuthenticated, user]);
 
     if (!hasHydrated) {
-        return <p className="text-center mt-10">Cargando...</p>;
+        return <PmyLoader variant="page" />;
     }
 
     if (isAuthenticated && user) {

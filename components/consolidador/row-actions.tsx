@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -17,7 +18,7 @@ import { formatCurrency } from "@/lib/utils";
 import { isValidCostEdit } from "@/lib/consolidador/validation";
 import { ConsolidadorRow } from "@/lib/types/consolidador";
 import { EditDateDialog } from "@/components/consolidador/edit-date-dialog";
-import { MoreHorizontal, PencilLine, PlusCircle, MinusCircle, Loader2, Trash2, CalendarClock } from "lucide-react";
+import { MoreHorizontal, PencilLine, PlusCircle, MinusCircle, Trash2, CalendarClock } from "lucide-react";
 
 interface Props {
   row: ConsolidadorRow;
@@ -139,7 +140,7 @@ export function RowActions({ row, onEditCost, onToggleSecondAbord, onEditDate, o
           <DialogFooter>
             <Button variant="outline" onClick={() => setCostOpen(false)} disabled={saving}>Cancelar</Button>
             <Button onClick={submitCost} disabled={saving || !isValidCostEdit(Number(cost), costReason)}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar
+              {saving && <PmySpinner className="mr-2 h-4 w-4" />} Guardar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -163,7 +164,7 @@ export function RowActions({ row, onEditCost, onToggleSecondAbord, onEditDate, o
           <DialogFooter>
             <Button variant="outline" onClick={() => setAbordOpen(false)} disabled={saving}>Cancelar</Button>
             <Button onClick={submitAbord} disabled={saving || abordReason.trim().length < 3}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirmar
+              {saving && <PmySpinner className="mr-2 h-4 w-4" />} Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -195,7 +196,7 @@ export function RowActions({ row, onEditCost, onToggleSecondAbord, onEditDate, o
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={saving}>Cancelar</Button>
             <Button variant="destructive" onClick={submitDelete} disabled={saving || deleteReason.trim().length < 3}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Eliminar
+              {saving && <PmySpinner className="mr-2 h-4 w-4" />} Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>

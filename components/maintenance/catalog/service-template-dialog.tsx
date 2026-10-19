@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -159,7 +160,7 @@ export function ServiceTemplateDialog({ open, onOpenChange, service, onSaved }: 
         </ScrollArea>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar servicio</Button>
+          <Button onClick={save} disabled={saving}>{saving && <PmySpinner className="mr-2 h-4 w-4" />}Guardar servicio</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

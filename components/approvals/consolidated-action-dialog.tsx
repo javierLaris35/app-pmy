@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Building2, CalendarDays, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, CalendarDays, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,7 +171,7 @@ export function ConsolidatedActionDialog({
 
           {loading && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Calculando qué cambia…
+              <PmySpinner className="h-4 w-4" /> Calculando qué cambia…
             </div>
           )}
 
@@ -233,7 +234,7 @@ export function ConsolidatedActionDialog({
             onClick={submit}
             disabled={sending || loading}
           >
-            {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {copy.button}
+            {sending && <PmySpinner className="mr-2 h-4 w-4" />} {copy.button}
           </Button>
         </DialogFooter>
       </DialogContent>

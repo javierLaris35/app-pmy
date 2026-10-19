@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -98,7 +99,7 @@ export function UndoDevolutionDialog({
 
         {loading && (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Revisando qué se regresa…
+            <PmySpinner className="h-4 w-4" /> Revisando qué se regresa…
           </div>
         )}
 
@@ -160,7 +161,7 @@ export function UndoDevolutionDialog({
             Cancelar
           </Button>
           <Button onClick={submit} disabled={sending || loading || !impact}>
-            {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Pedir autorización
+            {sending && <PmySpinner className="mr-2 h-4 w-4" />} Pedir autorización
           </Button>
         </DialogFooter>
       </DialogContent>

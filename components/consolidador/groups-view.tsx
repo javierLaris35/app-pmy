@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useMemo, useState } from "react";
 import { GroupCard, GroupRowHandlers } from "@/components/consolidador/group-card";
 import { HistoryDialog } from "@/components/consolidador/history-dialog";
@@ -219,7 +220,7 @@ export function GroupsView({ mode, subsidiaryId, from, to, active, onFixed }: Pr
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> Cargando {mode === "route" ? "rutas" : "consolidados"}…
+        <PmySpinner className="h-4 w-4 text-emerald-600" /> Cargando {mode === "route" ? "rutas" : "consolidados"}…
       </div>
     );
   }

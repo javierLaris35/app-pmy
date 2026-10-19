@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useMemo, useState, type ReactNode, type ComponentType } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  KanbanSquare, Search, RefreshCw, Loader2, Filter, Layers, ArrowDownWideNarrow,
+  KanbanSquare, Search, RefreshCw, Filter, Layers, ArrowDownWideNarrow,
   Inbox, TimerReset, CheckCircle2, Timer, Settings, MessageSquare, ShieldCheck, List,
 } from "lucide-react"
 import {
@@ -239,7 +240,7 @@ export default function SupportBoardPage() {
         </Button>
       )}
       <Button variant="outline" size="sm" onClick={loadTickets} disabled={isLoading}>
-        <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />Actualizar
+        {isLoading ? <PmySpinner className="h-4 w-4 mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}Actualizar
       </Button>
     </div>
   )
@@ -304,9 +305,7 @@ export default function SupportBoardPage() {
 
       {/* Tablero */}
       {isLoading ? (
-        <div className="flex items-center justify-center min-h-[300px]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <PmyLoader size="sm" className="min-h-[300px] py-0" />
       ) : view === "lista" ? (
         <div className="flex flex-col gap-4 md:flex-row">
           <TicketViewsRail tickets={filtered} active={activeView} onChange={setActiveView} />

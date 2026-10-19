@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/app-layout"
@@ -200,12 +201,7 @@ export default function UnLoadingPageControl() {
   if (!hasHydrated) {
     return (
       <AppLayout>
-        <div className="flex h-screen items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Cargando información del usuario...</p>
-          </div>
-        </div>
+        <PmyLoader variant="page" text="Cargando información del usuario…" />
       </AppLayout>
     )
   }
@@ -279,9 +275,7 @@ export default function UnLoadingPageControl() {
                 <p className="text-muted-foreground">Selecciona una sucursal para ver los desembarques</p>
               </div>
             ) : isLoading ? (
-              <div className="flex h-[200px] items-center justify-center">
-                <p className="text-muted-foreground">Cargando desembarques...</p>
-              </div>
+              <PmyLoader size="sm" text="Cargando desembarques…" className="h-[200px] py-0" />
             ) : isError ? (
               <div className="flex h-[200px] flex-col items-center justify-center gap-3">
                 <p className="text-sm text-red-600">No se pudieron cargar los desembarques.</p>
@@ -324,9 +318,7 @@ export default function UnLoadingPageControl() {
             </DialogDescription>
           </DialogHeader>
           {isDetailLoading ? (
-            <div className="flex h-[200px] items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
+            <PmyLoader size="sm" className="h-[200px] py-0" />
           ) : selectedUnloading ? (
             <UnloadingDetails
               unloading={selectedUnloading}

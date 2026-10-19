@@ -1,9 +1,10 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
-  Search, Activity, Monitor, MapPin, Globe, LogIn, LogOut, Loader2, Download, Boxes, ArrowUpDown, AlertTriangle,
+  Search, Activity, Monitor, MapPin, Globe, LogIn, LogOut, Download, Boxes, ArrowUpDown, AlertTriangle,
 } from "lucide-react";
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
@@ -105,7 +106,7 @@ function UserDetailDialog({ userId, onClose }: { userId: string | null; onClose:
             <p className="text-xs text-muted-foreground">Verifica que el backend esté actualizado/reiniciado. ({(error as any)?.message || "error"})</p>
           </div>
         ) : isLoading || !d ? (
-          <div className="flex justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <PmyLoader size="sm" className="py-24" />
         ) : (
           <div>
             <div className="space-y-4">
@@ -115,7 +116,7 @@ function UserDetailDialog({ userId, onClose }: { userId: string | null; onClose:
                 <span className="text-muted-foreground text-sm">→</span>
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 w-[150px]" />
                 <Button size="sm" variant="outline" className="ml-auto" onClick={doExport} disabled={exporting}>
-                  {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}<span className="ml-1">Excel</span>
+                  {exporting ? <PmySpinner className="h-4 w-4" /> : <Download className="h-4 w-4" />}<span className="ml-1">Excel</span>
                 </Button>
               </div>
 
@@ -287,7 +288,7 @@ export function UsersPanel() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <PmyLoader size="sm" className="py-10" />
       ) : (
         <div className="rounded-md border overflow-x-auto">
           <Table>

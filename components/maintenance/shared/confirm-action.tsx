@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -54,7 +55,7 @@ export function ConfirmAction({ trigger, title, description, confirmLabel = "Con
             disabled={busy}
             className={destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
           >
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {busy && <PmySpinner className="mr-2 h-4 w-4" />}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

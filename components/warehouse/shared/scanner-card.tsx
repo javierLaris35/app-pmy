@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import type { KeyboardEvent, RefObject } from "react"
 import { AlertTriangle, ScanBarcode, X } from "lucide-react"
 
@@ -67,7 +68,7 @@ export function ScannerCard({ title, inputRef, value, onChange, onScan, isScanni
           >
             {isScanning ? (
               <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <PmySpinner className="h-4 w-4" />
                 ...
               </span>
             ) : (

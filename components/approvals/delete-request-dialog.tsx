@@ -1,9 +1,10 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle} from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ApprovalImpact, ApprovalType, getApprovalImpact, requestApproval } from "@/lib/services/approvals";
 
@@ -64,7 +65,7 @@ export function DeleteRequestDialog({
 
         {loading && (
           <div className="flex items-center gap-2 py-6 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Calculando impacto…
+            <PmySpinner className="h-4 w-4" /> Calculando impacto…
           </div>
         )}
 
@@ -94,7 +95,7 @@ export function DeleteRequestDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={sending}>Cancelar</Button>
           <Button variant="destructive" onClick={submit} disabled={sending || loading || !impact}>
-            {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Solicitar eliminación
+            {sending && <PmySpinner className="mr-2 h-4 w-4" />} Solicitar eliminación
           </Button>
         </DialogFooter>
       </DialogContent>

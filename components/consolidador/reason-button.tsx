@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +59,7 @@ export function ReasonButton({ label, onConfirm, disabled, size = "sm", variant 
             Cancelar
           </Button>
           <Button size="sm" className="h-7" disabled={!canApply} onClick={apply}>
-            {saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />} Aplicar
+            {saving && <PmySpinner className="mr-1 h-3 w-3" />} Aplicar
           </Button>
         </div>
       </PopoverContent>

@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Download, Loader2, Search, FileSpreadsheet, RefreshCw, Check, DollarSign } from "lucide-react";
+import { ArrowLeft, Download, Search, FileSpreadsheet, RefreshCw, Check, DollarSign } from "lucide-react";
 import { saveAs } from "file-saver";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { DataTable } from "@/components/data-table/data-table";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -252,7 +252,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
           const busy = updating.has(rowKey(r));
           return (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => handleUpdateRow(r)} className="h-7">
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {busy ? <PmySpinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
               <span className="ml-1">Actualizar</span>
             </Button>
           );
@@ -394,14 +394,14 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
               </>
             )}
             <Button onClick={handleGenerate} disabled={isLoading || !subsidiaryId}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Generar
+              {isLoading ? <PmySpinner className="h-4 w-4" /> : <Search className="h-4 w-4" />} Generar
             </Button>
             <Button variant="outline" onClick={handleExport} disabled={isExporting || !subsidiaryId}>
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar Excel
+              {isExporting ? <PmySpinner className="h-4 w-4" /> : <Download className="h-4 w-4" />} Exportar Excel
             </Button>
             {def.compareFedex && hasRun && rows.length > 0 && (
               <Button variant="outline" onClick={handleCompareFedex} disabled={fedexLoading}>
-                {fedexLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Consultar FedEx
+                {fedexLoading ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Consultar FedEx
               </Button>
             )}
             {def.fedex67Check && hasRun && rows.length > 0 && (
@@ -411,7 +411,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
                   <Label htmlFor="inc-sundays" className="text-xs cursor-pointer">Incluir domingos</Label>
                 </div>
                 <Button variant="outline" onClick={handleFedex67Check} disabled={fedex67Loading}>
-                  {fedex67Loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Confirmar escaneo con FedEx
+                  {fedex67Loading ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Confirmar escaneo con FedEx
                 </Button>
               </>
             )}
@@ -423,7 +423,7 @@ export function ReportRunner({ def, onBack }: { def: ReportDef; onBack: () => vo
 
       {/* Resultados */}
       {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        <Card><CardContent className="p-0"><PmyLoader messages="report" className="py-14" /></CardContent></Card>
       ) : !hasRun ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">
           <FileSpreadsheet className="h-10 w-10 mx-auto mb-2 opacity-40" />

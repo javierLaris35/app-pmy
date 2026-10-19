@@ -1,11 +1,12 @@
 "use client";
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef, PaginationState, Row } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { saveAs } from "file-saver";
 import {
-  Activity, AlertTriangle, Clock, Download, Loader2, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap, Truck, MoreHorizontal, Building2,
+  Activity, AlertTriangle, Clock, Download, ShieldAlert, Users, Search, X, RefreshCw, Monitor, MapPin, Eye, Zap, Truck, MoreHorizontal, Building2,
 } from "lucide-react";
 import { runDevTracking, sendDex03Test } from "@/lib/services/shipments";
 import { runDhlSyncCron } from "@/lib/services/dhl-tracking";
@@ -23,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -85,7 +85,7 @@ function KpiCard({ icon: Icon, label, value, gradient, loading }: { icon: any; l
       <CardContent className="p-4 sm:p-5">
         <Icon className="absolute -right-3 -top-3 h-20 w-20 opacity-15" />
         <p className="text-xs font-medium uppercase tracking-wide text-white/80">{label}</p>
-        {loading ? <Skeleton className="mt-2 h-8 w-16 bg-white/30" /> : <p className="mt-1 text-2xl sm:text-3xl font-bold">{value}</p>}
+        {loading ? <PmySpinner className="mt-2 h-7 w-7 text-white" /> : <p className="mt-1 text-2xl sm:text-3xl font-bold">{value}</p>}
       </CardContent>
     </Card>
   );
@@ -276,7 +276,7 @@ function AuditoriaPage() {
             <div className="flex items-center gap-2">
               <Button size="icon" variant="outline" className="h-9 w-9" onClick={refreshAll} aria-label="Actualizar" title="Actualizar"><RefreshCw className="h-4 w-4" /></Button>
               <Button size="sm" onClick={handleExport} disabled={exporting}>
-                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">Excel</span>
+                {exporting ? <PmySpinner className="h-4 w-4" /> : <Download className="h-4 w-4" />}<span className="ml-1 hidden sm:inline">Excel</span>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -287,11 +287,11 @@ function AuditoriaPage() {
                 <DropdownMenuContent align="end" className="w-64">
                   <DropdownMenuLabel>Pruebas</DropdownMenuLabel>
                   <DropdownMenuItem onSelect={handleDevTracking} disabled={devRunning}>
-                    {devRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                    {devRunning ? <PmySpinner className="mr-2 h-4 w-4" /> : <Zap className="mr-2 h-4 w-4" />}
                     Probar rastreo FedEx (60 guías)
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={handleDhlTracking} disabled={dhlRunning}>
-                    {dhlRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Truck className="mr-2 h-4 w-4" />}
+                    {dhlRunning ? <PmySpinner className="mr-2 h-4 w-4" /> : <Truck className="mr-2 h-4 w-4" />}
                     Probar rastreo DHL
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -313,7 +313,7 @@ function AuditoriaPage() {
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                   <DropdownMenuItem onSelect={handleSendDex03} disabled={dex03Running || !dex03Sub}>
-                    {dex03Running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                    {dex03Running ? <PmySpinner className="mr-2 h-4 w-4" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
                     Enviar correo DEX03 de prueba
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -362,7 +362,7 @@ function AuditoriaPage() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-indigo-500" /> Actividad por día</CardTitle></CardHeader>
               <CardContent>
-                {dashLoading ? <Skeleton className="h-[260px] w-full" /> : (
+                {dashLoading ? <PmyLoader size="sm" messages="report" className="h-[260px] py-0" /> : (
                   <ChartContainer config={timelineConfig} className="aspect-auto h-[260px] w-full">
                     <AreaChart data={timelineData} margin={{ left: -16, right: 8, top: 4 }}>
                       <defs><linearGradient id="fillCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--color-count)" stopOpacity={0.45} /><stop offset="95%" stopColor="var(--color-count)" stopOpacity={0.05} /></linearGradient></defs>
@@ -381,7 +381,7 @@ function AuditoriaPage() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm">Distribución por acción</CardTitle></CardHeader>
                 <CardContent>
-                  {dashLoading ? <Skeleton className="h-[240px] w-full" /> : (
+                  {dashLoading ? <PmyLoader size="sm" messages="report" className="h-[240px] py-0" /> : (
                     <ChartContainer config={actionsConfig} className="aspect-auto h-[240px] w-full">
                       <PieChart>
                         <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
@@ -402,7 +402,7 @@ function AuditoriaPage() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm">Módulos más usados</CardTitle></CardHeader>
                 <CardContent>
-                  {dashLoading ? <Skeleton className="h-[280px] w-full" /> : (
+                  {dashLoading ? <PmyLoader size="sm" messages="report" className="h-[280px] py-0" /> : (
                     <ChartContainer config={modulesConfig} className="aspect-auto h-[280px] w-full">
                       <BarChart data={modulesData} layout="vertical" margin={{ left: 12, right: 16 }}>
                         <CartesianGrid horizontal={false} />
@@ -422,7 +422,7 @@ function AuditoriaPage() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Users className="h-4 w-4 text-blue-500" /> Usuarios más activos</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {dashLoading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)
+                {dashLoading ? <PmyLoader size="sm" className="py-6" />
                   : usersData.length === 0 ? <p className="text-sm text-muted-foreground">Sin datos en el rango.</p>
                   : usersData.map((u: any, i: number) => (
                     <div key={u.email} className="flex items-center gap-3">
@@ -521,7 +521,7 @@ function AuditoriaPage() {
             </Card>
 
             {isLoading ? (
-              <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+              <PmyLoader size="sm" messages="report" className="py-16" />
             ) : (
               <div className="overflow-x-auto">
                 <DataTable columns={columns} data={logs} manualPagination pageCount={totalPages} pagination={pagination} onPaginationChange={setPagination} renderSubComponent={renderDetail} />

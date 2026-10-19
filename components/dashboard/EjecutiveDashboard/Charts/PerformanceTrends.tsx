@@ -15,7 +15,7 @@ import {
   Area,
   AreaChart
 } from 'recharts'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { TrendingUp, TrendingDown, Target, BarChart3, Calendar, Filter } from 'lucide-react'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -133,14 +133,8 @@ export function PerformanceTrends({ data, selectedPeriod, comparisonPeriod }: Pe
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <Skeleton className="h-6 w-48 mb-6" />
-        <Skeleton className="h-64 w-full mb-4" />
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-lg" />
-          ))}
-        </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <PmyLoader size="sm" messages="report" className="py-16" />
       </div>
     )
   }

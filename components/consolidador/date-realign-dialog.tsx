@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef, FilterFn } from "@tanstack/react-table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +11,7 @@ import { TextField } from "@/components/ui/field";
 import { applyDateRealign, DateRealignRow, getDateRealignPreview } from "@/lib/services/consolidador";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/lib/toast";
-import { ArrowRight, CalendarCheck2, CalendarClock, HelpCircle, Loader2, PenLine, ShieldCheck } from "lucide-react";
+import { ArrowRight, CalendarCheck2, CalendarClock, HelpCircle, PenLine, ShieldCheck } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -169,9 +170,7 @@ export function DateRealignDialog({ open, onOpenChange, subsidiaryId, week, onCh
 
         <div className="min-w-0 space-y-3">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <PmyLoader size="sm" className="py-16" />
           ) : rows.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
@@ -220,7 +219,7 @@ export function DateRealignDialog({ open, onOpenChange, subsidiaryId, week, onCh
               }}
             />
             <Button size="sm" onClick={handleApply} disabled={applying} className="gap-2">
-              {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarCheck2 className="h-4 w-4" />}
+              {applying ? <PmySpinner className="h-4 w-4" /> : <CalendarCheck2 className="h-4 w-4" />}
               Corregir {fixable.length === 1 ? "1 fecha" : `${fixable.length} fechas`}
             </Button>
           </DialogFooter>

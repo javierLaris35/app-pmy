@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -136,7 +137,7 @@ export function AddIncomeDialog({ open, onOpenChange, week, defaultTracking, def
             Cancelar
           </Button>
           <Button onClick={submit} disabled={saving || !valid}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Agregar
+            {saving && <PmySpinner className="mr-2 h-4 w-4" />} Agregar
           </Button>
         </DialogFooter>
       </DialogContent>

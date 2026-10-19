@@ -1,11 +1,11 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { getBrand, upsertBrand, Brand } from "@/lib/services/document-templates";
 import { toast } from "@/lib/toast";
 
@@ -29,7 +29,7 @@ export function BrandingPanel() {
     finally { setSaving(false); }
   };
 
-  if (!brand) return <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 w-full" />)}</div>;
+  if (!brand) return <PmyLoader size="sm" className="py-12" />;
 
   return (
     <div className="space-y-4">

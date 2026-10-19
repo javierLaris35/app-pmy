@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -12,7 +13,7 @@ import { useAuthStore } from "@/store/auth.store"
 import { login } from "@/lib/services/login"
 import { getLandingRoute } from "@/lib/access/permissions"
 import { getProfile } from "@/lib/services/profile"
-import { Loader2Icon, Mail } from "lucide-react"
+import { Mail } from "lucide-react"
 import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 
 const APP_VERSION = "v2.0.0"
@@ -113,7 +114,7 @@ export function LoginForm({
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? (
             <>
-              <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              <PmySpinner className="mr-2 h-4 w-4" />
               Validando…
             </>
           ) : (

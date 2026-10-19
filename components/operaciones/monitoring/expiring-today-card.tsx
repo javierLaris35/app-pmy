@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import * as React from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -259,7 +260,7 @@ export function ExpiringTodayCard({
           </DialogHeader>
           <div className="flex-1 overflow-auto">
             {isLoadingNon67 ? (
-              <div className="p-10 text-center animate-pulse">Cargando datos de monitoreo...</div>
+              <PmyLoader size="sm" text="Cargando datos de monitoreo…" className="py-10" />
             ) : (
               <DataTable columns={dynamicNo67Columns} data={packagesWithout67?.shipments || []} searchKey="trackingNumber" />
             )}

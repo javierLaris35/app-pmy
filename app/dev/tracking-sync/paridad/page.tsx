@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { GitCompare, Loader2, AlertTriangle, Info, Search } from "lucide-react";
+import { GitCompare, AlertTriangle, Info, Search } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -9,7 +10,6 @@ import { withAuth } from "@/hoc/withAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,7 +165,7 @@ function ParityContent() {
           {/* ── Resultados del shadow ── */}
           <TabsContent value="shadow" className="space-y-4">
             {loadingRuns ? (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[68px] w-full" />)}</div>
+              <PmyLoader size="sm" className="py-10" />
             ) : runs.length === 0 ? (
               <p className="text-sm text-muted-foreground">Aún no hay corridas del motor. Observa cada 15 min en horario hábil (7–22h).</p>
             ) : (
@@ -186,7 +186,7 @@ function ParityContent() {
                   <Kpi label="Guías observadas" value={currentRun?.ok ?? 0} />
                 </div>
                 {loadingDiv ? (
-                  <Skeleton className="h-64 w-full" />
+                  <PmyLoader size="sm" className="h-64 py-0" />
                 ) : divergences.length === 0 ? (
                   <p className="rounded-lg border bg-emerald-50 px-4 py-6 text-center text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">Sin diferencias en esta corrida — el motor coincide con el sistema. 🎉</p>
                 ) : (
@@ -213,7 +213,7 @@ function ParityContent() {
                     <Input value={tracking} onChange={(e) => setTracking(e.target.value)} placeholder="Ej. 383012036065" onKeyDown={(e) => e.key === "Enter" && runCompare()} />
                   </div>
                   <Button onClick={runCompare} disabled={comparing || !tracking.trim()} className="gap-2">
-                    {comparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Comparar
+                    {comparing ? <PmySpinner className="h-4 w-4" /> : <Search className="h-4 w-4" />} Comparar
                   </Button>
                 </div>
               ) : (
@@ -229,7 +229,7 @@ function ParityContent() {
                     </Select>
                   </div>
                   <Button onClick={runCompare} disabled={comparing || !selectedId} className="gap-2">
-                    {comparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Comparar
+                    {comparing ? <PmySpinner className="h-4 w-4" /> : <Search className="h-4 w-4" />} Comparar
                   </Button>
                 </div>
               )}
@@ -237,7 +237,7 @@ function ParityContent() {
 
             {liveError && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertDescription>{liveError}</AlertDescription></Alert>}
             {comparing ? (
-              <Skeleton className="h-48 w-full" />
+              <PmyLoader size="sm" messages="fedex" className="h-48 py-0" />
             ) : rows.length > 0 ? (
               <DataTable columns={compareColumns} data={rows} searchKey="trackingNumber" />
             ) : (

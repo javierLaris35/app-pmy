@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -117,7 +118,7 @@ export default function ResendEmailButton({ batch, onResent }: Props) {
           </DialogHeader>
 
           {loadingHistory ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Cargando historial…</p>
+            <PmyLoader size="sm" text="Cargando historial…" className="py-6" />
           ) : history.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Todavía no hay envíos registrados para esta salida.
@@ -154,7 +155,7 @@ export default function ResendEmailButton({ batch, onResent }: Props) {
 
           <DialogFooter>
             <Button onClick={handleResend} disabled={resending} className="gap-2">
-              <RefreshCw className={`h-4 w-4 ${resending ? "animate-spin" : ""}`} />
+              {resending ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
               {resending ? "Reenviando…" : "Reenviar correo"}
             </Button>
           </DialogFooter>

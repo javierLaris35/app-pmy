@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -223,7 +224,6 @@ export function FedExPaymentsPage() {
       <div className="flex justify-center items-center h-64">
         <LoaderWithOverlay 
           overlay
-          text={"Cargando..."}
           className="rounded-lg"
         />
       </div>
@@ -394,10 +394,7 @@ export function FedExPaymentsPage() {
               </CardHeader>
               <CardContent className="p-0">
                 {loading ? (
-                  <div className="flex flex-col items-center justify-center py-16 gap-4">
-                    <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Cargando paquetes...</p>
-                  </div>
+                  <PmyLoader text="Cargando paquetes…" className="py-16" />
                 ) : packages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3">
                     <div className="p-4 rounded-full bg-muted/50">
@@ -550,7 +547,7 @@ export function FedExPaymentsPage() {
                 >
                   {uploading ? (
                     <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <PmySpinner className="h-4 w-4" />
                       Procesando...
                     </>
                   ) : (

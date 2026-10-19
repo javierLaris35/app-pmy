@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useMemo, useState } from "react";
 import {
   Package,
@@ -7,7 +8,6 @@ import {
   Clock,
   Calendar,
   CheckCircle2,
-  Loader2,
   RefreshCw,
   ArrowRight,
   ShieldCheck,
@@ -227,7 +227,7 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 bg-background" onClick={verifyFedex} disabled={isDhl || isVerifying || carrierFeed.length === 0} title={isDhl ? "Solo aplica a guías FedEx" : undefined}>
-            {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+            {isVerifying ? <PmySpinner className="h-4 w-4" /> : <Radar className="h-4 w-4" />}
             {isVerifying ? "Comprobando…" : "Comprobar FedEx"}
           </Button>
 
@@ -237,7 +237,7 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
           </Button>
 
           <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 bg-background" onClick={refetch} disabled={isLoading} title="Actualizar" aria-label="Actualizar">
-            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            {isLoading ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
 
           {variant === "dialog" && onOpenFullPage && (
@@ -273,10 +273,7 @@ export function WelcomeDashboardView({ variant, onNavigate, onOpenFullPage }: We
       )}
 
       {isLoading ? (
-        <div className="flex h-64 flex-col items-center justify-center text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-          <span>Cargando resumen…</span>
-        </div>
+        <PmyLoader size="sm" text="Cargando resumen…" className="h-64 py-0" />
       ) : (
         <>
           {/* Hero: magnitud + distribución */}

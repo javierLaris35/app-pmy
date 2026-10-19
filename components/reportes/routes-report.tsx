@@ -1,9 +1,10 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useMemo, useState } from "react";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import {
-  ArrowLeft, Download, Loader2, Search, RefreshCw, Eye,
+  ArrowLeft, Download, Search, RefreshCw, Eye,
   AlertTriangle, Truck, Users, Package, CalendarClock, Undo2, Banknote, CheckCircle2,
 } from "lucide-react";
 import { saveAs } from "file-saver";
@@ -330,7 +331,7 @@ export function RoutesReport({ onBack }: { onBack: () => void }) {
             </div>
             <DateRangePresets onSelect={(r) => { setStart(r.from); setEnd(r.to); }} />
             <Button onClick={load} disabled={isLoading || !subsidiaryId}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Generar
+              {isLoading ? <PmySpinner className="h-4 w-4" /> : <Search className="h-4 w-4" />} Generar
             </Button>
             {hasRun && (
               <Button variant="outline" onClick={load} disabled={isLoading || !subsidiaryId} title="Actualizar">
@@ -338,7 +339,7 @@ export function RoutesReport({ onBack }: { onBack: () => void }) {
               </Button>
             )}
             <Button variant="outline" onClick={doExport} disabled={isExporting || rows.length === 0}>
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar Excel
+              {isExporting ? <PmySpinner className="h-4 w-4" /> : <Download className="h-4 w-4" />} Exportar Excel
             </Button>
             {hasRun && rows.length > 0 && subsidiaryId && (
               <EnviarNotificacionButton
@@ -366,7 +367,7 @@ export function RoutesReport({ onBack }: { onBack: () => void }) {
                   <Label htmlFor="inc-sundays" className="text-xs cursor-pointer">Incluir domingos</Label>
                 </div>
                 <Button variant="outline" onClick={reviewWithFedex} disabled={fedexLoading}>
-                  {fedexLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Revisar con FedEx
+                  {fedexLoading ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Revisar con FedEx
                 </Button>
               </>
             )}
@@ -411,7 +412,7 @@ export function RoutesReport({ onBack }: { onBack: () => void }) {
       )}
 
       {/* Tabla por chofer */}
-      {!hasRun ? (
+      {isLoading ? <Card><CardContent className="p-0"><PmyLoader messages="report" className="py-14" /></CardContent></Card> : !hasRun ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">
           <Truck className="h-10 w-10 mx-auto mb-2 opacity-40" />
           Elige la sucursal y el rango (por defecto ayer) y presiona <b className="mx-1">Generar</b>.

@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import React, { useMemo, useState } from "react";
 import { ColumnDef, FilterFn } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
@@ -242,7 +243,7 @@ export function CobrosAuditPanel({
     <div className="relative flex flex-col gap-4">
       {isLoading && (
         <div className="flex items-center gap-2 text-sm text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> Auditando cobros…
+          <PmySpinner className="h-4 w-4 text-emerald-600" /> Auditando cobros…
         </div>
       )}
 

@@ -1,7 +1,8 @@
 "use client"
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
 import { useState } from "react"
-import { CalendarDays, Plus, Trash2, Loader2 } from "lucide-react"
+import { CalendarDays, Plus, Trash2} from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -153,7 +154,7 @@ export function HolidaysPanel() {
                 </Label>
               </div>
               <Button onClick={handleAdd} disabled={saving} className="gap-1.5">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {saving ? <PmySpinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 Agregar
               </Button>
             </div>
@@ -170,9 +171,7 @@ export function HolidaysPanel() {
             <Label className="text-sm font-medium">Días festivos agregados</Label>
             <div className="mt-2 rounded-lg border">
               {isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
-                </div>
+                <PmyLoader size="sm" className="py-10" />
               ) : !holidays || holidays.length === 0 ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">
                   Aún no hay días festivos adicionales.
@@ -207,7 +206,7 @@ export function HolidaysPanel() {
                                 disabled={deletingId === h.id}
                               >
                                 {deletingId === h.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <PmySpinner className="h-4 w-4" />
                                 ) : (
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 )}

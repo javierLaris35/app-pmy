@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { TrendingUp, TrendingDown, DollarSign, Package, Truck, Users, Building, Zap } from 'lucide-react'
 
 interface ExpenseItem {
@@ -121,16 +121,8 @@ export function ExpenseBreakdown({ expenses, isLoading }: ExpenseBreakdownProps)
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <Skeleton className="h-6 w-48 mb-6" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Skeleton className="h-64 rounded-lg" />
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-12 rounded-lg" />
-            ))}
-          </div>
-        </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <PmyLoader size="sm" messages="report" className="py-16" />
       </div>
     )
   }

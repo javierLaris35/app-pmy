@@ -69,7 +69,7 @@ function ConsolidatedWithKpis() {
     setDateRange(prev => ({ ...prev, [type]: value }));
   };
 
-  if (!consolidateds || isLoading) return <LoaderWithOverlay overlay transparent text="Cargando..." className="rounded-lg"/>;
+  if (!consolidateds || isLoading) return <LoaderWithOverlay overlay transparent className="rounded-lg"/>;
 
   // --- CÁLCULO DE KPIS VISUALES ---
   let totalShipments = 0; let totalPOD = 0; let totalDEX03 = 0; let totalDEX07 = 0;

@@ -1,7 +1,7 @@
 "use client"
 
 import { Lightbulb, TrendingUp, AlertTriangle, Target, Zap, Users } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PmyLoader } from "@/components/ui/pmy-loader"
 
 interface Insight {
   id: string
@@ -99,13 +99,8 @@ export function StrategicInsights({ insights = [], isLoading }: StrategicInsight
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <Skeleton className="h-6 w-48 mb-6" />
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-lg" />
-          ))}
-        </div>
+      <div className="bg-white rounded-xl shadow-sm">
+        <PmyLoader size="sm" messages="report" className="py-16" />
       </div>
     )
   }

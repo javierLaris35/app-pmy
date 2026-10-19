@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Package, Plus, Truck, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -243,7 +244,7 @@ export function ManualShipmentForm({ subsidiary, initialValues, onCreated, onCan
           <X className="mr-2 h-4 w-4" /> Cancelar
         </Button>
         <Button type="submit" disabled={submitting}>
-          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+          {submitting ? <PmySpinner className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
           {values.kind === "charge" ? "Registrar carga" : "Registrar paquete"}
         </Button>
       </div>

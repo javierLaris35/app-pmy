@@ -1,7 +1,7 @@
 "use client"
 
 import { Trophy, TrendingUp, Star, Target, Package, Truck } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PmyLoader } from "@/components/ui/pmy-loader"
 
 interface Branch {
   id: string
@@ -92,13 +92,8 @@ export function TopPerformersGrid({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <Skeleton className="h-6 w-48 mb-6" />
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-lg" />
-          ))}
-        </div>
+      <div className="bg-white rounded-xl shadow-sm">
+        <PmyLoader size="sm" messages="report" className="py-16" />
       </div>
     )
   }

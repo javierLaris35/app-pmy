@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageCircle, Send, Loader2 } from "lucide-react";
+import { MessageCircle, Send} from "lucide-react";
 import { toast } from "@/lib/toast";
 import { sendWhatsappMessage } from "@/lib/services/whatsapp-settings";
 import { listWhatsappTemplates, buildMessage, type WhatsappTemplate } from "@/lib/services/whatsapp-templates";
@@ -160,7 +161,7 @@ export function EnviarNotificacionButton({
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2">
                 Número destino
-                {resolving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                {resolving && <PmySpinner className="h-3.5 w-3.5 text-muted-foreground" />}
               </Label>
               <Select value={numberMode} onValueChange={setNumberMode} disabled={sending || resolving}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -191,7 +192,7 @@ export function EnviarNotificacionButton({
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={sending}>Cancelar</Button>
             <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={send} disabled={sending || !toDigits || !message.trim()}>
-              {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              {sending ? <PmySpinner className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}
               {sending ? "Enviando…" : "Enviar por WhatsApp"}
             </Button>
           </DialogFooter>

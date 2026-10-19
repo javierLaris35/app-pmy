@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { Suspense, useState } from "react"
 import dynamic from "next/dynamic"
 import { useSearchParams } from "next/navigation"
@@ -11,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, Loader2, CalendarDays, AlarmClock, Inbox } from "lucide-react"
+import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, CalendarDays, AlarmClock, Inbox } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
 import { useAuthStore } from "@/store/auth.store"
@@ -21,9 +22,7 @@ import { hasPermission } from "@/lib/access/permissions"
 // máquinas de 8 GB). Con `dynamic` + `ssr: false` solo se trae el panel de la
 // sección activa, y nunca se evalúan en tiempo de export.
 const PanelFallback = () => (
-  <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-    <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
-  </div>
+  <PmyLoader size="sm" className="py-16" />
 )
 
 const CompanyPanel = dynamic(() => import("@/components/configuracion/company-panel").then((m) => m.CompanyPanel), { ssr: false, loading: PanelFallback })

@@ -1,12 +1,12 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import type React from "react"
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   MapPin,
   Package,
@@ -264,31 +264,7 @@ export function ShipmentHistoryModal({ shipmentId, trackingNumber, trigger, isCh
         <Card className="mt-3 border-0">
           <CardContent className="p-4">
             {isLoading ? (
-              <div className="space-y-4">
-                <div>
-                  <Skeleton className="h-4 w-32 mb-2" />
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-3 w-32" />
-                  </div>
-                  <Skeleton className="h-3 w-40 mt-1.5" />
-                </div>
-                <div>
-                  <Skeleton className="h-4 w-32 mb-3" />
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="flex gap-3">
-                        <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
-                        <div className="flex-1 space-y-1.5">
-                          <Skeleton className="h-4 w-28" />
-                          <Skeleton className="h-3 w-full" />
-                          <Skeleton className="h-3 w-2/3" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <PmyLoader size="sm" text="Cargando historial…" className="py-10" />
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="p-2.5 rounded-full bg-destructive/10 mb-3">

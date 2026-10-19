@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/app-layout";
@@ -17,7 +18,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  ArrowLeft, Ban, CheckCircle2, ClipboardList, FilePlus2, Loader2, MailQuestion, MoreHorizontal, Pencil, Plus, RotateCcw, Send,
+  ArrowLeft, Ban, CheckCircle2, ClipboardList, FilePlus2, MailQuestion, MoreHorizontal, Pencil, Plus, RotateCcw, Send,
   ShieldCheck, Trash2, XCircle,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
@@ -95,7 +96,7 @@ function SolicitudContent() {
       .catch(() => { setUncataloged([]); setSaveIds([]); });
   }, [dialog, request?.id]);
 
-  if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (isLoading) return <PmyLoader size="sm" className="p-10" />;
   if (isError || !request) {
     return <Card className="m-5"><CardContent className="p-8 text-center text-sm text-muted-foreground">No se encontró la solicitud o no tienes acceso.</CardContent></Card>;
   }
@@ -150,7 +151,7 @@ function SolicitudContent() {
         <Button size="sm" variant="outline" onClick={() => setDialog("rejectRequest")}><XCircle className="mr-1.5 h-4 w-4" /> Rechazar</Button>
         <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={busy}
           onClick={() => guarded(() => run(() => approveRequest(request.id), "Solicitud autorizada: ya puedes cotizar", "No se pudo autorizar"))}>
-          {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />} Autorizar solicitud
+          {busy ? <PmySpinner className="mr-1.5 h-4 w-4" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />} Autorizar solicitud
         </Button>
       </>
     );
@@ -171,7 +172,7 @@ function SolicitudContent() {
   } else if (rejectedDraft && isPurchaser) {
     primary = (
       <Button size="sm" onClick={resubmit} disabled={busy}>
-        {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />} Mandar otra vez a autorizar{of}
+        {busy ? <PmySpinner className="mr-1.5 h-4 w-4" /> : <Send className="mr-1.5 h-4 w-4" />} Mandar otra vez a autorizar{of}
       </Button>
     );
   } else if (authorizing) {
@@ -179,7 +180,7 @@ function SolicitudContent() {
       <>
         <Button size="sm" variant="outline" onClick={() => setDialog("reject")} disabled={busy}><XCircle className="mr-1.5 h-4 w-4" /> Rechazar{of}</Button>
         <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={authorize} disabled={busy || !draft.items.some((i) => i.approved)}>
-          {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />} Autorizar{of || " orden"}
+          {busy ? <PmySpinner className="mr-1.5 h-4 w-4" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />} Autorizar{of || " orden"}
         </Button>
       </>
     );
@@ -308,7 +309,7 @@ function SolicitudContent() {
             <>
               <OrderProgressList orders={orders} activeId={activeOrderId} onSelect={setActiveOrderId} />
               {order && <OrderStep order={order} canAuthorize={canAuthorize} draft={draft} />}
-              {activeOrderId && !order && <Card><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>}
+              {activeOrderId && !order && <Card><CardContent className="flex justify-center p-8"><PmySpinner className="h-5 w-5 text-muted-foreground" /></CardContent></Card>}
             </>
           )}
         </TabsContent>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -78,9 +79,7 @@ export function StatusTimelineDialog({ open, onOpenChange, tracking }: Props) {
         </DialogHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-slate-400">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
+          <PmyLoader size="sm" className="py-12" />
         ) : events.length === 0 ? (
           <p className="py-10 text-center text-sm text-slate-400">Sin eventos para este paquete.</p>
         ) : (

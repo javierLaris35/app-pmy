@@ -1,7 +1,8 @@
 "use client";
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollText, RefreshCw, Loader2, AlertTriangle, Info } from "lucide-react";
+import { ScrollText, RefreshCw, AlertTriangle, Info } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -10,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -125,17 +125,14 @@ function CobrosReconciliationContent() {
             </div>
           </div>
           <Button onClick={recalc} disabled={running || loading} size="sm" variant="outline" className="h-9 gap-2 sm:w-auto">
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Recalcular
+            {running ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Recalcular
           </Button>
         </div>
 
         {error && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertDescription>{error}</AlertDescription></Alert>}
 
         {loading ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[84px] w-full" />)}</div>
-            <Skeleton className="h-[220px] w-full" />
-          </div>
+          <PmyLoader size="sm" messages="report" className="py-16" />
         ) : report ? (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

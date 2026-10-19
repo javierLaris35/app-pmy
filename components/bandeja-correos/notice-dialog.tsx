@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { Loader2, Megaphone, Send } from "lucide-react";
@@ -110,7 +111,7 @@ export function NoticeDialog({
             )}
 
             {isLoading ? (
-              <p className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Revisando el consolidado…</p>
+              <p className="flex items-center gap-2 text-slate-500"><PmySpinner className="h-4 w-4" /> Revisando el consolidado…</p>
             ) : error ? (
               <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{inboxErrorText(error, "No se pudo revisar el consolidado")}</p>
             ) : a ? (
@@ -166,7 +167,7 @@ export function NoticeDialog({
             ) : previewError ? (
               <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{previewError}</p>
             ) : !preview ? (
-              <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Armando el aviso…</p>
+              <p className="flex items-center gap-2 text-xs text-slate-500"><PmySpinner className="h-3.5 w-3.5" /> Armando el aviso…</p>
             ) : (
               <>
                 <ScrollArea className="h-64 rounded-md border bg-[#e7f7e2] p-3">
@@ -183,7 +184,7 @@ export function NoticeDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={sending}>Cancelar</Button>
           <Button onClick={send} disabled={sending || !preview} className="gap-1.5">
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Mandar aviso
+            {sending ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />} Mandar aviso
           </Button>
         </DialogFooter>
       </DialogContent>

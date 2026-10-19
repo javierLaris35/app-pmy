@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import React, { useMemo, useState } from "react"
 import { AppLayout } from "@/components/app-layout"
 import { DataTable } from "@/components/data-table/data-table"
@@ -15,8 +16,7 @@ import {
   TrendingUp, 
   TrendingDown, 
   DollarSign, 
-  Package, 
-  Loader2,
+  Package,
   Calendar as CalendarIcon,
   Filter
 } from "lucide-react"
@@ -93,9 +93,8 @@ function IngresosPage() {
         {/* LOADER OVERLAY: Aparece cuando está cargando para dar feedback visual */}
         {isLoading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-[1px] transition-all">
-            <div className="flex flex-col items-center gap-2 bg-white p-6 rounded-xl shadow-xl border border-slate-100">
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
-              <p className="text-sm font-medium text-slate-600">Actualizando datos...</p>
+            <div className="rounded-xl border border-slate-100 bg-white px-8 py-2 shadow-xl">
+              <PmyLoader size="sm" text="Actualizando datos…" className="py-4" />
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
 "use client"
 
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useState, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,6 @@ import {
   Settings2,
   Check,
   AlertCircle,
-  Loader2,
   GripVertical,
 } from "lucide-react"
 import { Separator } from "../ui/separator"
@@ -273,9 +273,7 @@ export default function ZonesPage() {
       {/* Main */}
       <div>
         {zonesLoading ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin mr-2" /> Cargando zonas…
-          </div>
+          <PmyLoader size="sm" text="Cargando zonas…" className="h-40 py-0" />
         ) : filteredZones.length === 0 ? (
           <Card className="text-center py-12">
             <CardContent>

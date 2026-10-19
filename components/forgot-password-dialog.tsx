@@ -1,5 +1,6 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useState } from "react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -104,7 +105,7 @@ export function ForgotPasswordDialog({
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancelar</Button>
               <Button type="submit" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enviar código
+                {loading && <PmySpinner className="mr-2 h-4 w-4" />}Enviar código
               </Button>
             </DialogFooter>
           </form>
@@ -131,7 +132,7 @@ export function ForgotPasswordDialog({
                 <ArrowLeft className="mr-1.5 h-4 w-4" />Cambiar correo
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Actualizar contraseña
+                {loading && <PmySpinner className="mr-2 h-4 w-4" />}Actualizar contraseña
               </Button>
             </DialogFooter>
           </form>

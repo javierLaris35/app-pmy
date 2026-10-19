@@ -1,9 +1,10 @@
 "use client"
 
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Bell, CheckCircle2, Loader2, Mail, MessageCircle, RefreshCw, Send, XCircle } from "lucide-react"
+import { Bell, CheckCircle2, Mail, MessageCircle, RefreshCw, Send, XCircle } from "lucide-react"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -71,10 +72,10 @@ export function SupportChannelsCard() {
           <h3 className="text-sm font-medium">Canales de notificación</h3>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" className="h-7" onClick={load} disabled={loading}>
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              {loading ? <PmySpinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
             </Button>
             <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={runTest} disabled={testing}>
-              {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              {testing ? <PmySpinner className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
               Enviar prueba
             </Button>
           </div>

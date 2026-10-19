@@ -1,5 +1,6 @@
 "use client";
 
+import { PmyLoader } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -63,9 +64,7 @@ export function HistoryDialog({ incomeId, open, onOpenChange }: Props) {
         </DialogHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center py-10 text-slate-400">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
+          <PmyLoader size="sm" className="py-10" />
         ) : entries.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-400">Sin cambios registrados.</p>
         ) : (
