@@ -4,6 +4,7 @@ import { isTokenExpired } from "@/lib/jwt";
 import { getClientMeta, ensureClientMeta } from "@/lib/client-meta";
 import { useOfflineStore } from "@/lib/offline/offline-store";
 import { toast } from "@/lib/toast";
+import { shouldSilentRetry, SILENT_RETRY_DELAY_MS } from "@/lib/silent-retry";
 
 export const axiosConfig = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -52,8 +53,19 @@ axiosConfig.interceptors.request.use(
 // reenvía automáticamente al reconectar (ver lib/offline). =====
 axiosConfig.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const cfg: any = error?.config || {};
+
+    // Reinicio del servidor por una actualización: reintento silencioso (~30 s) para
+    // que el usuario no vea errores. Solo si hay internet; sin internet sigue el flujo offline.
+    const attempt: number = cfg.__silentAttempt ?? 0;
+    const hasInternet = typeof navigator === "undefined" || navigator.onLine !== false;
+    if (typeof window !== "undefined" && hasInternet && shouldSilentRetry(error, attempt)) {
+      cfg.__silentAttempt = attempt + 1;
+      await new Promise((r) => setTimeout(r, SILENT_RETRY_DELAY_MS));
+      return axiosConfig(cfg);
+    }
+
     const method = (cfg.method || "get").toLowerCase();
     const url: string = cfg.url || "";
     const isMutation = ["post", "put", "patch", "delete"].includes(method);

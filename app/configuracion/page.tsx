@@ -38,6 +38,7 @@ const ServerBackupPanel = dynamic(() => import("@/components/configuracion/serve
 const InboxPanel = dynamic(() => import("@/components/configuracion/inbox-panel").then((m) => m.InboxPanel), { ssr: false, loading: PanelFallback })
 const ZipCoveragePanel = dynamic(() => import("@/components/configuracion/zip-coverage-panel").then((m) => m.ZipCoveragePanel), { ssr: false, loading: PanelFallback })
 const ServerPowerPanel = dynamic(() => import("@/components/configuracion/server-power-panel").then((m) => m.ServerPowerPanel), { ssr: false, loading: PanelFallback })
+const ServerDeployPanel = dynamic(() => import("@/components/configuracion/server-deploy-panel").then((m) => m.ServerDeployPanel), { ssr: false, loading: PanelFallback })
 const OpsAlertsPanel = dynamic(() => import("@/components/configuracion/ops-alerts-panel").then((m) => m.OpsAlertsPanel), { ssr: false, loading: PanelFallback })
 const WhatsappConfigPanel = dynamic(() => import("@/components/configuracion/whatsapp-config-panel").then((m) => m.WhatsappConfigPanel), { ssr: false, loading: PanelFallback })
 const PlantillasPanel = dynamic(() => import("@/components/configuracion/plantillas/plantillas-panel").then((m) => m.PlantillasPanel), { ssr: false, loading: PanelFallback })
@@ -167,11 +168,13 @@ function ConfiguracionPage() {
                   <TabsTrigger value="logs">Logs en vivo</TabsTrigger>
                   {isSuper && <TabsTrigger value="respaldo">Respaldo</TabsTrigger>}
                   {isSuper && <TabsTrigger value="energia">Energía</TabsTrigger>}
+                  {isSuper && <TabsTrigger value="actualizar">Actualizar</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="metricas"><ServerStatsPanel /></TabsContent>
                 <TabsContent value="logs"><ServerLogsPanel /></TabsContent>
                 {isSuper && <TabsContent value="respaldo"><ServerBackupPanel /></TabsContent>}
                 {isSuper && <TabsContent value="energia"><ServerPowerPanel /></TabsContent>}
+                {isSuper && <TabsContent value="actualizar"><ServerDeployPanel /></TabsContent>}
               </Tabs>
             )}
 

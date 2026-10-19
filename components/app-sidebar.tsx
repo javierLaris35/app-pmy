@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import { NavUser } from "./nav-user"
+import { AppVersion } from "./release-notes/app-version"
 import Image from "next/image"
 import { NavMenu } from "./nav-menu"
 import { NavSecondary } from "./nav-secondary"
@@ -80,6 +81,7 @@ export function AppSidebar({ user, ...props }: { user: User }) {
 
       <SidebarFooter className="p-2">
         <NavUser user={user} />
+        <AppVersion />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
