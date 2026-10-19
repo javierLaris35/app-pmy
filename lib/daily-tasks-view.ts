@@ -89,3 +89,14 @@ export const driverName = (name: string | null | undefined) =>
     .map((n) => n.trim().replace(/\s+/g, " ").toLocaleUpperCase("es-MX"))
     .filter(Boolean)
     .join(", ");
+
+/** Numerito del ícono de Tareas en la barra superior: solo los pasos atrasados de hoy. */
+export function trayBadge(s: { late: number; pending: number } | undefined): { count: number; tone: "danger" | "none" } {
+  return s && s.late > 0 ? { count: s.late, tone: "danger" } : { count: 0, tone: "none" };
+}
+
+/** "F2 4410 · Salidas a ruta", "Consolidado 7781 · Desembarque" o la tarea de la sucursal. */
+export function lateItemLabel(i: { refType: string; consNumber: string | null; step: TaskStep }): string {
+  if (i.refType === "subsidiary") return stepLabel(i.step);
+  return `${i.refType === "charge" ? "F2" : "Consolidado"} ${i.consNumber ?? ""} · ${stepLabel(i.step)}`;
+}

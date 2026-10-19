@@ -67,3 +67,16 @@ export const getPackageDetail = async (refType: string, refId: string): Promise<
   (await axiosConfig.get(`${base}/detail/${refType}/${refId}`)).data;
 export const refreshDayTasks = async (subsidiaryId: string, day: string): Promise<DayTasks> =>
   (await axiosConfig.post(`${base}/refresh`, null, { params: { subsidiaryId, day } })).data;
+
+export interface TasksSummary {
+  day: string;
+  late: number;
+  pending: number;
+  done: number;
+  total: number;
+  possibleLd: number;
+  lateItems: { refType: string; consNumber: string | null; step: TaskStep; dueAt: string }[];
+}
+
+export const getTasksSummary = async (subsidiaryId: string): Promise<TasksSummary> =>
+  (await axiosConfig.get(`${base}/summary`, { params: { subsidiaryId } })).data;

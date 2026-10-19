@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closureLink, dayLabel, driverName, dayPct, hermosilloTime, routesSummary, sortConsolidated, stepLabel, stepLink, stepVisual, weekDays } from "./daily-tasks-view";
+import { closureLink, dayLabel, driverName, lateItemLabel, trayBadge, dayPct, hermosilloTime, routesSummary, sortConsolidated, stepLabel, stepLink, stepVisual, weekDays } from "./daily-tasks-view";
 
 describe("stepVisual", () => {
   it("listo se tacha en verde; tarde en rojo; a medias en ámbar; pendiente gris", () => {
@@ -72,5 +72,18 @@ describe("driverName", () => {
   it("nombres de chofer en mayúsculas, con acentos y ñ, sin espacios de sobra", () => {
     expect(driverName("  juan  pérez, Ana Muñoz ")).toBe("JUAN PÉREZ, ANA MUÑOZ");
     expect(driverName("")).toBe("");
+  });
+});
+
+describe("ícono de la barra superior", () => {
+  it("el numerito son los atrasados; sin atrasados no hay número", () => {
+    expect(trayBadge({ late: 3, pending: 2 })).toEqual({ count: 3, tone: "danger" });
+    expect(trayBadge({ late: 0, pending: 4 })).toEqual({ count: 0, tone: "none" });
+    expect(trayBadge(undefined)).toEqual({ count: 0, tone: "none" });
+  });
+  it("nombra cada atraso en llano", () => {
+    expect(lateItemLabel({ refType: "charge", consNumber: "4410", step: "dispatch" })).toBe("F2 4410 · Salidas a ruta");
+    expect(lateItemLabel({ refType: "consolidated", consNumber: "7781", step: "unloading" })).toBe("Consolidado 7781 · Desembarque");
+    expect(lateItemLabel({ refType: "subsidiary", consNumber: null, step: "inventory_final" })).toBe("Inventario final de día");
   });
 });
