@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getPackageDossier } from "@/lib/services/package-dossier"
+import type { CommitLevel, CommitTrafficLight } from "@/lib/package-dossier"
 import type {
   DossierEventTone,
   DossierInternalKind,
@@ -42,8 +43,8 @@ import {
   formatInstant,
   formatMoney,
   formatPhone,
+  commitTrafficLight,
   groupByPiece,
-  overdueDays,
   statusLabel,
 } from "@/lib/package-dossier"
 
@@ -231,7 +232,7 @@ function EmptyState({ icon: Icon, text }: { icon: typeof Search; text: string })
 }
 
 function RecordDossier({ record }: { record: DossierRecord }) {
-  const overdue = overdueDays(record)
+  const commit = commitTrafficLight(record)
   const isDhl = record.carrier?.toLowerCase() === "dhl"
   const activeIncomes = record.incomes.filter((i) => i.active)
   const incomeTotal = activeIncomes.reduce((acc, i) => acc + i.cost, 0)
@@ -273,19 +274,11 @@ function RecordDossier({ record }: { record: DossierRecord }) {
               {!record.active && <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Dado de baja</Badge>}
             </div>
           </div>
-          <div className="text-right space-y-1.5">
+          <div className="flex flex-col items-end gap-1.5">
             <Badge className={cn("text-sm px-3 py-1", TONE_BADGE[statusTone(record.status)])}>
               {statusLabel(record.status)}
             </Badge>
-            <p className="text-xs text-slate-600 flex items-center justify-end gap-1">
-              <CalendarClock className="h-3.5 w-3.5" />
-              Vence {formatInstant(record.commitDateTime) ?? "sin fecha"}
-            </p>
-            {overdue !== null && (
-              <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-                {overdue === 0 ? "Vencida hoy" : `Vencida hace ${overdue} ${overdue === 1 ? "día" : "días"}`}
-              </Badge>
-            )}
+            <CommitBadge commit={commit} commitDateTime={record.commitDateTime} />
           </div>
         </div>
       </div>
@@ -432,6 +425,32 @@ function RecordDossier({ record }: { record: DossierRecord }) {
             <p className="text-sm text-slate-500 py-2">Todavía no hay eventos de {carrierLabel(record.carrier)} para esta guía.</p>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+const COMMIT_STYLE: Record<CommitLevel, { box: string; dot: string }> = {
+  overdue: { box: "border-red-300 bg-red-100 text-red-800", dot: "bg-red-600" },
+  today: { box: "border-red-200 bg-red-50 text-red-700", dot: "bg-red-500" },
+  tomorrow: { box: "border-amber-200 bg-amber-50 text-amber-800", dot: "bg-amber-400" },
+  ok: { box: "border-emerald-200 bg-emerald-50 text-emerald-800", dot: "bg-emerald-500" },
+  closed: { box: "border-slate-200 bg-slate-50 text-slate-600", dot: "bg-slate-300" },
+  none: { box: "border-slate-200 bg-slate-50 text-slate-500", dot: "bg-slate-300" },
+}
+
+/** Semáforo del vencimiento: color + fecha + cuánto falta (o cuánto lleva vencida). */
+function CommitBadge({ commit, commitDateTime }: { commit: CommitTrafficLight; commitDateTime: string | null }) {
+  const style = COMMIT_STYLE[commit.level]
+  return (
+    <div className={cn("inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left", style.box)}>
+      <span className={cn("h-3 w-3 shrink-0 rounded-full", style.dot)} />
+      <div className="leading-tight">
+        <p className="text-sm font-semibold">{commit.label}</p>
+        <p className="text-xs flex items-center gap-1 opacity-90">
+          <CalendarClock className="h-3 w-3" />
+          {commitDateTime ? `Vence ${formatInstant(commitDateTime)}` : "Sin fecha"}
+        </p>
       </div>
     </div>
   )

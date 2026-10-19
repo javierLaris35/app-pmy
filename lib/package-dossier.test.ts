@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest"
-import { formatDay, formatPhone, groupByPiece, overdueDays, statusLabel } from "./package-dossier"
+import { commitTrafficLight, formatDay, formatPhone, groupByPiece, statusLabel } from "./package-dossier"
 import type { DossierRecord } from "./types/package-dossier"
 
 const rec = (pieceKey: string, id: string) => ({ id, pieceKey }) as DossierRecord
 
 describe("package-dossier", () => {
-  it("cuenta días de vencida solo si la guía sigue viva", () => {
-    const now = new Date("2026-10-18T12:00:00Z")
-    expect(overdueDays({ commitDateTime: "2026-10-16T11:00:00Z", status: "en_ruta" }, now)).toBe(2)
-    expect(overdueDays({ commitDateTime: "2026-10-16T11:00:00Z", status: "entregado" }, now)).toBeNull()
-    expect(overdueDays({ commitDateTime: "2026-10-19T11:00:00Z", status: "en_ruta" }, now)).toBeNull()
-    expect(overdueDays({ commitDateTime: null, status: "en_ruta" }, now)).toBeNull()
+  it("semáforo de vencimiento por días de calendario", () => {
+    const now = new Date(2026, 9, 18, 12, 0)
+    const at = (d: number) => new Date(2026, 9, d, 18, 0).toISOString()
+    expect(commitTrafficLight({ commitDateTime: at(16), status: "en_ruta" }, now)).toMatchObject({ level: "overdue", days: -2, label: "Vencida hace 2 días" })
+    expect(commitTrafficLight({ commitDateTime: at(18), status: "en_bodega" }, now).level).toBe("today")
+    expect(commitTrafficLight({ commitDateTime: at(19), status: "en_bodega" }, now).level).toBe("tomorrow")
+    expect(commitTrafficLight({ commitDateTime: at(22), status: "pendiente" }, now)).toMatchObject({ level: "ok", label: "Vence en 4 días" })
+    expect(commitTrafficLight({ commitDateTime: at(16), status: "entregado" }, now).level).toBe("closed")
+    expect(commitTrafficLight({ commitDateTime: null, status: "en_ruta" }, now).level).toBe("none")
   })
 
   it("agrupa por pieza conservando el orden", () => {

@@ -28,12 +28,35 @@ export const statusLabel = (status?: string | null): string => {
 export const carrierLabel = (carrier?: string | null): string =>
   (carrier ?? "").toLowerCase() === "dhl" ? "DHL" : "FedEx"
 
-/** Días completos que lleva vencida (null si no está vencida o ya terminó). */
-export function overdueDays(record: Pick<DossierRecord, "commitDateTime" | "status">, now = new Date()): number | null {
-  if (!record.commitDateTime || FINAL_STATUSES.has(record.status)) return null
+export type CommitLevel = "closed" | "overdue" | "today" | "tomorrow" | "ok" | "none"
+
+export interface CommitTrafficLight {
+  level: CommitLevel
+  /** Días de calendario hasta el vencimiento (negativo = vencida). */
+  days: number | null
+  label: string
+}
+
+/**
+ * Semáforo del vencimiento, por días de calendario (misma regla que salidas a ruta e
+ * inventario: hoy = rojo, mañana = ámbar). Vencida = rojo intenso; 2+ días = verde; si la
+ * guía ya terminó (entregada/devuelta) no aplica.
+ */
+export function commitTrafficLight(
+  record: Pick<DossierRecord, "commitDateTime" | "status">,
+  now = new Date(),
+): CommitTrafficLight {
+  if (!record.commitDateTime) return { level: "none", days: null, label: "Sin fecha de vencimiento" }
   const commit = new Date(record.commitDateTime)
-  if (Number.isNaN(commit.getTime()) || commit >= now) return null
-  return Math.floor((now.getTime() - commit.getTime()) / 86_400_000)
+  if (Number.isNaN(commit.getTime())) return { level: "none", days: null, label: "Sin fecha de vencimiento" }
+  const cDay = new Date(commit.getFullYear(), commit.getMonth(), commit.getDate())
+  const tDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((cDay.getTime() - tDay.getTime()) / 86_400_000)
+  if (FINAL_STATUSES.has(record.status)) return { level: "closed", days, label: "Ya no aplica: la guía terminó" }
+  if (days < 0) return { level: "overdue", days, label: `Vencida hace ${-days} ${days === -1 ? "día" : "días"}` }
+  if (days === 0) return { level: "today", days, label: "Vence hoy" }
+  if (days === 1) return { level: "tomorrow", days, label: "Vence mañana" }
+  return { level: "ok", days, label: `Vence en ${days} días` }
 }
 
 /** Agrupa los registros por pieza (JD en DHL, guía en el resto), conservando el orden. */
