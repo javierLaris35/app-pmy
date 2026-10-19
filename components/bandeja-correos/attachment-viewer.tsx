@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { downloadInboxAttachment, getAttachmentObjectUrl, getAttachmentPreview } from "@/lib/services/inbox";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { Download, FileQuestion, Loader2 } from "lucide-react";
+import { Download, FileQuestion} from "lucide-react";
 
 export interface ViewerTarget {
   id: string;
@@ -79,7 +80,7 @@ export function AttachmentViewer({ target, onClose }: { target: ViewerTarget | n
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Abriendo archivo…
+            <PmySpinner className="mr-2 h-4 w-4" /> Abriendo archivo…
           </div>
         ) : error ? (
           <div className="flex flex-1 items-center justify-center text-sm text-red-600">No se pudo abrir el archivo.</div>
@@ -127,7 +128,7 @@ export function AttachmentViewer({ target, onClose }: { target: ViewerTarget | n
             <iframe title={target?.filename} src={blobUrl} className="min-h-0 w-full flex-1 rounded-md border" />
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Abriendo PDF…
+              <PmySpinner className="mr-2 h-4 w-4" /> Abriendo PDF…
             </div>
           )
         ) : data?.type === "image" ? (

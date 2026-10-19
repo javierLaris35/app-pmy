@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getPackageTimeline, TimelineEvent } from "@/lib/services/consolidador";
 import { formatCurrency } from "@/lib/utils";
-import { Loader2, Route, PackageCheck, Inbox, DollarSign, Truck, ScanLine } from "lucide-react";
+import { Route, PackageCheck, Inbox, DollarSign, Truck, ScanLine } from "lucide-react";
 
 interface Props {
   open: boolean;

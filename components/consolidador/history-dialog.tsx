@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getIncomeHistory } from "@/lib/services/consolidador";
 import { IncomeChangeLogEntry } from "@/lib/types/consolidador";
-import { Loader2, ArrowRight, History } from "lucide-react";
+import { ArrowRight, History } from "lucide-react";
 
 const ACTION_LABEL: Record<string, string> = {
   cost_edit: "Editó costo",

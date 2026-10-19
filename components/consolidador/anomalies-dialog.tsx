@@ -21,7 +21,6 @@ import { AnomalyRow } from "@/lib/types/consolidador";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import {
-  Loader2,
   History,
   ShieldCheck,
   ListOrdered,

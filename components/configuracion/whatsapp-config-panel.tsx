@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, MessageCircle, Smartphone, LinkIcon, Unlink, RefreshCw, CheckCircle2, AlertTriangle, Send, Plus, Trash2 } from "lucide-react";
+import { Save, MessageCircle, Smartphone, LinkIcon, Unlink, RefreshCw, CheckCircle2, AlertTriangle, Send, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
   getWhatsappSettings, updateWhatsappSettings, type WhatsappSettings,
@@ -350,7 +350,7 @@ export function WhatsappConfigPanel() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <PmyLoader size="sm" className="h-16 py-0" />
+            <PmyLoader size="sm" className="py-6" />
           ) : (
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">

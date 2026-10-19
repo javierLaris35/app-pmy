@@ -15,7 +15,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Trash2, Lock, AlertTriangle, ShieldAlert, Search, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Lock, AlertTriangle, ShieldAlert, Search, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import {

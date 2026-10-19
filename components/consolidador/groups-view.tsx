@@ -21,7 +21,7 @@ import { toast } from "@/lib/toast";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Loader2, Route, PackageCheck, Search, X, Warehouse } from "lucide-react";
+import { Route, PackageCheck, Search, X, Warehouse } from "lucide-react";
 
 interface Props {
   mode: GroupsMode;

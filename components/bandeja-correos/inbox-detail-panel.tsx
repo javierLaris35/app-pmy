@@ -1,5 +1,6 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,7 @@ import { InboxDhlStep } from "./inbox-dhl-step";
 import { NoticeDialog } from "./notice-dialog";
 import { AttachmentViewer, ViewerTarget } from "./attachment-viewer";
 import { ATTACHMENT_LABEL, CONS_KIND_LABEL, SIGNAL_LABEL, formatDateTime, knownByPhrase } from "./labels";
-import { AlertTriangle, CheckCircle2, ChevronDown, Download, Eye, EyeOff, HelpCircle, Loader2, MailOpen, Megaphone, MoreHorizontal } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Download, Eye, EyeOff, HelpCircle, MailOpen, Megaphone, MoreHorizontal } from "lucide-react";
 
 const KIND_OPTIONS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "ccp", "ccp_ignored", "dhl", "pdf", "other"];
 const GUIDE_KINDS: AttachmentKind[] = ["master", "master_aereo", "f2", "high_value", "dhl"];
@@ -119,7 +120,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
   if (isLoading || !m) {
     return (
       <div className={cn("flex h-full min-h-[320px] items-center justify-center bg-white text-sm text-slate-500", !bare && "rounded-md border")}>
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando correo…
+        <PmySpinner className="mr-2 h-4 w-4" /> Cargando correo…
       </div>
     );
   }
@@ -135,7 +136,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
         <SucursalSelector value={subsidiaryId} onValueChange={(v) => setSubsidiaryId(typeof v === "string" ? v : (v as Subsidiary)?.id ?? "")} />
       </div>
       <Button size="sm" onClick={() => save(subsidiaryId)} disabled={busy || !subsidiaryId}>
-        {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+        {busy ? <PmySpinner className="mr-1.5 h-4 w-4" /> : null}
         Guardar sucursal
       </Button>
       {editing && (
@@ -227,7 +228,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
                   {canAct ? (
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => save(suggested)} disabled={busy}>
-                      {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
+                      {busy ? <PmySpinner className="mr-1.5 h-4 w-4" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
                       Sí, es {suggestedName}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setEditing(true)} disabled={busy}>
@@ -402,7 +403,7 @@ export function InboxDetailPanel({ id, onChanged, bare = false }: Props) {
               Cancelar
             </Button>
             <Button onClick={ignore} disabled={busy} className={cn(busy && "opacity-80")}>
-              {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {busy && <PmySpinner className="mr-1.5 h-4 w-4" />}
               Ignorar correo
             </Button>
           </DialogFooter>

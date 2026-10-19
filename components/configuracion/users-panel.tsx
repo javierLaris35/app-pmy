@@ -3,7 +3,7 @@
 import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Loader2, Pencil, Plus, Trash2, AlertTriangle, MoreHorizontal, KeyRound, Building2, Sparkles, Copy, Eye, EyeOff } from "lucide-react";
+import { Pencil, Plus, Trash2, AlertTriangle, MoreHorizontal, KeyRound, Building2, Sparkles, Copy, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

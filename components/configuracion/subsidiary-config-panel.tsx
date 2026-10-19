@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { SwitchRow } from "@/components/shared/switch-row";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, Building2, Warehouse } from "lucide-react";
+import { Search, Building2, Warehouse } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { useUsers } from "@/hooks/services/users/use-users";

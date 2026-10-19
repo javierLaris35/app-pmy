@@ -6,7 +6,7 @@ import { ColumnDef, FilterFn } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, History, ListOrdered, Route } from "lucide-react";
+import { History, ListOrdered, Route } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useCobrosAudit } from "@/hooks/services/consolidador/use-cobros-audit";
 import { CobrosAuditRow } from "@/lib/types/consolidador";

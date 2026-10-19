@@ -1,10 +1,11 @@
 "use client";
 
+import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, ClipboardCheck, ClipboardList, ListChecks, Flag, Loader2, RefreshCw, Truck, Undo2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ClipboardCheck, ClipboardList, ListChecks, Flag, RefreshCw, Truck, Undo2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -230,7 +231,7 @@ export default function TareasScreen() {
                 <WeekRangePicker value={week} onChange={changeWeek} />
               </div>
               <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={refresh} disabled={refreshing || !subsidiaryId} aria-label="Volver a revisar el día" title="Volver a revisar el día">
-                {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {refreshing ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </div>
           }
@@ -246,7 +247,7 @@ export default function TareasScreen() {
         {error ? (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">No se pudieron cargar las tareas. Revisa tu conexión e intenta de nuevo.</p>
         ) : isLoading || !data ? (
-          <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Revisando lo que ya se hizo…</p>
+          <PmyLoader size="sm" text="Revisando lo que ya se hizo…" className="py-6" />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">

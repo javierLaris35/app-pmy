@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
-import { Loader2, Mail, KeyRound, ArrowLeft } from "lucide-react"
+import { Mail, KeyRound, ArrowLeft } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { requestPasswordOtp, resetPasswordWithOtp } from "@/lib/services/login"
 

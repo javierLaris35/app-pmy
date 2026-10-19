@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
-  Loader2, RefreshCw, ArrowRight, Truck, Radio, Route as RouteIcon, Flame, AlertTriangle, CheckCircle2, Clock,
+  RefreshCw, ArrowRight, Truck, Radio, Route as RouteIcon, Flame, AlertTriangle, CheckCircle2, Clock,
   LayoutGrid, Table2, BarChart3, Download, FileSpreadsheet, FileText, Package, Wallet, type LucideIcon,
 } from "lucide-react";
 import { saveAs } from "file-saver";

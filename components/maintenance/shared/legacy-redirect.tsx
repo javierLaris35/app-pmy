@@ -3,7 +3,7 @@
 import { PmyLoader } from "@/components/ui/pmy-loader";
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+
 import { AppLayout } from "@/components/app-layout";
 
 /**

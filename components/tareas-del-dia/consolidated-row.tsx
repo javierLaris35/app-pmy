@@ -1,9 +1,10 @@
 "use client";
 
+import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronRight, CircleDashed, Clock, Loader2, Loader, Undo2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CircleDashed, Clock, Loader, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -142,7 +143,7 @@ function Expanded({ item }: { item: DayConsolidated }) {
       <Stepper tasks={item.tasks} returned={data ? data.guides.filter((g) => g.returned).length : null} />
       {isLoading ? (
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando paquetes…
+          <PmySpinner className="h-3.5 w-3.5" /> Cargando paquetes…
         </p>
       ) : error || !data ? (
         <p className="text-xs text-red-600">No se pudieron cargar los paquetes. Intenta de nuevo.</p>

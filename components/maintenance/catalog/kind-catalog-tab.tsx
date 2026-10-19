@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProductCategories, useUnits } from "@/hooks/services/maintenance/use-maintenance";
 import { saveProductCategory, saveUnit } from "@/lib/services/maintenance";

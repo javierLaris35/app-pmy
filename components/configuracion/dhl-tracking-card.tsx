@@ -4,7 +4,7 @@ import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, PackageSearch } from "lucide-react";
+import { RefreshCw, PackageSearch } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { runDhlSyncCron } from "@/lib/services/dhl-tracking";
 import { useAuthStore } from "@/store/auth.store";

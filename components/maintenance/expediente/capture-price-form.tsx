@@ -4,7 +4,7 @@ import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ComboField, MoneyField, TextField } from "@/components/ui/field";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { useSuppliers } from "@/hooks/services/maintenance/use-maintenance";

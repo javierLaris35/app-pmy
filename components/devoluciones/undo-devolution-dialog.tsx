@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Loader2, Undo2 } from "lucide-react"
+import { Undo2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { ApprovalImpact, getApprovalImpact, requestApproval } from "@/lib/services/approvals"
 

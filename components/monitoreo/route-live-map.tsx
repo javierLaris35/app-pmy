@@ -4,7 +4,7 @@ import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { osrmRoute, osrmTrip, type LatLng } from "@/lib/routing/osrm";
 import type { RouteStop } from "@/lib/services/monitoring/route-monitor";

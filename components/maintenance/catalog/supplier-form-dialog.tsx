@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { createSupplier, updateSupplier } from "@/lib/services/maintenance";
 import { ContactChannel, Supplier, SupplierContact } from "@/lib/types/maintenance";

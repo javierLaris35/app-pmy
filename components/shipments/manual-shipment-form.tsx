@@ -2,7 +2,7 @@
 
 import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Package, Plus, Truck, User, X } from "lucide-react";
+import { Package, Plus, Truck, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";

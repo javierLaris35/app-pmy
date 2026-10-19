@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, Package, Gauge, User, AlertTriangle, Search, Phone, CalendarClock, Info, Siren, Wallet, CheckCircle2, ArrowLeft, Radio, MapPin, ChevronDown, Clock, Truck } from "lucide-react";
+import { RefreshCw, Package, Gauge, User, AlertTriangle, Search, Phone, CalendarClock, Info, Siren, Wallet, CheckCircle2, ArrowLeft, Radio, MapPin, ChevronDown, Clock, Truck } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";

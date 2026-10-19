@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { saveVehicleSpec } from "@/lib/services/maintenance";
 import { useProductCategories, useProducts, useUnits, useVehicleSpec } from "@/hooks/services/maintenance/use-maintenance";

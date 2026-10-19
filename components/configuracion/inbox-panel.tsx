@@ -10,7 +10,7 @@ import { useInboxStatus } from "@/hooks/services/inbox/use-inbox";
 import { inboxErrorText, redetectInbox, setInboxEnabled, syncInbox } from "@/lib/services/inbox";
 import { toast } from "@/lib/toast";
 import { formatDateTime } from "@/components/bandeja-correos/labels";
-import { Loader2, RefreshCw, Wand2 } from "lucide-react";
+import { RefreshCw, Wand2 } from "lucide-react";
 
 const HEALTH: Record<string, { label: string; cls: string }> = {
   ok: { label: "Leyendo bien", cls: "bg-emerald-100 text-emerald-800" },

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProductCategories, useUnits } from "@/hooks/services/maintenance/use-maintenance";
 import { saveServiceTemplate } from "@/lib/services/maintenance";
