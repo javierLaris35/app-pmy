@@ -27,6 +27,7 @@ import {
   updateOpsSubsidiary,
 } from "@/lib/services/ops-alerts";
 import { toast } from "@/lib/toast";
+import { SCHEDULE_FIELDS, ScheduleForm, scheduleFormErrors, toSchedulePatch } from "@/lib/daily-tasks-schedule";
 import { FlaskConical, Pencil, Play, Save } from "lucide-react";
 
 const errText = (e: unknown, f: string) => {
@@ -39,7 +40,8 @@ const STEP_COLS: { key: keyof OpsSubsidiaryConfig; label: string }[] = [
   { key: "stepUnloading", label: "Desembarque" },
   { key: "stepDispatch", label: "Salida a ruta" },
   { key: "stepClosure", label: "Cierre" },
-  { key: "stepInventory", label: "Inventario" },
+  { key: "stepInventoryInitial", label: "Inv. inicial" },
+  { key: "stepInventory", label: "Inv. final" },
 ];
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -203,7 +205,7 @@ export function OpsAlertsPanel() {
       <Panel>
         <PanelHeader>
           <PanelTitle>Por sucursal</PanelTitle>
-          <PanelDescription>Qué pasos aplican a cada sucursal, quién es su encargado y a qué WhatsApp llega el último aviso.</PanelDescription>
+          <PanelDescription>Qué pasos aplican a cada sucursal, sus horarios de tareas, quién es su encargado y a qué WhatsApp llega el último aviso.</PanelDescription>
         </PanelHeader>
         <PanelContent>
           <div className="rounded-md border">
@@ -263,7 +265,9 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
   const [selGroups, setSelGroups] = useState<{ id: string; name: string }[]>([]);
   const [q, setQ] = useState("");
   const [numError, setNumError] = useState<string | null>(null);
+  const [schedule, setSchedule] = useState<ScheduleForm>({});
   const [saving, setSaving] = useState(false);
+  const scheduleErrors = scheduleFormErrors(schedule);
 
   useEffect(() => {
     if (!row) return;
@@ -272,6 +276,7 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
     setSelGroups(row.whatsappGroups);
     setQ("");
     setNumError(null);
+    setSchedule(Object.fromEntries(SCHEDULE_FIELDS.map((f) => [f.key, row[f.key] == null ? "" : String(row[f.key])])) as ScheduleForm);
   }, [row]);
 
   const list = useMemo(() => {
@@ -289,10 +294,11 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
       setNumError("Cada número debe tener al menos 10 dígitos, con lada del país (por ejemplo 52 662 123 4567).");
       return;
     }
+    if (Object.keys(scheduleErrors).length) return;
     setSaving(true);
     try {
-      await updateOpsSubsidiary(row.subsidiaryId, { managerUserIds: managers, whatsappNumbers: nums, whatsappGroups: selGroups });
-      toast.success("Contactos guardados");
+      await updateOpsSubsidiary(row.subsidiaryId, { managerUserIds: managers, whatsappNumbers: nums, whatsappGroups: selGroups, ...(toSchedulePatch(schedule) as Partial<OpsSubsidiaryConfig>) });
+      toast.success("Configuración de la sucursal guardada");
       onSaved();
       onClose();
     } catch (e) {
@@ -304,10 +310,10 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Contactos de alertas · {row?.subsidiaryName}</DialogTitle>
-          <DialogDescription>El encargado recibe el segundo aviso (app y correo). El WhatsApp recibe el último aviso.</DialogDescription>
+          <DialogTitle>Alertas y horarios · {row?.subsidiaryName}</DialogTitle>
+          <DialogDescription>El encargado recibe el segundo aviso (app y correo). El WhatsApp recibe el último aviso. Los horarios marcan cuándo se atrasa cada tarea del día.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -366,12 +372,42 @@ function SubsidiaryContactsDialog({ row, onClose, onSaved }: { row: OpsSubsidiar
           </div>
         </div>
 
+        <div className="space-y-2 border-t pt-3">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-semibold">Horarios de tareas</Label>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="ml-auto h-7 text-xs"
+              onClick={() => setSchedule(Object.fromEntries(SCHEDULE_FIELDS.map((f) => [f.key, ""])) as ScheduleForm)}
+            >
+              Usar valores generales
+            </Button>
+          </div>
+          <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+            {SCHEDULE_FIELDS.map((f) => (
+              <Field key={f.key} label={f.label}>
+                <Input
+                  value={schedule[f.key] ?? ""}
+                  onChange={(e) => setSchedule((s) => ({ ...s, [f.key]: e.target.value }))}
+                  placeholder={`General: ${f.fallback}`}
+                  inputMode={f.kind === "minutes" ? "numeric" : "text"}
+                  className="h-9"
+                  aria-invalid={!!scheduleErrors[f.key]}
+                />
+                {scheduleErrors[f.key] && <span className="text-xs text-red-600">{scheduleErrors[f.key]}</span>}
+              </Field>
+            ))}
+          </div>
+        </div>
+
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
           <Button onClick={save} disabled={saving} className="gap-1.5">
-            {saving ? <PmySpinner className="h-4 w-4" /> : <Save className="h-4 w-4" />} Guardar contactos
+            {saving ? <PmySpinner className="h-4 w-4" /> : <Save className="h-4 w-4" />} Guardar
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -50,9 +50,20 @@ export default function PackageDispatchControl() {
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
   // Deep-link de correos: /operaciones/salidas-a-ruta?seguimiento=XXXX enfoca el registro.
-  const seguimientoParam = useSearchParams().get("seguimiento") ?? ""
+  const searchParams = useSearchParams()
+  const seguimientoParam = searchParams.get("seguimiento") ?? ""
   const [searchInput, setSearchInput] = useState(seguimientoParam)
   const [search, setSearch] = useState(seguimientoParam)
+
+  // Deep-link de Tareas del día: ?cerrar=<id de la salida> abre su cierre al llegar (una sola vez).
+  const cerrarParam = searchParams.get("cerrar") ?? ""
+  const [cerrarHandled, setCerrarHandled] = useState(false)
+  useEffect(() => {
+    if (!cerrarParam || cerrarHandled) return
+    setCerrarHandled(true)
+    setSelectedPackageDispatch(cerrarParam)
+    setIsRouteClouserDialogOpen(true)
+  }, [cerrarParam, cerrarHandled])
 
   // Debounce de la búsqueda por folio de salida (server-side).
   useEffect(() => {

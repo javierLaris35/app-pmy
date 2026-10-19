@@ -7,6 +7,7 @@ import { AppSidebar } from "./app-sidebar"
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "./ui/sidebar"
 import { NotificationBell } from "./notifications/notification-bell"
 import { ApprovalTray } from "./approvals/approval-tray"
+import { TasksTray } from "./tareas-del-dia/tasks-tray"
 import { PoAuthorizationTray } from "./maintenance/po-authorization-tray"
 import { NotificationPush } from "./notifications/notification-push"
 import { useAuthStore } from "@/store/auth.store"
@@ -45,6 +46,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/sucursales": "Sucursales",
   "/configuracion": "Configuración",
   "/auditoria": "Auditoría",
+  "/operaciones/tareas-del-dia": "Tareas del día",
   "/operaciones/cargas": "Cargas",
   "/operaciones/desembarques": "Desembarques",
   "/operaciones/devoluciones": "Devoluciones y Recolecciones",
@@ -297,6 +299,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <TooltipContent>Resumen del día · pendientes y sin escaneo</TooltipContent>
               </Tooltip>
 
+              <TasksTray />
               <ApprovalTray />
               <PoAuthorizationTray />
               <NotificationBell />
