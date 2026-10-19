@@ -2,10 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
-import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/ui/panel"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,42 +13,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Circle,
-  Eye,
-  Pencil,
-  Play,
-  RefreshCw,
-  Rocket,
-  RotateCcw,
-  X,
-  XCircle,
-} from "lucide-react"
+import { AlertTriangle, CheckCircle2, CircleCheckBig, Megaphone, Play, RefreshCw, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/toast"
-import {
-  getDeployLog,
-  getDeployPreview,
-  getDeployRuns,
-  getDeployStatus,
-  startDeploy,
-} from "@/lib/services/server-deploy"
+import { getDeployLog, getDeployPreview, getDeployRuns, getDeployStatus, startDeploy } from "@/lib/services/server-deploy"
 import type { Bump, DeployEvent, DeployPreview, DeployRun, ReleaseNote } from "@/lib/types/deploy"
-import { NOTE_KIND } from "@/components/release-notes/note-kind"
 import { WhatsNewDialog } from "@/components/release-notes/whats-new-dialog"
 import { DeployConsole, type ConsoleLine } from "./deploy-console"
 import { DeployNoteDialog } from "./deploy-note-dialog"
-
-const STEPS: { key: string; label: string }[] = [
-  { key: "fetch", label: "Traer main" },
-  { key: "deps", label: "Dependencias" },
-  { key: "migrate", label: "Migraciones" },
-  { key: "build", label: "Compilar" },
-  { key: "restart", label: "Reiniciar" },
-  { key: "verify", label: "Verificar" },
-]
+import { DeployNotes, isPublishable } from "./deploy-notes"
+import { DEPLOY_STEPS, DeployRoute, type RouteState } from "./deploy-route"
 
 const BUMPS: { key: Bump; label: string; hint: string }[] = [
   { key: "patch", label: "Menor", hint: "Correcciones y ajustes" },
@@ -64,7 +35,7 @@ const RECONNECT_GIVE_UP_MS = 3 * 60 * 1000
 
 const fmtClock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`
 const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+  new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true })
 
 function eventToLine(ev: DeployEvent): ConsoleLine | null {
   switch (ev.type) {
@@ -101,6 +72,8 @@ export function ServerDeployPanel() {
   const offsetRef = useRef(0)
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastOkRef = useRef(Date.now())
+  /** Solo la lectura más reciente sigue viva (evita lecturas duplicadas). */
+  const genRef = useRef(0)
 
   const loadPreview = useCallback(async () => {
     setLoadingPreview(true)
@@ -127,6 +100,7 @@ export function ServerDeployPanel() {
 
   const follow = useCallback((run: DeployRun) => {
     stopPolling()
+    const gen = ++genRef.current
     setActiveRun(run)
     setLines([])
     setStepKey(null)
@@ -134,19 +108,24 @@ export function ServerDeployPanel() {
     setReconnecting(false)
     offsetRef.current = 0
     lastOkRef.current = Date.now()
-    setElapsed(Math.max(0, Math.round((Date.now() - new Date(run.startedAt).getTime()) / 1000)))
+    // El reloj sale de la propia bitácora (elapsedMs del script): no depende de zonas horarias.
+    setElapsed(0)
     // Solo avisamos "Listo" si se estaba siguiendo en vivo (no al abrir una del historial).
     const live = run.status === "running"
 
     const tick = async () => {
+      if (gen !== genRef.current) return
       try {
         const chunk = await getDeployLog(run.id, offsetRef.current)
+        if (gen !== genRef.current) return
         lastOkRef.current = Date.now()
         setReconnecting(false)
         offsetRef.current = chunk.nextOffset
         if (chunk.events.length) {
           const newLines = chunk.events.map(eventToLine).filter(Boolean) as ConsoleLine[]
           setLines((l) => [...l, ...newLines].slice(-500))
+          const lastMs = Math.max(0, ...chunk.events.map((e) => ("elapsedMs" in e && e.elapsedMs ? e.elapsedMs : 0)))
+          if (lastMs) setElapsed((s) => Math.max(s, Math.round(lastMs / 1000)))
           for (const ev of chunk.events) {
             if (ev.type === "phase") setStepKey(ev.key)
             if (ev.type === "skip") setSkipped((s) => new Set(s).add(ev.key))
@@ -155,14 +134,17 @@ export function ServerDeployPanel() {
         setActiveRun(chunk.run)
         if (chunk.run.status !== "running" && chunk.events.length === 0) {
           stopPolling()
-          void loadRuns()
-          if (live && chunk.run.status === "success") {
-            toast.success(`Listo: el sistema ya está en la versión ${chunk.run.targetVersion}.`)
-            void loadPreview()
+          if (live) {
+            void loadRuns()
+            if (chunk.run.status === "success") {
+              toast.success(`Listo: el sistema ya está en la versión ${chunk.run.targetVersion}.`)
+              void loadPreview()
+            }
           }
           return
         }
       } catch {
+        if (gen !== genRef.current) return
         // Durante el reinicio la API no responde: seguimos intentando en silencio.
         setReconnecting(true)
         if (Date.now() - lastOkRef.current > RECONNECT_GIVE_UP_MS) {
@@ -182,7 +164,10 @@ export function ServerDeployPanel() {
     getDeployStatus()
       .then((s) => { if (s.running) follow(s.running) })
       .catch(() => undefined)
-    return stopPolling
+    return () => {
+      genRef.current++
+      stopPolling()
+    }
   }, [loadPreview, loadRuns, follow])
 
   const isRunning = activeRun?.status === "running"
@@ -192,20 +177,24 @@ export function ServerDeployPanel() {
     return () => clearInterval(id)
   }, [isRunning])
 
-  const counts = useMemo(() => {
-    if (!preview) return { commits: 0, systems: 0 }
-    const api = preview.api.commits.length
-    const web = preview.web?.commits.length ?? 0
-    return { commits: api + web, systems: (api > 0 ? 1 : 0) + (web > 0 ? 1 : 0) }
-  }, [preview])
-
+  const publishable = useMemo(() => notes.filter(isPublishable), [notes])
+  const newsCount = publishable.filter((n) => n.kind !== "correccion").length
+  const serverChanges = preview ? preview.api.pendingCount : 0
+  const onlyNews = !!preview && preview.serverUpToDate && !preview.upToDate
   const targetVersion = preview?.nextVersions[bump] ?? ""
+
+  const stepIndex = stepKey ? DEPLOY_STEPS.findIndex((s) => s.key === stepKey) : -1
+  const failedIndex = activeRun?.status === "failed" ? Math.max(0, DEPLOY_STEPS.findIndex((s) => s.key === activeRun.step)) : stepIndex
+  const routeState: RouteState = activeRun?.status === "running" ? "running"
+    : activeRun?.status === "failed" ? "failed"
+    : activeRun?.status === "success" ? "success"
+    : preview?.upToDate ? "uptodate" : "idle"
 
   const run = async () => {
     setConfirmOpen(false)
     setStarting(true)
     try {
-      const { runId } = await startDeploy(bump, notes)
+      const { runId } = await startDeploy(bump, publishable)
       const s = await getDeployStatus()
       follow(s.running ?? ({ id: runId, status: "running", startedAt: new Date().toISOString(), targetVersion } as DeployRun))
     } catch (e: any) {
@@ -215,214 +204,184 @@ export function ServerDeployPanel() {
     }
   }
 
-  const stepIndex = stepKey ? STEPS.findIndex((s) => s.key === stepKey) : -1
-  const percent = !activeRun ? 0
-    : activeRun.status === "success" ? 100
-    : Math.round((Math.max(0, stepIndex) / STEPS.length) * 100)
-
   const removeNote = (n: ReleaseNote) => {
     setNotes((ns) => ns.filter((x) => x.id !== n.id))
     setRemoved((r) => [...r, n])
   }
 
+  if (loadingPreview && !preview) return <PmyLoader size="sm" text="Revisando qué hay nuevo en main…" className="py-16" />
+  if (previewError && !preview) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <AlertTriangle className="h-4 w-4 shrink-0" /> {previewError}
+      </div>
+    )
+  }
+  if (!preview) return null
+
+  const blocked = !preview.canRun && !preview.upToDate && !isRunning && !preview.running
+
   return (
-    <Panel>
-      <PanelHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <PanelTitle className="flex items-center gap-2"><Rocket className="h-4 w-4" /> Actualizar el sistema</PanelTitle>
-            <PanelDescription>Trae lo último de main, corre migraciones, compila y reinicia.</PanelDescription>
-          </div>
-          {isRunning ? (
-            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">Actualizando</Badge>
-          ) : (
-            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">En línea</Badge>
-          )}
-        </div>
-      </PanelHeader>
-
-      <PanelContent className="space-y-5">
-        {loadingPreview && !preview ? (
-          <PmyLoader size="sm" text="Revisando qué hay nuevo en main…" className="py-10" />
-        ) : previewError && !preview ? (
-          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            <AlertTriangle className="h-4 w-4 shrink-0" /> {previewError}
-          </div>
-        ) : preview ? (
-          <>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Metric label="Versión actual" value={preview.currentVersion} />
-              <Metric
-                label="Cambios nuevos en main"
-                value={String(counts.commits)}
-                hint={counts.systems ? `· ${counts.systems} ${counts.systems === 1 ? "sistema" : "sistemas"}` : undefined}
-              />
-              <Metric label="Migraciones nuevas" value={String(preview.migrations.length)} />
-            </div>
-
-            {(preview.cannotRunReason || preview.noteErrors.length > 0 || preview.api.warnings.length > 0 || (preview.web?.warnings.length ?? 0) > 0) && (
-              <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                {[preview.cannotRunReason, ...preview.noteErrors, ...preview.api.warnings, ...(preview.web?.warnings ?? [])]
-                  .filter(Boolean)
-                  .map((m, i) => (
-                    <p key={i} className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {m}</p>
-                  ))}
-              </div>
+    <div className="space-y-4">
+      {/* ── Ruta de la actualización ── */}
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between">
+          <Headline
+            state={routeState}
+            preview={preview}
+            run={activeRun}
+            targetVersion={targetVersion}
+            stepLabel={stepIndex >= 0 ? DEPLOY_STEPS[stepIndex].label : null}
+            reconnecting={reconnecting}
+            elapsed={elapsed}
+            onlyNews={onlyNews}
+          />
+          <div className="flex shrink-0 flex-col items-stretch gap-2 md:items-end">
+            {preview.upToDate && !isRunning ? (
+              <Button variant="outline" className="gap-2" disabled={loadingPreview} onClick={() => void loadPreview()}>
+                {loadingPreview ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Revisar de nuevo
+              </Button>
+            ) : (
+              <>
+                <Button size="lg" className="gap-2" disabled={!preview.canRun || isRunning || starting} onClick={() => setConfirmOpen(true)}>
+                  {starting || isRunning ? <PmySpinner className="h-4 w-4" /> : onlyNews ? <Megaphone className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  {isRunning ? "Actualizando…" : onlyNews ? `Publicar novedades ${targetVersion}` : `Actualizar a ${targetVersion}`}
+                </Button>
+                <button type="button" className="inline-flex items-center justify-end gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50" disabled={loadingPreview || isRunning} onClick={() => void loadPreview()}>
+                  <RefreshCw className={cn("h-3 w-3", loadingPreview && "animate-spin")} /> Revisar de nuevo
+                </button>
+              </>
             )}
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Tipo de cambio</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {BUMPS.map((b) => (
+        <div className="border-t bg-muted/20 px-5 pb-4">
+          <DeployRoute state={routeState} stepIndex={routeState === "failed" ? failedIndex : stepIndex} skipped={skipped} />
+        </div>
+
+        {!preview.upToDate && (
+          <div className="grid grid-cols-3 divide-x border-t text-center">
+            <Fact value={serverChanges} label={serverChanges === 1 ? "cambio en el servidor" : "cambios en el servidor"} />
+            <Fact value={preview.migrations.length} label={preview.migrations.length === 1 ? "migración" : "migraciones"} />
+            <Fact value={newsCount} label={newsCount === 1 ? "novedad para usuarios" : "novedades para usuarios"} />
+          </div>
+        )}
+      </section>
+
+      {blocked && preview.cannotRunReason && (
+        <p className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" /> {preview.cannotRunReason}
+        </p>
+      )}
+      {[...preview.noteErrors, ...preview.api.warnings, ...(preview.web?.warnings ?? [])].map((m, i) => (
+        <p key={i} className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" /> {m}
+        </p>
+      ))}
+
+      {/* ── Consola en vivo ── */}
+      {activeRun && (
+        <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-2 text-xs">
+            <span className="flex items-center gap-2 text-zinc-300">
+              <span className={cn("h-2 w-2 rounded-full",
+                activeRun.status === "running" ? (reconnecting ? "bg-amber-400" : "bg-sky-400 motion-safe:animate-pulse")
+                : activeRun.status === "success" ? "bg-emerald-400" : "bg-red-400")} />
+              {activeRun.status === "running"
+                ? reconnecting ? "Reiniciando… esperando a que el sistema vuelva" : "En vivo"
+                : `${activeRun.fromVersion ?? ""} → ${activeRun.targetVersion}${activeRun.startedAt ? ` · ${fmtDate(activeRun.startedAt)}` : ""}`}
+            </span>
+            <span className="tabular-nums text-zinc-500">
+              {activeRun.status === "running" ? fmtClock(elapsed) : activeRun.durationMs ? fmtClock(Math.round(activeRun.durationMs / 1000)) : ""}
+            </span>
+          </div>
+          {lines.length > 0
+            ? <DeployConsole lines={lines} className="max-h-80 rounded-none border-0" />
+            : <p className="px-4 py-6 font-mono text-[11px] text-zinc-500">Esperando la primera línea…</p>}
+        </section>
+      )}
+
+      {/* ── Qué se va a publicar ── */}
+      {!preview.upToDate && (
+        <section className="grid gap-4 rounded-2xl border bg-card p-5 shadow-sm lg:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Tamaño del cambio</p>
+            <div className="space-y-1.5" role="radiogroup" aria-label="Tamaño del cambio">
+              {BUMPS.map((b) => {
+                const on = bump === b.key
+                return (
                   <button
                     key={b.key}
                     type="button"
+                    role="radio"
+                    aria-checked={on}
                     disabled={isRunning}
                     onClick={() => setBump(b.key)}
                     className={cn(
-                      "rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-60",
-                      bump === b.key ? "border-primary ring-1 ring-primary" : "hover:bg-muted/50",
+                      "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors disabled:opacity-60",
+                      on ? "border-primary bg-primary/5" : "hover:bg-muted/50",
                     )}
                   >
-                    <p className="text-sm font-medium">{b.label} → {preview.nextVersions[b.key]}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {b.hint}{preview.suggestedBump === b.key ? " · sugerido" : ""}
-                    </p>
+                    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-muted-foreground/30")}>
+                      {on && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">{b.label}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {b.hint}{preview.suggestedBump === b.key ? " · sugerido" : ""}
+                      </span>
+                    </span>
+                    <span className={cn("font-mono text-sm tabular-nums", on ? "font-semibold text-primary" : "text-muted-foreground")}>
+                      {preview.nextVersions[b.key]}
+                    </span>
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">Lo que verán los usuarios</p>
-                <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-primary" disabled={!notes.some((n) => n.kind !== "correccion")} onClick={() => setShowAsUser(true)}>
-                  <Eye className="h-4 w-4" /> Ver como usuario
-                </Button>
-              </div>
-              {notes.length === 0 ? (
-                <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                  No hay novedades pendientes. Los usuarios no verán ningún aviso.
-                </p>
-              ) : (
-                <div className="divide-y rounded-lg border">
-                  {notes.map((n) => {
-                    const k = NOTE_KIND[n.kind]
-                    return (
-                      <div key={n.id} className={cn("flex items-center gap-2 px-3 py-1.5 text-sm", n.fromCommit && "bg-amber-50")}>
-                        {n.fromCommit ? (
-                          <Badge variant="outline" className="shrink-0 border-amber-300 bg-white text-amber-700">Sin nota</Badge>
-                        ) : (
-                          <Badge variant="outline" className={cn("shrink-0", k.badge)}>{k.label}</Badge>
-                        )}
-                        <span className={cn("min-w-0 flex-1 truncate", n.fromCommit && "text-amber-800")}>{n.title}</span>
-                        {n.audience === "superadmin" && <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">Solo superadmin</span>}
-                        <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">{n.source === "web" ? "Pantallas" : "Servidor"}</span>
-                        {n.fromCommit ? (
-                          <>
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-amber-800" disabled={isRunning} onClick={() => setEditing(n)}>Redactar</Button>
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-amber-800" disabled={isRunning} onClick={() => removeNote(n)}>Quitar</Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isRunning} onClick={() => setEditing(n)} aria-label="Editar">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isRunning} onClick={() => removeNote(n)} aria-label="Quitar">
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-              {removed.length > 0 && (
-                <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => { setNotes((n) => [...n, ...removed]); setRemoved([]) }}>
-                  <RotateCcw className="h-3 w-3" /> Quitaste {removed.length}; regresarlas
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button className="gap-2" disabled={!preview.canRun || isRunning || starting} onClick={() => setConfirmOpen(true)}>
-                {starting ? <PmySpinner className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                Actualizar a {targetVersion}
-              </Button>
-              <Button variant="outline" className="gap-2" disabled={loadingPreview || isRunning} onClick={() => void loadPreview()}>
-                {loadingPreview ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
-                Revisar sin desplegar
-              </Button>
-            </div>
-          </>
-        ) : null}
-
-        {activeRun && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span className="truncate">
-                {activeRun.status === "running"
-                  ? reconnecting
-                    ? "Reiniciando… esperando a que el sistema vuelva"
-                    : stepIndex >= 0 ? `Paso ${stepIndex + 1} de ${STEPS.length} · ${STEPS[stepIndex].label}` : "Iniciando…"
-                  : `${activeRun.fromVersion ?? ""} → ${activeRun.targetVersion}`}
-              </span>
-              {isRunning && <span className="tabular-nums">{fmtClock(elapsed)}</span>}
-            </div>
-            <Progress
-              value={percent}
-              className={cn("h-2", activeRun.status === "success" ? "[&>div]:bg-emerald-500" : activeRun.status === "failed" ? "[&>div]:bg-red-500" : "[&>div]:bg-primary")}
-            />
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-              {STEPS.map((s, i) => {
-                const failedHere = activeRun.status === "failed" && activeRun.step === s.key
-                const done = activeRun.status === "success" || i < stepIndex || (i === stepIndex && activeRun.status !== "running" && !failedHere)
-                const current = i === stepIndex && activeRun.status === "running"
-                return (
-                  <span key={s.key} className={cn("inline-flex items-center gap-1",
-                    failedHere ? "text-red-600" : done ? "text-emerald-600" : current ? "text-primary" : "text-muted-foreground/60")}>
-                    {failedHere ? <XCircle className="h-3.5 w-3.5" /> : done ? <CheckCircle2 className="h-3.5 w-3.5" /> : current ? <PmySpinner className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
-                    {s.label}{skipped.has(s.key) ? " (sin cambios)" : ""}
-                  </span>
                 )
               })}
             </div>
-            {activeRun.status === "failed" && activeRun.error && (
-              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                <XCircle className="mt-0.5 h-4 w-4 shrink-0" /> {activeRun.error}
-              </div>
-            )}
-            <DeployConsole lines={lines} />
           </div>
-        )}
 
-        {runs.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">Historial</p>
-            <div className="divide-y rounded-lg border text-sm">
-              {runs.map((r) => (
+          <DeployNotes
+            notes={notes}
+            removed={removed}
+            disabled={isRunning}
+            onEdit={setEditing}
+            onRemove={removeNote}
+            onRestore={() => { setNotes((n) => [...n, ...removed]); setRemoved([]) }}
+            onPreview={() => setShowAsUser(true)}
+          />
+        </section>
+      )}
+
+      {/* ── Historial ── */}
+      {runs.length > 0 && (
+        <section className="rounded-2xl border bg-card p-5 shadow-sm">
+          <p className="mb-2 text-sm font-medium">Historial</p>
+          <ul className="divide-y">
+            {runs.map((r) => (
+              <li key={r.id}>
                 <button
-                  key={r.id}
                   type="button"
                   onClick={() => follow(r)}
-                  className={cn("flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-muted/40", activeRun?.id === r.id && "bg-muted/40")}
+                  className={cn("flex w-full items-center gap-3 px-1 py-2 text-left text-sm hover:bg-muted/40", activeRun?.id === r.id && "bg-muted/40")}
                 >
-                  <span className="truncate">{r.targetVersion} · {fmtDate(r.startedAt)}</span>
-                  <span className={cn("shrink-0 text-xs",
-                    r.status === "success" ? "text-emerald-600" : r.status === "failed" ? "text-red-600" : "text-primary")}>
+                  {r.status === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                    : r.status === "failed" ? <XCircle className="h-4 w-4 shrink-0 text-red-600" />
+                    : <PmySpinner className="h-4 w-4 shrink-0" />}
+                  <span className="w-16 shrink-0 font-mono font-medium tabular-nums">{r.targetVersion}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{fmtDate(r.startedAt)}</span>
+                  <span className={cn("shrink-0 text-xs", r.status === "failed" ? "text-red-600" : "text-muted-foreground")}>
                     {r.status === "success"
-                      ? `Correcto${r.durationMs ? ` · ${fmtClock(Math.round(r.durationMs / 1000))}` : ""}`
+                      ? r.durationMs ? `en ${fmtClock(Math.round(r.durationMs / 1000))}` : "Correcto"
                       : r.status === "failed"
-                        ? `Falló${r.step ? ` en ${STEPS.find((s) => s.key === r.step)?.label.toLowerCase() ?? r.step}` : ""} · ver consola`
+                        ? `Falló en ${DEPLOY_STEPS.find((s) => s.key === r.step)?.label.toLowerCase() ?? "un paso"}`
                         : "En curso"}
                   </span>
                 </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </PanelContent>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <DeployNoteDialog
         note={editing}
@@ -433,35 +392,95 @@ export function ServerDeployPanel() {
       <WhatsNewDialog
         open={showAsUser}
         onClose={() => setShowAsUser(false)}
-        releases={[{ version: targetVersion, publishedAt: new Date().toISOString(), notes: notes.filter((n) => n.audience !== "superadmin") }]}
+        releases={[{ version: targetVersion, publishedAt: new Date().toISOString(), notes: publishable.filter((n) => n.audience !== "superadmin") }]}
       />
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Actualizar a la versión {targetVersion}?</AlertDialogTitle>
+            <AlertDialogTitle>{onlyNews ? `¿Publicar las novedades como ${targetVersion}?` : `¿Actualizar a la versión ${targetVersion}?`}</AlertDialogTitle>
             <AlertDialogDescription>
-              Se traerá main, se correrán {preview?.migrations.length ?? 0} migraciones y se reiniciará el sistema
-              unos segundos. Los usuarios verán {notes.filter((n) => n.kind !== "correccion").length} novedades la próxima vez que entren.
+              {onlyNews
+                ? "El servidor no cambia: solo se sube la versión y se publica el aviso."
+                : `Se traerán ${serverChanges} cambios, se correrán ${preview.migrations.length} migraciones y el sistema se reiniciará unos segundos.`}
+              {" "}
+              {newsCount > 0
+                ? `Los usuarios verán ${newsCount} ${newsCount === 1 ? "novedad" : "novedades"} la próxima vez que entren.`
+                : "Los usuarios no verán ningún aviso."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void run()}>Actualizar</AlertDialogAction>
+            <AlertDialogAction onClick={() => void run()}>{onlyNews ? "Publicar" : "Actualizar"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Panel>
+    </div>
   )
 }
 
-function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Fact({ value, label }: { value: number; label: string }) {
   return (
-    <div className="rounded-xl bg-muted/50 p-3">
+    <div className="px-3 py-3">
+      <p className="text-lg font-semibold tabular-nums">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-xl font-semibold tabular-nums">
-        {value} {hint && <span className="text-xs font-normal text-muted-foreground">{hint}</span>}
-      </p>
+    </div>
+  )
+}
+
+function Headline(props: {
+  state: RouteState
+  preview: DeployPreview
+  run: DeployRun | null
+  targetVersion: string
+  stepLabel: string | null
+  reconnecting: boolean
+  elapsed: number
+  onlyNews: boolean
+}) {
+  const { state, preview, run, targetVersion, stepLabel, reconnecting, elapsed, onlyNews } = props
+  const from = run?.fromVersion ?? preview.currentVersion
+  const to = run?.targetVersion ?? targetVersion
+
+  if (state === "uptodate") {
+    return (
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200">
+          <CircleCheckBig className="h-6 w-6" />
+        </span>
+        <div>
+          <h3 className="text-xl font-semibold tracking-tight">Todo está al día</h3>
+          <p className="text-sm text-muted-foreground">
+            El servidor tiene lo último de main y no hay novedades pendientes. Versión en línea: <span className="font-mono font-medium text-foreground">{preview.currentVersion}</span>
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const title =
+    state === "running" ? (reconnecting ? "Reiniciando el sistema…" : `Actualizando · ${stepLabel ?? "iniciando"}`)
+    : state === "success" ? "Actualización terminada"
+    : state === "failed" ? "La actualización se detuvo"
+    : onlyNews ? "Hay novedades por publicar" : "Hay una actualización lista"
+
+  const subtitle =
+    state === "running" ? `Lleva ${fmtClock(elapsed)}. Los usuarios pueden seguir trabajando.`
+    : state === "success" ? "El sistema ya está en la versión nueva."
+    : state === "failed" ? run?.error ?? "Revisa la consola para ver qué pasó."
+    : onlyNews ? "El servidor ya está al día; solo se publicará el aviso para los usuarios."
+    : "Revisa lo que verán los usuarios y elige el tamaño del cambio."
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-baseline gap-3 font-mono tabular-nums">
+        <span className="text-2xl text-muted-foreground">{from}</span>
+        <span className="text-muted-foreground/60" aria-hidden>›</span>
+        <span className={cn("text-4xl font-semibold tracking-tight",
+          state === "failed" ? "text-red-600" : state === "success" ? "text-emerald-600" : "text-primary")}>{to}</span>
+      </div>
+      <h3 className="mt-1 text-base font-semibold">{title}</h3>
+      <p className={cn("text-sm", state === "failed" ? "text-red-700" : "text-muted-foreground")}>{subtitle}</p>
     </div>
   )
 }

@@ -26,6 +26,8 @@ export interface RepoDiff {
   dirty: boolean
   headCommit: string
   targetCommit: string | null
+  /** Commits que main tiene y el servidor todavía no. */
+  pendingCount: number
   commits: RepoCommit[]
   warnings: string[]
 }
@@ -39,6 +41,10 @@ export interface DeployPreview {
   migrations: string[]
   suggestedBump: Bump
   nextVersions: Record<Bump, string>
+  /** El servidor ya tiene todo lo de main. */
+  serverUpToDate: boolean
+  /** Nada que hacer: servidor al día, sin cambios de pantallas ni novedades. */
+  upToDate: boolean
   canRun: boolean
   cannotRunReason: string | null
   running: boolean

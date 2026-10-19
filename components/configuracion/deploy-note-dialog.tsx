@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { NoteKind, ReleaseNote } from "@/lib/types/deploy"
 import { NOTE_KIND } from "@/components/release-notes/note-kind"
+import { noteTechnicalTerms } from "@/lib/plain-language"
+import { AlertTriangle } from "lucide-react"
 
 interface Props {
   note: ReleaseNote | null
@@ -110,6 +112,16 @@ export function DeployNoteDialog({ note, onClose, onSave }: Props) {
             <Textarea id="note-steps" rows={3} placeholder={"Abre la devolución.\nElige el registro.\nConfirma."} value={steps} onChange={(e) => setSteps(e.target.value)} />
           </div>
         </div>
+
+        {(() => {
+          const terms = noteTechnicalTerms({ ...draft, steps: steps.split("\n") })
+          return terms.length > 0 ? (
+            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Cambia estas palabras técnicas para que los usuarios la vean: {terms.join(", ")}
+            </p>
+          ) : null
+        })()}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
