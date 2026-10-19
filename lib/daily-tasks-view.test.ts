@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayLabel, dayPct, hermosilloTime, routesSummary, sortConsolidated, stepLabel, stepLink, stepVisual, weekDays } from "./daily-tasks-view";
+import { closureLink, dayLabel, dayPct, hermosilloTime, routesSummary, sortConsolidated, stepLabel, stepLink, stepVisual, weekDays } from "./daily-tasks-view";
 
 describe("stepVisual", () => {
   it("listo se tacha en verde; tarde en rojo; a medias en ámbar; pendiente gris", () => {
@@ -59,5 +59,11 @@ describe("routesSummary", () => {
     expect(routesSummary([{ closed: true }, { closed: true }])).toBe("2 salieron · todas cerradas");
     expect(routesSummary([{ closed: false }])).toBe("1 salió · 1 sin cerrar");
     expect(routesSummary([])).toBe("No ha salido ninguna ruta");
+  });
+});
+
+describe("closureLink", () => {
+  it("lleva a Salidas a ruta enfocando la salida y pidiendo abrir su cierre", () => {
+    expect(closureLink({ id: "d-1", trackingNumber: "068422797359" })).toBe("/operaciones/salidas-a-ruta?seguimiento=068422797359&cerrar=d-1");
   });
 });

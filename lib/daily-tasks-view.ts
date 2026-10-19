@@ -77,3 +77,7 @@ export function routesSummary(routes: { closed: boolean }[]): string {
 
 /** Hoy (YYYY-MM-DD) en Hermosillo. */
 export const hermosilloToday = () => new Date(Date.now() - 7 * 3_600_000).toISOString().slice(0, 10);
+
+/** Liga a Salidas a ruta que enfoca la salida y abre su cierre (`cerrar`). */
+export const closureLink = (r: { id: string; trackingNumber: string }) =>
+  `/operaciones/salidas-a-ruta?seguimiento=${encodeURIComponent(r.trackingNumber)}&cerrar=${encodeURIComponent(r.id)}`;

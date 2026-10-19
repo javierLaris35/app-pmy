@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
-import { AlertTriangle, ClipboardCheck, ClipboardList, ListChecks, Loader2, RefreshCw, Truck, Undo2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ClipboardCheck, ClipboardList, ListChecks, Loader2, Lock, RefreshCw, Truck, Undo2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { SucursalSelector } from "@/components/sucursal-selector";
@@ -14,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { useAuthStore } from "@/store/auth.store";
 import { getWeekRange, WeekRange } from "@/lib/week";
-import { dayLabel, dayPct, hermosilloTime, hermosilloToday, routesSummary, sortConsolidated, stepLabel, weekDays } from "@/lib/daily-tasks-view";
+import { closureLink, dayLabel, dayPct, hermosilloTime, hermosilloToday, routesSummary, sortConsolidated, stepLabel, weekDays } from "@/lib/daily-tasks-view";
 import { DayTasks, getDayTasks, getWeekTasks, refreshDayTasks, TaskRow, WeekTasks } from "@/lib/services/daily-tasks";
 import { ConsolidatedRow, GuideList, PILL } from "./consolidated-row";
 
@@ -117,23 +118,29 @@ function SubsidiaryPanel({ data }: { data: DayTasks }) {
         <InventoryCard task={t("inventory_final")} icon={ClipboardList} title="Inventario final de día" />
       </div>
       {open.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-red-200">
-          <p className="flex items-center gap-1.5 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700">
+        <Collapsible className="overflow-hidden rounded-lg border border-red-200">
+          <CollapsibleTrigger className="group flex w-full items-center gap-1.5 bg-red-50 px-3 py-1.5 text-left text-xs font-medium text-red-700 hover:bg-red-100/70">
             <Truck className="h-3.5 w-3.5" /> {open.length === 1 ? "1 ruta sin cerrar" : `${open.length} rutas sin cerrar`}
-          </p>
-          <ul className="divide-y">
-            {open.map((r) => (
-              <li key={r.id}>
-                <Link href="/operaciones/salidas-a-ruta" className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 text-sm hover:bg-muted/50">
+            <span className="ml-auto font-normal">Ver rutas</span>
+            <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="divide-y">
+              {open.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 text-sm">
                   <span className="font-mono text-xs">{r.trackingNumber}</span>
                   <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.drivers || "Sin chofer asignado"}</span>
                   <span className="text-xs text-muted-foreground">{r.guides} guías</span>
-                  <span className={cn("rounded-full px-2 py-0.5 text-xs", PILL.danger)}>Sin cerrar</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+                  <Button asChild size="sm" variant="outline" className="h-7 gap-1 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800">
+                    <Link href={closureLink(r)}>
+                      <Lock className="h-3.5 w-3.5" /> Cerrar ruta
+                    </Link>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
       )}
       {data.devolutions.length > 0 && (
         <div className="rounded-md bg-muted/40 px-2.5 py-2">
