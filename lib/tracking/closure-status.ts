@@ -21,6 +21,7 @@ export const NOT_DELIVERED_CLOSURE_STATUSES = [
   'direccion_incorrecta',
   'cliente_no_disponible',
   'cambio_fecha_solicitado',
+  'empresa_cerrada', // STAT42: FedEx no pudo entregar porque el negocio estaba cerrado
   'devuelto_a_fedex',
 ] as const;
 

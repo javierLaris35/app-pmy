@@ -1,0 +1,12 @@
+{
+  "kind": "correccion",
+  "title": "Empresa cerrada cuenta como No entregado en el cierre",
+  "summary": "Los paquetes que FedEx reporta como \"Empresa cerrada\" ya no se quedan en Otros estatus al cerrar la ruta: pasan a No entregados y en el PDF aparecen con el motivo STAT42.",
+  "where": "Operaciones → Salidas a ruta → Cerrar ruta",
+  "route": "/operaciones/salidas-a-ruta",
+  "steps": [
+    "Abre el cierre de la ruta.",
+    "Los paquetes con Empresa cerrada aparecen en No entregados junto con los demás DEX."
+  ],
+  "audience": "todos"
+}
