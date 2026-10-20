@@ -34,6 +34,9 @@ export const CAUSE_LABEL: Record<Cause, string> = {
   REGLA_NO_COBRA: "Por regla no cobra",
   F2_INFORMATIVO: "Carga F2",
   ENTREGADO_OTRO_DIA: "Se entregó otro día",
+  NOVAN_SIN_COBRO: "No VAN sin cobro",
+  NOVAN_31_5: "No VAN de ruta 31.5",
+  DOBLE_PAQUETE_CARGA: "Paquete y carga a la vez",
 };
 
 /** Causas que son errores del sistema (las que pueden ir al prompt). */
@@ -49,6 +52,8 @@ export const SYSTEM_CAUSES: Cause[] = [
   "INGRESO_OTRO_DIA",
   "DUPLICADO",
   "MONTO_INCORRECTO",
+  "NOVAN_SIN_COBRO",
+  "DOBLE_PAQUETE_CARGA",
 ];
 
 export function outcomeLabel(o: DayOutcome): string {

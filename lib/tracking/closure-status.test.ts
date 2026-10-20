@@ -44,6 +44,7 @@ describe('classifyClosureBucket', () => {
     expect(classifyClosureBucket('no_entregado')).toBe('not_delivered');
     expect(classifyClosureBucket('rechazado')).toBe('not_delivered');
     expect(classifyClosureBucket('devuelto_a_fedex')).toBe('not_delivered');
+    expect(classifyClosureBucket('empresa_cerrada')).toBe('not_delivered');
   });
 
   // Regla del bug SUP-0008: los ocurres (y entregas en bodega) son terminales y NO

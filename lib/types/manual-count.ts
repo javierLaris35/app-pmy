@@ -29,7 +29,10 @@ export type Cause =
   | 'ERROR_CONTEO'
   | 'REGLA_NO_COBRA'
   | 'F2_INFORMATIVO'
-  | 'ENTREGADO_OTRO_DIA';
+  | 'ENTREGADO_OTRO_DIA'
+  | 'NOVAN_SIN_COBRO'
+  | 'NOVAN_31_5'
+  | 'DOBLE_PAQUETE_CARGA';
 
 export interface ChainStep {
   step: number;
@@ -61,6 +64,10 @@ export interface DiagnosisRow {
   shipmentId: string | null;
   /** Día diagnosticado (en la revisión por semana una guía puede salir en varios días). */
   day?: string;
+  /** Dónde vive la guía en el sistema: paquete, carga, No VAN o en ningún lado. */
+  source: 'shipment' | 'charge' | 'novan' | null;
+  /** "Dónde está en el sistema", en llano (p. ej. "Paquete 305823283233 + Carga 305823555448"). */
+  where: string;
 }
 
 /** Revisión por día (un día) o por semana (lunes–domingo, el conteo de toda la semana junto). */
@@ -81,6 +88,8 @@ export interface ManualCountReport {
   from?: string; // por semana: lunes
   to?: string; // por semana: domingo
   fedexFailures: number;
+  /** Costo del paquete FedEx de la sucursal (para generar un cobro desde la pantalla). */
+  expectedCost?: number;
   totals: ManualCountTotals;
   rows: DiagnosisRow[];
   /** Solo si se pegaron recolecciones. */
@@ -93,6 +102,14 @@ export interface ManualLists {
   dex08: string[];
   /** Recolecciones contadas a mano (opcional: vacío = no se revisan). */
   recolecciones?: string[];
+  /** Contra qué más se compara (si falta, todo prendido). */
+  sources?: ManualCountSources;
+}
+
+export interface ManualCountSources {
+  charges: boolean;
+  collections: boolean;
+  novan: boolean;
 }
 
 // ───────────────────────── Recolecciones ─────────────────────────
@@ -128,4 +145,11 @@ export interface CollectionRow {
 export interface CollectionReport {
   totals: { manual: number; fedex: number; charged: number; byVerdict: Record<Verdict, number> };
   rows: CollectionRow[];
+}
+
+/** Conteo manual de toda una zona: un reporte por sucursal + las guías que no están en ninguna. */
+export interface ZoneManualCountReport {
+  zoneId: string;
+  reports: ManualCountReport[];
+  unlocated: DiagnosisRow[];
 }

@@ -1,122 +1,112 @@
 "use client";
 
-import { PmySpinner, PmyLoader } from "@/components/ui/pmy-loader";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useSWRConfig } from "swr";
+import { AlertTriangle, CalendarCheck2, ChevronDown, PlusCircle, Search, SlidersHorizontal } from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
-import { SucursalSelector } from "@/components/sucursal-selector";
-import { DataTable } from "@/components/data-table/data-table";
 import { withAuth } from "@/hoc/withAuth";
-import { useConsolidadorWeek } from "@/hooks/services/consolidador/use-consolidador";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/consolidador/underline-tabs";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-toolbar";
-import { ConsolidadorKpis } from "@/components/consolidador/consolidador-kpis";
-import { RowActions } from "@/components/consolidador/row-actions";
 import { AddIncomeDialog } from "@/components/consolidador/add-income-dialog";
-import { SearchPackageView } from "@/components/consolidador/search-package-view";
-import { GroupsView } from "@/components/consolidador/groups-view";
-import { HistoryDialog } from "@/components/consolidador/history-dialog";
 import { AnomaliesDialog } from "@/components/consolidador/anomalies-dialog";
-import { CobrosAuditPanel } from "@/components/consolidador/cobros-audit-panel";
 import { ManualCountPanel } from "@/components/consolidador/manual-count-panel";
 import { DateRealignDialog } from "@/components/consolidador/date-realign-dialog";
+import { ScopeSwitcher } from "@/components/consolidador/scope-switcher";
+import { SubsidiaryPills } from "@/components/consolidador/subsidiary-pills";
+import { SearchSheet } from "@/components/consolidador/search-sheet";
+import { SummaryView } from "@/components/consolidador/summary-view";
+import { AuditTab } from "@/components/consolidador/audit-tab";
+import { DetailTab } from "@/components/consolidador/detail-tab";
+import { useScopedView } from "@/hooks/services/consolidador/use-scoped-view";
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { useAuthStore } from "@/store/auth.store";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { getConsolidadorColumns, SOURCE_FILTER_OPTIONS } from "./columns";
-import { patchIncomeCost, patchSecondAbord, createManualIncome, deleteIncome, editIncomeDate } from "@/lib/services/consolidador";
+import { hasPermission } from "@/lib/access/permissions";
+import { createManualIncome } from "@/lib/services/consolidador";
+import { EMPTY_SCOPE, loadScope, saveScope, scopeReady, type ConsolidadorScope } from "@/lib/consolidador/scope";
+import { errorText, focusParts, sumParts } from "@/lib/consolidador/zone-merge";
 import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/week";
-import { Subsidiary } from "@/lib/types";
-import { ConsolidadorRow, ManualKind } from "@/lib/types/consolidador";
+import type { ManualKind } from "@/lib/types/consolidador";
+import type { ScopeSubsidiary, SubsidiarySummary } from "@/lib/types/consolidador-zone";
 import { toast } from "@/lib/toast";
-import { SlidersHorizontal, PlusCircle, History, AlertTriangle, CalendarCheck2 } from "lucide-react";
 
-type TabKey = "por-ruta" | "por-consolidado" | "ingresos" | "buscar" | "auditoria" | "conteo";
+type TabKey = "resumen" | "conteo" | "auditoria" | "detalle";
+
+const isConsolidadorKey = (key: unknown) =>
+  typeof key === "string" ? key.startsWith("/consolidador") : Array.isArray(key) && String(key[0] ?? "").startsWith("/consolidador");
 
 function ConsolidadorPage() {
-  const [subsidiaryId, setSubsidiaryId] = useState<string>("");
+  const [scope, setScopeState] = useState<ConsolidadorScope>(EMPTY_SCOPE);
   const [week, setWeek] = useState(() => getWeekRange());
-  const [consNumber, setConsNumber] = useState("");
-  const [routeId, setRouteId] = useState("");
+  const [tab, setTab] = useState<TabKey>("resumen");
   const [addOpen, setAddOpen] = useState(false);
   const [addDefaultTracking, setAddDefaultTracking] = useState<string | undefined>(undefined);
-  const [historyId, setHistoryId] = useState<string | null>(null);
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
   const [realignOpen, setRealignOpen] = useState(false);
-  const [tab, setTab] = useState<TabKey>("por-ruta");
-  // "Conteo manual vs sistema" es solo para superadmin (expone detalle interno y prompt).
-  const role = String(useAuthStore((s) => s.user)?.role ?? "").toLowerCase();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const user = useAuthStore((s) => s.user);
+  const role = String(user?.role ?? "").toLowerCase();
   const isGlobal = ["superadmin", "superamin", "owner"].includes(role);
+  const canCount = hasPermission(user as any, "finanzas.consolidador.conteoManual");
+  const { subsidiaries } = useSubsidiaries();
+  const { mutate: globalMutate } = useSWRConfig();
 
-  // Consulta filtrada (server: consolidado/ruta) → tabla plana + KPIs.
-  const { data, isLoading, mutate } = useConsolidadorWeek(subsidiaryId, week.from, week.to, { consNumber, routeId });
-  // Consulta base sin filtros → opciones de los popovers (SWR deduplica si no hay filtros).
-  const { data: base } = useConsolidadorWeek(subsidiaryId, week.from, week.to, {});
+  // El alcance se recuerda por navegador (se lee al montar para no chocar con el render del servidor).
+  useEffect(() => setScopeState(loadScope()), []);
+  const setScope = useCallback((s: ConsolidadorScope) => {
+    setScopeState(s);
+    saveScope(s);
+  }, []);
 
-  const handleEditCost = useCallback(
-    async (id: string, cost: number, reason: string) => {
-      try {
-        await patchIncomeCost(id, cost, reason);
-        await mutate();
-        toast.success("Costo actualizado");
-      } catch {
-        toast.error("No se pudo actualizar el costo");
+  const ready = scopeReady(scope);
+  const summary = useScopedView<SubsidiarySummary>(scope, week.from, week.to, "summary", ready, (subsidiaries ?? []).find((s: any) => s.id === scope.subsidiaryId)?.name ?? "");
+  const focus = scope.mode === "zone" ? scope.focusSubsidiaryId : null;
+  const shown = focusParts(summary.parts, focus);
+  // Sucursal concreta para las acciones que trabajan sobre una sola (agregar ingreso, anomalías, corregir fechas).
+  const actionSubId = scope.mode === "subsidiary" ? scope.subsidiaryId : focus ?? "";
+  const actionSubName = (subsidiaries ?? []).find((s: any) => s.id === actionSubId)?.name;
+  const needsSub = !actionSubId ? "Elige una sucursal en las pastillas de abajo" : undefined;
+
+  const detailSubs = useMemo<ScopeSubsidiary[]>(() => {
+    if (scope.mode === "subsidiary") return scope.subsidiaryId ? [{ id: scope.subsidiaryId, name: actionSubName ?? "" }] : [];
+    return shown.map((p) => ({ id: p.subsidiaryId, name: p.subsidiaryName }));
+  }, [scope.mode, scope.subsidiaryId, actionSubName, shown]);
+
+  const refreshAll = useCallback(() => void globalMutate(isConsolidadorKey), [globalMutate]);
+
+  // Ctrl K abre el buscador de guías.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
       }
-    },
-    [mutate],
-  );
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
-  const handleToggleSecondAbord = useCallback(
-    async (id: string, enabled: boolean, reason: string) => {
-      try {
-        await patchSecondAbord(id, enabled, reason);
-        await mutate();
-        toast.success(enabled ? "2º a bordo agregado" : "2º a bordo quitado");
-      } catch {
-        toast.error("No se pudo ajustar el 2º a bordo");
-      }
-    },
-    [mutate],
-  );
+  useEffect(() => {
+    if (tab === "conteo" && !canCount) setTab("resumen");
+  }, [tab, canCount]);
 
   const handleAddIncome = useCallback(
     async (payload: { kind: ManualKind; trackingNumber?: string; cost: number; date: string; reason: string }) => {
       try {
-        await createManualIncome({ subsidiaryId, ...payload });
-        await mutate();
+        await createManualIncome({ subsidiaryId: actionSubId, ...payload });
+        refreshAll();
         toast.success("Ingreso agregado");
       } catch (e: any) {
         if (e?.response?.status === 409) toast.error("Ya existe un ingreso equivalente ese día para esa guía");
-        else toast.error("No se pudo agregar el ingreso");
+        else toast.error(errorText(e, "No se pudo agregar el ingreso"));
         throw e; // el dialog no cierra si falló
       }
     },
-    [subsidiaryId, mutate],
-  );
-
-  const handleEditDate = useCallback(
-    async (id: string, date: string, reason: string) => {
-      try {
-        await editIncomeDate(id, date, reason);
-        await mutate();
-        toast.success("Fecha actualizada");
-      } catch {
-        toast.error("No se pudo actualizar la fecha");
-      }
-    },
-    [mutate],
-  );
-
-  const handleDelete = useCallback(
-    async (id: string, reason: string) => {
-      try {
-        await deleteIncome(id, reason);
-        await mutate();
-        toast.success("Ingreso eliminado");
-      } catch {
-        toast.error("No se pudo eliminar el ingreso");
-      }
-    },
-    [mutate],
+    [actionSubId, refreshAll],
   );
 
   const openAddForTracking = useCallback((tracking: string) => {
@@ -124,181 +114,128 @@ function ConsolidadorPage() {
     setAddOpen(true);
   }, []);
 
-  const renderActions = useCallback(
-    (row: ConsolidadorRow) => (
-      <div className="flex items-center justify-end gap-1">
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="Historial" onClick={() => setHistoryId(row.id)}>
-          <History className="h-4 w-4 text-slate-500" />
-        </Button>
-        <RowActions
-          row={row}
-          onEditCost={handleEditCost}
-          onToggleSecondAbord={handleToggleSecondAbord}
-          onEditDate={handleEditDate}
-          onDelete={handleDelete}
-        />
-      </div>
-    ),
-    [handleEditCost, handleToggleSecondAbord, handleEditDate, handleDelete],
-  );
-
-  const columns = useMemo(() => getConsolidadorColumns({ renderActions }), [renderActions]);
-
-  const consOptions = useMemo(() => {
-    const set = new Set<string>();
-    base?.rows.forEach((r) => r.consNumber && set.add(r.consNumber));
-    return [...set].sort();
-  }, [base]);
-
-  const routeOptions = useMemo(() => {
-    const set = new Set<string>();
-    base?.rows.forEach((r) => r.routeId && set.add(r.routeId));
-    return [...set].map((id) => ({ id, label: `Ruta …${id.slice(-6)}` }));
-  }, [base]);
-
-  const statusOptions = useMemo(() => {
-    const set = new Set<string>();
-    data?.rows.forEach((r) => r.shipmentStatus && set.add(r.shipmentStatus));
-    return [...set].sort().map((v) => ({ label: v.replace(/_/g, " "), value: v }));
-  }, [data]);
-
-  const tableFilters = useMemo(
-    () => [
-      { columnId: "sourceType", title: "Tipo de ingreso", options: SOURCE_FILTER_OPTIONS },
-      { columnId: "shipmentStatus", title: "Estatus", options: statusOptions },
-    ],
-    [statusOptions],
-  );
+  const zoneError = summary.error ? errorText(summary.error, "No se pudo cargar la zona") : null;
 
   return (
     <AppLayout>
-      <div className="relative flex min-h-screen flex-col gap-4 p-4 md:p-5">
-        {isLoading && tab === "ingresos" && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
-            <div className="rounded-xl border border-slate-100 bg-white px-8 py-2 shadow-lg">
-              <PmyLoader size="sm" text="Cargando consolidado…" className="py-4" />
-            </div>
-          </div>
-        )}
-
+      <div className="relative flex flex-col gap-3">
         <OperationHeader
           icon={SlidersHorizontal}
           title="Consolidador de Finanzas"
-          description="Concilia ingresos por sucursal y semana"
+          description="Revisa cobros por zona o por sucursal, semana lunes a domingo"
           actions={
             <div className="flex items-center gap-2">
-              <div className="w-56">
-                <SucursalSelector
-                  value={subsidiaryId}
-                  onValueChange={(val) => {
-                    const id = typeof val === "string" ? val : (val as Subsidiary).id;
-                    setSubsidiaryId(id ?? "");
-                  }}
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAnomaliesOpen(true)}
-                disabled={!subsidiaryId}
-                className="gap-2 border-amber-300 bg-white text-amber-700 hover:bg-amber-50"
-              >
-                <AlertTriangle className="h-4 w-4" /> Anomalías
+              <ScopeSwitcher scope={scope} onChange={setScope} />
+              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 text-slate-600" onClick={() => setSearchOpen(true)} title="Buscar guía (Ctrl K)" aria-label="Buscar guía">
+                <Search className="h-4 w-4" />
               </Button>
-              {isGlobal && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRealignOpen(true)}
-                  disabled={!subsidiaryId}
-                  className="gap-2 border-sky-300 bg-white text-sky-700 hover:bg-sky-50"
-                  title="Pasa al día real de entrega FedEx los ingresos que el cierre dejó en el día de la ruta"
-                >
-                  <CalendarCheck2 className="h-4 w-4" /> Corregir fechas
-                </Button>
-              )}
-              <Button onClick={() => { setAddDefaultTracking(undefined); setAddOpen(true); }} disabled={!subsidiaryId} size="sm" className="gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    Más acciones <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled={!actionSubId} onSelect={() => setAnomaliesOpen(true)} title={needsSub}>
+                    <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" /> Anomalías{actionSubName ? ` · ${actionSubName}` : ""}
+                  </DropdownMenuItem>
+                  {isGlobal && (
+                    <DropdownMenuItem disabled={!actionSubId} onSelect={() => setRealignOpen(true)} title={needsSub}>
+                      <CalendarCheck2 className="mr-2 h-4 w-4 text-sky-600" /> Corregir fechas{actionSubName ? ` · ${actionSubName}` : ""}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                onClick={() => {
+                  setAddDefaultTracking(undefined);
+                  setAddOpen(true);
+                }}
+                disabled={!actionSubId}
+                title={needsSub}
+                size="sm"
+                className="gap-2"
+              >
                 <PlusCircle className="h-4 w-4" /> Agregar ingreso
               </Button>
             </div>
           }
         />
 
-        <ConsolidadorToolbar
-          weekLabel={formatWeekLabel(week)}
-          isCurrentWeek={isCurrentWeek(week)}
-          onPrevWeek={() => setWeek((w) => shiftWeek(w, -1))}
-          onNextWeek={() => setWeek((w) => shiftWeek(w, 1))}
-          consNumber={consNumber}
-          routeId={routeId}
-          onConsChange={setConsNumber}
-          onRouteChange={setRouteId}
-          consOptions={consOptions}
-          routeOptions={routeOptions}
-        />
-
-        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-          <TabsList>
-            <TabsTrigger value="por-ruta">Por ruta</TabsTrigger>
-            <TabsTrigger value="por-consolidado">Por consolidado</TabsTrigger>
-            <TabsTrigger value="ingresos">Ingresos</TabsTrigger>
-            <TabsTrigger value="buscar">Buscar paquete</TabsTrigger>
-            <TabsTrigger value="auditoria">Auditoría de cobros</TabsTrigger>
-            {isGlobal && <TabsTrigger value="conteo">Conteo manual</TabsTrigger>}
-          </TabsList>
-
-          <TabsContent value="por-ruta" className="mt-4">
-            <GroupsView mode="route" subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "por-ruta"} onFixed={() => mutate()} />
-          </TabsContent>
-
-          <TabsContent value="por-consolidado" className="mt-4">
-            <GroupsView mode="consolidado" subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "por-consolidado"} onFixed={() => mutate()} />
-          </TabsContent>
-
-          <TabsContent value="ingresos" className="mt-4 flex flex-col gap-4">
-            <ConsolidadorKpis buckets={data?.buckets} />
-            {!subsidiaryId ? (
-              <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">
-                Selecciona una sucursal para comenzar
-              </div>
-            ) : (
-              <DataTable columns={columns} data={data?.rows ?? []} filters={tableFilters} autoResetPageIndex={false} />
-            )}
-          </TabsContent>
-
-          <TabsContent value="buscar" className="mt-4">
-            <SearchPackageView selectedSubsidiaryId={subsidiaryId} onFixed={() => mutate()} onAddIncome={openAddForTracking} />
-          </TabsContent>
-
-          <TabsContent value="auditoria" className="mt-4">
-            <CobrosAuditPanel subsidiaryId={subsidiaryId} from={week.from} to={week.to} active={tab === "auditoria"} onFixed={() => mutate()} />
-          </TabsContent>
-
-          {isGlobal && (
-            <TabsContent value="conteo" className="mt-4">
-              <ManualCountPanel subsidiaryId={subsidiaryId} from={week.from} to={week.to} />
-            </TabsContent>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ConsolidadorToolbar
+            weekLabel={formatWeekLabel(week)}
+            isCurrentWeek={isCurrentWeek(week)}
+            onPrevWeek={() => setWeek((w) => shiftWeek(w, -1))}
+            onNextWeek={() => setWeek((w) => shiftWeek(w, 1))}
+            consNumber=""
+            routeId=""
+            onConsChange={() => undefined}
+            onRouteChange={() => undefined}
+            consOptions={[]}
+            routeOptions={[]}
+            hideFilters
+          />
+          {scope.mode === "zone" && (
+            <SubsidiaryPills parts={summary.parts} focus={scope.focusSubsidiaryId} onFocus={(id) => setScope({ ...scope, focusSubsidiaryId: id })} />
           )}
-        </Tabs>
+        </div>
+
+        {!ready ? (
+          <div className="rounded-md border bg-white py-16 text-center text-sm text-slate-400">Elige una zona o una sucursal para comenzar</div>
+        ) : zoneError ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 py-10 text-center text-sm text-amber-800">{zoneError}</div>
+        ) : (
+          <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+            <UnderlineTabsList>
+              <UnderlineTabsTrigger value="resumen" hint="¿Dónde hay problema?">Resumen</UnderlineTabsTrigger>
+              {canCount && (
+                <UnderlineTabsTrigger value="conteo" count={sumParts(shown, (s) => s.lastManualCount?.differences ?? 0)} tone="rose">
+                  Conteo manual
+                </UnderlineTabsTrigger>
+              )}
+              <UnderlineTabsTrigger value="auditoria" count={sumParts(shown, (s) => s.missing.count + s.extra.count)} tone="amber">
+                Auditoría de cobros
+              </UnderlineTabsTrigger>
+              <UnderlineTabsTrigger value="detalle" hint="rutas · consolidados · ingresos">Detalle</UnderlineTabsTrigger>
+            </UnderlineTabsList>
+
+            <TabsContent value="resumen" className="mt-3">
+              <SummaryView
+                parts={shown}
+                isLoading={summary.isLoading}
+                weekLabel={formatWeekLabel(week)}
+                onRetry={() => void summary.mutate()}
+                onFocus={(id) => scope.mode === "zone" && setScope({ ...scope, focusSubsidiaryId: id })}
+              />
+            </TabsContent>
+
+            {canCount && (
+              <TabsContent value="conteo" className="mt-3">
+                <ManualCountPanel
+                  key={`${scope.mode}-${scope.zoneId}-${actionSubId}`}
+                  subsidiaryId={actionSubId}
+                  zoneId={scope.mode === "zone" ? scope.zoneId : null}
+                  from={week.from}
+                  to={week.to}
+                />
+              </TabsContent>
+            )}
+
+            <TabsContent value="auditoria" className="mt-3">
+              <AuditTab scope={scope} from={week.from} to={week.to} active={tab === "auditoria"} summary={summary.parts} onChanged={refreshAll} />
+            </TabsContent>
+
+            <TabsContent value="detalle" className="mt-3">
+              <DetailTab subsidiaries={detailSubs} summary={summary.parts} from={week.from} to={week.to} active={tab === "detalle"} onChanged={refreshAll} />
+            </TabsContent>
+          </Tabs>
+        )}
 
         <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} defaultTracking={addDefaultTracking} onSubmit={handleAddIncome} />
-        <HistoryDialog incomeId={historyId} open={!!historyId} onOpenChange={(o) => !o && setHistoryId(null)} />
-        <AnomaliesDialog
-          open={anomaliesOpen}
-          onOpenChange={setAnomaliesOpen}
-          subsidiaryId={subsidiaryId}
-          week={week}
-          onChanged={() => mutate()}
-        />
-        {isGlobal && (
-          <DateRealignDialog
-            open={realignOpen}
-            onOpenChange={setRealignOpen}
-            subsidiaryId={subsidiaryId}
-            week={week}
-            onChanged={() => mutate()}
-          />
-        )}
+        <SearchSheet open={searchOpen} onOpenChange={setSearchOpen} subsidiaryId={actionSubId} onFixed={refreshAll} onAddIncome={openAddForTracking} />
+        <AnomaliesDialog open={anomaliesOpen} onOpenChange={setAnomaliesOpen} subsidiaryId={actionSubId} week={week} onChanged={refreshAll} />
+        {isGlobal && <DateRealignDialog open={realignOpen} onOpenChange={setRealignOpen} subsidiaryId={actionSubId} week={week} onChanged={refreshAll} />}
       </div>
     </AppLayout>
   );
