@@ -126,7 +126,7 @@ export default function PackageDispatchControl() {
     if (!cerrarParam || cerrarHandled || !effectiveSucursalId || subsidiariesLoading) return
     setCerrarHandled(true)
     if (usesPreClosure) {
-      router.push(`/operaciones/salidas-a-ruta/${cerrarParam}/cierre`)
+      router.push(`/operaciones/salidas-a-ruta/cierre?salida=${cerrarParam}`)
       return
     }
     setSelectedPackageDispatch(cerrarParam)
@@ -172,7 +172,7 @@ export default function PackageDispatchControl() {
     }
 
     if (usesPreClosure) {
-      router.push(`/operaciones/salidas-a-ruta/${packageDispatch.id}/cierre`)
+      router.push(`/operaciones/salidas-a-ruta/cierre?salida=${packageDispatch.id}`)
       return
     }
 

@@ -43,9 +43,15 @@ const reconcile = async (packageDispatchId: string) => {
     return response.data;
 }
 
-/** Cierre con pre-cierre: por guía, si ya tiene ingreso entregado y sus señales de riesgo de LD. */
-const getPreClosureContext = async (packageDispatchId: string) => {
-    const response = await axiosConfig.get<PreClosureContext>(`${url}/${packageDispatchId}/pre-closure-context`);
+/**
+ * Cierre con pre-cierre: por guía, si ya tiene ingreso entregado y sus señales de riesgo de LD.
+ * `closureStatuses` = estatus del DÍA DE LA RUTA con el que el cierre ve cada guía (el LD se mide con ese).
+ */
+const getPreClosureContext = async (
+    packageDispatchId: string,
+    closureStatuses: { id: string; isCharge: boolean; status: string }[] = [],
+) => {
+    const response = await axiosConfig.post<PreClosureContext>(`${url}/${packageDispatchId}/pre-closure-context`, { closureStatuses });
     return response.data;
 }
 

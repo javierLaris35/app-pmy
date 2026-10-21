@@ -15,6 +15,8 @@ export interface ClosurePackageVM {
   /** Estatus con el que el sistema cierra la guía (día de la ruta). */
   systemStatus: string
   systemCode: string | null
+  /** Estatus vivo de la guía (el back valida contra este al cerrar). Por defecto = systemStatus. */
+  liveStatus?: string
   commitDateTime?: string | null
   hasDeliveredIncome: boolean
   noMovement: boolean
@@ -68,10 +70,14 @@ export interface PreClosureSheet {
 
 export const DEVOLUCIONES_PER_PAGE = 20
 
-/** "DEX08", "DEX12", "STAT42"… El código guardado manda; si no hay, se deduce del estatus. */
+/**
+ * "DEX08", "DEX12", "STAT42"… Manda el estatus (empresa_cerrada es STAT42 aunque traiga 42); el
+ * código guardado solo cuando el estatus no lo dice (no_entregado + 12 → DEX12).
+ */
 export function dexLabel(status: string, code?: string | null): string {
-  if (code && /^\d+$/.test(code)) return `DEX${code}`
-  return getDexCode(status) ?? ""
+  const byStatus = getDexCode(status)
+  if (byStatus) return byStatus
+  return code && /^\d+$/.test(code) ? `DEX${code}` : ""
 }
 
 const isAtRisk = (p: ClosurePackageVM) => p.ldState === "possible_ld" || p.ldState === "ld"

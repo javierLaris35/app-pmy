@@ -25,6 +25,7 @@ describe("dexLabel", () => {
     expect(dexLabel("no_entregado", "12")).toBe("DEX12")
     expect(dexLabel("cliente_no_disponible", null)).toBe("DEX08")
     expect(dexLabel("empresa_cerrada", null)).toBe("STAT42")
+    expect(dexLabel("empresa_cerrada", "42")).toBe("STAT42")
     expect(dexLabel("en_ruta", null)).toBe("")
   })
 })
