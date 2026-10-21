@@ -11,7 +11,7 @@ const TONE: Record<Tone, string> = {
   sky: "bg-sky-100 text-sky-700",
 };
 
-/** Barra de pestañas del Consolidador: subrayado rojo en la activa, sobre una línea gris. */
+/** Barra de pestañas subrayadas (Consolidador, Configuración → Servidor): subrayado rojo en la activa, sobre una línea gris. */
 export function UnderlineTabsList({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
     <TabsList className={cn("h-auto w-full flex-wrap justify-start gap-1 rounded-none border-b bg-transparent p-0", className)}>

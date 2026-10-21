@@ -1,0 +1,12 @@
+{
+  "kind": "rapido",
+  "title": "Pestañas del Servidor más claras",
+  "summary": "Las pestañas de Configuración → Servidor ahora se ven como las del Consolidador, y el recorrido de Actualizar ya no queda pegado arriba.",
+  "where": "Configuración → Servidor",
+  "route": "/configuracion",
+  "steps": [
+    "Entra a Configuración → Servidor.",
+    "La pestaña activa se marca con una línea roja abajo."
+  ],
+  "audience": "superadmin"
+}

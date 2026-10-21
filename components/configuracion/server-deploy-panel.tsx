@@ -255,7 +255,7 @@ export function ServerDeployPanel() {
           </div>
         </div>
 
-        <div className="border-t bg-muted/20 px-5 pb-4">
+        <div className="border-t bg-muted/20 px-5 pb-4 pt-4">
           <DeployRoute state={routeState} stepIndex={routeState === "failed" ? failedIndex : stepIndex} skipped={skipped} />
         </div>
 

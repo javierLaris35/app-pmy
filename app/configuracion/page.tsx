@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/underline-tabs"
 import { Settings, Building2, Users, Shield, ChevronRight, Tags, MapPin, Server, MessageCircle, Mail, Palette, CalendarDays, AlarmClock, Inbox } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { withAuth } from "@/hoc/withAuth"
@@ -163,13 +164,13 @@ function ConfiguracionPage() {
 
             {section === "servidor" && (
               <Tabs defaultValue="metricas" className="space-y-4">
-                <TabsList>
-                  <TabsTrigger value="metricas">Métricas</TabsTrigger>
-                  <TabsTrigger value="logs">Logs en vivo</TabsTrigger>
-                  {isSuper && <TabsTrigger value="respaldo">Respaldo</TabsTrigger>}
-                  {isSuper && <TabsTrigger value="energia">Energía</TabsTrigger>}
-                  {isSuper && <TabsTrigger value="actualizar">Actualizar</TabsTrigger>}
-                </TabsList>
+                <UnderlineTabsList>
+                  <UnderlineTabsTrigger value="metricas">Métricas</UnderlineTabsTrigger>
+                  <UnderlineTabsTrigger value="logs">Logs en vivo</UnderlineTabsTrigger>
+                  {isSuper && <UnderlineTabsTrigger value="respaldo">Respaldo</UnderlineTabsTrigger>}
+                  {isSuper && <UnderlineTabsTrigger value="energia">Energía</UnderlineTabsTrigger>}
+                  {isSuper && <UnderlineTabsTrigger value="actualizar">Actualizar</UnderlineTabsTrigger>}
+                </UnderlineTabsList>
                 <TabsContent value="metricas"><ServerStatsPanel /></TabsContent>
                 <TabsContent value="logs"><ServerLogsPanel /></TabsContent>
                 {isSuper && <TabsContent value="respaldo"><ServerBackupPanel /></TabsContent>}
