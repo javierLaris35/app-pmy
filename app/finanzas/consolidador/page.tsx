@@ -7,7 +7,7 @@ import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { withAuth } from "@/hoc/withAuth";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/consolidador/underline-tabs";
+import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/underline-tabs";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConsolidadorToolbar } from "@/components/consolidador/consolidador-toolbar";

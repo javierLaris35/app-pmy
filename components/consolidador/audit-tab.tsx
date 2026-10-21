@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/consolidador/underline-tabs";
+import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/underline-tabs";
 import { PmySpinner } from "@/components/ui/pmy-loader";
 import { CobrosAuditPanel } from "@/components/consolidador/cobros-audit-panel";
 import { ChargeGuidesTable, CollectionsAuditTable, NoVanTable } from "@/components/consolidador/audit-extra-tables";
