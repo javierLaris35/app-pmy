@@ -2,7 +2,8 @@
 
 import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -58,12 +59,8 @@ export default function PackageDispatchControl() {
   // Deep-link de Tareas del día: ?cerrar=<id de la salida> abre su cierre al llegar (una sola vez).
   const cerrarParam = searchParams.get("cerrar") ?? ""
   const [cerrarHandled, setCerrarHandled] = useState(false)
-  useEffect(() => {
-    if (!cerrarParam || cerrarHandled) return
-    setCerrarHandled(true)
-    setSelectedPackageDispatch(cerrarParam)
-    setIsRouteClouserDialogOpen(true)
-  }, [cerrarParam, cerrarHandled])
+  const router = useRouter()
+  const { subsidiaries, isLoading: subsidiariesLoading } = useSubsidiaries()
 
   // Debounce de la búsqueda por folio de salida (server-side).
   useEffect(() => {
@@ -122,6 +119,20 @@ export default function PackageDispatchControl() {
   const effectiveSucursalId = hasHydrated ? (selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || null) : null
   const effectiveSucursalName = hasHydrated ? (selectedSucursalName || user?.subsidiary?.name || user?.subsidiaryName || "") : ""
   
+  // Cierre con pre-cierre (config de sucursal, hoy Cabo San Lucas): pantalla completa en vez del diálogo.
+  const usesPreClosure = !!subsidiaries.find((s) => s.id === effectiveSucursalId)?.routeClosureWithPreClosure
+
+  useEffect(() => {
+    if (!cerrarParam || cerrarHandled || !effectiveSucursalId || subsidiariesLoading) return
+    setCerrarHandled(true)
+    if (usesPreClosure) {
+      router.push(`/operaciones/salidas-a-ruta/${cerrarParam}/cierre`)
+      return
+    }
+    setSelectedPackageDispatch(cerrarParam)
+    setIsRouteClouserDialogOpen(true)
+  }, [cerrarParam, cerrarHandled, effectiveSucursalId, subsidiariesLoading, usesPreClosure, router])
+
   // SOLUCIÓN: Solo inicializar la sucursal cuando auth esté hidratado
   useEffect(() => {
     if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
@@ -157,6 +168,11 @@ export default function PackageDispatchControl() {
         "[PackageDispatch] Intento de cerrar una salida ya COMPLETADA",
         packageDispatch.id
       )
+      return
+    }
+
+    if (usesPreClosure) {
+      router.push(`/operaciones/salidas-a-ruta/${packageDispatch.id}/cierre`)
       return
     }
 
