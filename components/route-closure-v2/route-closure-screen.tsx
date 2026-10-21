@@ -37,10 +37,10 @@ import { PackageDispatchStatus, Priority, type ManualOption, type NoVanPackageDe
 import { applyChange, changeKey, effectiveBucket, effectiveStatus, needsIncomeWarning, toClosureVMs, toPayload, type ClosureChanges } from "./closure-changes"
 import type { ClosurePackageVM } from "@/lib/services/route-closure/pre-closure-sheet"
 import { StepPreClosure } from "./step-pre-closure"
+import { ClosureStepper } from "./closure-stepper"
 import { COLLECTIONS_SCAN_KEY, NOVAN_SCAN_KEY, StepVerification } from "./step-verification"
 import { StepFinish } from "./step-finish"
 
-const STEPS = ["Pre-cierre", "Comprobación con el chofer", "Finalizar"] as const
 const FALLBACK_COMPANY = "Paquetería y Mensajería Delyaqui SA de CV"
 
 const splitLines = (raw: string) => raw.split("\n").map((l) => l.trim()).filter(Boolean)
@@ -366,6 +366,20 @@ export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
   }
 
   // ---- Render ----------------------------------------------------------------------------------
+  const changeCount = Object.keys(changes).length
+  const printedAt = preClosureAt
+    ? new Date(preClosureAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Hermosillo" })
+    : null
+  const stepCards = [
+    { title: "Pre-cierre", detail: printedAt ? `Hoja impresa ${printedAt}` : "Imprimir la hoja del chofer" },
+    {
+      title: "Comprobación",
+      detail: `${changeCount} ${changeCount === 1 ? "cambio" : "cambios"}${dhlVms.length ? ` · ${dhlPending} DHL pendientes` : ""}${
+        collections.length ? ` · ${collections.length} recolecc.` : ""
+      }`,
+    },
+    { title: "Finalizar", detail: blockers.length ? `${blockers.length} pendiente(s) para cerrar` : "Kilometraje y cierre" },
+  ]
   const folio = dispatch?.trackingNumber ?? ""
   const description = dispatch ? `Salida ${folio} · ${dispatch.drivers?.map((d) => d.name).join(", ") || "Sin chofer"} · Ruta del ${routeDay ?? "—"}` : undefined
 
@@ -416,17 +430,8 @@ export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
       ) : notAllowed ? (
         <Message text="Esta sucursal usa el cierre de siempre. Ciérrala desde Salidas a ruta." onBack={() => router.push("/operaciones/salidas-a-ruta")} />
       ) : (
-        <div className="space-y-4">
-          <ol className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b pb-3">
-            {STEPS.map((label, i) => (
-              <li key={label} className={cn("flex items-center gap-2 text-sm", step === i + 1 ? "font-medium text-slate-900" : "text-slate-500")}>
-                <span className={cn("grid h-6 w-6 place-items-center rounded-full border text-xs", step === i + 1 ? "border-primary bg-primary text-primary-foreground" : step > i + 1 ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "")}>
-                  {i + 1}
-                </span>
-                {label}
-              </li>
-            ))}
-          </ol>
+        <div className="space-y-5">
+          <ClosureStepper steps={stepCards} current={step} onGoTo={setStep} />
 
           {step === 1 && (
             <StepPreClosure

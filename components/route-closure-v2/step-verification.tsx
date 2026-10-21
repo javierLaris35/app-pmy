@@ -75,42 +75,38 @@ export function StepVerification(props: Props) {
   const isTable = !["Recolecciones", "NoVan"].includes(tab)
 
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-3">
-      <div className="flex flex-wrap items-end gap-2">
-        <UnderlineTabsList className="flex-1">
-          <UnderlineTabsTrigger value="Todos" size="sm" count={rows.length} tone="sky">Todos</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="POD" size="sm" count={count("POD")} tone="sky">POD</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="DEX" size="sm" count={count("DEX")}>DEX</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="Ocurre" size="sm" count={count("Ocurre")} tone="sky">Ocurre</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="Otros" size="sm" count={count("Otros")} tone="amber">Otros</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="Recolecciones" size="sm" count={props.collections.length} tone="sky">Recolecciones</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="NoVan" size="sm" count={props.noVanPackages.length} tone="sky">No VAN</UnderlineTabsTrigger>
-        </UnderlineTabsList>
-        {isTable && (
-          <div className="flex items-center gap-2 pb-1">
-            {hasDhl && dhlPending > 0 && (
-              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={props.onAllDhlDelivered}>
-                <CheckCheck className="mr-1 h-3.5 w-3.5" /> DHL pendientes como entregados ({dhlPending})
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant={onlyChanged ? "default" : "outline"}
-              className="h-8 text-xs"
-              onClick={() => setOnlyChanged((v) => !v)}
-            >
-              Solo cambiadas
-            </Button>
-            <Badge variant="outline" className={cn("h-8 px-2.5 text-xs", changedCount ? "border-amber-300 bg-amber-50 text-amber-800" : "text-slate-500")}>
-              {changedCount} {changedCount === 1 ? "cambio" : "cambios"}
-            </Badge>
-          </div>
-        )}
-      </div>
+    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-4">
+      <UnderlineTabsList>
+        <UnderlineTabsTrigger value="Todos" size="sm" count={rows.length} tone="sky">Todos</UnderlineTabsTrigger>
+        <UnderlineTabsTrigger value="POD" size="sm" count={count("POD")} tone="sky">POD</UnderlineTabsTrigger>
+        <UnderlineTabsTrigger value="DEX" size="sm" count={count("DEX")}>DEX</UnderlineTabsTrigger>
+        <UnderlineTabsTrigger value="Ocurre" size="sm" count={count("Ocurre")} tone="sky">Ocurre</UnderlineTabsTrigger>
+        <UnderlineTabsTrigger value="Otros" size="sm" count={count("Otros")} tone="amber">Otros</UnderlineTabsTrigger>
+        {/* Recolecciones y No VAN no son estatus: otra captura, separada con una línea. */}
+        <span className="mx-1 h-5 self-center border-l border-slate-300" aria-hidden />
+        <UnderlineTabsTrigger value="Recolecciones" size="sm" count={props.collections.length} tone="sky">Recolecciones</UnderlineTabsTrigger>
+        <UnderlineTabsTrigger value="NoVan" size="sm" count={props.noVanPackages.length} tone="sky">No VAN</UnderlineTabsTrigger>
+      </UnderlineTabsList>
 
       {isTable && (
         <div className="space-y-2">
+          <div className="mt-4 rounded-xl border bg-slate-50/70 p-3">
           <DataTable<VerificationRow, unknown>
+            toolbarExtra={
+              <>
+                {hasDhl && dhlPending > 0 && (
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={props.onAllDhlDelivered}>
+                    <CheckCheck className="mr-1 h-3.5 w-3.5" /> DHL pendientes como entregados ({dhlPending})
+                  </Button>
+                )}
+                <Button size="sm" variant={onlyChanged ? "default" : "outline"} className="h-8 text-xs" onClick={() => setOnlyChanged((v) => !v)}>
+                  Solo cambiadas
+                </Button>
+                <Badge variant="outline" className={cn("h-8 px-2.5 text-xs", changedCount ? "border-amber-300 bg-amber-50 text-amber-800" : "bg-white text-slate-500")}>
+                  {changedCount} {changedCount === 1 ? "cambio" : "cambios"}
+                </Badge>
+              </>
+            }
             columns={columns}
             data={visible}
             filters={filters}
@@ -121,13 +117,14 @@ export function StepVerification(props: Props) {
             hideSelectionCount
             dense
           />
+          </div>
           <p className="text-xs text-slate-500">
             Cambia el estatus según lo que diga el chofer: la guía se pinta en amarillo y se mueve de pestaña. Nada se guarda hasta cerrar la ruta.
           </p>
         </div>
       )}
 
-      <TabsContent value="Recolecciones" className="mt-0">
+      <TabsContent value="Recolecciones" className="mt-4">
         <div className="grid gap-4 md:grid-cols-2">
           <ScanInput storageKey={COLLECTIONS_SCAN_KEY} defaultView="simple" onTrackingNumbersChange={props.onCollectionsChange} placeholder="Escanea guías recolectadas…" />
           <div className="rounded-lg border">
@@ -141,7 +138,7 @@ export function StepVerification(props: Props) {
         </div>
       </TabsContent>
 
-      <TabsContent value="NoVan" className="mt-0">
+      <TabsContent value="NoVan" className="mt-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <ScanInput
