@@ -37,11 +37,18 @@ const fmtClock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60)
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true })
 
+/** Quita códigos de color de terminal (ESC[...m) que traían las bitácoras viejas. */
+const ANSI_RE = new RegExp(String.fromCharCode(27) + "\\[[0-9;?]*[A-Za-z]", "g")
+const stripAnsi = (s: string) => s.replace(ANSI_RE, "")
+
 function eventToLine(ev: DeployEvent): ConsoleLine | null {
   switch (ev.type) {
     case "phase": return { type: "phase", line: `▶ [${ev.step}/${ev.total}] ${ev.label}` }
-    case "skip": return { type: "skip", line: `  ✓ ${ev.line}` }
-    case "log": case "warn": return { type: ev.type, line: ev.line }
+    case "skip": {
+      const text = stripAnsi(ev.line)
+      return { type: "skip", line: text.startsWith("✓") ? `  ${text}` : `  ✓ ${text}` }
+    }
+    case "log": case "warn": return { type: ev.type, line: stripAnsi(ev.line) }
     case "heartbeat": return { type: "heartbeat", line: `  · sigue trabajando (${fmtClock(Math.round((ev.elapsedMs ?? 0) / 1000))})` }
     case "error": return { type: "error", line: `✗ ${ev.message}` }
     case "done": return { type: "done", line: `✓ Actualización terminada en ${fmtClock(Math.round(ev.durationMs / 1000))}` }
