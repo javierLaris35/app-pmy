@@ -65,9 +65,15 @@ export function effectiveBucket(pkg: ClosurePackageVM, changes: ClosureChanges):
   }
 }
 
+/**
+ * La guía se movió DESPUÉS del día de la ruta (su estatus vivo ya no es el del cierre): corregirla
+ * queda solo como registro del cierre, sin tocar estatus vivo ni ingreso (decisión 2026-10-21).
+ */
+export const movedAfter = (pkg: ClosurePackageVM) => !!pkg.liveStatus && pkg.liveStatus !== pkg.systemStatus
+
 /** Aviso "ya tiene ingreso": solo paquetes (no cargas) fuera de 31.5 que dejan de estar entregados. */
 export function needsIncomeWarning(pkg: ClosurePackageVM, option: ManualOption | null, is315: boolean): boolean {
-  if (pkg.isCharge || is315 || !pkg.hasDeliveredIncome) return false
+  if (pkg.isCharge || is315 || !pkg.hasDeliveredIncome || movedAfter(pkg)) return false
   if (classifyClosureBucket(pkg.systemStatus) !== "delivered") return false
   return !!option && option !== "ENTREGADO"
 }
@@ -82,6 +88,7 @@ export function toPayload(changes: ClosureChanges, pkgs: ClosurePackageVM[]): Ma
       trackingNumber: p.trackingNumber,
       previousStatus: p.liveStatus ?? p.systemStatus,
       option: changes[changeKey(p)],
+      closureStatus: p.systemStatus,
     }))
 }
 

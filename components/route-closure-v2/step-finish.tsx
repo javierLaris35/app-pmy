@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import type { ClosurePackageVM } from "@/lib/services/route-closure/pre-closure-sheet"
 import type { ManualOption } from "@/lib/types"
-import { changeKey, optionMeta, type ClosureChanges } from "./closure-changes"
+import { changeKey, movedAfter, optionMeta, type ClosureChanges } from "./closure-changes"
 import { systemStatusLabel } from "./verification-columns"
 
 interface Props {
@@ -75,6 +75,9 @@ export function StepFinish({ packages, changes, kmsOut, actualKms, onKmsChange, 
                   <span className="text-slate-500">{systemStatusLabel(p.systemStatus, p.systemCode)}</span>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                   <span className="font-medium">{optionShort(option)}</span>
+                  {movedAfter(p) && (
+                    <Badge variant="outline" className="border-slate-300 px-1.5 py-0 text-[10px] text-slate-600">Solo registro</Badge>
+                  )}
                   <span className="ml-auto truncate text-xs text-slate-400">{optionMeta(option).label}</span>
                 </div>
               )
@@ -82,7 +85,8 @@ export function StepFinish({ packages, changes, kmsOut, actualKms, onKmsChange, 
           </div>
         )}
         <p className="border-t px-3 py-2 text-xs text-slate-500">
-          Al cerrar, estos estatus se guardan con el registro de que se corrigieron a mano en el cierre.
+          Al cerrar, estos estatus se guardan con el registro de que se corrigieron a mano en el cierre. Los marcados
+          &quot;Solo registro&quot; ya se movieron después del día de la ruta: quedan en el cierre sin cambiar su estatus actual ni su ingreso.
         </p>
       </div>
     </div>

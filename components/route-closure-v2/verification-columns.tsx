@@ -10,7 +10,7 @@ import type { ClosurePackageVM } from "@/lib/services/route-closure/pre-closure-
 import type { ManualOption } from "@/lib/types"
 import { dexLabel } from "@/lib/services/route-closure/pre-closure-sheet"
 import { classifyClosureBucket } from "@/lib/tracking/closure-status"
-import { MANUAL_OPTIONS, optionForStatus, type ClosureChanges, changeKey, effectiveBucket } from "./closure-changes"
+import { MANUAL_OPTIONS, optionForStatus, type ClosureChanges, changeKey, effectiveBucket, movedAfter } from "./closure-changes"
 
 /** Renglón de la tabla de comprobación (guía + datos derivados para filtros). */
 export interface VerificationRow extends ClosurePackageVM {
@@ -142,7 +142,9 @@ export function verificationColumns(opts: {
           )
         }
         const current = opts.changes[changeKey(p)] ?? optionForStatus(p.systemStatus, p.systemCode)
+        const later = movedAfter(p)
         return (
+          <div className="space-y-0.5">
           <Select value={current ?? NO_RESULT} onValueChange={(v) => opts.onFedexChange(p, v === NO_RESULT ? null : (v as ManualOption))}>
             <SelectTrigger className="h-8 w-[230px] text-xs">
               <SelectValue />
@@ -158,6 +160,12 @@ export function verificationColumns(opts: {
               ))}
             </SelectContent>
           </Select>
+          {later && (
+            <p className="text-[11px] text-slate-500" title="Si la corriges, queda solo en el registro del cierre; no cambia su estatus actual ni su ingreso.">
+              Después: {systemStatusLabel(p.liveStatus ?? "", null)} · solo registro
+            </p>
+          )}
+          </div>
         )
       },
     },

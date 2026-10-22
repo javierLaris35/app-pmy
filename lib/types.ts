@@ -977,6 +977,8 @@ export interface ManualStatusChangeInput {
   /** Estatus del sistema cuando se abrió la pantalla (el back rechaza si cambió). */
   previousStatus: string;
   option: ManualOption;
+  /** Estatus del día de la ruta; si difiere del vivo, el cambio queda solo como registro del cierre. */
+  closureStatus?: string;
 }
 
 /** GET /route-closure/:id/pre-closure-context */

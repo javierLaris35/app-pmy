@@ -5,6 +5,7 @@ import {
   effectiveBucket,
   effectiveStatus,
   needsIncomeWarning,
+  movedAfter,
   optionForStatus,
   toClosureVMs,
   toPayload,
@@ -85,6 +86,16 @@ describe("needsIncomeWarning", () => {
   it("false for is315", () => {
     expect(needsIncomeWarning(delivered, "DEX08", true)).toBe(false)
   })
+  it("false si la guía se movió después del día de la ruta (solo registro)", () => {
+    expect(needsIncomeWarning({ ...delivered, liveStatus: "entregado", systemStatus: "entregado" }, "DEX08", false)).toBe(true)
+    expect(needsIncomeWarning({ ...delivered, systemStatus: "en_bodega" }, "DEX08", false)).toBe(false)
+  })
+
+  it("movedAfter: estatus vivo distinto al del día de la ruta", () => {
+    expect(movedAfter(vm({ systemStatus: "en_bodega", liveStatus: "entregado" }))).toBe(true)
+    expect(movedAfter(vm())).toBe(false)
+  })
+
   it("false sin ingreso o si sigue entregado", () => {
     expect(needsIncomeWarning({ ...delivered, hasDeliveredIncome: false }, "DEX08", false)).toBe(false)
     expect(needsIncomeWarning(delivered, "ENTREGADO", false)).toBe(false)
@@ -96,7 +107,7 @@ describe("toPayload", () => {
     const pkg = vm({ systemStatus: "en_ruta", systemCode: null, liveStatus: "cliente_no_disponible" })
     const changes = applyChange({}, pkg, "ENTREGADO")
     expect(toPayload(changes, [pkg])).toEqual([
-      { id: "s1", isCharge: false, trackingNumber: "T1", previousStatus: "cliente_no_disponible", option: "ENTREGADO" },
+      { id: "s1", isCharge: false, trackingNumber: "T1", previousStatus: "cliente_no_disponible", option: "ENTREGADO", closureStatus: "en_ruta" },
     ])
   })
 })
