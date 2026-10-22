@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config";
-import { NoVanPackageDetail, PackageInfo, RouteClosure, ValidatedPackagesForClousere } from "../types";
+import { NoVanPackageDetail, PackageInfo, PreClosureContext, RouteClosure, ValidatedPackagesForClousere } from "../types";
 
 const url = "/route-closure";
 
@@ -40,6 +40,18 @@ const reconcile = async (packageDispatchId: string) => {
         updated: number;
         outcomes: unknown[];
     }>(`${url}/reconcile/${packageDispatchId}`);
+    return response.data;
+}
+
+/**
+ * Cierre con pre-cierre: por guía, si ya tiene ingreso entregado y sus señales de riesgo de LD.
+ * `closureStatuses` = estatus del DÍA DE LA RUTA con el que el cierre ve cada guía (el LD se mide con ese).
+ */
+const getPreClosureContext = async (
+    packageDispatchId: string,
+    closureStatuses: { id: string; isCharge: boolean; status: string }[] = [],
+) => {
+    const response = await axiosConfig.post<PreClosureContext>(`${url}/${packageDispatchId}/pre-closure-context`, { closureStatuses });
     return response.data;
 }
 
@@ -174,5 +186,6 @@ export {
     save,
     validateTrackingNumbers,
     validateTrackinNumberNoVan,
-    reconcile
+    reconcile,
+    getPreClosureContext
 }

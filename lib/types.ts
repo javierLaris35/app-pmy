@@ -53,6 +53,8 @@ export type Subsidiary = {
   closureAcceptsAnyDayDelivery?: boolean
   /** Cierre de ruta: cuenta lo que pasó hasta que la guía sale en otra ruta (no solo el día de la ruta). */
   closureUntilNextDispatch?: boolean
+  /** Cierre de ruta en pantalla completa con pre-cierre obligatorio y comprobación guía por guía (hoy Cabo San Lucas). */
+  routeClosureWithPreClosure?: boolean
   /** Ingresos del cierre: fecha = evento FedEx real (entrega/DEX), aunque sea de otro día (hoy Loreto). */
   closureIncomeAtFedexEventTime?: boolean
   /** Cobros: sumar el segundo abordo (secondAbordAmount) al costo de cargas F2/31.5 normales. */
@@ -959,6 +961,41 @@ export interface RouteClosure {
   actualKms: string;
   collections: string[];
   noVanPackages: string[];
+  /** Cierre con pre-cierre: estatus corregidos a mano contra lo que entregó el chofer. */
+  manualStatusChanges?: ManualStatusChangeInput[];
+  /** Cierre con pre-cierre: cuándo se generó el PDF de pre-cierre (ISO). */
+  preClosureGeneratedAt?: string | null;
+}
+
+/** Opciones FedEx del selector "Según el chofer" (espejo de pmy-api manual-status.util). */
+export type ManualOption = "ENTREGADO" | "DEX03" | "DEX07" | "DEX08" | "DEX12" | "OCURRE";
+
+export interface ManualStatusChangeInput {
+  id: string;
+  isCharge: boolean;
+  trackingNumber: string;
+  /** Estatus del sistema cuando se abrió la pantalla (el back rechaza si cambió). */
+  previousStatus: string;
+  option: ManualOption;
+  /** Estatus del día de la ruta; si difiere del vivo, el cambio queda solo como registro del cierre. */
+  closureStatus?: string;
+}
+
+/** GET /route-closure/:id/pre-closure-context */
+export interface PreClosurePackageContext {
+  id: string;
+  isCharge: boolean;
+  trackingNumber: string;
+  hasDeliveredIncome: boolean;
+  noMovement: boolean;
+  dueToday: boolean;
+  ldState: "delivered" | "closed" | "ld" | "possible_ld" | "active";
+}
+
+export interface PreClosureContext {
+  routeDay: string;
+  is315: boolean;
+  packages: PreClosurePackageContext[];
 }
 
 export interface ValidatedPackagesForClousere {
