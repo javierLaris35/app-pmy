@@ -212,6 +212,14 @@ function buildColumns(h: Handlers): ColumnDef<SearchBatchItem>[] {
               loading={h.busy === `${id}:income`}
               onClick={() => h.onIncome(r)}
             />
+            {/* Alta manual (POD, DEX07, DEX08…) aunque la guía ya exista o esté devuelta: la
+                reparación automática no aplica a esos casos y no había otra forma desde aquí. */}
+            <IconAction
+              label="Agregar ingreso manual (POD, DEX07, DEX08…)"
+              icon={PlusCircle}
+              disabled={h.busy !== null}
+              onClick={() => h.onAddIncome(r.tracking)}
+            />
             {r.income && (
               <IconAction label="Editar fecha del ingreso" icon={CalendarClock} disabled={h.busy !== null} onClick={() => h.onDate(r)} />
             )}
