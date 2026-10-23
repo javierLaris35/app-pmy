@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, CalendarCheck2, ChevronDown, PlusCircle, Search, SlidersHorizontal } from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -32,6 +33,7 @@ import { getWeekRange, shiftWeek, formatWeekLabel, isCurrentWeek } from "@/lib/w
 import type { ManualKind } from "@/lib/types/consolidador";
 import type { ScopeSubsidiary, SubsidiarySummary } from "@/lib/types/consolidador-zone";
 import { toast } from "@/lib/toast";
+import { formatCurrency } from "@/lib/utils";
 
 type TabKey = "resumen" | "conteo" | "auditoria" | "detalle";
 
@@ -40,6 +42,7 @@ const isConsolidadorKey = (key: unknown) =>
 
 function ConsolidadorPage() {
   const [scope, setScopeState] = useState<ConsolidadorScope>(EMPTY_SCOPE);
+  const router = useRouter();
   const [week, setWeek] = useState(() => getWeekRange());
   const [tab, setTab] = useState<TabKey>("resumen");
   const [addOpen, setAddOpen] = useState(false);
@@ -99,14 +102,21 @@ function ConsolidadorPage() {
       try {
         await createManualIncome({ subsidiaryId: actionSubId, ...payload });
         refreshAll();
-        toast.success("Ingreso agregado");
+        toast.success(`Ingreso agregado · ${formatCurrency(payload.cost)}`, {
+          description: `Ya se refleja en Ingresos, Dashboard y Estado de Resultados (semana ${formatWeekLabel(week)}).`,
+          action: {
+            label: "Ver en Ingresos",
+            onClick: () =>
+              router.push(`/ingresos?subsidiaryId=${encodeURIComponent(actionSubId)}&from=${week.from}&to=${week.to}`),
+          },
+        });
       } catch (e: any) {
         if (e?.response?.status === 409) toast.error("Ya existe un ingreso equivalente ese día para esa guía");
         else toast.error(errorText(e, "No se pudo agregar el ingreso"));
         throw e; // el dialog no cierra si falló
       }
     },
-    [actionSubId, refreshAll],
+    [actionSubId, refreshAll, router, week],
   );
 
   const openAddForTracking = useCallback((tracking: string) => {
@@ -232,7 +242,7 @@ function ConsolidadorPage() {
           </Tabs>
         )}
 
-        <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} defaultTracking={addDefaultTracking} onSubmit={handleAddIncome} />
+        <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} subsidiaryId={actionSubId} defaultTracking={addDefaultTracking} onSubmit={handleAddIncome} />
         <SearchSheet open={searchOpen} onOpenChange={setSearchOpen} subsidiaryId={actionSubId} onFixed={refreshAll} onAddIncome={openAddForTracking} />
         <AnomaliesDialog open={anomaliesOpen} onOpenChange={setAnomaliesOpen} subsidiaryId={actionSubId} week={week} onChanged={refreshAll} />
         {isGlobal && <DateRealignDialog open={realignOpen} onOpenChange={setRealignOpen} subsidiaryId={actionSubId} week={week} onChanged={refreshAll} />}

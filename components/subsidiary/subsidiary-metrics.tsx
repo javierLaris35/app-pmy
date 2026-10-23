@@ -93,6 +93,8 @@ export interface RevenueBreakdown {
   tyco: number
   aeropuerto: number
   especial: number
+  /** "Otro" capturado a mano en el Consolidador sin guía (backend viejo no lo manda). */
+  otros?: number
 }
 
 /** Paquetes facturados (los que suman al ingreso). total = delivered+dex07+dex08+other. */
@@ -448,6 +450,7 @@ function SubsidiaryMetricsGridImpl({ data, canSeeRevenue = true, headerExtra }: 
         { label: "Tyco", value: summary.revenueBreakdown.tyco, color: "#6366f1" },
         { label: "Aéreo", value: summary.revenueBreakdown.aeropuerto, color: "#0ea5e9" },
         { label: "Traslados especiales", value: summary.revenueBreakdown.especial, color: "#a855f7" },
+        { label: "Otros (Consolidador)", value: summary.revenueBreakdown.otros ?? 0, color: "#7c3aed" },
       ]
     : undefined
   const expenseItems: CompItem[] = Object.entries(summary?.expenseBreakdown || {})

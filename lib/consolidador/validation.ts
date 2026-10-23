@@ -22,6 +22,20 @@ export function isValidManualIncome(draft: ManualIncomeDraft, week: { from: stri
   return true;
 }
 
+export type ManualIncomeErrors = Partial<Record<"kind" | "cost" | "date" | "reason", string>>;
+
+/** Errores del alta manual campo por campo, en lenguaje llano (vacío = se puede guardar). */
+export function manualIncomeErrors(draft: ManualIncomeDraft, week: { from: string; to: string }): ManualIncomeErrors {
+  const errors: ManualIncomeErrors = {};
+  if (!draft.kind) errors.kind = "Elige el tipo de ingreso";
+  if (!Number.isFinite(draft.cost)) errors.cost = "Escribe el monto";
+  else if (draft.cost < 0) errors.cost = "El monto no puede ser negativo";
+  if (!draft.date) errors.date = "Elige el día";
+  else if (draft.date < week.from || draft.date > week.to) errors.date = "El día debe estar dentro de la semana";
+  if (draft.reason.trim().length < 3) errors.reason = "Escribe el motivo (mínimo 3 letras)";
+  return errors;
+}
+
 /** Máximo de guías por búsqueda en lote. */
 export const MAX_BATCH_TRACKINGS = 30;
 

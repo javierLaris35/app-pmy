@@ -4,7 +4,9 @@ import {
   CheckCircle,
   AlertTriangle,
   Clock,
-  XCircle
+  XCircle,
+  PencilLine,
+  Filter
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency } from "@/lib/utils"
@@ -26,6 +28,8 @@ import { IconTruckLoading } from "@tabler/icons-react"
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { axiosConfig } from "@/lib/axios-config";
+import { useMemo, useState } from "react";
+import { IncomeCorrection } from "@/lib/types";
 
 interface ShipmentItem {
   trackingNumber: string | null
@@ -35,6 +39,8 @@ interface ShipmentItem {
   status?: string
   cost?: number
   secondAbord?: number
+  countable?: boolean
+  correction?: IncomeCorrection | null
 }
 
 interface ShipmentDetailDialogProps {
@@ -43,7 +49,13 @@ interface ShipmentDetailDialogProps {
 }
 
 export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialogProps) {
-  const items = row.original.items ?? []
+  const allItems: ShipmentItem[] = row.original.items ?? []
+  const [onlyCorrections, setOnlyCorrections] = useState(false)
+  const correctionsCount = useMemo(() => allItems.filter((i) => i.correction).length, [allItems])
+  const items = useMemo(
+    () => (onlyCorrections ? allItems.filter((i) => i.correction) : allItems),
+    [allItems, onlyCorrections],
+  )
 
   const renderTypeBadge = (type: string) => (
     <Badge variant="outline" className="gap-1">
@@ -143,7 +155,7 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
       workbook.lastModifiedBy = 'Sistema de Reportes';
       
       // 2. Definir estilos consistentes con la marca
-      const headerStyle = {
+      const headerStyle: Partial<ExcelJS.Style> = {
         fill: {
           type: 'pattern',
           pattern: 'solid',
@@ -163,7 +175,7 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
         alignment: { vertical: 'middle', horizontal: 'center' }
       };
 
-      const dataStyle = {
+      const dataStyle: Partial<ExcelJS.Style> = {
         font: {
           size: 11,
           color: { argb: 'FF333333' } // Gris oscuro
@@ -189,10 +201,7 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
             extension: 'png',
           });
           
-          resumenSheet.addImage(imageId, {
-            tl: { col: 0, row: 0 },
-            br: { col: 3, row: 4 },
-          });
+          resumenSheet.addImage(imageId, "A1:C4");
         }
       } catch (error) {
         console.warn('No se pudo cargar el logo:', error);
@@ -224,6 +233,10 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
           "Estado": item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1).replace("_", " ") : "Desconocido",
           "Costo": formatCurrency(Number(item.cost ?? 0)),
           "2º a bordo": Number(item.secondAbord ?? 0) > 0 ? formatCurrency(Number(item.secondAbord)) : "-",
+          "Cuenta": item.countable === false ? "No" : "Sí",
+          "Corrección": item.correction
+            ? `${item.correction.kind === "editado" ? "Editado" : "Agregado"} en Consolidador${item.correction.by ? ` por ${item.correction.by}` : ""}${item.correction.reason ? `: ${item.correction.reason}` : ""}`
+            : "-",
         };
       });
 
@@ -303,11 +316,21 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
     {
       accessorKey: "trackingNumber",
       header: "Tracking",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">
-          {row.getValue("trackingNumber") ?? "-"}
-        </span>
-      )
+      cell: ({ row }) => {
+        const c = row.original.correction
+        return (
+          <div className="flex flex-col">
+            <span className="text-muted-foreground">{row.getValue("trackingNumber") ?? "-"}</span>
+            {c && (
+              <span className="max-w-[260px] truncate text-[11px] text-muted-foreground" title={c.reason ?? undefined}>
+                {[c.by, c.at ? format(new Date(c.at), "dd MMM HH:mm", { locale: es }) : null, c.reason ? `“${c.reason}”` : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            )}
+          </div>
+        )
+      }
     },
     {
       accessorKey: "date",
@@ -321,7 +344,17 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
     {
       accessorKey: "type",
       header: "Tipo",
-      cell: ({ row }) => renderTypeBadge(row.getValue("type"))
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center gap-1">
+          {renderTypeBadge(row.getValue("type"))}
+          {row.original.correction && (
+            <Badge variant="outline" className="gap-1 border-violet-300 text-violet-700">
+              <PencilLine className="h-3 w-3" />
+              {row.original.correction.kind === "editado" ? "Corrección (editado)" : "Corrección"}
+            </Badge>
+          )}
+        </div>
+      )
     },
     {
       accessorKey: "shipmentType",
@@ -332,9 +365,18 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
       accessorKey: "status",
       header: "Estado",
       cell: ({ row }) => {
-        const type = row.getValue("type")
-        const status = row.getValue("status")
-        return renderStatusBadge(status, type)
+        const type = row.getValue("type") as string
+        const status = row.getValue("status") as string | undefined
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            {renderStatusBadge(status, type)}
+            {row.original.countable === false && (
+              <Badge variant="outline" className="border-amber-300 text-amber-700" title="Se registró, pero la regla de cobro de la sucursal no lo cobra">
+                No cuenta
+              </Badge>
+            )}
+          </div>
+        )
       }
     },
     {
@@ -356,39 +398,67 @@ export function ShipmentDetailDialog({ row, exportToExcel }: ShipmentDetailDialo
   ]
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Ver detalles">
-          <Eye className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <div className="flex justify-between items-center">
+    <Dialog onOpenChange={(open) => !open && setOnlyCorrections(false)}>
+      <div className="flex items-center gap-1">
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Ver detalles">
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </DialogTrigger>
+        {correctionsCount > 0 && (
+          <DialogTrigger asChild>
+            <button type="button" onClick={() => setOnlyCorrections(true)} aria-label="Ver correcciones del día">
+              <Badge variant="outline" className="cursor-pointer gap-1 whitespace-nowrap border-violet-300 text-violet-700">
+                <PencilLine className="h-3 w-3" />
+                {correctionsCount} corr.
+              </Badge>
+            </button>
+          </DialogTrigger>
+        )}
+      </div>
+      {/* Encabezado fijo (con aire a la derecha para la X) y un solo scroll en el cuerpo:
+          así los botones no quedan bajo la X y la tabla no se encoge por un scroll interno. */}
+      <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-6 py-4 pr-14">
+          <div className="flex items-center justify-between gap-3">
             <DialogTitle>Detalle de Envíos ({items.length})</DialogTitle>
-            <Button 
-              onClick={handleExportExcel} 
-              variant="outline" 
-              size="sm"
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Exportar Excel
-            </Button>
+            <div className="flex items-center gap-2">
+              {correctionsCount > 0 && (
+                <Button
+                  variant={onlyCorrections ? "secondary" : "outline"}
+                  size="sm"
+                  className="gap-2"
+                  aria-pressed={onlyCorrections}
+                  onClick={() => setOnlyCorrections((v) => !v)}
+                >
+                  <Filter className="h-4 w-4" />
+                  Solo correcciones ({correctionsCount})
+                </Button>
+              )}
+              <Button
+                onClick={() => handleExportExcel(row)}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Exportar Excel
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin datos disponibles</p>
-        ) : (
-          <div className="max-h-[80vh] overflow-y-auto p-1">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sin datos disponibles</p>
+          ) : (
             <DataTable
               columns={shipmentColumns}
               data={items}
               searchKey="trackingNumber"
             />
-          </div>
-        )}
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

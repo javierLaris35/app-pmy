@@ -99,6 +99,32 @@ export const createManualIncome = async (payload: {
   reason: string;
 }): Promise<ConsolidadorRow> => (await axiosConfig.post<ConsolidadorRow>(`${baseUrl}/income`, payload)).data;
 
+/** Vista previa del alta manual ("Así quedará"). */
+export interface ManualIncomePreview {
+  shipment: { carrier: string; status: string; subsidiaryId: string | null; subsidiaryName: string | null } | null;
+  sourceType: string;
+  incomeType: string;
+  nonDeliveryStatus: string;
+  shipmentType: string;
+  /** Columna de Finanzas → Ingresos donde suma. */
+  column: "fedex" | "dhl" | "collections" | "otros";
+  /** ¿Suma según las reglas de cobro de la sucursal? */
+  countable: boolean;
+  /** Tarifa de la sucursal para precargar el monto. */
+  suggestedCost: number | null;
+  /** Ingreso activo de esa guía ese mismo día. */
+  sameDayIncome: { cost: number; sourceType: string; incomeType: string } | null;
+}
+
+/** GET: vista previa del alta manual: cómo se guardará, dónde suma y avisos. No escribe nada. */
+export const previewManualIncome = async (params: {
+  subsidiaryId: string;
+  kind: ManualKind;
+  trackingNumber?: string;
+  date?: string;
+}): Promise<ManualIncomePreview> =>
+  (await axiosConfig.get<ManualIncomePreview>(`${baseUrl}/income/manual-preview`, { params })).data;
+
 /** GET: busca un paquete y devuelve estatus interno vs FedEx + income ligado. */
 export const searchPackage = async (tracking: string): Promise<SearchPackageResult> =>
   (await axiosConfig.get<SearchPackageResult>(`${baseUrl}/package/${encodeURIComponent(tracking)}`)).data;

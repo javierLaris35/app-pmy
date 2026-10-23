@@ -48,7 +48,7 @@ export interface ConsolidadorReadResult {
   buckets: ConsolidadorBuckets;
 }
 
-export type ManualKind = "recoleccion" | "pod" | "dex" | "manual";
+export type ManualKind = "recoleccion" | "pod" | "dex" | "dex07" | "manual";
 
 export interface IncomeChangeLogEntry {
   id: string;

@@ -1,13 +1,10 @@
 import { ColumnDef } from "@tanstack/react-table"
-import { Badge } from "@/components/ui/badge"
-import { Calendar, Truck, Box, DollarSign, TrendingUp, TrendingDown } from "lucide-react"
+import { TrendingUp, TrendingDown } from "lucide-react"
 import { NewIncome } from "@/lib/types"
 import { formatCurrency, parseCurrency } from "@/lib/utils"
 import { ShipmentDetailDialog } from "@/components/modals/shipment-detial-dialog"
-import { createSelectColumn } from "@/components/data-table/columns"
 
 export const columns: ColumnDef<NewIncome>[] = [
-  createSelectColumn<NewIncome>(),
   {
     accessorKey: "date",
     header: "Fecha",
@@ -15,28 +12,30 @@ export const columns: ColumnDef<NewIncome>[] = [
       const dateStr = row.getValue("date") as string;
       const formattedDate = dateStr?.split("T")[0].split("-").reverse().join("/");
       return (
-        <div className="flex items-center gap-2 font-medium whitespace-nowrap">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          {formattedDate}
-        </div>
+        <div className="font-medium whitespace-nowrap">{formattedDate}</div>
       )
     }
   },
   {
     id: "fedex_metrics",
-    header: "FedEx (POD/DEX07/DEX08)",
+    header: () => (
+      <div className="flex flex-col leading-tight">
+        <span>FedEx</span>
+        <span className="text-[11px] font-medium">
+          <span className="text-green-700">POD</span>/<span className="text-orange-600">DEX07</span>/<span className="text-orange-800">DEX08</span>
+        </span>
+      </div>
+    ),
     cell: ({ row }) => {
       const f = row.original.fedex;
       return (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 whitespace-nowrap">
           <span className="text-xs font-bold text-green-700">{f?.pod}</span>
           <span className="text-slate-300">/</span>
           <span className="text-xs font-bold text-orange-600">{f?.dex07}</span>
           <span className="text-slate-300">/</span>
           <span className="text-xs font-bold text-orange-800">{f?.dex08}</span>
-          <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 border-blue-100">
-            Total: {f?.total}
-          </Badge>
+          <span className="ml-2 text-xs text-muted-foreground">· {f?.total}</span>
         </div>
       )
     }
@@ -53,17 +52,22 @@ export const columns: ColumnDef<NewIncome>[] = [
   },
   {
     id: "dhl_metrics",
-    header: "DHL (BA/NE)",
+    header: () => (
+      <div className="flex flex-col leading-tight">
+        <span>DHL</span>
+        <span className="text-[11px] font-medium">
+          <span className="text-blue-700">BA</span>/<span className="text-red-600">NE</span>
+        </span>
+      </div>
+    ),
     cell: ({ row }) => {
       const d = row.original.dhl;
       return (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 whitespace-nowrap">
           <span className="text-xs font-bold text-blue-700">{d?.ba}</span>
           <span className="text-slate-300">/</span>
           <span className="text-xs font-bold text-red-600">{d?.ne}</span>
-          <Badge variant="secondary" className="ml-2 bg-yellow-50 text-yellow-700 border-yellow-100">
-            Total: {d?.total}
-          </Badge>
+          <span className="ml-2 text-xs text-muted-foreground">· {d?.total}</span>
         </div>
       )
     }
@@ -80,19 +84,24 @@ export const columns: ColumnDef<NewIncome>[] = [
   },
   {
     id: "transfers_metrics",
-    header: "Traslados (Tyco/Aero/Esp)",
+    header: () => (
+      <div className="flex flex-col leading-tight">
+        <span>Traslados</span>
+        <span className="text-[11px] font-medium">
+          <span className="text-indigo-700">Tyco</span>/<span className="text-purple-700">Aero</span>/<span className="text-slate-600">Esp</span>
+        </span>
+      </div>
+    ),
     cell: ({ row }) => {
       const t = row.original.transfers;
       return (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 whitespace-nowrap">
           <span className="text-xs font-bold text-indigo-700">{t?.tyco ?? 0}</span>
           <span className="text-slate-300">/</span>
           <span className="text-xs font-bold text-purple-700">{t?.aeropuerto ?? 0}</span>
           <span className="text-slate-300">/</span>
           <span className="text-xs font-bold text-slate-600">{t?.especial ?? 0}</span>
-          <Badge variant="secondary" className="ml-2 bg-indigo-50 text-indigo-700 border-indigo-100">
-            Total: {t?.total ?? 0}
-          </Badge>
+          <span className="ml-2 text-xs text-muted-foreground">· {t?.total ?? 0}</span>
         </div>
       )
     }
@@ -112,7 +121,7 @@ export const columns: ColumnDef<NewIncome>[] = [
     header: "Recol.",
     cell: ({ row }) => (
       <div className="flex items-center justify-center">
-        <Badge variant="outline" className="font-mono">{row.original.collections || 0}</Badge>
+        <span className="text-sm font-medium tabular-nums">{row.original.collections || 0}</span>
       </div>
     )
   },
@@ -121,9 +130,25 @@ export const columns: ColumnDef<NewIncome>[] = [
     header: "Cargas",
     cell: ({ row }) => (
       <div className="flex items-center justify-center">
-        <Badge variant="outline" className="font-mono bg-slate-50">{row.original.cargas || 0}</Badge>
+        <span className="text-sm font-medium tabular-nums">{row.original.cargas || 0}</span>
       </div>
     )
+  },
+  {
+    id: "otros_income",
+    header: "Otros",
+    accessorFn: (r) => parseCurrency(r.otros?.totalIncome ?? 0),
+    cell: ({ row }) => {
+      const value = parseCurrency(row.original.otros?.totalIncome ?? 0)
+      return (
+        <div
+          className="text-sm font-medium"
+          title="Ingresos capturados a mano en el Consolidador sin guía"
+        >
+          {value > 0 ? formatCurrency(value) : <span className="text-slate-400">-</span>}
+        </div>
+      )
+    }
   },
   {
     accessorKey: "total",
@@ -135,8 +160,7 @@ export const columns: ColumnDef<NewIncome>[] = [
     header: "Ingreso Total",
     accessorFn: (r) => parseCurrency(r.totalIncome ?? 0), // numérico (antes ordenaba como texto)
     cell: ({ row }) => (
-      <div className="flex items-center gap-1 font-extrabold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md">
-        <DollarSign className="h-3 w-3" />
+      <div className="font-bold tabular-nums text-emerald-700">
         {formatCurrency(parseCurrency(row.original.totalIncome ?? 0))}
       </div>
     )

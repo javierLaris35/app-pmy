@@ -182,20 +182,57 @@ export type NewIncome = {
   };
   collections: number;
   cargas: number;
+  /** Monto contable de recolecciones / cargas del día (backend nuevo). */
+  collectionsIncome?: string;
+  cargasIncome?: string;
+  /** "Otro" capturado a mano en el Consolidador sin guía. */
+  otros?: { total: number; totalIncome: string };
   total: number;
   totalIncome: string;
+  /** Correcciones del Consolidador del día (ya sumadas en sus columnas y en totalIncome). */
+  corrections?: { count: number; totalIncome: string };
+  /** Operaciones que sí cobraron. */
+  billed?: BilledOps;
+  /** Registradas que no cobran según las reglas de la sucursal. */
+  notBilled?: number;
   lastWeekValue?: number; // Para la comparación en la tabla
-  items: {
-    type: string;
-    trackingNumber: string;
-    shipmentType: string;
-    status: string;
-    date: string;
-    cost: number;
-    /** Parte del costo de la carga que corresponde al 2º a bordo (derivado, informativo). */
-    secondAbord?: number;
-    commitDateTime?: string;
-  }[];
+  items: IncomeItem[];
+};
+
+export type BilledOps = {
+  fedexPod: number;
+  fedexDex07: number;
+  fedexDex08: number;
+  dhlBa: number;
+  dhlNe: number;
+  collections: number;
+  cargas: number;
+  transfers: number;
+  otros: number;
+  total: number;
+};
+
+export type IncomeCorrection = {
+  kind: "agregado" | "editado";
+  by: string | null;
+  reason: string | null;
+  at: string | null;
+};
+
+export type IncomeItem = {
+  type: string;
+  trackingNumber: string;
+  shipmentType: string;
+  status: string;
+  date: string;
+  cost: number;
+  /** Parte del costo de la carga que corresponde al 2º a bordo (derivado, informativo). */
+  secondAbord?: number;
+  commitDateTime?: string;
+  /** ¿Suma al total según las reglas de la sucursal? */
+  countable?: boolean;
+  /** Corrección hecha en el Consolidador; null si es automático. */
+  correction?: IncomeCorrection | null;
 };
 
 // Interfaz para la respuesta global del backend
