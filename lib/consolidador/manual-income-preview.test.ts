@@ -60,3 +60,16 @@ describe("manualIncomeErrors", () => {
     });
   });
 });
+
+describe("resumen del diálogo", () => {
+  it("da tipo, columna y día para el panel 'Así quedará'", () => {
+    const r = describeManualIncome("pod", base, { cost: 52, date: "2026-10-12", hasTracking: true });
+    expect(r.type).toBe("FedEx entregado (POD)");
+    expect(r.column).toBe("Ingreso FedEx");
+    expect(r.day).toMatch(/12/);
+  });
+  it("estatus en palabras", async () => {
+    const { statusInWords } = await import("./manual-income-preview");
+    expect(statusInWords("devuelto_a_fedex")).toBe("Devuelto a FedEx");
+  });
+});

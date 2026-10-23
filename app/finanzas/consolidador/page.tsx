@@ -242,7 +242,7 @@ function ConsolidadorPage() {
           </Tabs>
         )}
 
-        <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} subsidiaryId={actionSubId} defaultTracking={addDefaultTracking} onSubmit={handleAddIncome} />
+        <AddIncomeDialog open={addOpen} onOpenChange={setAddOpen} week={week} subsidiaryId={actionSubId} subsidiaryName={actionSubName} defaultTracking={addDefaultTracking} onSubmit={handleAddIncome} />
         <SearchSheet open={searchOpen} onOpenChange={setSearchOpen} subsidiaryId={actionSubId} onFixed={refreshAll} onAddIncome={openAddForTracking} />
         <AnomaliesDialog open={anomaliesOpen} onOpenChange={setAnomaliesOpen} subsidiaryId={actionSubId} week={week} onChanged={refreshAll} />
         {isGlobal && <DateRealignDialog open={realignOpen} onOpenChange={setRealignOpen} subsidiaryId={actionSubId} week={week} onChanged={refreshAll} />}
