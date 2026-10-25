@@ -6,15 +6,12 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
   Image,
 } from "@react-pdf/renderer";
 import { format, toZonedTime } from "date-fns-tz";
-import { Driver, PackageInfo, Route, Vehicles, PackageDispatch } from "@/lib/types";
+import { Driver, PackageInfo, Route, Vehicles, PackageDispatch, DispatchSortMode } from "@/lib/types";
 import { formatMexicanPhoneNumberWithOutMexicanLada } from "@/lib/utils";
-import { sortByZip } from "@/lib/tracking/sort-by-zip";
-
-Font.register({ family: "Helvetica", src: undefined });
+import { dispatchCarrier, dispatchCarrierLabel, sortForDispatch } from "@/lib/tracking/sort-by-zip";
 
 const colors = {
   primary: "#8c5e4e",
@@ -230,8 +227,8 @@ interface FedExPackageDispatchPDFProps {
   subsidiaryName: string;
   trackingNumber: string;
   packageDispatch?: PackageDispatch;
-  /** Si la sucursal lo configura, ordena por CP; si no, conserva el orden de escaneo. */
-  sortByPostalCode?: boolean;
+  /** Orden de la salida: paquetería+CP, CP+dirección o escaneo. */
+  sortMode?: DispatchSortMode;
 }
 
 const getColumnWidths = (isHermosillo: boolean) => {  
@@ -267,7 +264,7 @@ export const FedExPackageDispatchPDF = ({
   subsidiaryName = "",
   trackingNumber = "",
   packageDispatch,
-  sortByPostalCode = true,
+  sortMode = "cp",
 }: FedExPackageDispatchPDFProps) => {
   const timeZone = "America/Hermosillo";
   const currentDate = new Date();
@@ -278,18 +275,31 @@ export const FedExPackageDispatchPDF = ({
   const isHermosillo = subsidiaryName?.toLowerCase().includes('hermosillo');
   const columnWidths = getColumnWidths(isHermosillo);
 
-  // Orden: por código postal (recipientZip) si la sucursal lo configura; si no,
-  // se conserva el orden en que se escanearon los paquetes.
-  const orderedPackages = sortByPostalCode ? sortByZip(packages) : packages;
+  // Orden elegido para la salida (mismo que la pantalla y el Excel). En modo
+  // paquetería con más de una, cada paquetería va en sus PROPIAS hojas: encabezado,
+  // totales y numeración (desde 1) de esa paquetería.
+  const orderedPackages = sortForDispatch(packages, sortMode);
+  const sections: { title: string; items: PackageInfo[] }[] = [];
+  if (sortMode === "carrier_cp") {
+    for (const pkg of orderedPackages) {
+      const last = sections[sections.length - 1];
+      if (last && dispatchCarrier(last.items[0]) === dispatchCarrier(pkg)) last.items.push(pkg);
+      else sections.push({ title: `SALIDA A RUTA · ${dispatchCarrierLabel(pkg).toUpperCase()}`, items: [pkg] });
+    }
+  }
+  if (sections.length <= 1) {
+    sections.length = 0;
+    sections.push({ title: "SALIDA A RUTA", items: orderedPackages });
+  }
 
-  const calculatePackageStats = () => {
+  const calculatePackageStats = (list: PackageInfo[]) => {
     let f2Count = 0, cargaCount = 0, fedexCount = 0, dhlCount = 0;
     let expiringTodayCount = 0, withPaymentCount = 0, totalPaymentAmount = 0, highValueCount = 0;
 
-    orderedPackages.forEach((pkg) => {
+    list.forEach((pkg) => {
       if (pkg?.isCharge) f2Count++;
       if (pkg?.isHighValue) { cargaCount++; highValueCount++; }
-      if (pkg?.payment?.amount) { withPaymentCount++; totalPaymentAmount += pkg.payment.amount; }
+      if (pkg?.payment?.amount) { withPaymentCount++; totalPaymentAmount += Number(pkg.payment.amount) || 0; }
       if (pkg?.shipmentType === 'fedex') fedexCount++;
       if (pkg?.shipmentType === 'dhl') dhlCount++;
 
@@ -305,9 +315,9 @@ export const FedExPackageDispatchPDF = ({
     });
 
     return {
-      total: orderedPackages.length, f2Count, cargaCount, highValueCount,
+      total: list.length, f2Count, cargaCount, highValueCount,
       expiringTodayCount, withPaymentCount, totalPaymentAmount,
-      regularCount: orderedPackages.length - f2Count - highValueCount,
+      regularCount: list.length - f2Count - highValueCount,
       fedexCount, dhlCount,
     };
   };
@@ -317,7 +327,6 @@ export const FedExPackageDispatchPDF = ({
     return text.length > maxLength ? text.slice(0, maxLength - 3) + '...' : text;
   };
 
-  const packageStats = calculatePackageStats();
   const mainDriver = drivers && drivers.length > 0 ? drivers[0].name : "No asignado";
   const routeNames = routes?.map((r) => r.name).join(" → ") || "No asignado";
 
@@ -330,16 +339,19 @@ export const FedExPackageDispatchPDF = ({
     </View>
   );
 
-  return (
-    <Document>
-      {/* Al usar wrap={true}, la página crecerá automáticamente a la hoja siguiente si se llena */}
-      <Page size="LETTER" style={styles.page} orientation="landscape" wrap>
+  // Una hoja (o varias, por wrap) por sección: encabezado + totales + tabla. Las
+  // guías inválidas van al final de la última sección.
+  const renderPage = (section: { title: string; items: PackageInfo[] }, withInvalid: boolean, pageKey: number) => {
+    const packageStats = calculatePackageStats(section.items);
+    // wrap: la sección crece sola a la hoja siguiente si se llena.
+    return (
+      <Page key={pageKey} size="LETTER" style={styles.page} orientation="landscape" wrap>
         
         {/* ENCABEZADOS PRINCIPALES: Al estar al principio y sin prop "fixed", 
             se renderizan SOLO EN LA PRIMERA HOJA (como tú querías) */}
         <View style={styles.header}>
           <Image src="/logo-no-fondo.png" style={styles.logo} />
-          <Text style={styles.headerText}>SALIDA A RUTA</Text>
+          <Text style={styles.headerText}>{section.title}</Text>
           <View>
             <Text style={styles.dateText}>{formattedDate}</Text>
             <Text style={styles.dateText}>{formattedTime}</Text>
@@ -430,14 +442,14 @@ export const FedExPackageDispatchPDF = ({
             <TableCell width={80}>NOMBRE Y FIRMA</TableCell>
           </View>
 
-          {/* Ya no mapeamos "data" en bloques, mapeamos TODA la lista (ordenada por CP). El wrap hace la división */}
-          {orderedPackages.map((pkg, i) => {
+          {/* Toda la lista de la sección (ya ordenada). El wrap hace la división */}
+          {section.items.map((pkg, i) => {
             const aeIcon = pkg.consolidated?.type === 'aereo' ? '[A]' : '';
             const icons = `${aeIcon}${pkg.isCharge ? '[C]' : ''}${pkg.payment ? '[$]' : ''}${pkg.isHighValue ? '[H]' : ''}`;
 
-            const zoned = toZonedTime(new Date(pkg.commitDateTime), timeZone);
-            const commitDate = format(zoned, 'yyyy-MM-dd', { timeZone });
-            const commitTime = format(zoned, 'HH:mm:ss', { timeZone });
+            const zoned = pkg.commitDateTime ? toZonedTime(new Date(pkg.commitDateTime), timeZone) : null;
+            const commitDate = zoned ? format(zoned, 'yyyy-MM-dd', { timeZone }) : '';
+            const commitTime = zoned ? format(zoned, 'HH:mm:ss', { timeZone }) : '';
             const hasPayment = pkg.payment?.amount != null;
 
             const isExpiringToday = commitDate === formattedDate;
@@ -447,19 +459,19 @@ export const FedExPackageDispatchPDF = ({
             // Separador de zona: línea gruesa cuando cambian los 2 primeros dígitos
             // del CP. Solo tiene sentido cuando la lista va ordenada por CP.
             const zone = (pkg.recipientZip || '').slice(0, 2);
-            const prevZone = i > 0 ? (orderedPackages[i - 1].recipientZip || '').slice(0, 2) : null;
-            const zoneChanged = sortByPostalCode && i > 0 && zone !== prevZone;
+            const prevZone = i > 0 ? (section.items[i - 1].recipientZip || '').slice(0, 2) : null;
+            const zoneChanged = sortMode !== "scan" && i > 0 && zone !== prevZone;
 
             return (
               <View
+                key={i}
                 style={[
                   styles.tableRow,
-                  i % 2 === 0 && styles.tableRowEven,
-                  hasPayment && styles.paymentRow,
-                  isExpiringToday && styles.expiringTodayRow,
-                  zoneChanged && styles.zoneSeparator
+                  i % 2 === 0 ? styles.tableRowEven : {},
+                  hasPayment ? styles.paymentRow : {},
+                  isExpiringToday ? styles.expiringTodayRow : {},
+                  zoneChanged ? styles.zoneSeparator : {}
                 ]}
-                key={i}
               >
                 <TableCell width={columnWidths.number} style={{ fontWeight: textWeight }}>
                   {icons} {i + 1}
@@ -509,7 +521,7 @@ export const FedExPackageDispatchPDF = ({
         </View>
 
         {/* TABLA DE TRACKINGS INVÁLIDOS */}
-        {invalidTrackings.length > 0 && (
+        {withInvalid && invalidTrackings.length > 0 && (
           // El atributo 'break' empuja forzosamente esta tabla a iniciar en una página NUEVA
           <View style={[styles.tableContainer, { borderColor: '#ff9999' }]} break>
             <View style={[styles.tableHeader, { backgroundColor: '#ff9999' }]} fixed>
@@ -532,12 +544,12 @@ export const FedExPackageDispatchPDF = ({
             </View>
 
             {invalidTrackings.map((tracking, index) => {
-              const globalIndex = orderedPackages.length + index;
+              const globalIndex = index;
               return (
                 <View 
                   style={[
                     styles.tableRow,
-                    index % 2 === 0 && { backgroundColor: '#fff0f0' }
+                    index % 2 === 0 ? { backgroundColor: '#fff0f0' } : {}
                   ]} 
                   key={globalIndex}
                 >
@@ -572,6 +584,12 @@ export const FedExPackageDispatchPDF = ({
           Documento generado automáticamente - PMY App v.1.0 - {formattedDate} {formattedTime}
         </Text>*/}
       </Page>
+    );
+  };
+
+  return (
+    <Document>
+      {sections.map((section, sectionIndex) => renderPage(section, sectionIndex === sections.length - 1, sectionIndex))}
     </Document>
   );
 };

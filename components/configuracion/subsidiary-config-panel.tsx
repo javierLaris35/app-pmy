@@ -23,6 +23,7 @@ type FlagKey =
   | "forceFedexStatusOverride"
   | "allowSameDayPreRegistrationFedexEvents"
   | "sortDispatchByPostalCode"
+  | "sortDispatchByCarrier"
   | "validateDispatchByList"
   | "allowRouteClosureWithOtherStatus"
   | "closureAcceptsAnyDayDelivery"
@@ -45,6 +46,7 @@ const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "forceFedexStatusOverride", label: "Forzar estatus FedEx", hint: "Prioriza el estatus reportado por FedEx" },
   { key: "allowSameDayPreRegistrationFedexEvents", label: "Eventos FedEx pre-registro (mismo día)", hint: "Para sucursales que operan desde la bodega de FedEx: procesa eventos (DEX 07/08, cambio de fecha) anteriores al registro del paquete si son del mismo día. No cambia el estatus operativo." },
   { key: "sortDispatchByPostalCode", label: "Salidas a ruta por CP", hint: "Ordena los paquetes por código postal (escaneo, PDF y Excel). Si está apagado, se conserva el orden de escaneo." },
+  { key: "sortDispatchByCarrier", label: "Salidas a ruta por paquetería", hint: "Separa FedEx (con cargas) y luego DHL, y dentro de cada una ordena por código postal (pantalla, PDF y Excel). Tiene prioridad sobre \"por CP\". También es el orden inicial en Bodega → Salida." },
   { key: "validateDispatchByList", label: "Validar por lista", hint: "Valida toda la lista escaneada en un solo envío (más rápido). Si está apagado, se validan uno por uno." },
   { key: "allowRouteClosureWithOtherStatus", label: "Cerrar ruta con otros estatus", hint: "Permite cerrar la ruta aunque queden paquetes en \"Otros Estatus\" venciendo hoy. Apagado = comportamiento histórico (bloquea)." },
   { key: "closureAcceptsAnyDayDelivery", label: "Cierre toma entregas de otro día", hint: "Si la guía ya está entregada, el cierre la cuenta como entregada aunque FedEx la haya entregado antes o después del día de la ruta. Solo entregados. Apagado = cuenta lo que pasó el día de la ruta." },

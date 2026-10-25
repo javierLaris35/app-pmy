@@ -9,8 +9,8 @@ const pkgs: any[] = [
 ]
 
 describe("orderWarehousePackages", () => {
-  it("por paquetería: FedEx (incl. cargas) primero, DHL después, sin mezclar y en orden de escaneo", () => {
-    expect(orderWarehousePackages(pkgs, "carrier").map((p) => p.trackingNumber)).toEqual(["F1", "C1", "D1", "D2"])
+  it("por paquetería: FedEx (incl. cargas) primero, DHL después, sin mezclar y por CP dentro", () => {
+    expect(orderWarehousePackages(pkgs, "carrier").map((p) => p.trackingNumber)).toEqual(["C1", "F1", "D1", "D2"])
   })
 
   it("por CP mezcla paqueterías", () => {

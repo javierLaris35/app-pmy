@@ -3,6 +3,7 @@ import { mapToPackageInfo } from "@/lib/utils"
 import { getShipmensByDispatchId, uploadPDFile, type ResendEmailResult } from "@/lib/services/package-dispatchs"
 import { FedExPackageDispatchPDF } from "./package-dispatch-pdf-generator"
 import { generateDispatchExcelClient } from "./package-dispatch-excel-generator"
+import { dispatchSortModeOf } from "@/lib/tracking/sort-by-zip"
 
 /** Fecha local dd-mm-aaaa para nombrar los archivos, igual que en la creación. */
 function fileDate(): string {
@@ -25,7 +26,8 @@ export async function regenerateAndSendDispatchEmail(
   const dispatch = await getShipmensByDispatchId(dispatchId)
 
   const subsidiaryName = dispatch.subsidiary?.name ?? ""
-  const sortByCp = dispatch.subsidiary?.sortDispatchByPostalCode ?? true
+  // Mismo orden con que se armó la salida (las viejas usan el de la sucursal).
+  const sortMode = dispatchSortModeOf(dispatch)
   const packages = mapToPackageInfo(dispatch.shipments ?? [], dispatch.chargeShipments ?? [])
 
   const driver = (dispatch.drivers?.[0]?.name ?? "CHOFER").toUpperCase()
@@ -43,13 +45,13 @@ export async function regenerateAndSendDispatchEmail(
       subsidiaryName={subsidiaryName}
       trackingNumber={dispatch.trackingNumber}
       packageDispatch={dispatch}
-      sortByPostalCode={sortByCp}
+      sortMode={sortMode}
     />,
   ).toBlob()
   const pdfFile = new File([pdfBlob], `${baseName}.pdf`, { type: "application/pdf" })
 
   // Excel (mismo generador que la creación).
-  const excelBuffer = await generateDispatchExcelClient(dispatch, [], false, sortByCp)
+  const excelBuffer = await generateDispatchExcelClient(dispatch, [], false, sortMode)
   const excelFile = new File(
     [new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })],
     `${baseName}.xlsx`,

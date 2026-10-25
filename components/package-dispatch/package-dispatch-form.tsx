@@ -1,7 +1,7 @@
 "use client";
 
 import { PmySpinner } from "@/components/ui/pmy-loader";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { AlertCircle, Trash2, Send, Scan, MapPin, User, Phone, BanknoteIcon, Pac
 import { RepartidorSelector } from "../selectors/repartidor-selector";
 import { RutaSelector } from "../selectors/ruta-selector";
 import { UnidadSelector } from "../selectors/unidad-selector";
-import { DispatchFormData, Driver, PackageDispatch, PackageInfo, Priority, Route, Vehicles } from "@/lib/types";
+import { DispatchFormData, DispatchSortMode, Driver, PackageDispatch, PackageInfo, Priority, Route, Vehicles } from "@/lib/types";
 import { savePackageDispatch, uploadPDFile, validateTrackingNumber, validateTrackingsList } from "@/lib/services/package-dispatchs";
 import { useAuthStore } from "@/store/auth.store";
 import { pdf } from '@react-pdf/renderer';
@@ -28,7 +28,7 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
 import { normalizeScannedCode, isValidScannedCode } from "@/lib/tracking/normalize-scan";
 import { cn } from "@/lib/utils";
-import { compareByZip } from "@/lib/tracking/sort-by-zip";
+import { carrierGroupStarts, sortForDispatch, subsidiaryDispatchSortMode } from "@/lib/tracking/sort-by-zip";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { StatBar } from "@/components/shared/stat-bar";
@@ -69,7 +69,14 @@ const formatMexicanPhoneNumber = (phone: string): string => {
 };
 
 // Señal visual de "vence hoy" (fecha local del navegador).
-const isExpiringTodayLocal = (commitDateTime?: string | null): boolean => {
+// Opciones del control "Orden de la salida" (lista, PDF y Excel).
+const SORT_OPTIONS: { mode: DispatchSortMode; label: string; hint: string }[] = [
+  { mode: "carrier_cp", label: "Paquetería + CP", hint: "FedEx primero y luego DHL; dentro, por CP y dirección (lista, PDF y Excel)." },
+  { mode: "cp", label: "CP + dirección", hint: "Por CP y dirección, sin separar paquetería (lista, PDF y Excel)." },
+  { mode: "scan", label: "Escaneo", hint: "Por orden de escaneo (lista, PDF y Excel)." },
+];
+
+const isExpiringTodayLocal =(commitDateTime?: string | null): boolean => {
   if (!commitDateTime) return false;
   const d = new Date(commitDateTime);
   const t = new Date();
@@ -209,18 +216,18 @@ const PackageDispatchForm: React.FC<Props> = ({
     return propSubsidiaryName || user?.subsidiary?.name || null;
   }, [propSubsidiaryName, user]);
 
-  // ¿Esta sucursal ordena las salidas a ruta por código postal? (config en BD).
+  // Orden de la salida según la config de la sucursal (paquetería+CP, CP o escaneo).
   // Es el DEFAULT; el operador puede cambiarlo en caliente con el control de orden.
   const { subsidiaries } = useSubsidiaries();
-  const configSortByCp = useMemo(() => {
+  const configSortMode = useMemo<DispatchSortMode>(() => {
     const sub = (subsidiaries as any[] | undefined)?.find((s) => s.id === selectedSubsidiaryId);
-    return Boolean(sub?.sortDispatchByPostalCode);
+    return subsidiaryDispatchSortMode(sub);
   }, [subsidiaries, selectedSubsidiaryId]);
 
-  // Override local (control segmentado): "cp" | "scan" | null. null = seguir la
-  // config de la sucursal. Gobierna lista en pantalla, PDF y Excel de esta salida.
-  const [sortModeOverride, setSortModeOverride] = useState<"cp" | "scan" | null>(null);
-  const sortByCp = (sortModeOverride ?? (configSortByCp ? "cp" : "scan")) === "cp";
+  // Override local (control segmentado). null = seguir la config de la sucursal.
+  // Gobierna lista en pantalla, PDF y Excel de esta salida, y se guarda en la salida.
+  const [sortModeOverride, setSortModeOverride] = useState<DispatchSortMode | null>(null);
+  const sortMode: DispatchSortMode = sortModeOverride ?? configSortMode;
 
   // Al cambiar de sucursal, volvemos a respetar su config (descartamos el override).
   useEffect(() => { setSortModeOverride(null); }, [selectedSubsidiaryId]);
@@ -550,6 +557,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         kms: selectedKms,
         routeDate: routeDate,
         is315: is315,
+        sortMode,
       };
 
       const dispatchResponse = await savePackageDispatch(dispatchData);
@@ -592,7 +600,7 @@ const PackageDispatchForm: React.FC<Props> = ({
           packages={validPackages}
           subsidiaryName={selectedSubsidiaryName ?? ""}
           trackingNumber="123456789"
-          sortByPostalCode={sortByCp}
+          sortMode={sortMode}
         />
       ).toBlob();
 
@@ -625,7 +633,7 @@ const PackageDispatchForm: React.FC<Props> = ({
           packages={validPackages}
           subsidiaryName={packageDispatch.subsidiary?.name}
           trackingNumber={packageDispatch.trackingNumber}
-          sortByPostalCode={sortByCp}
+          sortMode={sortMode}
         />
       ).toBlob();
 
@@ -647,7 +655,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         packageDispatch,
         invalidPackages,
         false,
-        sortByCp);
+        sortMode);
 
       const excelBlob = new Blob([excelBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -743,9 +751,15 @@ const PackageDispatchForm: React.FC<Props> = ({
 
       return matchesSearch && matchesPriority && matchesStatus && matchesCarrier && matchesToday && matchesPayment;
     });
-    // Orden por CP solo si la sucursal lo configura; si no, orden de escaneo (igual que PDF/Excel).
-    return sortByCp ? [...result].sort(compareByZip) : result;
-  }, [validPackages, searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment, sortByCp]);
+    // Mismo orden que el PDF y el Excel.
+    return sortForDispatch(result, sortMode);
+  }, [validPackages, searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment, sortMode]);
+
+  // Franjas "FedEx · n" / "DHL · n" en la lista cuando se ordena por paquetería.
+  const validCarrierGroups = useMemo(
+    () => (sortMode === "carrier_cp" ? carrierGroupStarts(filteredValidPackages) : null),
+    [filteredValidPackages, sortMode],
+  );
 
   const activeFilterCount =
     (filterPriority !== "all" ? 1 : 0) +
@@ -1076,30 +1090,23 @@ const PackageDispatchForm: React.FC<Props> = ({
                 <div className="flex flex-col">
                   <span className="text-sm font-medium">Orden de la salida</span>
                   <span className="text-xs text-muted-foreground leading-snug">
-                    {sortByCp
-                      ? "Por CP y dirección (lista, PDF y Excel)."
-                      : "Por orden de escaneo (lista, PDF y Excel)."}
+                    {SORT_OPTIONS.find((o) => o.mode === sortMode)?.hint}
                   </span>
                 </div>
-                <div className="inline-flex shrink-0 rounded-lg border bg-background p-0.5">
-                  {[
-                    { cp: true, label: "CP + dirección" },
-                    { cp: false, label: "Escaneo" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.label}
+                <div className="inline-flex shrink-0 overflow-hidden rounded-md border bg-background">
+                  {SORT_OPTIONS.map((opt, i) => (
+                    <Button
+                      key={opt.mode}
                       type="button"
-                      onClick={() => setSortModeOverride(opt.cp ? "cp" : "scan")}
+                      size="sm"
+                      variant={sortMode === opt.mode ? "default" : "ghost"}
+                      className={cn("h-7 rounded-none px-3 text-xs", i > 0 && "border-l")}
+                      onClick={() => setSortModeOverride(opt.mode)}
                       disabled={isLoading}
-                      className={cn(
-                        "rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50",
-                        sortByCp === opt.cp
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-muted"
-                      )}
+                      aria-pressed={sortMode === opt.mode}
                     >
                       {opt.label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -1124,14 +1131,22 @@ const PackageDispatchForm: React.FC<Props> = ({
                         <div className="grid grid-cols-1 divide-y">
                           {filteredValidPackages.map((pkg, i) => {
                             const uniqueKey = pkg.dhlUniqueId || pkg.trackingNumber;
+                            const group = validCarrierGroups?.get(i);
                             return (
-                              <PackageListItem
-                                key={`todos-${uniqueKey}`}
-                                pkg={pkg}
-                                onRemove={handleRemovePackage}
-                                isLoading={isLoading}
-                                index={i + 1}
-                              />
+                              <Fragment key={`todos-${uniqueKey}`}>
+                                {group && (
+                                  <div className="sticky top-0 z-10 flex items-center justify-between bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    <span>{group.label}</span>
+                                    <span className="tabular-nums">{group.count}</span>
+                                  </div>
+                                )}
+                                <PackageListItem
+                                  pkg={pkg}
+                                  onRemove={handleRemovePackage}
+                                  isLoading={isLoading}
+                                  index={i + 1}
+                                />
+                              </Fragment>
                             );
                           })}
                         </div>

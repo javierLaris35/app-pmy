@@ -3,6 +3,7 @@ import { PackageInfo } from "@/lib/types";
 import { toPackageInfo, WarehousePackageInfo } from "@/components/warehouse/shared/warehouse-package-list.helpers";
 import { isToday } from "@/components/warehouse/shared/warehouse-utils";
 import type { ScanResolution } from "@/components/scanner/scan-input";
+import { compareByCarrierThenZip } from "@/lib/tracking/sort-by-zip";
 
 const countPieces = (p: WarehousePackageInfo) =>
   1 + (p.pieces?.length || 0) + (p.existingPieces?.length || 0);
@@ -38,7 +39,6 @@ export function warehouseCarrier(p: PackageInfo): "fedex" | "dhl" | "other" {
   return "other";
 }
 
-const CARRIER_RANK = { fedex: 0, dhl: 1, other: 2 } as const;
 const CARRIER_LABEL = { fedex: "FedEx", dhl: "DHL", other: "Otra paquetería" } as const;
 
 export function warehouseCarrierLabel(p: PackageInfo): string {
@@ -46,11 +46,12 @@ export function warehouseCarrierLabel(p: PackageInfo): string {
 }
 
 /**
- * Orden "Por paquetería": FedEx primero y DHL después, SIN mezclarlas. Dentro de
- * cada bloque se respeta el orden en que llegaron (el sort es estable).
+ * Orden "Por paquetería": FedEx primero y DHL después, SIN mezclarlas; dentro de
+ * cada bloque por CP y dirección. Es la misma regla que Salidas a Ruta
+ * (`compareByCarrierThenZip`), así el PDF/Excel de bodega sale igual.
  */
 export function sortWarehouseByCarrier(a: PackageInfo, b: PackageInfo): number {
-  return CARRIER_RANK[warehouseCarrier(a)] - CARRIER_RANK[warehouseCarrier(b)];
+  return compareByCarrierThenZip(a, b);
 }
 
 /**

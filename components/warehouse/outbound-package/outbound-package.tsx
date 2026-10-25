@@ -35,6 +35,7 @@ import { OutboundTypeEnum, type Route as RouteType, type PackageInfo } from "@/l
 
 // Escáner unificado (Task 1) + helpers puros de bodega (Task 2)
 import { ScanInput, type ScanInputHandle } from "@/components/scanner/scan-input"
+import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { WarehouseSortToggle, type WarehouseSortMode } from "@/components/warehouse/shared/warehouse-sort-toggle"
 import {
   makeResolveWarehouseScan,
@@ -98,9 +99,22 @@ export default function OutboundPackage() {
   // ---- Escáner unificado + estado local de paquetes (alimentado por onPackagesChange) ----
   const scanRef = useRef<ScanInputHandle>(null)
   const [packages, setPackages] = useState<PackageInfo[]>([])
-  // Orden de la lista (y del PDF/Excel): "carrier" (FedEx y DHL separados, por
-  // defecto), "cp" (sucursal→CP, mezcla paqueterías) o "scan" (como se escanearon).
-  const [sortMode, setSortMode] = useState<WarehouseSortMode>("carrier")
+  // Orden de la lista (y del PDF/Excel): "carrier" (FedEx y DHL separados, CP
+  // dentro), "cp" (sucursal→CP, mezcla paqueterías) o "scan" (como se escanearon).
+  // El default sale de la config de la bodega (Salidas a ruta por paquetería / por
+  // CP); sin config se queda en "carrier". El operador lo cambia en caliente.
+  const { subsidiaries } = useSubsidiaries()
+  const configSortMode = useMemo<WarehouseSortMode>(() => {
+    const wh = (subsidiaries as any[] | undefined)?.find((x) => x.id === s.effectiveWarehouseId)
+    if (wh?.sortDispatchByCarrier) return "carrier"
+    if (wh?.sortDispatchByPostalCode) return "cp"
+    return "carrier"
+  }, [subsidiaries, s.effectiveWarehouseId])
+  const [sortModeOverride, setSortModeOverride] = useState<WarehouseSortMode | null>(null)
+  const sortMode = sortModeOverride ?? configSortMode
+  const setSortMode = setSortModeOverride
+  // Al cambiar de bodega se vuelve a respetar su config.
+  useEffect(() => { setSortModeOverride(null) }, [s.effectiveWarehouseId])
 
   // Resolvedor per-scan: validación instantánea + defensa de duplicados + remesa DHL.
   const resolveScan = useMemo(

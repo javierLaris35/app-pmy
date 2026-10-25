@@ -39,6 +39,8 @@ export type Subsidiary = {
   allowSameDayPreRegistrationFedexEvents?: boolean
   /** Ordenar las salidas a ruta por código postal (escaneo/PDF/Excel). */
   sortDispatchByPostalCode?: boolean
+  /** Agrupar las salidas a ruta por paquetería (FedEx y luego DHL), CP dentro de cada una. */
+  sortDispatchByCarrier?: boolean
   /** Validar los paquetes de salida a ruta por lista (batch) en vez de uno-por-uno. */
   validateDispatchByList?: boolean
   // Reglas de ingreso por sucursal.
@@ -691,6 +693,8 @@ export interface PackageDispatch {
   subsidiary: Subsidiary
   /** 'YYYY-MM-DD' — día operativo de la ruta (fecha real; createdAt es cuándo se capturó). */
   routeDate?: string | null
+  /** Orden con el que se armó la salida (null = salida vieja: config de la sucursal). */
+  sortMode?: DispatchSortMode | null
   createdAt?: string
   kms: string
 }
@@ -764,7 +768,11 @@ export interface DispatchFormData {
   kms?: string
   routeDate?: string   // 'YYYY-MM-DD' — fecha operativa de la ruta (default hoy)
   is315?: boolean      // ruta 31.5: los No VAN no generan ingreso
+  sortMode?: DispatchSortMode // orden usado en pantalla/PDF/Excel (se guarda para reenvíos)
 }
+
+/** Orden de la salida a ruta: paquetería+CP, CP+dirección o escaneo. */
+export type DispatchSortMode = "carrier_cp" | "cp" | "scan"
 
 /*** Administration */
 export enum VehicleStatus {

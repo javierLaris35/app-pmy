@@ -19,6 +19,7 @@ import {
 } from "lucide-react"; 
 import { PackageDispatch, PackageInfo } from "@/lib/types";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
+import { dispatchSortModeOf } from "@/lib/tracking/sort-by-zip";
 import { pdf } from "@react-pdf/renderer";
 import { IconPdf } from "@tabler/icons-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -140,6 +141,7 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
           packages={allPackages} 
           subsidiaryName={dispatchData.subsidiary?.name ?? "N/A"}
           trackingNumber={dispatchData.trackingNumber ?? "N/A"}
+          sortMode={dispatchSortModeOf(dispatchData)}
         />
       ).toBlob();
 
