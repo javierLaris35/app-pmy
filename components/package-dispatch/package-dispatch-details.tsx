@@ -19,12 +19,21 @@ import {
 } from "lucide-react"; 
 import { PackageDispatch, PackageInfo } from "@/lib/types";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
-import { dispatchSortModeOf } from "@/lib/tracking/sort-by-zip";
+import { dispatchSortModeOf, sortForDispatch } from "@/lib/tracking/sort-by-zip";
 import { pdf } from "@react-pdf/renderer";
 import { IconPdf } from "@tabler/icons-react";
 import { useToast } from "@/components/ui/use-toast";
 import { mapToPackageInfo } from "@/lib/utils";
 import { getPackageDispatchById } from "@/lib/services/package-dispatchs";
+import { useAuthStore } from "@/store/auth.store";
+import { hasActionPermission } from "@/lib/access/permissions";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PencilLine } from "lucide-react";
+import { DispatchEditPanel } from "./dispatch-edit-panel";
+import { DispatchChangesList } from "./dispatch-changes-list";
+
+/** Salidas que ya no se pueden editar (cerradas o canceladas). */
+const CLOSED_DISPATCH = ["completada", "cancelada"];
 
 interface Props {
   /** Solo se usa el id: el detalle completo se trae fresco del backend. */
@@ -64,6 +73,10 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
   const [dispatchData, setDispatchData] = useState<PackageDispatch | null>(null);
   const [isFetchingData, setIsFetchingData] = useState(true);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  const [editing, setEditing] = useState(false);
+  const [view, setView] = useState<"paquetes" | "cambios">("paquetes");
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Estados de filtrado
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,7 +102,13 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
       }
     };
     fetchDispatchDetails();
-  }, [initialDispatch.id, toast]);
+  }, [initialDispatch.id, toast, reloadKey]);
+
+  // Editar ruta: permiso de acción (superadmin o asignado por rol) y solo salidas abiertas.
+  const canEdit =
+    hasActionPermission(user, "operaciones.salidas.editar") &&
+    !!dispatchData &&
+    !CLOSED_DISPATCH.includes(String(dispatchData.status ?? "").toLowerCase());
 
   const allPackages: PackageInfo[] = useMemo(() => {
     return dispatchData ? mapToPackageInfo(dispatchData.shipments, dispatchData.chargeShipments) : [];
@@ -196,7 +215,12 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
 
         <div className="flex gap-2 w-full md:w-auto">
           <Button variant="ghost" onClick={onClose} className="hidden md:flex text-slate-500">Cancelar</Button>
-          <Button onClick={handlePdfCreate} disabled={isLoadingPdf} className="w-full md:w-auto shadow-sm">
+          {canEdit && !editing && (
+            <Button variant="outline" onClick={() => { setEditing(true); setView("paquetes"); }} className="w-full md:w-auto">
+              <PencilLine className="mr-2 h-4 w-4" /> Editar ruta
+            </Button>
+          )}
+          <Button onClick={handlePdfCreate} disabled={isLoadingPdf || editing} className="w-full md:w-auto shadow-sm">
             {isLoadingPdf ? <PmySpinner className="mr-2 h-4 w-4" /> : <IconPdf className="mr-2 h-4 w-4" />}
             Exportar Manifiesto
           </Button>
@@ -211,6 +235,26 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
         <KpiItem label="Cargas F2/31.5" value={stats.charges} dotColor="bg-blue-500" />
       </div>
 
+      {/* Vista: paquetes de la salida o historial de cambios (agregar/quitar). */}
+      <Tabs value={view} onValueChange={(v) => setView(v as "paquetes" | "cambios")} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="paquetes">Paquetes</TabsTrigger>
+          <TabsTrigger value="cambios" disabled={editing}>Historial de cambios</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {view === "cambios" && <DispatchChangesList dispatchId={dispatchData.id} refreshKey={reloadKey} />}
+
+      {view === "paquetes" && editing && (
+        <DispatchEditPanel
+          dispatchId={dispatchData.id}
+          packages={sortForDispatch(allPackages, dispatchSortModeOf(dispatchData))}
+          onCancel={() => setEditing(false)}
+          onSaved={() => { setEditing(false); setReloadKey((k) => k + 1); setView("cambios"); }}
+        />
+      )}
+
+      {view === "paquetes" && !editing && (<>
       {/* 3. Toolbar de Filtros (Estilo SaaS Moderno) */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
         {/* Pestañas de Estado (Imitando shadcn Tabs con Tailwind) */}
@@ -364,6 +408,7 @@ export default function PackageDispatchDetails({ dispatch: initialDispatch, onCl
           </TableBody>
         </Table>
       </div>
+      </>)}
     </div>
   );
 }

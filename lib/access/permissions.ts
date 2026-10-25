@@ -58,6 +58,18 @@ export function hasPermission(user: User | null | undefined, code: string): bool
 }
 
 /**
+ * Permiso de ACCIÓN (no de página): solo superadmin o quien lo tenga asignado en su
+ * rol. Sin el respaldo legacy por rol de `hasPermission` (que deja pasar códigos que
+ * no existen en `allowed-page-roles`), para que un botón sensible nunca aparezca de más.
+ */
+export function hasActionPermission(user: User | null | undefined, code: string): boolean {
+  if (!user) return false;
+  const role = (user.role || "").toString().toLowerCase();
+  if (SUPER_ROLES.includes(role)) return true;
+  return Array.isArray(user.permissions) && user.permissions.includes(code);
+}
+
+/**
  * Ruta de aterrizaje segura para un usuario autenticado.
  *
  * Única fuente de verdad para decidir a dónde mandar al usuario tras iniciar

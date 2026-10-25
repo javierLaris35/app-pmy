@@ -7,7 +7,10 @@ import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Send, Truck, Eye, Sheet, Lock } from "lucide-react"
+import { Send, Truck, Eye, Sheet, Lock, Layers } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { getGroupCandidates } from "@/lib/services/route-closure"
+import type { GroupCandidate } from "@/lib/route-closure/group-dispatch"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
@@ -49,6 +52,10 @@ export default function PackageDispatchControl() {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isRouteClouserDialogOpen, setIsRouteClouserDialogOpen] = useState(false);
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
+  // Cierre agrupado: rutas del mismo chofer y día que se pueden cerrar juntas.
+  const [groupCandidates, setGroupCandidates] = useState<GroupCandidate[]>([])
+  const [groupCloseIds, setGroupCloseIds] = useState<string[] | null>(null)
+  const [groupsRefresh, setGroupsRefresh] = useState(0)
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
   // Deep-link de correos: /operaciones/salidas-a-ruta?seguimiento=XXXX enfoca el registro.
@@ -134,6 +141,26 @@ export default function PackageDispatchControl() {
     setIsRouteClouserDialogOpen(true)
   }, [cerrarParam, cerrarHandled, effectiveSucursalId, subsidiariesLoading, usesPreClosure, router])
 
+  useEffect(() => {
+    if (!effectiveSucursalId) return setGroupCandidates([])
+    let alive = true
+    getGroupCandidates(effectiveSucursalId)
+      .then((g) => alive && setGroupCandidates(g))
+      .catch(() => alive && setGroupCandidates([]))
+    return () => { alive = false }
+  }, [effectiveSucursalId, groupsRefresh])
+
+  const openGroupClosure = (group: GroupCandidate) => {
+    const ids = group.dispatches.map((d) => d.id)
+    if (usesPreClosure) {
+      router.push(`/operaciones/salidas-a-ruta/cierre?salidas=${ids.join(",")}`)
+      return
+    }
+    setGroupCloseIds(ids)
+    setSelectedPackageDispatch(ids[0])
+    setIsRouteClouserDialogOpen(true)
+  }
+
   // SOLUCIÓN: Solo inicializar la sucursal cuando auth esté hidratado
   useEffect(() => {
     if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
@@ -177,6 +204,7 @@ export default function PackageDispatchControl() {
       return
     }
 
+    setGroupCloseIds(null)
     setSelectedPackageDispatch(packageDispatch.id)
     setIsRouteClouserDialogOpen(true)
   }
@@ -322,6 +350,29 @@ const updatedColumns = columns.map((col) =>
             <>
             {isSuperAdmin && <RouteRiskReportButton />}
             <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
+            {groupCandidates.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="whitespace-nowrap">
+                    <Layers className="mr-1.5 h-4 w-4" /> Cerrar juntas ({groupCandidates.length})
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    Rutas abiertas del mismo chofer y día. Se cierran en un solo paso.
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {groupCandidates.map((g) => (
+                    <DropdownMenuItem key={g.key} onSelect={() => openGroupClosure(g)} className="flex flex-col items-start gap-0.5">
+                      <span className="text-sm font-medium">{g.driverName} · {g.routeDate.split("-").reverse().join("/")}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {g.dispatches.length} rutas · {g.dispatches.reduce((a, d) => a + d.packages, 0)} paquetes · {g.dispatches.map((d) => d.folio).join(", ")}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button size="sm" onClick={openDispatchDialog} disabled={!selectedSucursalId} className="whitespace-nowrap">
               <Send className="mr-1.5 h-4 w-4" /> Nueva salida
             </Button>
@@ -416,10 +467,13 @@ const updatedColumns = columns.map((col) =>
           </DialogHeader>
           {selectedPackageDispatch && (
               <ClosePackageDisptach
+              key={groupCloseIds?.join(",") ?? selectedPackageDispatch}
               dispatchId={selectedPackageDispatch}
+              groupDispatchIds={groupCloseIds ?? undefined}
               onClose={() => setIsRouteClouserDialogOpen(false)}
               onSuccess={() => {
                 mutate()
+                setGroupsRefresh((n) => n + 1)
                 setIsRouteClouserDialogOpen(false)
               }}
               />

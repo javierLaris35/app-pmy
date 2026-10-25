@@ -25,7 +25,8 @@ import { ClosureDoctorPanel } from "@/components/package-dispatch/closure-doctor
 import { cn, mapToPackageInfoComplete } from "@/lib/utils"
 import { useAuthStore } from "@/store/auth.store"
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
-import { getPreClosureContext, reconcile, save, uploadFiles, validateTrackinNumberNoVan } from "@/lib/services/route-closure"
+import { getPreClosureContext, reconcile, save, saveGroup, uploadFiles, validateTrackinNumberNoVan } from "@/lib/services/route-closure"
+import { mergeDispatchesForClosure } from "@/lib/route-closure/group-dispatch"
 import { getCatalogOptions, type CatalogItem } from "@/lib/services/catalog"
 import { getCompanySettings } from "@/lib/services/company-settings"
 import { RouteClosurePDF } from "@/lib/services/route-closure/route-closure-pdf-generator"
@@ -52,7 +53,11 @@ const fileStamp = () => new Date().toLocaleDateString("es-ES", { day: "2-digit",
  * guía por guía contra lo que entrega el chofer, 3) kilometraje y cierre. Los estatus corregidos se
  * guardan solo al cerrar, con auditoría. El diálogo de siempre sigue para las demás sucursales.
  */
-export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
+export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: string; dispatchIds?: string[] }) {
+  // Cierre agrupado: rutas del mismo chofer y día cerradas juntas (todas o ninguna).
+  const groupKey = (dispatchIds?.length ? dispatchIds : [dispatchId]).filter(Boolean).join(",")
+  const closeIds = useMemo(() => groupKey.split(",").filter(Boolean), [groupKey])
+  const isGroup = closeIds.length > 1
   const router = useRouter()
   const { toast } = useToast()
   const user = useAuthStore((s) => s.user)
@@ -85,15 +90,27 @@ export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
   toastRef.current = toast
 
   const loadPackages = useCallback(async () => {
-    const d = await getShipmensByDispatchId(dispatchId)
-    // El LD se mide con el estatus del día de la ruta (el mismo con el que el cierre ve cada guía).
-    const closureStatuses = mapToPackageInfoComplete(d.shipments, d.chargeShipments)
-      .filter((p) => p.id)
-      .map((p) => ({ id: p.id!, isCharge: !!p.isCharge, status: String(p.status ?? "") }))
-    const ctx = await getPreClosureContext(dispatchId, closureStatuses)
-    setDispatch(d)
-    setContext(ctx)
-  }, [dispatchId])
+    const loaded = await Promise.all(
+      closeIds.map(async (id) => {
+        const d = await getShipmensByDispatchId(id)
+        // El LD se mide con el estatus del día de la ruta (el mismo con el que el cierre ve cada guía).
+        const closureStatuses = mapToPackageInfoComplete(d.shipments, d.chargeShipments)
+          .filter((p) => p.id)
+          .map((p) => ({ id: p.id!, isCharge: !!p.isCharge, status: String(p.status ?? "") }))
+        return { d, ctx: await getPreClosureContext(id, closureStatuses) }
+      }),
+    )
+    if (loaded.length === 1) {
+      setDispatch(loaded[0].d)
+      setContext(loaded[0].ctx)
+      return
+    }
+    // Grupo: una sola lista con las guías de todas las rutas; el día y 31.5 son de la primera.
+    const { merged } = mergeDispatchesForClosure(loaded.map((x) => x.d))
+    const first = loaded.find((x) => x.d.id === merged.id) ?? loaded[0]
+    setDispatch(merged)
+    setContext({ ...first.ctx, packages: loaded.flatMap((x) => x.ctx.packages) })
+  }, [closeIds])
 
   // Al abrir: reconciliar con FedEx (igual que el diálogo) y luego traer guías + contexto.
   useEffect(() => {
@@ -101,7 +118,7 @@ export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
     ;(async () => {
       try {
         try {
-          await reconcile(dispatchId)
+          for (const id of closeIds) await reconcile(id)
         } catch {
           toastRef.current({ title: "Sincronización FedEx incompleta", description: "Se muestran los últimos estatus guardados." })
         }
@@ -119,7 +136,7 @@ export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
     return () => {
       alive = false
     }
-  }, [dispatchId, loadPackages])
+  }, [groupKey, loadPackages])
 
   // Guías del cierre (estatus del día de la ruta) + estatus vivo + contexto del back.
   const { packageInfos, vms } = useMemo(() => {
@@ -334,10 +351,14 @@ export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
         manualStatusChanges: toPayload(changes, fedexVms),
         preClosureGeneratedAt: preClosureAt,
       }
-      const saved = await save(payload)
+      // Grupo: el backend reparte cada guía a su ruta y cierra todas o ninguna; el correo
+      // (con todas las rutas) se adjunta al cierre de la primera.
+      const saved: RouteClosure = isGroup
+        ? await saveGroup(closeIds, (({ packageDispatch, ...rest }) => rest)(payload)).then((r) => ({ ...payload, id: r.closures[0]?.id }))
+        : await save(payload)
       clearScanBuffer(COLLECTIONS_SCAN_KEY)
       clearScanBuffer(NOVAN_SCAN_KEY)
-      toast({ title: "Ruta cerrada", description: "El cierre se guardó con sus cambios." })
+      toast({ title: isGroup ? `${closeIds.length} rutas cerradas` : "Ruta cerrada", description: "El cierre se guardó con sus cambios." })
 
       // Documentos del correo (igual que el diálogo), con los estatus ya corregidos.
       try {
@@ -381,11 +402,11 @@ export function RouteClosureScreen({ dispatchId }: { dispatchId: string }) {
     { title: "Finalizar", detail: blockers.length ? `${blockers.length} pendiente(s) para cerrar` : "Kilometraje y cierre" },
   ]
   const folio = dispatch?.trackingNumber ?? ""
-  const description = dispatch ? `Salida ${folio} · ${dispatch.drivers?.map((d) => d.name).join(", ") || "Sin chofer"} · Ruta del ${routeDay ?? "—"}` : undefined
+  const description = dispatch ? `${isGroup ? `${closeIds.length} rutas juntas: ` : "Salida "}${folio} · ${dispatch.drivers?.map((d) => d.name).join(", ") || "Sin chofer"} · Ruta del ${routeDay ?? "—"}` : undefined
 
   const actions = (
     <div className="flex items-center gap-2">
-      {isSuperAdmin && dispatch && (
+      {isSuperAdmin && dispatch && !isGroup && (
         <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label="Paquetes con problema" onClick={() => setDoctorOpen(true)}>
           <Stethoscope className="h-4 w-4" />
         </Button>

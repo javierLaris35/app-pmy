@@ -189,3 +189,18 @@ export {
     reconcile,
     getPreClosureContext
 }
+
+/** Cierre agrupado: cierra juntas las rutas de un chofer del mismo día (todo o nada). */
+export const saveGroup = async (dispatchIds: string[], closure: Omit<RouteClosure, "packageDispatch">) => {
+    const response = await axiosConfig.post<{ closureGroupId: string; closures: { id: string; dispatchId: string }[] }>(
+        `${url}/group`,
+        { dispatchIds, closure },
+    );
+    return response.data;
+};
+
+/** Rutas abiertas de la sucursal que se pueden cerrar juntas (mismo día y chofer). */
+export const getGroupCandidates = async (subsidiaryId: string) => {
+    const response = await axiosConfig.get<import("@/lib/route-closure/group-dispatch").GroupCandidate[]>(`${url}/groups/${subsidiaryId}`);
+    return response.data;
+};

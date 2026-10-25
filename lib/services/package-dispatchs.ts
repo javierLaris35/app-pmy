@@ -44,6 +44,35 @@ const getPackageDispatchById = async (id: string) => {
     return response.data;
 }
 
+/** Cambio registrado al editar una salida (agregar/quitar guía). */
+export interface PackageDispatchChange {
+    id: string
+    action: "add" | "remove"
+    trackingNumber: string
+    previousStatus: string | null
+    newStatus: string | null
+    reason: string
+    createdAt: string
+    userName: string
+}
+
+/** Agrega guías a una salida abierta (permiso operaciones.salidas.editar). */
+export const addDispatchPackages = async (id: string, trackingNumbers: string[], reason: string) => {
+    const response = await axiosConfig.post<{ dispatchId: string; trackingNumbers: string[] }>(`${url}/${id}/packages`, { trackingNumbers, reason })
+    return response.data
+}
+
+/** Quita paquetes (ids de shipment o carga) de una salida abierta. */
+export const removeDispatchPackages = async (id: string, ids: string[], reason: string) => {
+    const response = await axiosConfig.post<{ dispatchId: string; trackingNumbers: string[] }>(`${url}/${id}/packages/remove`, { ids, reason })
+    return response.data
+}
+
+export const getDispatchChanges = async (id: string) => {
+    const response = await axiosConfig.get<PackageDispatchChange[]>(`${url}/${id}/changes`)
+    return response.data
+}
+
 const savePackageDispatch = async (packageDispatch: DispatchFormData) => {
     const response = await axiosConfig.post<PackageDispatch>(url, packageDispatch);
     return response.data;

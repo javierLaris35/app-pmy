@@ -44,7 +44,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, mapToPackageInfoComplete } from "@/lib/utils";
 import { NoVanPackageDetail, PackageDispatch, PackageInfo, Priority, RouteClosure } from "@/lib/types";
 import { useAuthStore } from "@/store/auth.store";
-import { save, uploadFiles, validateTrackinNumberNoVan, reconcile } from "@/lib/services/route-closure";
+import { save, saveGroup, uploadFiles, validateTrackinNumberNoVan, reconcile } from "@/lib/services/route-closure";
+import { mergeDispatchesForClosure } from "@/lib/route-closure/group-dispatch";
 import { pdf } from "@react-pdf/renderer";
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs";
 import { RouteClosurePDF } from "@/lib/services/route-closure/route-closure-pdf-generator";
@@ -57,12 +58,15 @@ import { ClosureDoctorPanel } from "./closure-doctor-panel";
 
 interface ClosePackageDispatchProps {
   dispatchId: string;
+  /** Cierre agrupado: todas las rutas del chofer del día (incluye `dispatchId`). */
+  groupDispatchIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export default function ClosePackageDispatchWizard({
   dispatchId,
+  groupDispatchIds,
   onClose,
   onSuccess,
 }: ClosePackageDispatchProps) {
@@ -73,6 +77,23 @@ export default function ClosePackageDispatchWizard({
   const totalSteps = 3;
 
   const [dispatch, setDispatch] = useState<PackageDispatch | null>(null);
+  // Cierre agrupado: rutas a cerrar juntas y de qué salida es cada paquete (etiqueta).
+  const groupKey = (groupDispatchIds?.length ? groupDispatchIds : [dispatchId]).join(",");
+  const closeIds = useMemo(() => groupKey.split(",").filter(Boolean), [groupKey]);
+  const isGroup = closeIds.length > 1;
+  const [folioById, setFolioById] = useState<Record<string, string>>({});
+
+  // Trae la(s) salida(s); en grupo las une en una sola para la pantalla.
+  const loadDispatchData = useCallback(async () => {
+    const list = await Promise.all(closeIds.map((id) => getShipmensByDispatchId(id)));
+    if (list.length === 1) {
+      setFolioById({});
+      return list[0];
+    }
+    const { merged, folioById } = mergeDispatchesForClosure(list);
+    setFolioById(folioById);
+    return merged;
+  }, [closeIds]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -111,11 +132,11 @@ export default function ClosePackageDispatchWizard({
   // Recarga los paquetes tras aplicar arreglos (sin volver a reconciliar con FedEx).
   const reloadDispatch = useCallback(async () => {
     try {
-      setDispatch(await getShipmensByDispatchId(dispatchId));
+      setDispatch(await loadDispatchData());
     } catch {
       toast({ title: "No se pudo recargar la ruta", description: "Cierra y vuelve a abrir el cierre para ver los cambios." });
     }
-  }, [dispatchId, toast]);
+  }, [loadDispatchData, toast]);
 
   // `toast` y `onClose` por ref: el padre pasa `onClose` como función nueva en cada render, y
   // tenerla en las dependencias re-disparaba la reconciliación con la primera aún en curso
@@ -138,7 +159,7 @@ export default function ClosePackageDispatchWizard({
         // el estatus almacenado y avisamos.
         setIsReconciling(true);
         try {
-          await reconcile(dispatchId);
+          for (const id of closeIds) await reconcile(id);
         } catch (reconcileError) {
           console.warn("Reconciliación FedEx al abrir el cierre falló; se usa el estatus almacenado.", reconcileError);
           toast({
@@ -149,8 +170,7 @@ export default function ClosePackageDispatchWizard({
           setIsReconciling(false);
         }
 
-        const dispatchData = await getShipmensByDispatchId(dispatchId);
-        setDispatch(dispatchData);
+        setDispatch(await loadDispatchData());
       } catch (error) {
         toast({
           title: "Error",
@@ -166,7 +186,7 @@ export default function ClosePackageDispatchWizard({
     if (dispatchId) {
       fetchDispatchData();
     }
-  }, [dispatchId]);
+  }, [groupKey]);
 
   // Opciones del catálogo DHL (extendible desde Configuración → Catálogos).
   useEffect(() => {
@@ -212,8 +232,14 @@ export default function ClosePackageDispatchWizard({
 
   // Badge informativo "En otra ruta" (guía reasignada a otra salida). Se pinta junto al
   // tracking en las listas del cierre; no altera conteos ni bloquea.
-  const MovedBadge = ({ pkg }: { pkg: { movedToAnotherRoute?: boolean; currentDispatchTrackingNumber?: string | null } }) =>
-    pkg.movedToAnotherRoute ? (
+  const MovedBadge = ({ pkg }: { pkg: { id?: string; movedToAnotherRoute?: boolean; currentDispatchTrackingNumber?: string | null } }) => (
+    <>
+    {isGroup && pkg.id && folioById[pkg.id] && (
+      <Badge variant="outline" className="shrink-0 border-indigo-200 bg-indigo-50 text-[10px] text-indigo-700 whitespace-nowrap" title="Salida de este paquete">
+        {folioById[pkg.id]}
+      </Badge>
+    )}
+    {pkg.movedToAnotherRoute ? (
       <Badge
         variant="outline"
         className="bg-slate-100 text-slate-600 border-slate-300 shrink-0 text-[10px] whitespace-nowrap"
@@ -221,7 +247,9 @@ export default function ClosePackageDispatchWizard({
       >
         En otra ruta{pkg.currentDispatchTrackingNumber ? ` · ${pkg.currentDispatchTrackingNumber}` : ''}
       </Badge>
-    ) : null;
+    ) : null}
+    </>
+  );
 
   const {
   allShipments,
@@ -604,9 +632,13 @@ export default function ClosePackageDispatchWizard({
         noVanPackages: noVanPackages.map(p => p.trackingNumber),
       };
 
-      const savedClosure = await save(closurePackageDispatch);
+      // Cierre agrupado: el backend reparte los paquetes a su ruta y cierra todas o ninguna.
+      // El correo (PDF/Excel con todas las rutas) se adjunta al cierre de la primera.
+      const savedClosure: RouteClosure = isGroup
+        ? await saveGroup(closeIds, (({ packageDispatch, ...rest }) => rest)(closurePackageDispatch)).then((r) => ({ ...closurePackageDispatch, id: r.closures[0]?.id }))
+        : await save(closurePackageDispatch);
 
-      toast({ title: "Cierre exitoso", description: "La ruta se ha cerrado correctamente." });
+      toast({ title: "Cierre exitoso", description: isGroup ? `Se cerraron ${closeIds.length} rutas juntas.` : "La ruta se ha cerrado correctamente." });
       // Limpieza del estado en memoria del escáner montado (si lo está en este paso).
       collectionsScanRef.current?.clear();
       noVanScanRef.current?.clear();
