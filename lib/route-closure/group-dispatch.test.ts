@@ -20,4 +20,13 @@ describe("mergeDispatchesForClosure", () => {
     expect(merged.routes.map((r) => r.id)).toEqual(["R1", "R2"]);
     expect(folioById).toEqual({ s1: "111", s2: "111", s3: "222", c1: "222" });
   });
+
+  it("una guía que salió en dos rutas aparece una sola vez, con el folio de la más reciente", () => {
+    const { merged, folioById } = mergeDispatchesForClosure([
+      d("A", "111", "2026-10-22T23:46:00Z", ["s1", "dup"]),
+      d("B", "222", "2026-10-23T01:21:00Z", ["dup", "s2"]),
+    ]);
+    expect(merged.shipments.map((s: any) => s.id)).toEqual(["s1", "dup", "s2"]);
+    expect(folioById.dup).toBe("222");
+  });
 });
