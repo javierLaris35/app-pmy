@@ -59,11 +59,14 @@ export interface TimelineEvent {
   meta?: { cost?: number; subsidiary?: string | null };
 }
 
-/** GET: timeline unificado del paquete (recibido, consolidado, salida a ruta, FedEx, ingreso). */
+/** GET: timeline unificado del paquete (recibido, consolidado, salida a ruta, FedEx, ingreso). Abierto a toda sesión (también lo usa "Ver salida"). */
 export const getPackageTimeline = async (
   tracking: string,
+  ref?: { id: string; isCharge: boolean } | null,
 ): Promise<{ tracking?: string; currentStatus?: string; events: TimelineEvent[] }> =>
-  (await axiosConfig.get(`${baseUrl}/package/${encodeURIComponent(tracking)}/timeline`)).data;
+  (await axiosConfig.get(`/package-timeline/${encodeURIComponent(tracking)}`, {
+    params: ref ? { id: ref.id, isCharge: ref.isCharge ? 1 : 0 } : undefined,
+  })).data;
 
 /** GET: ingresos con anomalías de la semana (panel de revisión). */
 export const getWeekAnomalies = async (subsidiaryId: string, from: string, to: string): Promise<{ rows: AnomalyRow[] }> =>

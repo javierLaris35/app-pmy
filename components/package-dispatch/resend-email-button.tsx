@@ -25,15 +25,15 @@ interface Props {
   onResent?: () => void
 }
 
-/** Presentación (color/ícono/tooltip) según el estado de correo del despacho. */
+/** Presentación (color del ícono/ícono/tooltip; botón sin fondo como las demás acciones) según el estado de correo del despacho. */
 function statusPresentation(status?: EmailStatus) {
   switch (status) {
     case EmailStatus.SENT:
-      return { className: "bg-green-700 hover:bg-green-800", Icon: MailCheck }
+      return { className: "text-green-700 hover:text-green-800", Icon: MailCheck }
     case EmailStatus.ERROR:
-      return { className: "bg-red-700 hover:bg-red-800", Icon: MailWarning }
+      return { className: "text-red-600 hover:text-red-700", Icon: MailWarning }
     default:
-      return { className: "bg-gray-400 hover:bg-gray-500", Icon: MailX }
+      return { className: "text-slate-400 hover:text-slate-500", Icon: MailX }
   }
 }
 
@@ -110,8 +110,8 @@ export default function ResendEmailButton({ dispatch, onResent }: Props) {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="default"
-            className={`h-8 w-8 p-0 text-white ${className}`}
+            variant="ghost"
+            className={`h-8 w-8 p-0 ${className}`}
             onClick={openDialog}
           >
             <Icon className="h-4 w-4" />

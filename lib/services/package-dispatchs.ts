@@ -68,6 +68,62 @@ export const removeDispatchPackages = async (id: string, ids: string[], reason: 
     return response.data
 }
 
+export type ClosureSource = "corregido" | "foto" | "reconstruido"
+
+export interface DispatchOverviewPackage {
+    key: string
+    shipmentId: string | null
+    chargeShipmentId: string | null
+    isCharge: boolean
+    trackingNumber: string
+    carrier: "fedex" | "dhl" | "otro"
+    shipmentType: string | null
+    recipientName: string | null
+    recipientAddress: string | null
+    recipientZip: string | null
+    recipientPhone: string | null
+    isHighValue: boolean
+    payment: { type: string; amount: number } | null
+    addedAt: string
+    current: { status: string; code: string | null }
+    atClosure: { status: string; code: string | null; source: ClosureSource } | null
+    changedAfterClosure: boolean
+}
+
+/** "Ver salida": guías con su estatus de hoy y con el que quedaron al cerrar. */
+export interface DispatchOverview {
+    id: string
+    folio: string | null
+    status: string | null
+    is315: boolean
+    sortMode: string | null
+    subsidiary: { id: string; name: string; sortDispatchByCarrier: boolean; sortDispatchByPostalCode: boolean } | null
+    drivers: { id: string; name: string }[]
+    routes: { id: string; name: string }[]
+    vehicle: { id: string; name: string } | null
+    routeDate: string | null
+    createdAt: string
+    createdBy: string | null
+    closure: {
+        id: string
+        closedAt: string
+        closedBy: string | null
+        actualKms: string | null
+        collections: string[]
+        groupFolios: string[]
+        reconstructed: boolean
+    } | null
+    noVan: string[]
+    changesCount: number
+    counts: { total: number; entregados: number; noEntregados: number; otros: number; noVan: number; cambiaron: number }
+    packages: DispatchOverviewPackage[]
+}
+
+export const getDispatchOverview = async (id: string) => {
+    const response = await axiosConfig.get<DispatchOverview>(`${url}/${id}/overview`)
+    return response.data
+}
+
 export const getDispatchChanges = async (id: string) => {
     const response = await axiosConfig.get<PackageDispatchChange[]>(`${url}/${id}/changes`)
     return response.data

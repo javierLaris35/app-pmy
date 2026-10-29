@@ -239,14 +239,16 @@ const updatedColumns = columns.map((col) =>
               row.original.status === PackageDispatchStatus.COMPLETED
 
             return (
-              <div className="flex gap-3">
-                <Button
-                  variant="ghost"
-                  className="h-8 w-8 p-0"
-                  onClick={() => openDetailsDialog(row.original.id)}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
+              // Acciones: todas sin fondo y del mismo tamaño; el color va en el ícono y significa algo.
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" className="h-8 w-8 p-0 text-slate-500 hover:text-slate-700" onClick={() => openDetailsDialog(row.original.id)}>
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver salida</TooltipContent>
+                </Tooltip>
 
                 <EnviarNotificacionButton
                   triggerLabel=""
@@ -282,8 +284,8 @@ const updatedColumns = columns.map((col) =>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="default"
-                      className="h-8 w-8 p-0 text-white bg-green-900"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-green-700 hover:text-green-800"
                       onClick={() =>
                         handleExcelFileCreation(row.original)
                       }
@@ -300,11 +302,11 @@ const updatedColumns = columns.map((col) =>
                   <TooltipTrigger asChild>
                     <span>
                       <Button
-                        variant="default"
-                        className={`h-8 w-8 p-0 text-white ${
+                        variant="ghost"
+                        className={`h-8 w-8 p-0 ${
                           isCompleted
-                            ? "bg-gray-400 cursor-not-allowed"
-                            : "bg-red-900"
+                            ? "text-slate-300"
+                            : "text-blue-700 hover:text-blue-800"
                         }`}
                         disabled={isCompleted}
                         onClick={() =>

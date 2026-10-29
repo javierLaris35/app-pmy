@@ -13,6 +13,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tracking: string | null;
+  /** Registro exacto (envío o carga) cuando la guía tiene varios; sin él, el más reciente. */
+  record?: { id: string; isCharge: boolean } | null;
 }
 
 // Instante: fecha+hora en la zona del navegador (Hermosillo). Evento real (createdAt, FedEx…).
@@ -50,7 +52,7 @@ const KIND: Record<string, { label: string; icon: typeof Route; dot: string; tex
   ingreso: { label: "Ingreso", icon: DollarSign, dot: "bg-emerald-500", text: "text-emerald-700" },
 };
 
-export function StatusTimelineDialog({ open, onOpenChange, tracking }: Props) {
+export function StatusTimelineDialog({ open, onOpenChange, tracking, record }: Props) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -58,14 +60,14 @@ export function StatusTimelineDialog({ open, onOpenChange, tracking }: Props) {
     if (!open || !tracking) return;
     let active = true;
     setLoading(true);
-    getPackageTimeline(tracking)
+    getPackageTimeline(tracking, record)
       .then((r) => active && setEvents(r.events ?? []))
       .catch(() => active && setEvents([]))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [open, tracking]);
+  }, [open, tracking, record?.id, record?.isCharge]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
