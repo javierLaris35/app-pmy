@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Package } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ChevronUp, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PackageFilters, computePackageFilterCounts } from "@/components/shared/package-filters";
 import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
@@ -43,9 +43,23 @@ interface PackagesListProps {
   groupBy?: (pkg: PackageInfo) => string;
   /** Número de fila al inicio (estilo Excel / VS Code), según el orden mostrado. */
   showRowNumbers?: boolean;
+  /**
+   * Con `groupBy` por paquetería: cada grupo en su propio bloque (borde, encabezado de
+   * color fijo al hacer scroll, plegable, numeración desde 1 y atajos "Ir a"), como en
+   * Operaciones → Nueva salida. Solo si hay más de un grupo; si no, lista normal.
+   */
+  carrierBlocks?: boolean;
 
   className?: string;
 }
+
+/** Color del bloque por paquetería (mismo que Operaciones → Nueva salida). */
+const carrierTone = (label: string) => {
+  const l = label.toLowerCase();
+  if (l.includes("fedex")) return "bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100";
+  if (l.includes("dhl")) return "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100";
+  return "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100";
+};
 
 const defaultKey = (p: PackageInfo) => (p as any).dhlUniqueId || p.trackingNumber || (p.id as string);
 
@@ -71,6 +85,7 @@ export function PackagesList({
   getKey = defaultKey,
   groupBy,
   showRowNumbers = false,
+  carrierBlocks = false,
   className,
 }: PackagesListProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -151,6 +166,55 @@ export function PackagesList({
 
   const hasActiveQuery = activeFilterCount > 0 || searchTerm.trim().length > 0;
 
+  const renderItem = (pkg: PackageInfo, rowNumber?: number) => {
+    const key = getKey(pkg);
+    const extra = renderExpanded?.(pkg);
+    const isExpanded = expanded.has(key);
+    return (
+      <>
+        <PackageListItem
+          pkg={pkg}
+          onRemove={onRemove}
+          onTransfer={onTransfer}
+          onCompleteData={onCompleteData}
+          isLoading={isLoading}
+          index={rowNumber}
+        />
+        {extra ? (
+          <>
+            <button
+              type="button"
+              onClick={() => toggleExpanded(key)}
+              className="flex w-full items-center gap-1.5 border-t bg-muted/30 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors"
+            >
+              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              {isExpanded ? collapseLabel : expandLabel}
+            </button>
+            {isExpanded ? extra : null}
+          </>
+        ) : null}
+      </>
+    );
+  };
+
+  // Bloques por paquetería (en el orden de la lista; la lista ya viene agrupada).
+  const blocks = useMemo(() => {
+    if (!carrierBlocks || !groupBy) return null;
+    const out: { label: string; items: PackageInfo[] }[] = [];
+    for (const p of filtered) {
+      const g = groupBy(p);
+      const last = out[out.length - 1];
+      if (last && last.label === g) last.items.push(p);
+      else out.push({ label: g, items: [p] });
+    }
+    return out.length > 1 ? out : null;
+  }, [carrierBlocks, groupBy, filtered]);
+  const blockId = (label: string) => `bloque-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const goToBlock = (label: string) => {
+    setCollapsedGroups((prev) => { const next = new Set(prev); next.delete(label); return next; });
+    document.getElementById(blockId(label))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className={cn("space-y-3", className)}>
       {showFilters && (
@@ -182,6 +246,53 @@ export function PackagesList({
             {hasActiveQuery ? "Sin coincidencias para los filtros aplicados." : emptyDescription}
           </p>
         </div>
+      ) : blocks ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+            Ir a:
+            {blocks.map((b) => (
+              <Button
+                key={b.label}
+                type="button"
+                size="sm"
+                variant="outline"
+                className={cn("h-7 px-2 text-xs", carrierTone(b.label))}
+                onClick={() => goToBlock(b.label)}
+              >
+                {b.label} {b.items.length}
+              </Button>
+            ))}
+          </div>
+          {blocks.map((b) => {
+            const collapsed = collapsedGroups.has(b.label);
+            return (
+              <section key={b.label} id={blockId(b.label)} className="scroll-mt-2 rounded-lg border">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(b.label)}
+                  aria-expanded={!collapsed}
+                  className={cn(
+                    "sticky top-0 z-10 flex w-full items-center gap-2 rounded-t-lg border-b px-3 py-2 text-left text-sm",
+                    carrierTone(b.label),
+                    collapsed && "rounded-b-lg border-b-0",
+                  )}
+                >
+                  <span className="font-semibold">{b.label}</span>
+                  <span className="tabular-nums">{b.items.length} {b.items.length === 1 ? "guía" : "guías"}</span>
+                  <span className="ml-auto hidden text-xs opacity-80 sm:inline">Hoja propia en el PDF · pestaña {b.label} en el Excel</span>
+                  {collapsed ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronUp className="h-4 w-4 shrink-0" />}
+                </button>
+                {!collapsed && (
+                  <div className="divide-y">
+                    {b.items.map((pkg, i) => (
+                      <div key={getKey(pkg)}>{renderItem(pkg, showRowNumbers ? i + 1 : undefined)}</div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
       ) : (
         <div className="space-y-1.5">
         {groupBy && groupCounts.size > 1 && (
@@ -205,11 +316,9 @@ export function PackagesList({
             </Button>
           </div>
         )}
-        <div className={cn("overflow-y-auto rounded-md border", maxHeightClass)}>
+        <div className={cn("rounded-md border", maxHeightClass && "overflow-y-auto", maxHeightClass)}>
           {filtered.map((pkg, i) => {
             const key = getKey(pkg);
-            const extra = renderExpanded?.(pkg);
-            const isExpanded = expanded.has(key);
             const group = groupBy?.(pkg);
             const startsGroup = group !== undefined && (i === 0 || groupBy?.(filtered[i - 1]) !== group);
             const groupCollapsed = group !== undefined && collapsedGroups.has(group);
@@ -233,29 +342,7 @@ export function PackagesList({
                     </span>
                   </button>
                 ) : null}
-                {groupCollapsed ? null : (<>
-                <PackageListItem
-                  pkg={pkg}
-                  onRemove={onRemove}
-                  onTransfer={onTransfer}
-                  onCompleteData={onCompleteData}
-                  isLoading={isLoading}
-                  index={showRowNumbers ? i + 1 : undefined}
-                />
-                {extra ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => toggleExpanded(key)}
-                      className="flex w-full items-center gap-1.5 border-t bg-muted/30 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors"
-                    >
-                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      {isExpanded ? collapseLabel : expandLabel}
-                    </button>
-                    {isExpanded ? extra : null}
-                  </>
-                ) : null}
-                </>)}
+                {groupCollapsed ? null : renderItem(pkg, showRowNumbers ? i + 1 : undefined)}
               </div>
             );
           })}

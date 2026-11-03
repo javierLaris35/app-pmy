@@ -5,13 +5,18 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   Building2,
+  CalendarDays,
   CheckCircle2,
+  Clock,
+  FileText,
   GaugeIcon,
   History,
   Keyboard,
   PackageMinus,
   Route as RouteIcon,
+  ScanLine,
   Send,
+  X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -20,6 +25,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { PmySpinner } from "@/components/ui/pmy-loader"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { PackagesList } from "@/components/shared/packages-list"
@@ -29,12 +36,12 @@ import { toast } from "@/components/ui/use-toast"
 import { apiError } from "@/components/maintenance/shared/confirm-action"
 
 // Servicios y tipos
-import { downloadOutboundFile, saveWarehouseOutbound, validateShipment } from "@/lib/services/warehouse/warehouse"
+import { downloadOutboundFile, previewOutboundPdf, saveWarehouseOutbound, validateShipment } from "@/lib/services/warehouse/warehouse"
 import type { OutboundWarehouseDto } from "@/lib/services/warehouse/warehouse"
-import { OutboundTypeEnum, type Route as RouteType, type PackageInfo } from "@/lib/types"
+import { OutboundTypeEnum, type DispatchSortMode, type Route as RouteType, type PackageInfo } from "@/lib/types"
 
 // Escáner unificado (Task 1) + helpers puros de bodega (Task 2)
-import { ScanInput, type ScanInputHandle } from "@/components/scanner/scan-input"
+import { ScanInput, type ScanInputHandle, type ScanResolution } from "@/components/scanner/scan-input"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { WarehouseSortToggle, type WarehouseSortMode } from "@/components/warehouse/shared/warehouse-sort-toggle"
 import {
@@ -74,6 +81,28 @@ function adaptPayment(p: WarehousePackageInfo) {
   return { ...p, hasPayment: !!p.payment, paymentAmount: Number(p.payment?.amount) || 0 }
 }
 
+/** Orden de Bodega → orden guardado en la salida (misma regla que Operaciones). */
+const DISPATCH_SORT_BY_WAREHOUSE: Record<WarehouseSortMode, DispatchSortMode> = {
+  carrier: "carrier_cp",
+  cp: "cp",
+  city: "city",
+  scan: "scan",
+}
+
+/** Hoy en 'YYYY-MM-DD' (zona de la máquina, como Operaciones → Salidas a ruta). */
+const todayStr = () => new Date().toLocaleDateString("en-CA")
+const tomorrowStr = () => {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toLocaleDateString("en-CA")
+}
+
+/** Guía escaneada que no entró a la salida, con el motivo en llano. */
+interface RejectedScan {
+  code: string
+  message: string
+}
+
 export default function OutboundPackage() {
   const [showHistory, setShowHistory] = useState(false)
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID())
@@ -87,6 +116,14 @@ export default function OutboundPackage() {
   const [destinationSubsidiaryName, setDestinationSubsidiaryName] = useState<string>("")
   // Se prende al intentar finalizar: a partir de ahí el campo destino muestra su error.
   const [showDestinationError, setShowDestinationError] = useState(false)
+  // Igual que Operaciones → Salidas a ruta: día operativo de la ruta y si es 31.5.
+  const [routeDate, setRouteDate] = useState<string>(todayStr)
+  const [is315, setIs315] = useState(false)
+  // Validación "Uno a uno" (cada escaneo) o "Por lista" (escanear todo y validar al final).
+  const [listMode, setListMode] = useState(false)
+  const [validatingList, setValidatingList] = useState(false)
+  const [rejected, setRejected] = useState<RejectedScan[]>([])
+  const [previewing, setPreviewing] = useState(false)
 
   // isReadyToFinish vive en el componente (no en el hook). La verificación de F2
   // se delega al hook vía onRequestFinish; usamos un ref para que el hook lea el
@@ -126,6 +163,20 @@ export default function OutboundPackage() {
         speak: s.safeSpeak,
       }),
     [s.effectiveWarehouseId, s.safeSpeak],
+  )
+
+  // Mismo resolvedor, pero las guías que no entran quedan listadas con su motivo.
+  const resolveScanTracked = useCallback(
+    async (code: string, current: PackageInfo[]): Promise<ScanResolution> => {
+      const res = await resolveScan(code, current)
+      if (res.action === "reject") {
+        setRejected((prev) => [...prev.filter((r) => r.code !== code), { code, message: res.message }])
+      } else if (res.action === "add") {
+        setRejected((prev) => prev.filter((r) => r.code !== code))
+      }
+      return res
+    },
+    [resolveScan],
   )
 
   // ---- Diálogo de remesa DHL (estado local; reusa WarehouseRemittanceDialog) ----
@@ -203,8 +254,45 @@ export default function OutboundPackage() {
     return () => window.removeEventListener("keydown", onKey)
   }, [remittance.isOpen])
 
+  // En "Por lista" el buffer guarda guías aún sin validar: no cuentan hasta validarlas.
+  const pendingPackages = useMemo(() => packages.filter((p) => (p as any).isPendingValidation), [packages])
+  const readyPackages = useMemo(() => packages.filter((p) => !(p as any).isPendingValidation), [packages])
+
   // ---- Stats derivadas de los paquetes locales (modelo PackageInfo con `payment`) ----
-  const stats = useMemo(() => computeWarehouseStats(packages), [packages])
+  const stats = useMemo(() => computeWarehouseStats(readyPackages), [readyPackages])
+
+  /** "Por lista": valida las guías pendientes con la MISMA regla que el escaneo uno a uno. */
+  const validatePendingList = async () => {
+    if (!pendingPackages.length) return
+    setValidatingList(true)
+    try {
+      let acc: PackageInfo[] = [...readyPackages]
+      const validated: PackageInfo[] = []
+      const rejectedNow: RejectedScan[] = []
+      for (const stub of pendingPackages) {
+        const code = String(stub.trackingNumber)
+        const res = await resolveScan(code, acc)
+        if (res.action === "add") {
+          validated.push(res.package)
+          acc = [res.package, ...acc]
+        } else if (res.action === "reject") {
+          rejectedNow.push({ code, message: res.message })
+        } else {
+          rejectedNow.push({ code, message: "Es remesa DHL: escanéala en modo Uno a uno para agregar sus piezas." })
+        }
+      }
+      scanRef.current?.updateValidatedPackages(validated)
+      rejectedNow.forEach((r) => scanRef.current?.removeByTracking(r.code))
+      setRejected((prev) => [...prev.filter((r) => !rejectedNow.some((x) => x.code === r.code)), ...rejectedNow])
+      toast({
+        title: "Lista validada",
+        description: `${validated.length} válida(s)${rejectedNow.length ? `, ${rejectedNow.length} no entraron` : ""}.`,
+        variant: rejectedNow.length ? "destructive" : undefined,
+      })
+    } finally {
+      setValidatingList(false)
+    }
+  }
 
   // Destino del traspaso: obligatorio y distinto de la bodega de origen.
   const destinationError = useMemo(() => {
@@ -226,7 +314,7 @@ export default function OutboundPackage() {
 
   // Regla local de habilitación del cierre (deps completas).
   const isReadyToFinish = useMemo(() => {
-    const hasPackages = packages.length > 0
+    const hasPackages = readyPackages.length > 0 && pendingPackages.length === 0
     const hasVehicle = !!s.vehicleId
     const hasDrivers = s.driverIds.length > 0
     const hasWarehouse = !!s.effectiveWarehouseId
@@ -239,7 +327,8 @@ export default function OutboundPackage() {
     const hasKms = selectedKms !== null && selectedKms > 0
     return hasPackages && hasVehicle && hasDrivers && hasWarehouse && hasRoutes && hasKms
   }, [
-    packages.length,
+    readyPackages.length,
+    pendingPackages.length,
     s.vehicleId,
     s.driverIds.length,
     s.effectiveWarehouseId,
@@ -267,7 +356,7 @@ export default function OutboundPackage() {
 
   const buildOutboundPayload = (): OutboundWarehouseDto => ({
     warehouse: s.effectiveWarehouseId,
-    shipments: orderWarehousePackages(packages, sortMode)
+    shipments: orderWarehousePackages(readyPackages, sortMode)
       .map((p) => {
         const wp = p as WarehousePackageInfo
         return {
@@ -286,6 +375,9 @@ export default function OutboundPackage() {
     ...(outputType === OutboundTypeEnum.DISPATCH && {
       kms: Number(selectedKms),
       routes: selectedRutas.map(resolveId),
+      routeDate,
+      is315,
+      sortMode: DISPATCH_SORT_BY_WAREHOUSE[sortMode],
     }),
 
     // Solo se agrega destinationId si el tipo es 'transfer'.
@@ -304,6 +396,9 @@ export default function OutboundPackage() {
     setDestinationSubsidiary("")
     setDestinationSubsidiaryName("")
     setShowDestinationError(false)
+    setRouteDate(todayStr())
+    setIs315(false)
+    setRejected([])
     setSessionId(crypto.randomUUID())
   }
 
@@ -344,6 +439,27 @@ export default function OutboundPackage() {
         s.safeSpeak("Error al guardar en el servidor")
       }
     })
+  }
+
+  /** "Solo generar PDF": el mismo PDF de la salida, sin guardarla. */
+  const handlePreviewPdf = async () => {
+    if (!readyPackages.length || !s.effectiveWarehouseId) return
+    setPreviewing(true)
+    try {
+      // Solo lo que lleva el PDF; unidad/choferes/rutas pueden faltar todavía.
+      const full = buildOutboundPayload()
+      await previewOutboundPdf({
+        warehouse: full.warehouse,
+        shipments: full.shipments,
+        ...(full.vehicle ? { vehicle: full.vehicle } : {}),
+        ...(full.drivers.length ? { drivers: full.drivers } : {}),
+        ...(full.routes?.length ? { routes: full.routes } : {}),
+      })
+    } catch (error) {
+      toast({ title: "No se generó el PDF", description: apiError(error, "No se pudo generar el PDF"), variant: "destructive" })
+    } finally {
+      setPreviewing(false)
+    }
   }
 
   const signatureVariant = outputType === OutboundTypeEnum.DISPATCH ? "dispatch" : "transfer"
@@ -418,20 +534,36 @@ export default function OutboundPackage() {
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-slate-800">Inventario de Salida</h2>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Modo de validación">
+                  {([false, true] as const).map((list) => (
+                    <Button
+                      key={String(list)}
+                      type="button"
+                      size="sm"
+                      variant={listMode === list ? "default" : "ghost"}
+                      className="h-7 px-2.5 text-xs"
+                      aria-pressed={listMode === list}
+                      disabled={validatingList || (list === false && pendingPackages.length > 0)}
+                      onClick={() => setListMode(list)}
+                    >
+                      {list ? "Por lista" : "Uno a uno"}
+                    </Button>
+                  ))}
+                </div>
                 <WarehouseSortToggle value={sortMode} onChange={setSortMode} />
                 <RemittanceGroupToggle grouped={s.groupRemesas} onToggle={() => s.setGroupRemesas((v) => !v)} />
               </div>
             </div>
 
-            <CardContent className="p-0 overflow-hidden">
+            <CardContent className="p-0 space-y-3">
               <ScanInput
                 ref={scanRef}
-                mode="perScan"
+                mode={listMode ? "batch" : "perScan"}
                 storageKey="scan:outbound"
                 defaultView="rich"
                 label="Escáner de Salida"
-                onScan={resolveScan}
+                onScan={listMode ? undefined : resolveScanTracked}
                 onRemittance={onRemittance}
                 onPackagesChange={setPackages}
                 sortComparator={warehouseSortComparator(sortMode)}
@@ -454,12 +586,47 @@ export default function OutboundPackage() {
                       ) : null
                     }
                     groupBy={sortMode === "carrier" ? warehouseCarrierLabel : undefined}
-                    maxHeightClass="max-h-[640px]"
+                    carrierBlocks
+                    showRowNumbers
+                    maxHeightClass=""
                     emptyTitle="Sin paquetes escaneados"
                     emptyDescription="Escanee un código de barras para comenzar la salida."
                   />
                 )}
               />
+              {listMode && pendingPackages.length > 0 && (
+                <Button className="w-full" variant="outline" onClick={validatePendingList} disabled={validatingList}>
+                  {validatingList ? <PmySpinner className="mr-2 h-4 w-4" /> : <ScanLine className="mr-2 h-4 w-4" />}
+                  Validar {pendingPackages.length} guía{pendingPackages.length === 1 ? "" : "s"}
+                </Button>
+              )}
+              {rejected.length > 0 && (
+                <div className="rounded-lg border border-red-200">
+                  <div className="flex items-center justify-between border-b border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700">
+                    <span className="font-semibold">No entraron ({rejected.length})</span>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-red-700" onClick={() => setRejected([])}>
+                      Limpiar
+                    </Button>
+                  </div>
+                  <div className="divide-y">
+                    {rejected.map((r) => (
+                      <div key={r.code} className="flex items-center gap-2 px-3 py-1.5 text-xs">
+                        <span className="font-mono font-medium">{r.code}</span>
+                        <span className="min-w-0 flex-1 truncate text-red-700">{r.message}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          aria-label={`Quitar aviso de ${r.code}`}
+                          onClick={() => setRejected((prev) => prev.filter((x) => x.code !== r.code))}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -541,6 +708,38 @@ export default function OutboundPackage() {
                       subsidiaryId={s.effectiveWarehouseId}
                     />
                   </div>
+
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label htmlFor="bodega-route-date" className="text-[12px] font-semibold text-slate-600 flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      Fecha de ruta
+                    </Label>
+                    <Input
+                      id="bodega-route-date"
+                      type="date"
+                      value={routeDate}
+                      max={tomorrowStr()}
+                      onChange={(e) => setRouteDate(e.target.value > tomorrowStr() ? tomorrowStr() : e.target.value || todayStr())}
+                      className="w-full"
+                    />
+                    {routeDate !== todayStr() && (
+                      <p className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                        <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {routeDate > todayStr() ? "Fecha futura" : "Fecha retroactiva"}: los paquetes se registrarán con la ruta del{" "}
+                          <strong>
+                            {new Date(`${routeDate}T00:00:00`).toLocaleDateString("es-MX", { weekday: "short", day: "2-digit", month: "short" })}
+                          </strong>
+                          , no de hoy. Verifica que sea intencional.
+                        </span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between md:col-span-2">
+                    <Label htmlFor="bodega-is315" className="text-[12px] font-semibold text-slate-600">¿Ruta 31.5?</Label>
+                    <Switch id="bodega-is315" checked={is315} onCheckedChange={setIs315} />
+                  </div>
                 </div>
               )}
 
@@ -588,6 +787,18 @@ export default function OutboundPackage() {
                     ? "Seleccione Bodega origen, Sucursal destino, Unidad, Chofer y escanee paquetes para habilitar el cierre."
                     : "Seleccione Bodega, Unidad, Rutas, Kilometraje Inicial y Chofer además escanee paquetes para habilitar el cierre."}
                 </p>
+              )}
+
+              {outputType === OutboundTypeEnum.DISPATCH && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handlePreviewPdf}
+                  disabled={previewing || readyPackages.length === 0 || pendingPackages.length > 0}
+                >
+                  {previewing ? <PmySpinner className="mr-2 h-4 w-4" /> : <FileText className="mr-2 h-4 w-4" />}
+                  Solo generar PDF
+                </Button>
               )}
 
               <Button

@@ -1,14 +1,14 @@
 "use client";
 
 import { PmySpinner } from "@/components/ui/pmy-loader";
-import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Trash2, Send, Scan, MapPin, User, Phone, BanknoteIcon, Package, ClipboardPasteIcon, CircleAlertIcon, GemIcon, Search, X, Download, Clock } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronUp, Trash2, Send, Scan, MapPin, User, Phone, BanknoteIcon, Package, ClipboardPasteIcon, CircleAlertIcon, GemIcon, Search, X, Download, Clock } from "lucide-react";
 import { RepartidorSelector } from "../selectors/repartidor-selector";
 import { RutaSelector } from "../selectors/ruta-selector";
 import { UnidadSelector } from "../selectors/unidad-selector";
@@ -22,13 +22,12 @@ import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/pac
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { FedExPackageDispatchPDF } from "@/lib/services/package-dispatch/package-dispatch-pdf-generator";
 import { normalizeScannedCode, isValidScannedCode } from "@/lib/tracking/normalize-scan";
 import { cn } from "@/lib/utils";
-import { carrierGroupStarts, sortForDispatch, subsidiaryDispatchSortMode } from "@/lib/tracking/sort-by-zip";
+import { DispatchCarrier, dispatchCarrierSections, sortForDispatch, subsidiaryDispatchSortMode } from "@/lib/tracking/sort-by-zip";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { StatBar } from "@/components/shared/stat-bar";
@@ -755,11 +754,23 @@ const PackageDispatchForm: React.FC<Props> = ({
     return sortForDispatch(result, sortMode);
   }, [validPackages, searchTerm, filterPriority, filterStatus, filterCarrier, onlyToday, onlyPayment, sortMode]);
 
-  // Franjas "FedEx · n" / "DHL · n" en la lista cuando se ordena por paquetería.
-  const validCarrierGroups = useMemo(
-    () => (sortMode === "carrier_cp" ? carrierGroupStarts(filteredValidPackages) : null),
+  // Un bloque por paquetería (como las hojas del PDF y las pestañas del Excel) solo cuando
+  // la salida lleva FedEx y DHL; con una sola paquetería la lista va sin separar.
+  const validCarrierSections = useMemo(
+    () => dispatchCarrierSections(filteredValidPackages, sortMode),
     [filteredValidPackages, sortMode],
   );
+  const [collapsedCarriers, setCollapsedCarriers] = useState<Set<DispatchCarrier>>(new Set());
+  const toggleCarrier = (c: DispatchCarrier) =>
+    setCollapsedCarriers((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  const goToCarrier = (c: DispatchCarrier) => {
+    setCollapsedCarriers((prev) => { const next = new Set(prev); next.delete(c); return next; });
+    document.getElementById(`salida-${c}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const activeFilterCount =
     (filterPriority !== "all" ? 1 : 0) +
@@ -1114,7 +1125,8 @@ const PackageDispatchForm: React.FC<Props> = ({
               {/* Packages Tabs */}
               {packages.length > 0 && (
                 <Tabs defaultValue="validos" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                  <TabsList className="grid flex-1 grid-cols-2">
                     <TabsTrigger value="validos" className="flex items-center gap-2">
                       <span className="h-2 w-2 bg-green-500 rounded-full"></span>
                       Válidos ({validPackages.length})
@@ -1124,33 +1136,83 @@ const PackageDispatchForm: React.FC<Props> = ({
                       Inválidos ({invalidPackages.length})
                     </TabsTrigger>
                   </TabsList>
+                  {validCarrierSections && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      Ir a:
+                      {validCarrierSections.map((section) => (
+                        <Button
+                          key={section.carrier}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className={cn("h-7 px-2 text-xs", CARRIER_TONE[section.carrier])}
+                          onClick={() => goToCarrier(section.carrier)}
+                        >
+                          {section.label} {section.items.length}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  </div>
                   
-                  <TabsContent value="validos" className="space-y-3 mt-4">
+                  <TabsContent value="validos" className="mt-3">
                     {filteredValidPackages.length > 0 ? (
-                      <ScrollArea className="h-[400px] rounded-md border">
-                        <div className="grid grid-cols-1 divide-y">
-                          {filteredValidPackages.map((pkg, i) => {
-                            const uniqueKey = pkg.dhlUniqueId || pkg.trackingNumber;
-                            const group = validCarrierGroups?.get(i);
+                      validCarrierSections ? (
+                        <div className="space-y-3">
+                          {validCarrierSections.map((section) => {
+                            const collapsed = collapsedCarriers.has(section.carrier);
+                            const plural = section.items.length === 1 ? "guía" : "guías";
                             return (
-                              <Fragment key={`todos-${uniqueKey}`}>
-                                {group && (
-                                  <div className="sticky top-0 z-10 flex items-center justify-between bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                    <span>{group.label}</span>
-                                    <span className="tabular-nums">{group.count}</span>
+                              <section key={section.carrier} id={`salida-${section.carrier}`} className="scroll-mt-2 rounded-lg border">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCarrier(section.carrier)}
+                                  className={cn(
+                                    // El cuerpo del diálogo tiene p-3 / sm:p-4: el encabezado se pega al borde real y tapa ese margen
+                                    // (con top-0 las guías se asomaban por encima al hacer scroll).
+                                    "sticky -top-3 sm:-top-4 z-10 flex w-full items-center gap-2 rounded-t-lg border-b px-3 py-2 text-left text-sm",
+                                    CARRIER_TONE[section.carrier],
+                                    collapsed && "rounded-b-lg border-b-0",
+                                  )}
+                                  aria-expanded={!collapsed}
+                                >
+                                  <span className="font-semibold">{section.label}</span>
+                                  <span className="tabular-nums">{section.items.length} {plural}</span>
+                                  <span className="ml-auto hidden text-xs opacity-80 sm:inline">
+                                    Hoja propia en el PDF · pestaña {section.label} en el Excel
+                                  </span>
+                                  {collapsed ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronUp className="h-4 w-4 shrink-0" />}
+                                </button>
+                                {!collapsed && (
+                                  <div className="divide-y">
+                                    {section.items.map((pkg, i) => (
+                                      <PackageListItem
+                                        key={`${section.carrier}-${pkg.dhlUniqueId || pkg.trackingNumber}`}
+                                        pkg={pkg}
+                                        onRemove={handleRemovePackage}
+                                        isLoading={isLoading}
+                                        index={i + 1}
+                                      />
+                                    ))}
                                   </div>
                                 )}
-                                <PackageListItem
-                                  pkg={pkg}
-                                  onRemove={handleRemovePackage}
-                                  isLoading={isLoading}
-                                  index={i + 1}
-                                />
-                              </Fragment>
+                              </section>
                             );
                           })}
                         </div>
-                      </ScrollArea>
+                      ) : (
+                        <div className="divide-y rounded-lg border">
+                          {filteredValidPackages.map((pkg, i) => (
+                            <PackageListItem
+                              key={`todos-${pkg.dhlUniqueId || pkg.trackingNumber}`}
+                              pkg={pkg}
+                              onRemove={handleRemovePackage}
+                              isLoading={isLoading}
+                              index={i + 1}
+                            />
+                          ))}
+                        </div>
+                      )
                     ) : (
                       <div className="text-center py-12 text-muted-foreground border rounded-md">
                         <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
@@ -1158,23 +1220,21 @@ const PackageDispatchForm: React.FC<Props> = ({
                       </div>
                     )}
                   </TabsContent>
-                  
-                  <TabsContent value="invalidos" className="mt-4">
+
+                  <TabsContent value="invalidos" className="mt-3">
                     {invalidPackages.length > 0 ? (
-                      <ScrollArea className="h-[300px] rounded-md border">
-                        <div className="grid grid-cols-1 divide-y">
-                          {invalidPackages.map((pkg, i) => (
-                            <PackageListItem
-                              key={pkg.trackingNumber}
-                              pkg={pkg}
-                              onRemove={handleRemovePackage}
-                              isLoading={isLoading}
-                              onTransfer={canTransfer ? setTransferPkg : undefined}
-                              index={i + 1}
-                            />
-                          ))}
-                        </div>
-                      </ScrollArea>
+                      <div className="divide-y rounded-lg border">
+                        {invalidPackages.map((pkg, i) => (
+                          <PackageListItem
+                            key={pkg.trackingNumber}
+                            pkg={pkg}
+                            onRemove={handleRemovePackage}
+                            isLoading={isLoading}
+                            onTransfer={canTransfer ? setTransferPkg : undefined}
+                            index={i + 1}
+                          />
+                        ))}
+                      </div>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground border rounded-md">
                         <p>No hay paquetes inválidos</p>
@@ -1248,4 +1308,11 @@ const PackageDispatchForm: React.FC<Props> = ({
   );
 };
 
+
+/** Color del encabezado de cada bloque de paquetería (mismo tono que sus etiquetas en la lista). */
+const CARRIER_TONE: Record<DispatchCarrier, string> = {
+  fedex: "bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100",
+  dhl: "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100",
+  other: "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100",
+};
 export default PackageDispatchForm;

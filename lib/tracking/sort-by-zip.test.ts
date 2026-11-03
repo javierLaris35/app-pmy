@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { carrierGroupStarts, dispatchSortModeOf, sortForDispatch } from "./sort-by-zip";
+import { carrierGroupStarts, dispatchCarrierSections, dispatchSortModeOf, sortForDispatch } from "./sort-by-zip";
 
 const p = (id: string, shipmentType: string, recipientZip: string, recipientAddress = "", isCharge = false) =>
   ({ id, shipmentType, recipientZip, recipientAddress, isCharge });
@@ -39,3 +39,29 @@ describe("dispatchSortModeOf", () => {
     expect(dispatchSortModeOf({ subsidiary: { sortDispatchByPostalCode: true } })).toBe("cp");
   });
 });
+
+describe("dispatchCarrierSections", () => {
+  const fx = (z: string) => ({ shipmentType: "fedex", recipientZip: z });
+  const dh = (z: string) => ({ shipmentType: "dhl", recipientZip: z });
+  it("separa en bloques solo cuando hay FedEx y DHL en modo paquetería", () => {
+    const sorted = sortForDispatch([dh("85200"), fx("85515"), fx("85000")], "carrier_cp");
+    const sec = dispatchCarrierSections(sorted, "carrier_cp");
+    expect(sec?.map((s) => [s.label, s.items.length])).toEqual([["FedEx", 2], ["DHL", 1]]);
+  });
+  it("sin separar con una sola paquetería u otro orden", () => {
+    expect(dispatchCarrierSections([fx("1"), fx("2")], "carrier_cp")).toBeNull();
+    expect(dispatchCarrierSections([fx("1"), dh("2")], "cp")).toBeNull();
+  });
+});
+
+describe("orden por ciudad (espejo de pmy-api)", () => {
+  const c = (id: string, city: string | null, zip: string, shipmentType = "fedex") => ({ id, recipientCity: city, recipientZip: zip, shipmentType });
+  it("ciudad A→Z, sin ciudad al final, luego CP y paquetería", () => {
+    const out = sortForDispatch([c("sin", null, "85000"), c("nav-dhl", "Navojoa", "85800", "dhl"), c("alamos", "Alamos", "85760"), c("nav-fx", "Navojoa", "85800")], "city");
+    expect(out.map((x) => x.id)).toEqual(["alamos", "nav-fx", "nav-dhl", "sin"]);
+  });
+  it("respeta el orden guardado city", () => {
+    expect(dispatchSortModeOf({ sortMode: "city" })).toBe("city");
+  });
+});
+

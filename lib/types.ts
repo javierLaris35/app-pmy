@@ -772,7 +772,7 @@ export interface DispatchFormData {
 }
 
 /** Orden de la salida a ruta: paquetería+CP, CP+dirección o escaneo. */
-export type DispatchSortMode = "carrier_cp" | "cp" | "scan"
+export type DispatchSortMode = "carrier_cp" | "cp" | "city" | "scan"
 
 /*** Administration */
 export enum VehicleStatus {

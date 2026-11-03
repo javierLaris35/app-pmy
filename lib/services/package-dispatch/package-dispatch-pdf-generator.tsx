@@ -463,8 +463,11 @@ export const FedExPackageDispatchPDF = ({
             const zoneChanged = sortMode !== "scan" && i > 0 && zone !== prevZone;
 
             return (
+              // wrap={false}: un renglón nunca se parte entre dos hojas (antes la 1a guía de
+              // la hoja siguiente salía cortada debajo del encabezado repetido).
               <View
                 key={i}
+                wrap={false}
                 style={[
                   styles.tableRow,
                   i % 2 === 0 ? styles.tableRowEven : {},
@@ -546,7 +549,8 @@ export const FedExPackageDispatchPDF = ({
             {invalidTrackings.map((tracking, index) => {
               const globalIndex = index;
               return (
-                <View 
+                <View
+                  wrap={false}
                   style={[
                     styles.tableRow,
                     index % 2 === 0 ? { backgroundColor: '#fff0f0' } : {}

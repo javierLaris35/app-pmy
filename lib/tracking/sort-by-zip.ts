@@ -6,6 +6,7 @@
  *
  *  - "carrier_cp": paquetería (FedEx —incluye F2— y luego DHL) → CP → dirección.
  *  - "cp": CP → dirección (mezcla paqueterías).
+ *  - "city": ciudad (A→Z, sin ciudad al final) → CP → paquetería (Bodega → Salida "Por ciudad").
  *  - "scan": orden en que se escanearon.
  *
  * El CP mexicano son 5 dígitos, así que el orden numérico = orden de string;
@@ -22,6 +23,9 @@ export interface HasRecipientZip {
 
 export interface DispatchSortable extends HasRecipientZip {
   shipmentType?: string | null;
+  recipientCity?: string | null;
+  /** Ciudad de la memoria de CP de la sucursal (Bodega); manda sobre la ciudad de la guía. */
+  zoneCity?: string | null;
   isCharge?: boolean;
 }
 
@@ -72,6 +76,25 @@ export function compareByCarrierThenZip(a: DispatchSortable, b: DispatchSortable
   return c !== 0 ? c : compareByZip(a, b);
 }
 
+/** Ciudad para ordenar: la de la memoria de CP o la de la guía ("BODEGA ..." de DHL no es ciudad). */
+export function dispatchCityLabel(p: DispatchSortable): string {
+  const city = String(p?.zoneCity || p?.recipientCity || "").trim().toUpperCase();
+  return city && city !== "N/A" && !city.startsWith("BODEGA ") ? city : "";
+}
+
+/** Ciudad A→Z (sin ciudad al final) → CP → paquetería. */
+export function compareByCity(a: DispatchSortable, b: DispatchSortable): number {
+  const ca = dispatchCityLabel(a);
+  const cb = dispatchCityLabel(b);
+  if (ca !== cb) {
+    if (!ca) return 1;
+    if (!cb) return -1;
+    return ca.localeCompare(cb, "es", { sensitivity: "base" });
+  }
+  const z = compareByZip(a, b);
+  return z !== 0 ? z : CARRIER_RANK[dispatchCarrier(a)] - CARRIER_RANK[dispatchCarrier(b)];
+}
+
 /** Devuelve una copia ordenada por CP (no muta el arreglo original). */
 export function sortByZip<T extends HasRecipientZip>(items: T[]): T[] {
   return [...items].sort(compareByZip);
@@ -81,6 +104,7 @@ export function sortByZip<T extends HasRecipientZip>(items: T[]): T[] {
 export function sortForDispatch<T extends DispatchSortable>(items: T[], mode: DispatchSortMode): T[] {
   if (mode === "carrier_cp") return [...items].sort(compareByCarrierThenZip);
   if (mode === "cp") return [...items].sort(compareByZip);
+  if (mode === "city") return [...items].sort(compareByCity);
   return [...items];
 }
 
@@ -99,7 +123,7 @@ export function dispatchSortModeOf(d?: {
   subsidiary?: { sortDispatchByCarrier?: boolean | null; sortDispatchByPostalCode?: boolean | null } | null;
 } | null): DispatchSortMode {
   const m = d?.sortMode;
-  return m === "carrier_cp" || m === "cp" || m === "scan" ? m : subsidiaryDispatchSortMode(d?.subsidiary);
+  return m === "carrier_cp" || m === "cp" || m === "city" || m === "scan" ? m : subsidiaryDispatchSortMode(d?.subsidiary);
 }
 
 /**
@@ -116,4 +140,29 @@ export function carrierGroupStarts<T extends DispatchSortable>(items: T[]): Map<
     }
   }
   return out;
+}
+
+export interface DispatchCarrierSection<T> {
+  carrier: DispatchCarrier;
+  label: string;
+  items: T[];
+}
+
+/**
+ * Bloques por paquetería de una lista YA ordenada, con la misma regla que el PDF: solo en
+ * modo "carrier_cp" y solo si hay más de una paquetería. `null` = lista sin separar.
+ */
+export function dispatchCarrierSections<T extends DispatchSortable>(
+  items: T[],
+  mode: DispatchSortMode,
+): DispatchCarrierSection<T>[] | null {
+  if (mode !== "carrier_cp") return null;
+  const out: DispatchCarrierSection<T>[] = [];
+  for (const item of items) {
+    const carrier = dispatchCarrier(item);
+    const last = out[out.length - 1];
+    if (last && last.carrier === carrier) last.items.push(item);
+    else out.push({ carrier, label: CARRIER_LABEL[carrier], items: [item] });
+  }
+  return out.length > 1 ? out : null;
 }

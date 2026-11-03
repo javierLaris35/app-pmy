@@ -1,4 +1,5 @@
 import { axiosConfig } from "@/lib/axios-config"
+import type { DispatchSortMode } from "@/lib/types";
 import { OutboundTypeEnum, ScannedShipment } from "@/lib/types";
 import { ListParams, Paginated } from "@/lib/services/pagination";
 
@@ -40,6 +41,9 @@ export interface OutboundWarehouseDto {
   destinationId?: string; // Solo para transferencias
   kms?: number; // Solo para salidas a ruta
   routes?: string[]; // Solo para salidas a ruta
+  routeDate?: string; // Solo salidas a ruta: 'YYYY-MM-DD', día operativo de la ruta
+  is315?: boolean; // Solo salidas a ruta
+  sortMode?: DispatchSortMode; // Orden de la lista, PDF y Excel (se guarda con la salida)
 }
 
 /**
@@ -103,22 +107,14 @@ export type WarehouseOpKind = "inbound" | "outbound";
  * (mismo archivo que el correo) y dispara la descarga en el navegador. El nombre
  * sale del header `Content-Disposition` para coincidir con el del correo.
  */
-const downloadWarehouseFile = async (
-  opKind: WarehouseOpKind,
-  id: string,
-  fileKind: "pdf" | "excel",
-) => {
-  const response = await axiosConfig.get(`${url}/${opKind}/${id}/${fileKind}`, {
-    responseType: "blob",
-  });
-
+/** Dispara la descarga de un archivo devuelto por el backend (nombre del Content-Disposition). */
+const saveBlobResponse = (response: { data: unknown; headers: any }, fallbackName: string) => {
   const disposition = response.headers["content-disposition"] as string | undefined;
-  let fileName = fileKind === "pdf" ? "bodega.pdf" : "bodega.xlsx";
+  let fileName = fallbackName;
   if (disposition) {
     const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
     if (match) fileName = decodeURIComponent(match[1]);
   }
-
   const blobUrl = window.URL.createObjectURL(response.data as Blob);
   const link = document.createElement("a");
   link.href = blobUrl;
@@ -127,6 +123,26 @@ const downloadWarehouseFile = async (
   link.click();
   link.remove();
   window.URL.revokeObjectURL(blobUrl);
+};
+
+/** "Solo generar PDF": el PDF de la salida a ruta sin guardarla (vista previa del backend). */
+export type PreviewOutboundDto = Pick<OutboundWarehouseDto, "warehouse" | "shipments"> &
+  Partial<Pick<OutboundWarehouseDto, "vehicle" | "drivers" | "routes">>;
+
+const previewOutboundPdf = async (data: PreviewOutboundDto) => {
+  const response = await axiosConfig.post(`${url}/outbound/preview-pdf`, data, { responseType: "blob" });
+  saveBlobResponse(response, "vista-previa-salida.pdf");
+};
+
+const downloadWarehouseFile = async (
+  opKind: WarehouseOpKind,
+  id: string,
+  fileKind: "pdf" | "excel",
+) => {
+  const response = await axiosConfig.get(`${url}/${opKind}/${id}/${fileKind}`, {
+    responseType: "blob",
+  });
+  saveBlobResponse(response, fileKind === "pdf" ? "bodega.pdf" : "bodega.xlsx");
 };
 
 /** Atajo para salidas (usado por el modal de Salida de Bodega). */
@@ -153,6 +169,7 @@ export {
     getOutboundHistory,
     downloadOutboundFile,
     downloadWarehouseFile,
+    previewOutboundPdf,
     getWarehouseOperationDetails,
     rollbackWarehouseOperation
 }
