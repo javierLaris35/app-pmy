@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CheckCheck, X } from "lucide-react"
+import { ArrowLeft, CheckCheck, PackagePlus, ScanLine, X } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/underline-tabs"
 import { Button } from "@/components/ui/button"
@@ -76,21 +76,31 @@ export function StepVerification(props: Props) {
 
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-4">
-      <UnderlineTabsList>
-        <UnderlineTabsTrigger value="Todos" size="sm" count={rows.length} tone="sky">Todos</UnderlineTabsTrigger>
-        <UnderlineTabsTrigger value="POD" size="sm" count={count("POD")} tone="sky">POD</UnderlineTabsTrigger>
-        <UnderlineTabsTrigger value="DEX" size="sm" count={count("DEX")}>DEX</UnderlineTabsTrigger>
-        <UnderlineTabsTrigger value="Ocurre" size="sm" count={count("Ocurre")} tone="sky">Ocurre</UnderlineTabsTrigger>
-        <UnderlineTabsTrigger value="Otros" size="sm" count={count("Otros")} tone="amber">Otros</UnderlineTabsTrigger>
-        {/* Recolecciones y No VAN no son estatus: otra captura, separada con una línea. */}
-        <span className="mx-1 h-5 self-center border-l border-slate-300" aria-hidden />
-        <UnderlineTabsTrigger value="Recolecciones" size="sm" count={props.collections.length} tone="sky">Recolecciones</UnderlineTabsTrigger>
-        <UnderlineTabsTrigger value="NoVan" size="sm" count={props.noVanPackages.length} tone="sky">No VAN</UnderlineTabsTrigger>
-      </UnderlineTabsList>
+      {/* En Recolecciones / No VAN se esconden: se regresa con "Volver a las guías". */}
+      <div className={cn("flex flex-wrap items-end justify-between gap-2 border-b", !isTable && "hidden")}>
+        <UnderlineTabsList className="w-auto flex-1 border-b-0">
+          <UnderlineTabsTrigger value="Todos" size="sm" count={rows.length} tone="sky">Todos</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="POD" size="sm" count={count("POD")} tone="sky">POD</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="DEX" size="sm" count={count("DEX")}>DEX</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="Ocurre" size="sm" count={count("Ocurre")} tone="sky">Ocurre</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="Otros" size="sm" count={count("Otros")} tone="amber">Sin resultado</UnderlineTabsTrigger>
+        </UnderlineTabsList>
+        {/* Recolecciones y No VAN no son estatus de las guías: otra captura, aparte de las pestañas. */}
+        <div className="flex gap-2 pb-1">
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setTab("Recolecciones")}>
+            <ScanLine className="mr-1.5 h-3.5 w-3.5" /> Recolecciones
+            <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 font-semibold tabular-nums">{props.collections.length}</span>
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setTab("NoVan")}>
+            <PackagePlus className="mr-1.5 h-3.5 w-3.5" /> No VAN
+            <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 font-semibold tabular-nums">{props.noVanPackages.length}</span>
+          </Button>
+        </div>
+      </div>
 
       {isTable && (
         <div className="space-y-2">
-          <div className="mt-4 rounded-xl border bg-slate-50/70 p-3">
+          <div className="mt-2">
           <DataTable<VerificationRow, unknown>
             toolbarExtra={
               <>
@@ -124,12 +134,23 @@ export function StepVerification(props: Props) {
         </div>
       )}
 
-      <TabsContent value="Recolecciones" className="mt-4">
+      {!isTable && (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => setTab("Todos")}>
+            <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Volver a las guías
+          </Button>
+          <p className="text-sm font-semibold text-slate-900">
+            {tab === "Recolecciones" ? "Recolecciones del chofer" : "Guías No VAN (no venían en la salida)"}
+          </p>
+        </div>
+      )}
+
+      <TabsContent value="Recolecciones" className="mt-0">
         <div className="grid gap-4 md:grid-cols-2">
           <ScanInput storageKey={COLLECTIONS_SCAN_KEY} defaultView="simple" onTrackingNumbersChange={props.onCollectionsChange} placeholder="Escanea guías recolectadas…" />
-          <div className="rounded-lg border">
-            <p className="border-b px-3 py-2 text-xs font-medium text-slate-500">{props.collections.length} recolección(es)</p>
-            <div className="max-h-[360px] divide-y overflow-auto">
+          <div className="rounded-lg bg-slate-50">
+            <p className="px-3 pb-1 pt-2.5 text-xs font-medium text-slate-500">{props.collections.length} recolección(es)</p>
+            <div className="max-h-[360px] divide-y divide-slate-200/70 overflow-auto">
               {props.collections.map((tn) => (
                 <p key={tn} className="px-3 py-1.5 font-mono text-xs">{tn}</p>
               ))}
@@ -138,7 +159,7 @@ export function StepVerification(props: Props) {
         </div>
       </TabsContent>
 
-      <TabsContent value="NoVan" className="mt-4">
+      <TabsContent value="NoVan" className="mt-0">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <ScanInput
@@ -153,9 +174,9 @@ export function StepVerification(props: Props) {
               Validar y agregar
             </Button>
           </div>
-          <div className="rounded-lg border">
-            <p className="border-b px-3 py-2 text-xs font-medium text-slate-500">{props.noVanPackages.length} guía(s) No VAN</p>
-            <div className="max-h-[360px] divide-y overflow-auto">
+          <div className="rounded-lg bg-slate-50">
+            <p className="px-3 pb-1 pt-2.5 text-xs font-medium text-slate-500">{props.noVanPackages.length} guía(s) No VAN</p>
+            <div className="max-h-[360px] divide-y divide-slate-200/70 overflow-auto">
               {props.noVanPackages.map((p) => (
                 <div key={p.trackingNumber} className="flex items-center gap-2 px-3 py-1.5 text-xs">
                   <span className="flex-1 font-mono">{p.trackingNumber}</span>

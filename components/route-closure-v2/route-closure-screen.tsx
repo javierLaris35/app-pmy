@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { pdf } from "@react-pdf/renderer"
-import { ArrowLeft, ArrowRight, FileText, Lock, Stethoscope, XCircle } from "lucide-react"
+import { ArrowLeft, Lock, Stethoscope, XCircle } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { Button } from "@/components/ui/button"
-import { PmyLoader, PmySpinner } from "@/components/ui/pmy-loader"
+import { PmyLoader } from "@/components/ui/pmy-loader"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +41,8 @@ import { StepPreClosure } from "./step-pre-closure"
 import { ClosureStepper } from "./closure-stepper"
 import { COLLECTIONS_SCAN_KEY, NOVAN_SCAN_KEY, StepVerification } from "./step-verification"
 import { StepFinish } from "./step-finish"
+import { ClosureRouteBand, type ClosureRoutePart } from "./closure-route-band"
+import { ClosureSummaryPanel, type ClosureChecklistItem } from "./closure-summary-panel"
 
 const FALLBACK_COMPANY = "Paquetería y Mensajería Delyaqui SA de CV"
 
@@ -85,6 +87,8 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
   const [kmsError, setKmsError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [doctorOpen, setDoctorOpen] = useState(false)
+  // Rutas que se cierran, con sus paquetes (la banda de arriba las muestra en el cierre agrupado).
+  const [routeParts, setRouteParts] = useState<ClosureRoutePart[]>([])
 
   const toastRef = useRef(toast)
   toastRef.current = toast
@@ -99,6 +103,14 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
           .map((p) => ({ id: p.id!, isCharge: !!p.isCharge, status: String(p.status ?? "") }))
         return { d, ctx: await getPreClosureContext(id, closureStatuses) }
       }),
+    )
+    setRouteParts(
+      loaded.map(({ d }) => ({
+        id: d.id,
+        folio: d.trackingNumber,
+        routeName: (d.routes ?? []).map((r) => r.name).filter(Boolean).join(" → "),
+        packages: (d.shipments?.length ?? 0) + (d.chargeShipments?.length ?? 0),
+      })),
     )
     if (loaded.length === 1) {
       setDispatch(loaded[0].d)
@@ -137,6 +149,10 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
       alive = false
     }
   }, [groupKey, loadPackages])
+
+  // Pre-cierre obligatorio solo en sucursales con el switch (Cabo). En las demás esta pantalla se usa
+  // para cerrar rutas juntas y ahí el pre-cierre es opcional.
+  const requiresPreClosure = !!dispatch?.subsidiary?.routeClosureWithPreClosure
 
   // Guías del cierre (estatus del día de la ruta) + estatus vivo + contexto del back.
   const { packageInfos, vms } = useMemo(() => {
@@ -269,7 +285,7 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
 
   // ---- Navegación ------------------------------------------------------------------------------
   const next = () => {
-    if (step === 1 && !preClosureAt) {
+    if (step === 1 && requiresPreClosure && !preClosureAt) {
       setLockHighlighted(true)
       toast({ title: "Falta el pre-cierre", description: "Genera el pre-cierre antes de pasar a la comprobación.", variant: "destructive" })
       return
@@ -401,8 +417,31 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
     },
     { title: "Finalizar", detail: blockers.length ? `${blockers.length} pendiente(s) para cerrar` : "Kilometraje y cierre" },
   ]
-  const folio = dispatch?.trackingNumber ?? ""
-  const description = dispatch ? `${isGroup ? `${closeIds.length} rutas juntas: ` : "Salida "}${folio} · ${dispatch.drivers?.map((d) => d.name).join(", ") || "Sin chofer"} · Ruta del ${routeDay ?? "—"}` : undefined
+  // El chofer, el día y las rutas van en la banda de abajo; el encabezado solo dice qué se cierra.
+  const description = dispatch
+    ? isGroup
+      ? `${closeIds.length} rutas juntas del mismo chofer y día`
+      : `Salida ${dispatch.trackingNumber}`
+    : undefined
+
+  // Lo que falta para cerrar: el resumen de la derecha, igual en los 3 pasos.
+  const kmsOk = !!actualKms.trim() && Number(actualKms) >= Number(dispatch?.kms || 0)
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+  const checklist: ClosureChecklistItem[] = [
+    requiresPreClosure || preClosureAt
+      ? { label: printedAt ? `Pre-cierre impreso ${printedAt}` : "Generar e imprimir el pre-cierre", done: !!preClosureAt, blocking: true }
+      : { label: "Pre-cierre (opcional)", done: false, info: true },
+    blockedByOther
+      ? { label: `${plural(otherDueToday.length, "guía vence", "guías vencen")} hoy sin resultado: corrígelas en la comprobación`, done: false, blocking: true }
+      : // Las DHL sin confirmar ya tienen su propio renglón: no se cuentan dos veces.
+        bucketCounts.otros - dhlPending > 0
+        ? { label: `${plural(bucketCounts.otros - dhlPending, "guía", "guías")} sin resultado (no impiden cerrar)`, done: false, info: true }
+        : { label: "Todas las guías con resultado", done: true },
+    ...(dhlVms.length
+      ? [{ label: dhlPending ? `${plural(dhlPending, "guía DHL", "guías DHL")} por confirmar` : "Guías DHL confirmadas", done: !dhlPending, blocking: true }]
+      : []),
+    { label: kmsOk ? "Km de llegada capturado" : "Capturar el km de llegada", done: kmsOk, blocking: step === 3 },
+  ]
 
   const actions = (
     <div className="flex items-center gap-2">
@@ -414,25 +453,11 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
       <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={back} disabled={submitting} aria-label={step === 1 ? "Volver a Salidas a ruta" : "Paso anterior"} title={step === 1 ? "Volver a Salidas a ruta" : "Paso anterior"}>
         <ArrowLeft className="h-4 w-4" />
       </Button>
-      {step === 1 && (
-        <Button size="sm" variant="outline" onClick={generatePreClosure} disabled={!dispatch || generating}>
-          {generating ? <PmySpinner className="mr-1 h-4 w-4" /> : <FileText className="mr-1 h-4 w-4" />}
-          {preClosureAt ? "Regenerar pre-cierre" : "Generar pre-cierre"}
-        </Button>
-      )}
-      {step < 3 ? (
-        <Button size="sm" onClick={next} disabled={!dispatch}>
-          Siguiente <ArrowRight className="ml-1 h-4 w-4" />
-        </Button>
-      ) : (
-        <Button size="sm" className="bg-red-900 hover:bg-red-950" onClick={closeRoute} disabled={submitting}>
-          {submitting ? <PmySpinner className="mr-1 h-4 w-4" /> : <Lock className="mr-1 h-4 w-4" />} Cerrar ruta
-        </Button>
-      )}
     </div>
   )
 
-  const notAllowed = dispatch && !dispatch.subsidiary?.routeClosureWithPreClosure
+  // Sin el switch, esta pantalla solo cierra rutas juntas; una salida sola va al diálogo de siempre.
+  const notAllowed = dispatch && !requiresPreClosure && !isGroup
   const alreadyClosed = dispatch?.status === PackageDispatchStatus.COMPLETED
 
   return (
@@ -443,7 +468,7 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
       )}
 
       {loadingText ? (
-        <PmyLoader size="sm" text={loadingText} className="h-64 py-0" />
+        <PmyLoader size="sm" text={loadingText} className="h-[80vh] py-0" />
       ) : loadError || !dispatch ? (
         <Message text="No se pudieron cargar las guías de la ruta." onBack={() => router.push("/operaciones/salidas-a-ruta")} />
       ) : alreadyClosed ? (
@@ -451,51 +476,83 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
       ) : notAllowed ? (
         <Message text="Esta sucursal usa el cierre de siempre. Ciérrala desde Salidas a ruta." onBack={() => router.push("/operaciones/salidas-a-ruta")} />
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
+          <ClosureRouteBand
+            drivers={dispatch.drivers?.map((d) => d.name) ?? []}
+            routeDay={routeDay ?? null}
+            vehicle={dispatch.vehicle?.code || dispatch.vehicle?.name || dispatch.vehicle?.plateNumber}
+            kmsOut={dispatch.kms}
+            totalPackages={vms.length + noVanPackages.length}
+            routes={routeParts}
+            is315={is315}
+          />
           <ClosureStepper steps={stepCards} current={step} onGoTo={setStep} />
 
-          {step === 1 && (
-            <StepPreClosure
-              packages={vms}
-              counts={{ total: vms.length + noVanPackages.length, ...bucketCounts }}
-              preClosureAt={preClosureAt}
-              otherDueToday={otherDueToday}
-              blockedByOther={blockedByOther}
-              lockHighlighted={lockHighlighted}
-            />
-          )}
-          {/* El paso 2 se queda montado para no perder los escáneres al ir y volver. */}
-          <div className={cn(step !== 2 && "hidden")}>
-            <StepVerification
-              packages={vms}
-              changes={changes}
-              dhlCodes={dhlCodes}
-              dhlOptions={dhlOptions}
-              onFedexChange={onFedexChange}
-              onDhlChange={onDhlChange}
-              onAllDhlDelivered={onAllDhlDelivered}
-              collections={collections}
-              onCollectionsChange={setCollectionsRaw}
-              noVanInput={noVanInput}
-              onNoVanInputChange={setNoVanInput}
-              noVanPackages={noVanPackages}
-              onAddNoVan={addNoVan}
-              onRemoveNoVan={(tn) => setNoVanPackages((prev) => prev.filter((p) => p.trackingNumber !== tn))}
-              isValidatingNoVan={isValidatingNoVan}
+          <div className="grid items-start gap-4 lg:grid-cols-[1fr_260px]">
+            <div className="min-w-0">
+              {step === 1 && (
+                <StepPreClosure
+                  packages={vms}
+                  counts={bucketCounts}
+                  preClosureAt={preClosureAt}
+                  lockHighlighted={lockHighlighted}
+                  generating={generating}
+                  onGenerate={generatePreClosure}
+                  optional={!requiresPreClosure}
+                />
+              )}
+              {/* El paso 2 se queda montado para no perder los escáneres al ir y volver. */}
+              <div className={cn(step !== 2 && "hidden")}>
+                <StepVerification
+                  packages={vms}
+                  changes={changes}
+                  dhlCodes={dhlCodes}
+                  dhlOptions={dhlOptions}
+                  onFedexChange={onFedexChange}
+                  onDhlChange={onDhlChange}
+                  onAllDhlDelivered={onAllDhlDelivered}
+                  collections={collections}
+                  onCollectionsChange={setCollectionsRaw}
+                  noVanInput={noVanInput}
+                  onNoVanInputChange={setNoVanInput}
+                  noVanPackages={noVanPackages}
+                  onAddNoVan={addNoVan}
+                  onRemoveNoVan={(tn) => setNoVanPackages((prev) => prev.filter((p) => p.trackingNumber !== tn))}
+                  isValidatingNoVan={isValidatingNoVan}
+                />
+              </div>
+              {step === 3 && (
+                <StepFinish
+                  packages={fedexVms}
+                  changes={changes}
+                  kmsOut={dispatch.kms ?? ""}
+                  actualKms={actualKms}
+                  onKmsChange={(v) => (setActualKms(v), setKmsError(null))}
+                  kmsError={kmsError}
+                  counts={{ ...bucketCounts, collections: collections.length, noVan: noVanPackages.length }}
+                />
+              )}
+            </div>
+
+            <ClosureSummaryPanel
+              items={checklist}
+              stats={[
+                { label: "Cambios a mano", value: changeCount, highlight: true },
+                { label: "Recolecciones", value: collections.length },
+                { label: "No VAN", value: noVanPackages.length },
+              ]}
+              step={step}
+              routesCount={closeIds.length}
+              submitting={submitting}
+              onNext={next}
+              onClose={closeRoute}
+              note={
+                step === 3
+                  ? `Se ${isGroup ? `cerrarán las ${closeIds.length} rutas juntas` : "cerrará la ruta"} y se enviará el correo con el PDF y el Excel.`
+                  : undefined
+              }
             />
           </div>
-          {step === 3 && (
-            <StepFinish
-              packages={fedexVms}
-              changes={changes}
-              kmsOut={dispatch.kms ?? ""}
-              actualKms={actualKms}
-              onKmsChange={(v) => (setActualKms(v), setKmsError(null))}
-              kmsError={kmsError}
-              counts={{ ...bucketCounts, collections: collections.length, noVan: noVanPackages.length }}
-              blockers={blockers}
-            />
-          )}
         </div>
       )}
 

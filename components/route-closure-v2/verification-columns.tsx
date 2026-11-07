@@ -94,12 +94,12 @@ export function verificationColumns(opts: {
       id: "recipientName",
       accessorKey: "recipient",
       header: "Destinatario",
-      cell: ({ row }) => <span className="block max-w-[220px] truncate text-sm">{row.original.recipient}</span>,
+      cell: ({ row }) => <span className="block max-w-[160px] truncate text-sm">{row.original.recipient}</span>,
     },
     {
       id: "systemLabel",
       accessorFn: (r) => systemStatusLabel(r.systemStatus, r.systemCode),
-      header: "En sistema",
+      header: "Según la paquetería",
       filterFn: inArray,
       cell: ({ row }) => (
         <Badge variant="outline" className={cn("px-1.5 py-0 text-[11px] font-medium", BUCKET_TONE[classifyClosureBucket(row.original.systemStatus)])}>
@@ -109,12 +109,12 @@ export function verificationColumns(opts: {
     },
     {
       accessorKey: "ldSignals",
-      header: "Riesgo de LD",
+      header: "LD",
       filterFn: (row, id, value) => !Array.isArray(value) || value.length === 0 || (row.getValue(id) as string[]).some((s) => value.includes(s)),
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.ldSignals.map((s) => (
-            <span key={s} className={cn("rounded-full px-1.5 py-px text-[10.5px] font-medium", s === "LD" || s === "Posible LD" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700")}>
+            <span key={s} className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium leading-none", s === "LD" || s === "Posible LD" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700")}>
               {s}
             </span>
           ))}
@@ -130,7 +130,7 @@ export function verificationColumns(opts: {
           const code = opts.dhlCodes[p.id] ?? ""
           return (
             <Select value={code || undefined} onValueChange={(v) => opts.onDhlChange(p, v)}>
-              <SelectTrigger className={cn("h-8 w-[230px] text-xs", !code && "border-amber-400 text-amber-700")}>
+              <SelectTrigger className={cn("h-8 w-[200px] text-xs", !code && "border-amber-400 text-amber-700")}>
                 <SelectValue placeholder="Sin confirmar…" />
               </SelectTrigger>
               <SelectContent>
@@ -146,7 +146,7 @@ export function verificationColumns(opts: {
         return (
           <div className="space-y-0.5">
           <Select value={current ?? NO_RESULT} onValueChange={(v) => opts.onFedexChange(p, v === NO_RESULT ? null : (v as ManualOption))}>
-            <SelectTrigger className="h-8 w-[230px] text-xs">
+            <SelectTrigger className="h-8 w-[200px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

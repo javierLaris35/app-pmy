@@ -1,5 +1,6 @@
 "use client"
 
+import { Fragment } from "react"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -17,44 +18,46 @@ interface Props {
   onGoTo: (step: number) => void
 }
 
-/** Pasos del cierre como tarjetas con su avance y una barra de progreso debajo. */
+/** Pasos del cierre en un renglón: círculos numerados unidos por una línea (verde = hecho). */
 export function ClosureStepper({ steps, current, onGoTo }: Props) {
   return (
-    <div className="space-y-2">
-      <div className="grid gap-2 sm:grid-cols-3">
-        {steps.map((s, i) => {
-          const n = i + 1
-          const done = n < current
-          const active = n === current
-          return (
-            <button
-              key={s.title}
-              type="button"
-              disabled={!done}
-              onClick={() => onGoTo(n)}
-              className={cn(
-                "rounded-lg border px-3 py-2 text-left transition-colors",
-                done && "border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70",
-                active && "border-primary bg-white ring-1 ring-primary",
-                !done && !active && "border-slate-200 bg-white",
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className={cn("text-sm font-medium", done ? "text-emerald-800" : active ? "text-slate-900" : "text-slate-500")}>
-                  {n} · {s.title}
+    <ol className="flex items-center gap-3 px-1 py-1">
+      {steps.map((s, i) => {
+        const n = i + 1
+        const done = n < current
+        const active = n === current
+        return (
+          <Fragment key={s.title}>
+            {i > 0 && <li aria-hidden className={cn("h-0.5 min-w-4 flex-1 rounded-full", n <= current ? "bg-emerald-500" : "bg-slate-200")} />}
+            <li>
+              <button
+                type="button"
+                disabled={!done}
+                onClick={() => onGoTo(n)}
+                aria-current={active ? "step" : undefined}
+                className={cn("flex items-center gap-2.5 rounded-lg text-left", done && "hover:opacity-80")}
+              >
+                <span
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                    done && "bg-emerald-500 text-white",
+                    active && "bg-primary text-primary-foreground ring-4 ring-primary/15",
+                    !done && !active && "border border-slate-300 text-slate-500",
+                  )}
+                >
+                  {done ? <Check className="h-4 w-4" /> : n}
                 </span>
-                {done && <Check className="h-4 w-4 shrink-0 text-emerald-700" />}
-              </div>
-              <p className={cn("truncate text-xs", done ? "text-emerald-700" : "text-slate-500")}>{s.detail}</p>
-            </button>
-          )
-        })}
-      </div>
-      <div className="grid grid-cols-3 gap-1" aria-hidden>
-        {steps.map((s, i) => (
-          <div key={s.title} className={cn("h-1 rounded-full", i + 1 < current ? "bg-emerald-500" : i + 1 === current ? "bg-primary" : "bg-slate-200")} />
-        ))}
-      </div>
-    </div>
+                <span className="hidden min-w-0 sm:block">
+                  <span className={cn("block text-sm font-medium", done ? "text-emerald-700" : active ? "text-slate-900" : "text-slate-500")}>
+                    {s.title}
+                  </span>
+                  <span className="block max-w-[14rem] truncate text-xs text-slate-500">{s.detail}</span>
+                </span>
+              </button>
+            </li>
+          </Fragment>
+        )
+      })}
+    </ol>
   )
 }
