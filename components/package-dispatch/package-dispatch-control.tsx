@@ -8,7 +8,6 @@ import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Send, Truck, Eye, Sheet, Lock, Layers } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { getGroupCandidates } from "@/lib/services/route-closure"
 import type { GroupCandidate } from "@/lib/route-closure/group-dispatch"
 import { AppLayout } from "@/components/app-layout"
@@ -20,6 +19,7 @@ import { useAuthStore } from "@/store/auth.store"
 import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
 import { columns } from "./columns"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { generateDispatchExcelClient } from "@/lib/services/package-dispatch/package-dispatch-excel-generator"
 import { dispatchSortModeOf } from "@/lib/tracking/sort-by-zip"
 import PackageDispatchDetails from "./package-dispatch-details"
@@ -45,6 +45,10 @@ const DISPATCH_STATUS_OPTIONS = [
 const dayLabel = (day: string) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString("es-MX", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" })
 
+/** "ALAN DAVID PERAZA RUIZ" → "Alan David Peraza Ruiz" (los nombres vienen capturados de muchas formas). */
+const personName = (name: string) =>
+  name.toLocaleLowerCase("es-MX").replace(/(^|\s)(\p{L})/gu, (_, sp: string, ch: string) => sp + ch.toLocaleUpperCase("es-MX"))
+
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
@@ -54,8 +58,9 @@ export default function PackageDispatchControl() {
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
   // Cierre agrupado: rutas del mismo chofer y día que se pueden cerrar juntas.
   const [groupCandidates, setGroupCandidates] = useState<GroupCandidate[]>([])
-  const [groupCloseIds, setGroupCloseIds] = useState<string[] | null>(null)
   const [groupsRefresh, setGroupsRefresh] = useState(0)
+  // Vista "Por cerrar juntas": la tabla muestra solo las rutas agrupables, seguidas por grupo.
+  const [onlyGrouped, setOnlyGrouped] = useState(false)
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
   // Deep-link de correos: /operaciones/salidas-a-ruta?seguimiento=XXXX enfoca el registro.
@@ -104,6 +109,7 @@ export default function PackageDispatchControl() {
       driverId: filterParam("drivers"),
       day: filterParam("routeDate"),
       is315: filterParam("is315"),
+      grouped: onlyGrouped ? "true" : undefined,
     }
   )
 
@@ -144,21 +150,30 @@ export default function PackageDispatchControl() {
   useEffect(() => {
     if (!effectiveSucursalId) return setGroupCandidates([])
     let alive = true
-    getGroupCandidates(effectiveSucursalId)
+    getGroupCandidates(effectiveSucursalId, { from: week.from, to: week.to })
       .then((g) => alive && setGroupCandidates(g))
       .catch(() => alive && setGroupCandidates([]))
     return () => { alive = false }
-  }, [effectiveSucursalId, groupsRefresh])
+  }, [effectiveSucursalId, groupsRefresh, week.from, week.to])
 
-  const openGroupClosure = (group: GroupCandidate) => {
-    const ids = group.dispatches.map((d) => d.id)
-    if (usesPreClosure) {
-      router.push(`/operaciones/salidas-a-ruta/cierre?salidas=${ids.join(",")}`)
-      return
+  // A qué grupo pertenece cada salida y en qué lugar (1 de 2, 2 de 2…).
+  const groupByDispatchId = useMemo(() => {
+    const map = new Map<string, { group: GroupCandidate; position: number }>()
+    for (const g of groupCandidates) {
+      g.dispatches.forEach((d, i) => { if (!map.has(d.id)) map.set(d.id, { group: g, position: i + 1 }) })
     }
-    setGroupCloseIds(ids)
-    setSelectedPackageDispatch(ids[0])
-    setIsRouteClouserDialogOpen(true)
+    return map
+  }, [groupCandidates])
+
+  const toggleOnlyGrouped = (value: boolean) => {
+    setOnlyGrouped(value)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+
+  // Cierre de rutas juntas: en TODAS las sucursales abre la pantalla completa de cierre (en las
+  // que no tienen pre-cierre obligatorio, ahí el pre-cierre es opcional).
+  const openGroupClosure = (group: GroupCandidate) => {
+    router.push(`/operaciones/salidas-a-ruta/cierre?salidas=${group.dispatches.map((d) => d.id).join(",")}`)
   }
 
   // SOLUCIÓN: Solo inicializar la sucursal cuando auth esté hidratado
@@ -204,7 +219,6 @@ export default function PackageDispatchControl() {
       return
     }
 
-    setGroupCloseIds(null)
     setSelectedPackageDispatch(packageDispatch.id)
     setIsRouteClouserDialogOpen(true)
   }
@@ -231,7 +245,58 @@ export default function PackageDispatchControl() {
   }
 
 const updatedColumns = columns.map((col) =>
-    col.id === "actions"
+    (col as { accessorKey?: string }).accessorKey === "drivers"
+      ? {
+          ...col,
+          cell: ({ row }: { row: Row<PackageDispatchResponse> }) => {
+            const info = groupByDispatchId.get(row.original.id)
+            return (
+              <div className="flex items-center gap-2">
+                <span className="font-mono">{row.original.driverName || "Sin Chofer"}</span>
+                {info && !onlyGrouped && (
+                  // Solo el grupo de ESTE chofer y día, pegado a la fila (no cambia la vista de la tabla).
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        title={`Este chofer tiene ${info.group.dispatches.length} rutas abiertas ese día`}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 data-[state=open]:ring-2 data-[state=open]:ring-blue-300"
+                      >
+                        <Layers className="h-3 w-3" /> {info.position} de {info.group.dispatches.length}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-80 p-3">
+                      <p className="text-sm font-semibold">{personName(info.group.driverName)} · {dayLabel(info.group.routeDate)}</p>
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Tiene {info.group.dispatches.length} rutas abiertas ese día · {info.group.dispatches.reduce((a, d) => a + d.packages, 0)} paquetes
+                      </p>
+                      <ul className="divide-y border-y text-xs">
+                        {info.group.dispatches.map((d) => (
+                          <li
+                            key={d.id}
+                            className={`flex items-center justify-between px-1.5 py-1.5 ${d.id === row.original.id ? "bg-blue-50 text-blue-800" : ""}`}
+                          >
+                            <span className="font-mono">
+                              {d.folio}
+                              {d.id === row.original.id && <span className="ml-1.5 font-sans font-medium">· esta</span>}
+                            </span>
+                            <span className="text-muted-foreground">{d.packages} paq.</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="mt-3 flex justify-end">
+                        <Button size="sm" className="h-8" onClick={() => openGroupClosure(info.group)}>
+                          <Lock className="mr-1.5 h-3.5 w-3.5" /> Cerrar las {info.group.dispatches.length} juntas
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            )
+          },
+        }
+      : col.id === "actions"
       ? {
           ...col,
           cell: ({ row }: { row: Row<PackageDispatchResponse> }) => {
@@ -352,29 +417,6 @@ const updatedColumns = columns.map((col) =>
             <>
             {isSuperAdmin && <RouteRiskReportButton />}
             <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
-            {groupCandidates.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="whitespace-nowrap">
-                    <Layers className="mr-1.5 h-4 w-4" /> Cerrar juntas ({groupCandidates.length})
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    Rutas abiertas del mismo chofer y día. Se cierran en un solo paso.
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {groupCandidates.map((g) => (
-                    <DropdownMenuItem key={g.key} onSelect={() => openGroupClosure(g)} className="flex flex-col items-start gap-0.5">
-                      <span className="text-sm font-medium">{g.driverName} · {g.routeDate.split("-").reverse().join("/")}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {g.dispatches.length} rutas · {g.dispatches.reduce((a, d) => a + d.packages, 0)} paquetes · {g.dispatches.map((d) => d.folio).join(", ")}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
             <Button size="sm" onClick={openDispatchDialog} disabled={!selectedSucursalId} className="whitespace-nowrap">
               <Send className="mr-1.5 h-4 w-4" /> Nueva salida
             </Button>
@@ -423,6 +465,40 @@ const updatedColumns = columns.map((col) =>
             globalFilter={searchInput}
             onGlobalFilterChange={setSearchInput}
             searchPlaceholder="Buscar por folio de salida..."
+            toolbarExtra={
+              (groupCandidates.length > 0 || onlyGrouped) && (
+                <Button
+                  size="sm"
+                  variant={onlyGrouped ? "default" : "outline"}
+                  className={`h-8 whitespace-nowrap ${onlyGrouped ? "" : "border-dashed border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"}`}
+                  onClick={() => toggleOnlyGrouped(!onlyGrouped)}
+                >
+                  <Layers className="mr-1.5 h-4 w-4" /> Por cerrar juntas · {groupCandidates.length}
+                </Button>
+              )
+            }
+            groupHeader={
+              onlyGrouped
+                ? (row, prev) => {
+                    const info = groupByDispatchId.get(row.id)
+                    if (!info || (prev && groupByDispatchId.get(prev.id)?.group.key === info.group.key)) return null
+                    const g = info.group
+                    const packages = g.dispatches.reduce((a, d) => a + d.packages, 0)
+                    return (
+                      <div className="flex items-center gap-3 border-l-4 border-blue-500 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                        <Layers className="h-4 w-4 shrink-0 text-blue-600" />
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="font-semibold">{personName(g.driverName)}</span>
+                          <span className="text-blue-700"> · {dayLabel(g.routeDate)} · {g.dispatches.length} rutas abiertas · {packages} paquetes</span>
+                        </span>
+                        <Button size="sm" className="h-7 shrink-0" onClick={() => openGroupClosure(g)}>
+                          <Lock className="mr-1.5 h-3.5 w-3.5" /> Cerrar las {g.dispatches.length} juntas
+                        </Button>
+                      </div>
+                    )
+                  }
+                : undefined
+            }
           />
         )}
       </div>
@@ -469,9 +545,8 @@ const updatedColumns = columns.map((col) =>
           </DialogHeader>
           {selectedPackageDispatch && (
               <ClosePackageDisptach
-              key={groupCloseIds?.join(",") ?? selectedPackageDispatch}
+              key={selectedPackageDispatch}
               dispatchId={selectedPackageDispatch}
-              groupDispatchIds={groupCloseIds ?? undefined}
               onClose={() => setIsRouteClouserDialogOpen(false)}
               onSuccess={() => {
                 mutate()

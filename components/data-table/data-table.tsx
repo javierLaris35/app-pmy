@@ -81,6 +81,12 @@ interface DataTableProps<TData, TValue> {
   initialPageSize?: number
   /** Controles propios a la derecha de la barra de filtros (opt-in). */
   toolbarExtra?: React.ReactNode
+  /**
+   * Encabezado de grupo (opt-in): se pinta como renglón de ancho completo ANTES de la fila
+   * cuando regresa algo. Recibe la fila y la anterior de la página (para saber dónde empieza
+   * un grupo). Útil cuando los datos ya vienen ordenados por grupo.
+   */
+  groupHeader?: (row: TData, prev: TData | undefined) => React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -111,6 +117,7 @@ export function DataTable<TData, TValue>({
   initialSorting,
   initialPageSize = 10,
   toolbarExtra,
+  groupHeader,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -249,8 +256,17 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map((row, rowIndex, pageRows) => {
+                const groupHeaderNode = groupHeader?.(row.original, pageRows[rowIndex - 1]?.original)
+                return (
                 <React.Fragment key={row.id}>
+                  {groupHeaderNode ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={row.getVisibleCells().length} className="p-0">
+                        {groupHeaderNode}
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
                   {/* FILA PRINCIPAL */}
                   <TableRow
                     data-state={row.getIsSelected() && "selected"}
@@ -285,7 +301,8 @@ export function DataTable<TData, TValue>({
                     </TableRow>
                   )}
                 </React.Fragment>
-              ))
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">

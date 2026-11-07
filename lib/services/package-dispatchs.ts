@@ -23,6 +23,8 @@ export interface DispatchListParams extends ListParams {
     driverId?: string;
     day?: string;
     is315?: string;
+    /** "true" = solo rutas que se pueden cerrar juntas (mismo chofer y día), seguidas por grupo. */
+    grouped?: string;
 }
 
 /** Opciones de los filtros calculadas sobre TODA la semana (no solo la página). */

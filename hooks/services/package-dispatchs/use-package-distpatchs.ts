@@ -6,11 +6,11 @@ import useSWRMutation from "swr/mutation";
 
 export function usePackageDispatchs(subsidiaryId: string | null, params: DispatchListParams = {}) {
     const isValid = subsidiaryId && subsidiaryId.length > 0;
-    const { page, limit, from, to, search, status, driverId, day, is315 } = params;
+    const { page, limit, from, to, search, status, driverId, day, is315, grouped } = params;
 
     const { data, error, isLoading, mutate } = useSWR<Paginated<PackageDispatchResponse> & { facets?: DispatchListFacets }>(
         isValid
-          ? [`/package-dispatchs/subsidiary`, subsidiaryId, page, limit, from, to, search, status, driverId, day, is315]
+          ? [`/package-dispatchs/subsidiary`, subsidiaryId, page, limit, from, to, search, status, driverId, day, is315, grouped]
           : null,
         isValid
           ? () => getPackageDispatchs(subsidiaryId as string, params)

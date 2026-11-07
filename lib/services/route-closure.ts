@@ -199,8 +199,11 @@ export const saveGroup = async (dispatchIds: string[], closure: Omit<RouteClosur
     return response.data;
 };
 
-/** Rutas abiertas de la sucursal que se pueden cerrar juntas (mismo día y chofer). */
-export const getGroupCandidates = async (subsidiaryId: string) => {
-    const response = await axiosConfig.get<import("@/lib/route-closure/group-dispatch").GroupCandidate[]>(`${url}/groups/${subsidiaryId}`);
+/** Rutas abiertas de la sucursal que se pueden cerrar juntas (mismo día y chofer), de la semana from–to. */
+export const getGroupCandidates = async (subsidiaryId: string, range?: { from: string; to: string }) => {
+    const response = await axiosConfig.get<import("@/lib/route-closure/group-dispatch").GroupCandidate[]>(
+        `${url}/groups/${subsidiaryId}`,
+        { params: range },
+    );
     return response.data;
 };
