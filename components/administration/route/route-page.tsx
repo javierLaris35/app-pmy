@@ -24,6 +24,15 @@ import { useAuthStore } from "@/store/auth.store"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { deleteRoute } from "@/lib/services/routes"
 import { LoaderWithOverlay } from "@/components/loader"
+import { mutate as globalMutate } from "swr"
+import { RefreshCw } from "lucide-react"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/underline-tabs"
+import { PmySpinner } from "@/components/ui/pmy-loader"
+import { toast } from "@/lib/toast"
+import { apiError } from "@/components/maintenance/shared/confirm-action"
+import { rebuildRouteZipCoverage } from "@/lib/services/route-zip-coverage"
+import { RouteZipCoveragePanel, routeZipKey } from "./route-zip-coverage-panel"
 
 import {
   AlertDialog,
@@ -41,6 +50,9 @@ function RoutesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingRoute, setEditingRoute] = useState<Route | null>(null)
   const [selectedSubsidiary, setSelectedSubsidiary] = useState<Subsidiary | null>(null)
+  const [tab, setTab] = useState("catalogo")
+  const [addZipOpen, setAddZipOpen] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
   const user = useAuthStore((s) => s.user)
 
   const isAdmin = user?.role?.includes("admin") || user?.role?.includes("superadmin")
@@ -145,14 +157,28 @@ function RoutesPage() {
 
   const loaderText = isSaving ? "Guardando cambios..." : isLoading ? "Cargando rutas..." : ""
 
+  const handleRebuild = async () => {
+    if (!effectiveSubsidiaryId) return
+    setRebuilding(true)
+    try {
+      const r = await rebuildRouteZipCoverage(effectiveSubsidiaryId)
+      await globalMutate(routeZipKey(effectiveSubsidiaryId))
+      toast.success(`CPs recalculados: ${r.pairs} combinaciones ruta–CP`)
+    } catch (e) {
+      toast.error(apiError(e, "No se pudieron recalcular los CPs"))
+    } finally {
+      setRebuilding(false)
+    }
+  }
+
   return (
     <AppLayout>
-      <div className="space-y-4">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         {/* Header estándar */}
         <OperationHeader
           icon={RouteIcon}
           title="Catálogo de Rutas"
-          description="Administra las rutas de la empresa"
+          description={tab === "cps" ? "Códigos postales que atiende cada ruta" : "Administra las rutas de la empresa"}
           subsidiaryName={selectedSubsidiary?.name || user?.subsidiary?.name}
           actions={
             isAdmin && (
@@ -164,23 +190,49 @@ function RoutesPage() {
                     returnObject
                   />
                 </div>
-                <Button size="sm" onClick={openNewDialog} className="whitespace-nowrap">
-                  <Plus className="mr-2 h-4 w-4" /> Nueva Ruta
-                </Button>
+                {tab === "cps" ? (
+                  <>
+                    <Button size="sm" variant="outline" onClick={handleRebuild} disabled={rebuilding || !effectiveSubsidiaryId} className="gap-2 whitespace-nowrap">
+                      {rebuilding ? <PmySpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Recalcular con historial
+                    </Button>
+                    <Button size="sm" onClick={() => setAddZipOpen(true)} disabled={!effectiveSubsidiaryId} className="whitespace-nowrap">
+                      <Plus className="mr-2 h-4 w-4" /> Agregar CP
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" onClick={openNewDialog} className="whitespace-nowrap">
+                    <Plus className="mr-2 h-4 w-4" /> Nueva Ruta
+                  </Button>
+                )}
               </div>
             )
           }
         />
 
-        {/* Loader / Error / Tabla */}
-        {(isLoading || isSaving) && loaderText ? (
-          <LoaderWithOverlay overlay transparent text={loaderText} className="rounded-lg" />
-        ) : isError ? (
-          <p className="text-red-500">Error al cargar las rutas.</p>
-        ) : (
-          <DataTable columns={updatedColumns} data={routes ?? []} />
-        )}
-      </div>
+        <UnderlineTabsList>
+          <UnderlineTabsTrigger value="catalogo">Rutas</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="cps" hint="¿Qué CPs atiende cada ruta?">CPs de cada ruta</UnderlineTabsTrigger>
+        </UnderlineTabsList>
+
+        <TabsContent value="catalogo" className="mt-0">
+          {/* Loader / Error / Tabla */}
+          {(isLoading || isSaving) && loaderText ? (
+            <LoaderWithOverlay overlay transparent text={loaderText} className="rounded-lg" />
+          ) : isError ? (
+            <p className="text-red-500">Error al cargar las rutas.</p>
+          ) : (
+            <DataTable columns={updatedColumns} data={routes ?? []} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="cps" className="mt-0 space-y-4">
+          {effectiveSubsidiaryId ? (
+            <RouteZipCoveragePanel subsidiaryId={effectiveSubsidiaryId} isAdmin={!!isAdmin} addOpen={addZipOpen} onAddOpenChange={setAddZipOpen} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Elige una sucursal.</p>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Modal */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
