@@ -25,6 +25,7 @@ import PackageDispatchDetails from "./package-dispatch-details"
 import ClosePackageDisptach from "./close-package-dispatch-form"
 import { getShipmensByDispatchId } from "@/lib/services/package-dispatchs"
 import ResendEmailButton from "./resend-email-button"
+import { RouteSuggestionsSection } from "./route-suggestions-section"
 import { RouteRiskReportButton } from "./route-risk-report-button"
 import { RequestDeleteButton } from "@/components/approvals/request-delete-button"
 import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
@@ -440,6 +441,8 @@ const updatedColumns = columns.map((col) =>
             </>
           }
         />
+
+        {effectiveSucursalId && <RouteSuggestionsSection subsidiaryId={effectiveSucursalId} subsidiaryName={effectiveSucursalName} />}
 
         {!selectedSucursalId ? (
           <div className="flex h-[200px] items-center justify-center">

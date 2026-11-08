@@ -44,11 +44,14 @@ import {
 } from "@/lib/scanner-feedback";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AppLayout } from "@/components/app-layout";
+import { getRoutesBySucursalId } from "@/lib/services/routes";
 import { ArrowLeft } from "lucide-react";
 
 type Props = {
   /** "dialog" (default, comportamiento histórico) o "page" (pantalla completa con AppLayout). */
   variant?: "dialog" | "page";
+  /** Ruta a preseleccionar (viene de "Crear salida" en las sugerencias). Se suma a las ya elegidas. */
+  initialRouteId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedSubsidiaryId: string | null;
@@ -93,6 +96,7 @@ const isExpiringTodayLocal =(commitDateTime?: string | null): boolean => {
 
 const PackageDispatchForm: React.FC<Props> = ({
   variant = "dialog",
+  initialRouteId,
   open,
   onOpenChange,
   selectedSubsidiaryId: propSubsidiaryId,
@@ -219,6 +223,22 @@ const PackageDispatchForm: React.FC<Props> = ({
   const selectedSubsidiaryName = useMemo(() => {
     return propSubsidiaryName || user?.subsidiary?.name || null;
   }, [propSubsidiaryName, user]);
+
+  // Ruta sugerida: se agrega una sola vez al llegar (sin quitar las que ya estaban elegidas).
+  const initialRouteApplied = useRef(false);
+  useEffect(() => {
+    if (!initialRouteId || !selectedSubsidiaryId || initialRouteApplied.current) return;
+    initialRouteApplied.current = true;
+    if (selectedRutas.some((r) => r.id === initialRouteId)) return;
+    getRoutesBySucursalId(selectedSubsidiaryId)
+      .then((routes) => {
+        const route = routes.find((r) => r.id === initialRouteId);
+        if (route) setSelectedRutas((prev) => (prev.some((r) => r.id === route.id) ? prev : [...prev, route]));
+      })
+      .catch(() => {
+        /* si falla, el usuario elige la ruta a mano como siempre */
+      });
+  }, [initialRouteId, selectedSubsidiaryId, selectedRutas, setSelectedRutas]);
 
   // Orden de la salida según la config de la sucursal (paquetería+CP, CP o escaneo).
   // Es el DEFAULT; el operador puede cambiarlo en caliente con el control de orden.

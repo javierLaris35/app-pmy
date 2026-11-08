@@ -17,6 +17,7 @@ function NewDispatchContent() {
   return (
     <PackageDispatchForm
       variant="page"
+      initialRouteId={params.get("ruta")}
       open
       onOpenChange={(o) => !o && back()}
       selectedSubsidiaryId={params.get("sucursal")}
