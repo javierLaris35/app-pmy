@@ -391,13 +391,15 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
           flex-wrap: en pantallas angostas los controles bajan a otra línea en
           vez de encimarse con el contador. */}
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {/* min-w: si no cabe junto a los controles, éstos bajan de renglón (con min-w-0 el
+            contador se encogía y quedaba debajo de "Detallada/Simple"). */}
+        <div className="flex min-w-[10.5rem] flex-1 items-center gap-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground ring-1 ring-primary/20">
             <BarcodeIcon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight">{label}</p>
-            <p className="text-xs leading-tight text-muted-foreground">
+            <p className="whitespace-nowrap text-xs leading-tight text-muted-foreground">
               <span className="font-bold tabular-nums text-foreground">
                 {packages.length}
               </span>{" "}
