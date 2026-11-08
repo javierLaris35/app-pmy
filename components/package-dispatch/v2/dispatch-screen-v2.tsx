@@ -1,10 +1,10 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
-  AlertTriangle, ArrowLeft, Check, ClipboardCopy, Download, Eye, FileText, History, Loader2, Package, RotateCcw, Scan, Send, Trash2, X,
+  AlertTriangle, ArrowLeft, Check, ChevronDown, ClipboardCopy, Download, Eye, FileText, History, Loader2, MoreHorizontal, Package, RotateCcw, Scan, Send, Trash2, X,
 } from "lucide-react";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
@@ -17,6 +17,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PmySpinner } from "@/components/ui/pmy-loader";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import { RepartidorSelector } from "@/components/selectors/repartidor-selector";
 import { RutaSelector } from "@/components/selectors/ruta-selector";
@@ -83,6 +84,7 @@ interface Props {
 
 export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId, classicHref, onExit }: Props) {
   const { toast } = useToast();
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const canTransfer = ["subadmin", "admin", "superadmin"].includes((user?.role as string) || "");
   const { subsidiaries } = useSubsidiaries();
@@ -314,21 +316,29 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
           isOffline={!s.isOnline}
           actions={
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={onExit} className="gap-1.5 whitespace-nowrap">
+              <Button size="sm" variant="outline" onClick={onExit} className="h-9 gap-1.5 whitespace-nowrap">
                 <ArrowLeft className="h-4 w-4" /> Salidas
               </Button>
-              <Button size="sm" variant="ghost" asChild className="gap-1.5 whitespace-nowrap text-muted-foreground">
-                <Link href={classicHref}>
-                  <History className="h-4 w-4" /> Versión clásica
-                </Link>
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setClearOpen(true)} className="gap-1.5 whitespace-nowrap text-destructive hover:bg-destructive/10 hover:text-destructive">
+              <Button size="sm" variant="outline" onClick={() => setClearOpen(true)} className="h-9 gap-1.5 whitespace-nowrap text-destructive hover:bg-destructive/10 hover:text-destructive">
                 <Trash2 className="h-4 w-4" /> Limpiar
               </Button>
-              <Button size="sm" variant="outline" onClick={preview} disabled={previewing || !s.validPackages.length} className="gap-1.5 whitespace-nowrap">
-                {previewing ? <PmySpinner className="h-4 w-4" /> : <Eye className="h-4 w-4" />} Vista previa PDF
-              </Button>
-              <Button size="sm" onClick={askProcess} className="gap-1.5 whitespace-nowrap">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-9 gap-1.5 whitespace-nowrap">
+                    {previewing ? <PmySpinner className="h-4 w-4" /> : <MoreHorizontal className="h-4 w-4" />} Más acciones <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onSelect={preview} disabled={previewing || !s.validPackages.length}>
+                    <Eye className="mr-2 h-4 w-4" /> Vista previa del PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => router.push(classicHref)}>
+                    <History className="mr-2 h-4 w-4" /> Usar versión clásica
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button size="sm" onClick={askProcess} className="h-9 gap-1.5 whitespace-nowrap">
                 <Send className="h-4 w-4" /> Procesar salida{s.stats.total ? ` (${s.stats.total})` : ""}
               </Button>
             </div>
