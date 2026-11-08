@@ -28,6 +28,8 @@ interface UnidadSelectorProps {
   disabled?: boolean
   subsidiaryId?: string | null
   isInsideModal?: boolean
+  /** Solo el selector, sin la tarjeta de detalle debajo (el detalle va en el tooltip). */
+  compact?: boolean
 }
 
 const getVehicleIcon = (type: Vehicles["type"]) => {
@@ -50,7 +52,8 @@ export function UnidadSelector({
   onSelectionChange,
   disabled = false,
   subsidiaryId,
-  isInsideModal = false
+  isInsideModal = false,
+  compact = false,
 }: UnidadSelectorProps) {
   const [open, setOpen] = useState(false)
   const [unidades, setUnidades] = useState<Vehicles[]>([])
@@ -120,6 +123,7 @@ export function UnidadSelector({
             role="combobox"
             aria-expanded={open}
             className="w-full justify-between bg-transparent"
+            title={compact && hasValidSelection ? `Placa: ${selectedUnidadData.plateNumber} · Capacidad: ${selectedUnidadData.capacity} paquetes` : undefined}
             disabled={disabled || isLoading || !effectiveSubsidiaryId}
           >
             <div className="flex items-center gap-2">
@@ -155,7 +159,7 @@ export function UnidadSelector({
                     <CommandItem
                       key={unidad.id}
                       value={commandValue}
-                      onSelect={() => handleSelect(unidad.id)}
+                      onSelect={() => unidad.id && handleSelect(unidad.id)}
                       disabled={!isDisponible}
                     >
                       <Check
@@ -194,7 +198,7 @@ export function UnidadSelector({
         </PopoverContent>
       </Popover>
 
-      {hasValidSelection && (
+      {hasValidSelection && !compact && (
         <div className="bg-muted p-3 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-lg">{getVehicleIcon(selectedUnidadData.type)}</span>
@@ -214,7 +218,7 @@ export function UnidadSelector({
       )}
 
       {/* Debug info (opcional, solo en desarrollo) */}
-      {process.env.NODE_ENV === 'development' && (
+      {process.env.NODE_ENV === 'development' && !compact && (
         <div className="text-xs text-muted-foreground mt-1">
           Sucursal: {effectiveSubsidiaryId ? effectiveSubsidiaryId.substring(0, 8) + "..." : "No seleccionada"}
         </div>

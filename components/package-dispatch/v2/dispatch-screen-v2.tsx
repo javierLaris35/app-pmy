@@ -354,7 +354,7 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
             error={showErr("vehicle")}
             hint={suggested.vehicleId && s.vehicle?.id === suggested.vehicleId ? "Sugerida: la que suele usar en estas rutas" : undefined}
           >
-            <UnidadSelector subsidiaryId={subsidiaryId} selectedUnidad={s.vehicle} onSelectionChange={(v) => s.setVehicle(v?.id ? v : undefined)} />
+            <UnidadSelector compact subsidiaryId={subsidiaryId} selectedUnidad={s.vehicle} onSelectionChange={(v) => s.setVehicle(v?.id ? v : undefined)} />
           </Field>
           <Field
             label="Kilometraje"
@@ -371,10 +371,12 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
           >
             <Input type="date" value={s.routeDate} max={s.tomorrowStr} onChange={(e) => s.setRouteDate(e.target.value > s.tomorrowStr ? s.tomorrowStr : e.target.value)} />
           </Field>
-          <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 xl:mt-5 xl:h-10">
-            <Label htmlFor="v2-315" className="text-sm">Ruta 31.5</Label>
-            <Switch id="v2-315" checked={s.is315} onCheckedChange={s.setIs315} />
-          </div>
+          <Field label="Ruta 31.5">
+            <label htmlFor="v2-315" className="flex h-10 cursor-pointer items-center justify-between gap-3 rounded-md border-[1.5px] border-input px-3 text-sm">
+              <span className={s.is315 ? "font-medium" : "text-muted-foreground"}>{s.is315 ? "Sí" : "No"}</span>
+              <Switch id="v2-315" checked={s.is315} onCheckedChange={s.setIs315} />
+            </label>
+          </Field>
         </section>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_370px]">
