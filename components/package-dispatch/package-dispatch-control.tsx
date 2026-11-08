@@ -13,7 +13,6 @@ import type { GroupCandidate } from "@/lib/route-closure/group-dispatch"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
-import PackageDispatchForm from "./package-dispatch-form"
 import { PackageDispatchStatus, type PackageDispatchResponse } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
@@ -52,7 +51,6 @@ const personName = (name: string) =>
 export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
-  const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isRouteClouserDialogOpen, setIsRouteClouserDialogOpen] = useState(false);
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
@@ -192,8 +190,11 @@ export default function PackageDispatchControl() {
     }
   }, [hasHydrated, user, selectedSucursalId])
 
+  // Nueva salida: pantalla completa (la sucursal viaja por query; la app es estática, sin rutas [id]).
   const openDispatchDialog = () => {
-    setIsDispatchDialogOpen(true)
+    if (!effectiveSucursalId) return
+    const qs = new URLSearchParams({ sucursal: effectiveSucursalId, nombre: effectiveSucursalName })
+    router.push(`/operaciones/salidas-a-ruta/nueva?${qs.toString()}`)
   }
 
   const openDetailsDialog = (packageDispatchId: string) => {
@@ -502,19 +503,6 @@ const updatedColumns = columns.map((col) =>
           />
         )}
       </div>
-
-      {/* Dispatch Dialog (el form es dueño de su propio Dialog) */}
-      <PackageDispatchForm
-        open={isDispatchDialogOpen}
-        onOpenChange={setIsDispatchDialogOpen}
-        selectedSubsidiaryId={effectiveSucursalId}
-        subsidiaryName={effectiveSucursalName}
-        onClose={() => setIsDispatchDialogOpen(false)}
-        onSuccess={() => {
-          mutate()
-          setIsDispatchDialogOpen(false)
-        }}
-      />
 
       {/* Package Dispatch Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={(open) => setIsDetailsDialogOpen(open)}>

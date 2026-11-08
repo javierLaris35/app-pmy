@@ -43,8 +43,12 @@ import {
   playInvalidSound,
 } from "@/lib/scanner-feedback";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AppLayout } from "@/components/app-layout";
+import { ArrowLeft } from "lucide-react";
 
 type Props = {
+  /** "dialog" (default, comportamiento histórico) o "page" (pantalla completa con AppLayout). */
+  variant?: "dialog" | "page";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedSubsidiaryId: string | null;
@@ -88,6 +92,7 @@ const isExpiringTodayLocal =(commitDateTime?: string | null): boolean => {
 
 
 const PackageDispatchForm: React.FC<Props> = ({
+  variant = "dialog",
   open,
   onOpenChange,
   selectedSubsidiaryId: propSubsidiaryId,
@@ -788,54 +793,64 @@ const PackageDispatchForm: React.FC<Props> = ({
     setOnlyPayment(false);
   };
 
-  return (
-    <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        showCloseButton={false}
+  const isPage = variant === "page";
+  const hasFormData = packages.length > 0 || selectedRepartidores.length > 0 || selectedRutas.length > 0 || !!selectedUnidad;
+
+  // Limpiar todo: icono en el diálogo; botón con texto en la pantalla completa.
+  const clearAllButton = hasFormData ? (
+    isPage ? (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={clearAllStorage}
+        disabled={isLoading}
+        className="gap-2 whitespace-nowrap text-destructive hover:text-destructive hover:bg-destructive/10"
       >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Salida de Paquetes</DialogTitle>
-        </DialogHeader>
+        <Trash2 className="h-4 w-4" /> Limpiar todo
+      </Button>
+    ) : (
+      <TooltipProvider delayDuration={100}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={clearAllStorage}
+              disabled={isLoading}
+              className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Limpiar todo</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  ) : null;
 
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
-          {/* Header estandarizado */}
-          <OperationHeader
-            inline
-            icon={ClipboardPasteIcon}
-        title="Salida de Paquetes"
-        description="Procesa la salida de paquetes para reparto en ruta"
-        subsidiaryName={selectedSubsidiaryName}
-        isOffline={!isOnline}
-        actions={
-          (packages.length > 0 || selectedRepartidores.length > 0 || selectedRutas.length > 0 || selectedUnidad) ? (
-            <TooltipProvider delayDuration={100}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={clearAllStorage}
-                    disabled={isLoading}
-                    className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Limpiar todo</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : null
-        }
-      />
+  const pdfButton = (
+    <Button
+      size={isPage ? "sm" : "default"}
+      onClick={handlePdfCreate}
+      disabled={isLoading || validPackages.length === 0}
+      variant="outline"
+      className="gap-2 whitespace-nowrap"
+    >
+      <Download className="h-4 w-4" /> Solo generar PDF
+    </Button>
+  );
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+  const dispatchButton = (
+    <Button size={isPage ? "sm" : "default"} onClick={handleDispatch} disabled={isLoading || !canDispatch} className="gap-2 whitespace-nowrap">
+      {isLoading ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+      Procesar salida{isPage && validPackages.length > 0 ? ` (${validPackages.length})` : ""}
+    </Button>
+  );
+
+  const formGrid = (
+      <div className={cn("grid grid-cols-1 gap-4", isPage ? "xl:grid-cols-[360px_minmax(0,1fr)]" : "xl:grid-cols-3")}>
         {/* Left Column - Configuration */}
-        <div className="xl:col-span-1 space-y-6">
+        <div className={cn("space-y-6", !isPage && "xl:col-span-1")}>
           {/* Team Configuration Card */}
           <Card>
             <CardHeader className="pb-3">
@@ -1036,7 +1051,7 @@ const PackageDispatchForm: React.FC<Props> = ({
         </div>
 
         {/* Right Column - Packages List (panel abierto, sin Card) */}
-        <div className="xl:col-span-2 space-y-3">
+        <div className={cn("min-w-0 space-y-3", !isPage && "xl:col-span-2")}>
           <PackagesPanelHeader subtitle={`${packages.length} en lista`} isOffline={!isOnline} />
               {/* Banner de urgencia: paquetes que vencen hoy */}
               {packageStats.expiringToday > 0 && (
@@ -1254,30 +1269,9 @@ const PackageDispatchForm: React.FC<Props> = ({
               )}
             </div>
           </div>
-        </div>
+  );
 
-        <DialogFooter className="flex-row justify-between gap-2 border-t bg-background p-3 sm:p-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="gap-2">
-            <X className="h-4 w-4" /> Cancelar
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              onClick={handlePdfCreate}
-              disabled={isLoading || validPackages.length === 0}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" /> Solo generar PDF
-            </Button>
-            <Button onClick={handleDispatch} disabled={isLoading || !canDispatch} className="gap-2">
-              {isLoading ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-              Procesar salida
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
+  const transferDialog = (
     <TransferPackageDialog
       open={!!transferPkg}
       onOpenChange={(o) => !o && setTransferPkg(null)}
@@ -1304,6 +1298,74 @@ const PackageDispatchForm: React.FC<Props> = ({
         setTransferPkg(null);
       }}
     />
+  );
+
+  // Pantalla completa (/operaciones/salidas-a-ruta/nueva): acciones fuertes en el header.
+  if (isPage) {
+    return (
+      <AppLayout>
+        <OperationHeader
+          icon={ClipboardPasteIcon}
+          title="Nueva salida a ruta"
+          description="Procesa la salida de paquetes para reparto en ruta. Se guarda sola si recargas."
+          subsidiaryName={selectedSubsidiaryName}
+          isOffline={!isOnline}
+          actions={
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={onClose} disabled={isLoading} className="gap-2 whitespace-nowrap">
+                <ArrowLeft className="h-4 w-4" /> Salidas
+              </Button>
+              {clearAllButton}
+              {pdfButton}
+              {dispatchButton}
+            </div>
+          }
+        />
+        {formGrid}
+        {transferDialog}
+      </AppLayout>
+    );
+  }
+
+  return (
+    <>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        showCloseButton={false}
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>Salida de Paquetes</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+          {/* Header estandarizado */}
+          <OperationHeader
+            inline
+            icon={ClipboardPasteIcon}
+            title="Salida de Paquetes"
+            description="Procesa la salida de paquetes para reparto en ruta"
+            subsidiaryName={selectedSubsidiaryName}
+            isOffline={!isOnline}
+            actions={clearAllButton}
+          />
+          {formGrid}
+        </div>
+
+        <DialogFooter className="flex-row justify-between gap-2 border-t bg-background p-3 sm:p-4">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="gap-2">
+            <X className="h-4 w-4" /> Cancelar
+          </Button>
+          <div className="flex gap-2">
+            {pdfButton}
+            {dispatchButton}
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    {transferDialog}
     </>
   );
 };
