@@ -37,7 +37,8 @@ type FlagKey =
   | "countTransfersAsIncome"
   | "chargeSecondAbord"
   | "chargeOnlyFirstOfDay"
-  | "routeClosureWithPreClosure";
+  | "routeClosureWithPreClosure"
+  | "dispatchScreenV2";
 
 const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "monitorFedexCode67", label: "Monitorear 67", hint: "Alerta si falta el código 67 (recepción FedEx)" },
@@ -52,6 +53,7 @@ const FLAGS: { key: FlagKey; label: string; hint: string }[] = [
   { key: "closureAcceptsAnyDayDelivery", label: "Cierre toma entregas de otro día", hint: "Si la guía ya está entregada, el cierre la cuenta como entregada aunque FedEx la haya entregado antes o después del día de la ruta. Solo entregados. Apagado = cuenta lo que pasó el día de la ruta." },
   { key: "closureUntilNextDispatch", label: "Cierre toma entregas y DEX del día siguiente", hint: "El cierre cuenta lo que FedEx reporta desde el día de la ruta hasta que la guía vuelve a salir en otra ruta. Así un entregado o un DEX reportado al día siguiente ya no se queda \"en ruta\". Apagado = cuenta solo lo que pasó el día de la ruta." },
   { key: "routeClosureWithPreClosure", label: "Cierre en pantalla completa con pre-cierre", hint: "El cierre de ruta abre en pantalla completa: primero se imprime el pre-cierre para el chofer y luego se compara guía por guía con lo que entregó; los estatus que se corrijan quedan registrados. Apagado = el cierre de siempre (ventana)." },
+  { key: "dispatchScreenV2", label: "Salida a ruta con pantalla nueva", hint: "La nueva salida abre con el escáner primero, sugiere repartidor y unidad, muestra lo que falta, pide confirmación y enseña el avance (guardar, PDF, Excel, correo) con opción de reintentar el correo. La pantalla de siempre sigue disponible como \"Versión clásica\". Apagado = pantalla de siempre." },
 ];
 
 // Reglas de INGRESO por sucursal (default = comportamiento histórico).

@@ -29,6 +29,8 @@ export function RepartidorSelector({
   const [open, setOpen] = useState(false)
   const [repartidores, setRepartidores] = useState<Driver[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  // Sucursal cuya lista ya llegó: antes de eso no se puede saber si una selección es válida.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const user = useAuthStore((s) => s.user)
 
   const effectiveSubsidiaryId = subsidiaryId || user?.subsidiary?.id || null
@@ -44,6 +46,7 @@ export function RepartidorSelector({
         setIsLoading(true);
         const drivers = await getDriversBySucursalId(effectiveSubsidiaryId);
         setRepartidores(drivers);
+        setLoadedFor(effectiveSubsidiaryId);
       } catch (error) {
         console.error("Error al obtener repartidores:", error);
       } finally {
@@ -78,6 +81,8 @@ export function RepartidorSelector({
   };
 
   useEffect(() => {
+    // Sin la lista de la sucursal actual cargada, todo parecería "inválido" y se borraría la selección.
+    if (!effectiveSubsidiaryId || loadedFor !== effectiveSubsidiaryId) return;
     if (selectedRepartidores.length > 0) {
       const invalidSelections = selectedRepartidores.filter(selected => {
         return !repartidores.some(r => r.id === selected.id);
@@ -94,7 +99,7 @@ export function RepartidorSelector({
         }
       }
     }
-  }, [repartidores, selectedRepartidores, onSelectionChange]);
+  }, [repartidores, selectedRepartidores, onSelectionChange, loadedFor, effectiveSubsidiaryId]);
 
   return (
     <div className="space-y-2">

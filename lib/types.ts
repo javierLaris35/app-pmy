@@ -57,6 +57,8 @@ export type Subsidiary = {
   closureUntilNextDispatch?: boolean
   /** Cierre de ruta en pantalla completa con pre-cierre obligatorio y comprobación guía por guía (hoy Cabo San Lucas). */
   routeClosureWithPreClosure?: boolean
+  /** Salida a ruta con la pantalla nueva (escáner primero, confirmación y avance por pasos). */
+  dispatchScreenV2?: boolean
   /** Ingresos del cierre: fecha = evento FedEx real (entrega/DEX), aunque sea de otro día (hoy Loreto). */
   closureIncomeAtFedexEventTime?: boolean
   /** Cobros: sumar el segundo abordo (secondAbordAmount) al costo de cargas F2/31.5 normales. */
