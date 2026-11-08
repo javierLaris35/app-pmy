@@ -122,7 +122,7 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
   // Catálogos de la sucursal (para aplicar sugerencias de repartidor/unidad).
   const { data: driverList } = useSWR(subsidiaryId ? ["drivers", subsidiaryId] : null, () => getDriversBySucursalId(subsidiaryId!), { revalidateOnFocus: false });
   const { data: vehicleList } = useSWR(subsidiaryId ? ["vehicles", subsidiaryId] : null, () => getVehiclesBySucursalId(subsidiaryId!), { revalidateOnFocus: false });
-  const { data: suggestions } = useSWR(subsidiaryId ? ["route-suggestions", subsidiaryId] : null, () => getRouteSuggestions(subsidiaryId!), { revalidateOnFocus: false });
+  const { data: suggestions, mutate: mutateSuggestions } = useSWR(subsidiaryId ? ["route-suggestions", subsidiaryId] : null, () => getRouteSuggestions(subsidiaryId!), { revalidateOnFocus: false });
 
   // Ruta que viene de "Crear salida" en las sugerencias (una sola vez).
   const initialApplied = useRef(false);
@@ -230,6 +230,11 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
     await s.processDispatch();
     scanRef.current?.clear();
     clearScanBuffer(SCAN_KEY);
+    // La captura quedó limpia para la siguiente salida: sin errores marcados ni sugerencias viejas.
+    setAttempted(false);
+    setSuggested({});
+    // Los paquetes que salieron ya no son "en bodega": se recargan las sugerencias.
+    void mutateSuggestions();
   };
 
   const preview = async () => {
@@ -286,6 +291,7 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
     return (
       <AppLayout>
         <DispatchDone
+          subsidiaryName={subsidiaryName}
           process={p}
           dueLeft={dueTodayInRoutes(suggestions, new Set(p.snapshot.routes.map((r) => r.id)), new Set(p.snapshot.packages.map(pieceId)))}
           onRetry={s.retryFiles}
@@ -777,12 +783,14 @@ function Steps({ process: p }: { process: ReturnType<typeof useDispatchSession>[
 }
 
 function DispatchDone({
+  subsidiaryName,
   process: p,
   dueLeft,
   onRetry,
   onNew,
   onExit,
 }: {
+  subsidiaryName: string | null;
   process: ReturnType<typeof useDispatchSession>["process"];
   dueLeft: number;
   onRetry: () => void;
@@ -795,7 +803,24 @@ function DispatchDone({
   const retrying = p.steps.pdf === "running" || p.steps.excel === "running" || p.steps.upload === "running";
   const ok = p.steps.upload === "done";
   return (
-    <div className="flex min-h-[70vh] items-center justify-center p-4">
+    <div className="flex flex-col gap-3">
+      <OperationHeader
+        icon={Send}
+        title="Salida procesada"
+        description={ok ? "Guardada y enviada por correo" : "Guardada; falta enviar los archivos"}
+        subsidiaryName={subsidiaryName ?? undefined}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onExit} className="h-9 gap-1.5 whitespace-nowrap">
+              <ArrowLeft className="h-4 w-4" /> Ir a salidas
+            </Button>
+            <Button size="sm" onClick={onNew} className="h-9 gap-1.5 whitespace-nowrap">
+              <Send className="h-4 w-4" /> Nueva salida
+            </Button>
+          </div>
+        }
+      />
+    <div className="flex min-h-[60vh] items-center justify-center p-4">
       <div className="w-full max-w-2xl space-y-5 rounded-xl border bg-background p-6">
         <div className="flex items-center gap-3">
           <div className={cn("flex h-12 w-12 items-center justify-center rounded-full", ok ? "bg-green-100" : "bg-amber-100")}>
@@ -850,12 +875,11 @@ function DispatchDone({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-          {dueLeft > 0 ? <span className="flex-1 text-sm text-violet-700">Estas rutas todavía tienen {dueLeft} paquetes que vencen hoy en bodega.</span> : <span className="flex-1" />}
-          <Button variant="outline" onClick={onExit}>Ir a salidas</Button>
-          <Button onClick={onNew} className="gap-1.5"><Send className="h-4 w-4" /> Nueva salida</Button>
-        </div>
+        {dueLeft > 0 && (
+          <div className="border-t pt-4 text-sm text-violet-700">Estas rutas todavía tienen {dueLeft} paquetes que vencen hoy en bodega.</div>
+        )}
       </div>
+    </div>
     </div>
   );
 }
