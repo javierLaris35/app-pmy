@@ -7,6 +7,8 @@ export interface SuggestedPackage {
   kind: "shipment" | "charge";
   trackingNumber: string;
   pieceKey: string;
+  /** Lo que se valida en la salida: dhlUniqueId (pieza DHL) o el número de guía. */
+  scanCode: string;
   zip: string | null;
   recipientName: string | null;
   recipientAddress: string | null;
@@ -16,6 +18,7 @@ export interface SuggestedPackage {
   bucket: CommitBucket;
   daysInWarehouse: number;
   sharedWith: string[];
+  sharedRouteIds: string[];
 }
 
 export interface RouteSuggestion {

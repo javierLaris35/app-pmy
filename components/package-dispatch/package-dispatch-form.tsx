@@ -45,6 +45,7 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AppLayout } from "@/components/app-layout";
 import { getRoutesBySucursalId } from "@/lib/services/routes";
+import { DispatchSuggestedPanel } from "./dispatch-suggested-panel";
 import { ArrowLeft } from "lucide-react";
 
 type Props = {
@@ -440,6 +441,53 @@ const PackageDispatchForm: React.FC<Props> = ({
       description: `Se agregaron ${results.length} paquetes.`,
     });
   };
+
+  // Paquetes sugeridos (panel "Vencen hoy en tus rutas"): misma validación que el escaneo por
+  // lista (1 request), mismo dedupe, sonidos y aviso. Los no válidos quedan en "inválidos" igual.
+  const handleAddSuggested = useCallback(async (codes: string[]) => {
+    if (!selectedSubsidiaryId || codes.length === 0) return;
+    const idOf = (p: PackageInfo) => (p as any).dhlUniqueId || p.trackingNumber;
+    const existing = new Set(packagesRef.current.map(idOf));
+    const pending = codes.filter((c) => !existing.has(c));
+    if (pending.length === 0) return;
+
+    let results: PackageInfo[];
+    try {
+      results = await validateTrackingsList(pending, selectedSubsidiaryId);
+    } catch (error) {
+      console.warn("Error validando sugeridos:", error);
+      toast({ title: "No se pudieron agregar", description: "Revisa la conexión e intenta de nuevo.", variant: "destructive" });
+      return;
+    }
+
+    const added = new Set(results.map(idOf).filter((id) => !existing.has(id))).size;
+    setPackages((prev) => {
+      const seen = new Set(prev.map(idOf));
+      const fresh = results.filter((r) => {
+        const id = idOf(r);
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      return [...prev, ...fresh];
+    });
+
+    const valid = results.filter((r) => r.isValid);
+    if (results.some((r) => !r.isValid)) playNotFoundSound();
+    else if (valid.some((r) => daysUntilCommit(r.commitDateTime) === 0)) playExpiresTodaySound();
+    else if (valid.some((r) => daysUntilCommit(r.commitDateTime) === 1)) playExpiresTomorrowSound();
+
+    const invalidCount = results.length - valid.length;
+    toast({
+      title: `Se agregaron ${added} paquetes sugeridos`,
+      description: invalidCount > 0 ? `${invalidCount} no pasaron la validación; revísalos en "Inválidos".` : undefined,
+    });
+  }, [selectedSubsidiaryId, setPackages, toast]);
+
+  const packagesInDispatch = useMemo(
+    () => new Set(packages.map((p) => (p as any).dhlUniqueId || p.trackingNumber)),
+    [packages],
+  );
 
   const handleRemovePackage = useCallback((identifier: string) => {
     // Mantener el buffer del escáner (perScan) en sync para permitir re-escanear.
@@ -868,7 +916,7 @@ const PackageDispatchForm: React.FC<Props> = ({
   );
 
   const formGrid = (
-      <div className={cn("grid grid-cols-1 gap-4", isPage ? "xl:grid-cols-[360px_minmax(0,1fr)]" : "xl:grid-cols-3")}>
+      <div className={cn("grid grid-cols-1 gap-4", isPage ? "lg:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(0,1fr)_380px]" : "xl:grid-cols-3")}>
         {/* Left Column - Configuration */}
         <div className={cn("space-y-6", !isPage && "xl:col-span-1")}>
           {/* Team Configuration Card */}
@@ -1288,6 +1336,19 @@ const PackageDispatchForm: React.FC<Props> = ({
                 </div>
               )}
             </div>
+
+            {/* Pantalla completa: paquetes por vencer de los CPs de las rutas elegidas */}
+            {isPage && (
+              <div className="lg:col-span-2 2xl:col-span-1">
+                <DispatchSuggestedPanel
+                  subsidiaryId={selectedSubsidiaryId}
+                  routes={selectedRutas.map((r) => ({ id: r.id, name: r.name }))}
+                  inDispatch={packagesInDispatch}
+                  disabled={isLoading}
+                  onAdd={handleAddSuggested}
+                />
+              </div>
+            )}
           </div>
   );
 
