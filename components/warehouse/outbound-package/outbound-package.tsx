@@ -24,7 +24,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { PmySpinner } from "@/components/ui/pmy-loader"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -32,6 +31,7 @@ import { OperationHeader } from "@/components/shared/operation-header"
 import { PackagesList } from "@/components/shared/packages-list"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { RutaSelector } from "@/components/selectors/ruta-selector"
+import { BodegaDispatchSuggestions, BodegaSuggestedButton } from "./bodega-dispatch-suggestions"
 import { toast } from "@/components/ui/use-toast"
 import { apiError } from "@/components/maintenance/shared/confirm-action"
 
@@ -72,6 +72,7 @@ import {
 } from "@/components/warehouse/shared/warehouse-package-list.helpers"
 import { resolveId } from "@/components/warehouse/shared/resolve-id"
 import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
+import { newId } from "@/lib/uuid"
 
 /**
  * Normaliza `payment` a los flags `hasPayment`/`paymentAmount` que consume el
@@ -105,7 +106,7 @@ interface RejectedScan {
 
 export default function OutboundPackage() {
   const [showHistory, setShowHistory] = useState(false)
-  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID())
+  const [sessionId, setSessionId] = useState<string>(() => newId())
 
   // Estado propio de Salida (no vive en el hook compartido): tipo de salida,
   // rutas/kms (dispatch) y sucursal destino (transfer).
@@ -294,6 +295,39 @@ export default function OutboundPackage() {
     }
   }
 
+  // ---- Sugeridos por CP de las rutas elegidas (mismo panel que Operaciones → Salidas a ruta) ----
+  // Lo que ya está en la salida o fue rechazado no se vuelve a sugerir.
+  const inDispatch = useMemo(
+    () => new Set([...packages.flatMap((p) => [p.dhlUniqueId || p.trackingNumber, p.trackingNumber]), ...rejected.map((r) => r.code)]),
+    [packages, rejected],
+  )
+  const suggestionRoutes = useMemo(() => selectedRutas.map((r) => ({ id: resolveId(r) as string, name: r.name })), [selectedRutas])
+
+  /** Agrega sugeridos con la misma validación del escáner de Bodega. */
+  const addSuggested = async (codes: string[]) => {
+    let acc: PackageInfo[] = [...packages]
+    const validated: PackageInfo[] = []
+    const rejectedNow: RejectedScan[] = []
+    for (const code of codes) {
+      const res = await resolveScan(code, acc)
+      if (res.action === "add") {
+        validated.push(res.package)
+        acc = [res.package, ...acc]
+      } else if (res.action === "reject") {
+        rejectedNow.push({ code, message: res.message })
+      } else {
+        rejectedNow.push({ code, message: "Es remesa DHL: escanéala en modo Uno a uno para agregar sus piezas." })
+      }
+    }
+    scanRef.current?.addPackages(validated)
+    if (rejectedNow.length) setRejected((prev) => [...prev.filter((r) => !rejectedNow.some((x) => x.code === r.code)), ...rejectedNow])
+    toast({
+      title: `Se agregaron ${validated.length} paquetes sugeridos`,
+      description: rejectedNow.length ? `${rejectedNow.length} no entraron; revisa la lista de rechazadas.` : undefined,
+      variant: rejectedNow.length ? "destructive" : undefined,
+    })
+  }
+
   // Destino del traspaso: obligatorio y distinto de la bodega de origen.
   const destinationError = useMemo(() => {
     if (outputType !== OutboundTypeEnum.TRANSFER) return null
@@ -399,7 +433,7 @@ export default function OutboundPackage() {
     setRouteDate(todayStr())
     setIs315(false)
     setRejected([])
-    setSessionId(crypto.randomUUID())
+    setSessionId(newId())
   }
 
   const handleConfirm = () => {
@@ -465,7 +499,7 @@ export default function OutboundPackage() {
   const signatureVariant = outputType === OutboundTypeEnum.DISPATCH ? "dispatch" : "transfer"
 
   return (
-    <div className="text-slate-900 min-h-screen pt-4">
+    <div className="text-slate-900 min-h-screen">
       <OperationHeader
         icon={PackageMinus}
         title="Salida de Bodega"
@@ -518,8 +552,6 @@ export default function OutboundPackage() {
         }
       />
 
-      <Separator className="bg-slate-200" />
-
       <WarehouseStatsRow
         stats={stats as unknown as WarehouseStatsRowStats}
         onOpenExpiring={() => stats.expiringToday.length > 0 && s.toggleModal("expiringToday", true)}
@@ -535,14 +567,14 @@ export default function OutboundPackage() {
                 <h2 className="text-lg font-bold text-slate-800">Inventario de Salida</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Modo de validación">
+                <div className="inline-flex h-8 overflow-hidden rounded-md border" role="group" aria-label="Modo de validación">
                   {([false, true] as const).map((list) => (
                     <Button
                       key={String(list)}
                       type="button"
                       size="sm"
                       variant={listMode === list ? "default" : "ghost"}
-                      className="h-7 px-2.5 text-xs"
+                      className="h-full rounded-none px-2.5 text-xs"
                       aria-pressed={listMode === list}
                       disabled={validatingList || (list === false && pendingPackages.length > 0)}
                       onClick={() => setListMode(list)}
@@ -551,6 +583,15 @@ export default function OutboundPackage() {
                     </Button>
                   ))}
                 </div>
+                {outputType === OutboundTypeEnum.DISPATCH && (
+                  <BodegaSuggestedButton
+                    warehouseId={s.effectiveWarehouseId}
+                    routes={suggestionRoutes}
+                    inDispatch={inDispatch}
+                    disabled={validatingList}
+                    onAdd={addSuggested}
+                  />
+                )}
                 <WarehouseSortToggle value={sortMode} onChange={setSortMode} />
                 <RemittanceGroupToggle grouped={s.groupRemesas} onToggle={() => s.setGroupRemesas((v) => !v)} />
               </div>
@@ -632,6 +673,21 @@ export default function OutboundPackage() {
         </div>
 
         <div className="xl:col-span-4 space-y-4">
+          {/* Chofer y unidad sugeridos por las últimas salidas de las rutas elegidas */}
+          {outputType === OutboundTypeEnum.DISPATCH && (
+            <BodegaDispatchSuggestions
+              part="defaults"
+              warehouseId={s.effectiveWarehouseId}
+              routes={suggestionRoutes}
+              drivers={s.driverIds}
+              vehicle={s.vehicleId}
+              onApplyDefaults={(drivers, vehicle) => {
+                if (drivers.length) s.setDriverIds(drivers)
+                if (vehicle) s.setVehicleId(vehicle)
+              }}
+              kms={selectedKms}
+            />
+          )}
           {/** Tipo de Salida */}
           <Card className="border-primary/20">
             <CardContent className="space-y-4">
@@ -708,6 +764,19 @@ export default function OutboundPackage() {
                       subsidiaryId={s.effectiveWarehouseId}
                     />
                   </div>
+
+                  <BodegaDispatchSuggestions
+                    warehouseId={s.effectiveWarehouseId}
+                    routes={suggestionRoutes}
+                    drivers={s.driverIds}
+                    vehicle={s.vehicleId}
+                    onApplyDefaults={(drivers, vehicle) => {
+                      if (drivers.length) s.setDriverIds(drivers)
+                      if (vehicle) s.setVehicleId(vehicle)
+                    }}
+                    kms={selectedKms}
+                    part="kms"
+                  />
 
                   <div className="space-y-1.5 md:col-span-2">
                     <Label htmlFor="bodega-route-date" className="text-[12px] font-semibold text-slate-600 flex items-center gap-1.5">

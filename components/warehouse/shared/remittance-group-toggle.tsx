@@ -19,7 +19,7 @@ export function RemittanceGroupToggle({
       onClick={onToggle}
       title={grouped ? "Mostrar cada pieza por separado" : "Agrupar piezas de la misma remesa"}
       className={cn(
-        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
+        "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-xs font-medium transition-colors",
         grouped
           ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
           : "bg-background text-muted-foreground border-input hover:bg-muted",

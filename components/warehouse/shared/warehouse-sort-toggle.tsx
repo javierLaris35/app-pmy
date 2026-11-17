@@ -36,7 +36,7 @@ export function WarehouseSortToggle({
   className?: string;
 }) {
   return (
-    <div className={cn("inline-flex overflow-hidden rounded-md border", className)}>
+    <div className={cn("inline-flex h-8 overflow-hidden rounded-md border", className)}>
       {modes.map((mode, i) => {
         const { label, icon: Icon } = OPTIONS[mode];
         return (
@@ -45,11 +45,11 @@ export function WarehouseSortToggle({
             type="button"
             size="sm"
             variant={value === mode ? "default" : "ghost"}
-            className={cn("gap-1.5 rounded-none", i > 0 && "border-l")}
+            className={cn("h-full gap-1.5 rounded-none px-2.5 text-xs", i > 0 && "border-l")}
             onClick={() => onChange(mode)}
             aria-pressed={value === mode}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
             {label}
           </Button>
         );

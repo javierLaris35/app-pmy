@@ -32,7 +32,7 @@ export interface WarehouseStatsRowProps {
 /** Fila de 6 tarjetas de estadísticas (look unificado) para Entrada/Salida a Bodega. */
 export function WarehouseStatsRow({ stats, onOpenExpiring, onOpenHighValue, onOpenCharges }: WarehouseStatsRowProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-3">
       <StatCard title="Total" value={stats.total} icon={Package} isTotal />
 
       <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col justify-center shadow-sm">

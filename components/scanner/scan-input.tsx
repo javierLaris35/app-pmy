@@ -78,6 +78,8 @@ export interface ScanInputHandle {
   attachPieces: (masterTracking: string, pieces: string[]) => void;
   /** Elimina TODOS los paquetes que comparten un trackingNumber (remesa DHL agrupada). */
   removeByTracking: (trackingNumber: string) => void;
+  /** Agrega paquetes ya validados (p. ej. sugeridos), sin duplicar los que ya están. */
+  addPackages: (pkgs: PackageInfo[]) => void;
 }
 
 export interface ScanInputProps {
@@ -251,6 +253,22 @@ export const ScanInput = forwardRef<ScanInputHandle, ScanInputProps>(function Sc
         const merged = Array.from(new Set([...(target.pieces || []), ...pieces]));
         const next = [...prev];
         next[idx] = { ...target, pieces: merged } as PackageInfo;
+        packagesRef.current = next;
+        return next;
+      });
+    },
+    addPackages: (pkgs: PackageInfo[]) => {
+      setPackages((prev) => {
+        const idOf = (p: PackageInfo) => (p as any).dhlUniqueId || p.trackingNumber;
+        const seen = new Set(prev.map(idOf));
+        const fresh = pkgs.filter((p) => {
+          const id = idOf(p);
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+        if (!fresh.length) return prev;
+        const next = [...prev, ...fresh];
         packagesRef.current = next;
         return next;
       });
