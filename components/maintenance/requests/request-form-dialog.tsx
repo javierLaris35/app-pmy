@@ -20,13 +20,14 @@ import {
 import { Subsidiary } from "@/lib/types";
 import { hasErrors, firstError, validateRequest } from "@/lib/maintenance-validation";
 import { apiError } from "../shared/confirm-action";
+import { newId } from "@/lib/uuid"
 
 const TYPE_ICON: Record<RequestType, LucideIcon> = {
   mantenimiento: Wrench, servicio: Truck, reparacion: Hammer, compra: ShoppingCart,
 };
 
 interface Row { key: string; id?: string; description: string; quantity: number; unitId: string | null; notes: string }
-const newRow = (): Row => ({ key: crypto.randomUUID(), description: "", quantity: 1, unitId: null, notes: "" });
+const newRow = (): Row => ({ key: newId(), description: "", quantity: 1, unitId: null, notes: "" });
 
 interface Props {
   open: boolean;
@@ -68,7 +69,7 @@ export function RequestFormDialog({ open, onOpenChange, request, defaultSubsidia
     setPriority(request?.priority ?? "media");
     setServiceIds(request?.services?.map((s) => s.id) ?? []);
     setRows(request?.items?.length
-      ? request.items.map((i) => ({ key: crypto.randomUUID(), id: i.id, description: i.description, quantity: Number(i.quantity), unitId: i.unitId ?? null, notes: i.notes ?? "" }))
+      ? request.items.map((i) => ({ key: newId(), id: i.id, description: i.description, quantity: Number(i.quantity), unitId: i.unitId ?? null, notes: i.notes ?? "" }))
       : [newRow()]);
     setTried(false);
   }, [open, request, defaultSubsidiaryId, defaultVehicleId]);

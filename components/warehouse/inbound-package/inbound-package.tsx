@@ -5,7 +5,6 @@ import { CheckCircle2, AlertTriangle, FileSpreadsheet, History, Keyboard, Packag
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { PackagesList } from "@/components/shared/packages-list"
@@ -51,6 +50,7 @@ import {
 } from "@/components/warehouse/shared/warehouse-package-list.helpers"
 import { resolveId } from "@/components/warehouse/shared/resolve-id"
 import { WarehouseHistoryDialog } from "@/components/warehouse/warehouse-history-dialog"
+import { newId } from "@/lib/uuid"
 
 // ============================================================================
 // Tipos exportados: `package-entry-pdf.tsx` importa `SessionState` desde aquí
@@ -98,7 +98,7 @@ function adaptPayment(p: WarehousePackageInfo) {
 
 export default function InboundPackage() {
   const [showHistory, setShowHistory] = useState(false)
-  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID())
+  const [sessionId, setSessionId] = useState<string>(() => newId())
 
   // isReadyToFinish vive en el componente (no en el hook). La verificación de F2
   // se delega al hook vía onRequestFinish; usamos un ref para que el hook lea el
@@ -271,7 +271,7 @@ export default function InboundPackage() {
         setPackages([])
         // Limpia la firma "Recibido por" (dato por operación, no debe persistir a la siguiente entrada).
         s.setReceivedByName("")
-        setSessionId(crypto.randomUUID())
+        setSessionId(newId())
         s.toggleModal("signatures", false)
         toast({ title: "Entrada a bodega guardada", description: "Entrada guardada con éxito." })
       } catch (error) {
@@ -345,8 +345,6 @@ export default function InboundPackage() {
           </div>
         }
       />
-
-      <Separator className="bg-slate-200" />
 
       <WarehouseStatsRow
         stats={stats as unknown as WarehouseStatsRowStats}

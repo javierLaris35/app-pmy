@@ -16,6 +16,7 @@ import { MaintenanceVehicle, vehicleLabel } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
 import { SearchableSelect, SearchOption } from "../shared/searchable-select";
+import { newId } from "@/lib/uuid"
 
 interface Row { key: string; categoryId: string; productId: string | null; quantity: number; unitId: string | null; notes: string }
 
@@ -145,7 +146,7 @@ export function VehicleSpecDialog({ vehicle, onOpenChange }: { vehicle: Maintena
           )}
         </ScrollArea>
         <DialogFooter className="sm:justify-between">
-          <Button type="button" variant="outline" onClick={() => setRows((rs) => [...rs, { key: crypto.randomUUID(), categoryId: "", productId: null, quantity: 1, unitId: null, notes: "" }])}>
+          <Button type="button" variant="outline" onClick={() => setRows((rs) => [...rs, { key: newId(), categoryId: "", productId: null, quantity: 1, unitId: null, notes: "" }])}>
             <Plus className="mr-1.5 h-4 w-4" /> Agregar pieza o insumo
           </Button>
           <div className="flex gap-2">

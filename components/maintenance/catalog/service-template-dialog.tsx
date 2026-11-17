@@ -19,6 +19,7 @@ import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
 import { KeywordsInput } from "../shared/keywords-input";
 import { SearchableSelect, SearchOption } from "../shared/searchable-select";
+import { newId } from "@/lib/uuid"
 
 interface RecipeRow { key: string; categoryId: string; quantity: number; unitId: string | null }
 
@@ -47,7 +48,7 @@ export function ServiceTemplateDialog({ open, onOpenChange, service, onSaved }: 
     setVehicleType(service?.vehicleType ?? "");
     setKeywords(service?.keywords ?? "");
     setActive(service?.active ?? true);
-    setRows((service?.items ?? []).map((i) => ({ key: crypto.randomUUID(), categoryId: i.categoryId, quantity: Number(i.quantity), unitId: i.unitId ?? null })));
+    setRows((service?.items ?? []).map((i) => ({ key: newId(), categoryId: i.categoryId, quantity: Number(i.quantity), unitId: i.unitId ?? null })));
     setTried(false);
   }, [open, service]);
 
@@ -115,7 +116,7 @@ export function ServiceTemplateDialog({ open, onOpenChange, service, onSaved }: 
               <div className="flex items-center justify-between">
                 <Label>Receta: piezas e insumos que lleva (opcional)</Label>
                 <Button type="button" size="sm" variant="outline"
-                  onClick={() => setRows((rs) => [...rs, { key: crypto.randomUUID(), categoryId: "", quantity: 1, unitId: null }])}>
+                  onClick={() => setRows((rs) => [...rs, { key: newId(), categoryId: "", quantity: 1, unitId: null }])}>
                   <Plus className="mr-1.5 h-4 w-4" /> Agregar
                 </Button>
               </div>

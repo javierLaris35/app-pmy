@@ -24,6 +24,7 @@ import { SupplierFormDialog } from "../catalog/supplier-form-dialog";
 import { StarRating } from "../shared/star-rating";
 import { apiError } from "../shared/confirm-action";
 import { firstError, hasErrors, validateQuote } from "@/lib/maintenance-validation";
+import { newId } from "@/lib/uuid"
 
 interface Row extends QuoteItem {
   key: string;
@@ -36,17 +37,17 @@ interface Row extends QuoteItem {
 const base = (): Omit<Row, "key" | "description"> => ({
   quantity: 1, unitPrice: 0, availability: "si", leadTimeDays: null, ivaEnabled: true, iepsEnabled: false, iepsRate: 0, quality: null, referencePrice: null,
 });
-const extraRow = (): Row => ({ key: crypto.randomUUID(), description: "", requestItemId: null, productId: null, ...base() });
+const extraRow = (): Row => ({ key: newId(), description: "", requestItemId: null, productId: null, ...base() });
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Hermosillo" });
 
 /** Renglones de la solicitud + "Lo que se necesita" como partidas iniciales de la cotización. */
 function rowsFromRequest(request: MaintenanceRequest, needs: NeedView[]): Row[] {
   const items: Row[] = (request.items ?? []).map((it, idx) => ({
-    key: crypto.randomUUID(), rowNumber: idx + 1, requestItemId: it.id ?? null, productId: it.productId ?? null,
+    key: newId(), rowNumber: idx + 1, requestItemId: it.id ?? null, productId: it.productId ?? null,
     description: it.description, ...base(), quantity: Number(it.quantity),
   }));
   const fromNeeds: Row[] = needs.map((n) => ({
-    key: crypto.randomUUID(), requestItemId: null, requestNeedId: n.id, needName: n.category.name, productId: n.product?.id ?? null,
+    key: newId(), requestItemId: null, requestNeedId: n.id, needName: n.category.name, productId: n.product?.id ?? null,
     description: n.product ? [n.product.name, n.product.brand].filter(Boolean).join(" · ") : n.category.name, ...base(), quantity: Number(n.quantity),
   }));
   const all = [...items, ...fromNeeds];
@@ -90,7 +91,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
     setNotes(quote?.notes ?? "");
     setRows(quote?.items?.length
       ? quote.items.map((i) => ({
-        ...i, key: crypto.randomUUID(), rowNumber: i.requestItemId ? rowNumberOf.get(i.requestItemId) : undefined,
+        ...i, key: newId(), rowNumber: i.requestItemId ? rowNumberOf.get(i.requestItemId) : undefined,
         needName: i.requestNeedId ? needs.find((n) => n.id === i.requestNeedId)?.category.name ?? "Pieza/insumo" : undefined,
         quantity: Number(i.quantity), unitPrice: Number(i.unitPrice), iepsRate: Number(i.iepsRate ?? 0),
         ivaEnabled: i.ivaEnabled ?? Number(i.taxRate ?? 0.16) > 0, availability: i.availability ?? "si",

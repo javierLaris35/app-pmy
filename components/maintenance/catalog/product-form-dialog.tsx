@@ -19,6 +19,7 @@ import { KIND_PLURAL, Product, ProductKind, ProductOffer } from "@/lib/types/com
 import { apiError } from "../shared/confirm-action";
 import { FieldError, invalidClass } from "../shared/field-error";
 import { StarRating } from "../shared/star-rating";
+import { newId } from "@/lib/uuid"
 
 const NONE = "__none__";
 const KIND_ORDER: ProductKind[] = ["pieza", "insumo", "servicio", "equipo"];
@@ -56,7 +57,7 @@ export function ProductFormDialog({ open, onOpenChange, product, onSaved }: Prop
     setPartNumber(product?.partNumber ?? "");
     setUnitId(product?.unitId ?? NONE);
     setActive(product?.active ?? true);
-    setOffers((product?.offers ?? []).map((o) => ({ ...o, key: o.id ?? crypto.randomUUID(), price: Number(o.price) })));
+    setOffers((product?.offers ?? []).map((o) => ({ ...o, key: o.id ?? newId(), price: Number(o.price) })));
     setTried(false);
   }, [open, product]);
 
@@ -173,7 +174,7 @@ export function ProductFormDialog({ open, onOpenChange, product, onSaved }: Prop
                   <p className="text-xs text-muted-foreground">Un mismo producto puede tener varios proveedores con distinta calidad y precio.</p>
                 </div>
                 <Button type="button" size="sm" variant="outline"
-                  onClick={() => setOffers((os) => [...os, { key: crypto.randomUUID(), supplierId: "", unitId: unitId === NONE ? null : unitId, price: 0, quality: null }])}>
+                  onClick={() => setOffers((os) => [...os, { key: newId(), supplierId: "", unitId: unitId === NONE ? null : unitId, price: 0, quality: null }])}>
                   <Plus className="mr-1.5 h-4 w-4" /> Agregar proveedor
                 </Button>
               </div>
