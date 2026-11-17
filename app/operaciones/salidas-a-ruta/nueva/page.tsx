@@ -26,7 +26,10 @@ function NewDispatchContent() {
   const subsidiaryId = params.get("sucursal") || user?.subsidiary?.id || null
   const subsidiaryName = params.get("nombre") || user?.subsidiary?.name || null
   const forceClassic = params.get("clasica") === "1"
-  const useV2 = !forceClassic && !!(subsidiaries as any[] | undefined)?.find((s) => s.id === subsidiaryId)?.dispatchScreenV2
+  // ?nueva=1: cualquier sucursal puede abrir la pantalla nueva aunque no la tenga por defecto.
+  const forceNew = params.get("nueva") === "1"
+  const addScope = (["hoy", "manana", "todo", "resto_hoy", "resto_manana", "lista"] as const).find((v) => v === params.get("agregar")) ?? null
+  const useV2 = !forceClassic && (forceNew || !!(subsidiaries as any[] | undefined)?.find((s) => s.id === subsidiaryId)?.dispatchScreenV2)
 
   if (!forceClassic && isLoading) {
     return (
@@ -39,11 +42,14 @@ function NewDispatchContent() {
   if (useV2) {
     const qs = new URLSearchParams(params.toString())
     qs.set("clasica", "1")
+    qs.delete("nueva")
+    qs.delete("agregar")
     return (
       <DispatchScreenV2
         subsidiaryId={subsidiaryId}
         subsidiaryName={subsidiaryName}
         initialRouteId={params.get("ruta")}
+        initialAddScope={addScope}
         classicHref={`/operaciones/salidas-a-ruta/nueva?${qs.toString()}`}
         onExit={back}
       />
@@ -54,6 +60,14 @@ function NewDispatchContent() {
     <PackageDispatchForm
       variant="page"
       initialRouteId={params.get("ruta")}
+      initialAddScope={addScope}
+      newDesignHref={(() => {
+        const qs = new URLSearchParams(params.toString())
+        qs.delete("clasica")
+        qs.delete("agregar")
+        qs.set("nueva", "1")
+        return `/operaciones/salidas-a-ruta/nueva?${qs.toString()}`
+      })()}
       open
       onOpenChange={(o) => !o && back()}
       selectedSubsidiaryId={params.get("sucursal")}

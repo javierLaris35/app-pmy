@@ -36,9 +36,10 @@ import { getDriversBySucursalId } from "@/lib/services/drivers";
 import { getVehiclesBySucursalId } from "@/lib/services/vehicles";
 import { getRoutesBySucursalId } from "@/lib/services/routes";
 import { axiosConfig } from "@/lib/axios-config";
-import { getRouteSuggestions, SuggestionsResult } from "@/lib/services/route-suggestions";
+import { getRouteSuggestions, SuggestionsResult, prefillCodesFor, type PrefillScope } from "@/lib/services/route-suggestions";
 import { cn } from "@/lib/utils";
 import { DispatchSuggestedPanel } from "../dispatch-suggested-panel";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { pieceId, StepKey, useDispatchSession } from "./use-dispatch-session";
 
 const SCAN_KEY = "scan:dispatch";
@@ -64,11 +65,12 @@ const Row = memo(function Row(props: { pkg: PackageInfo; index: number; onRemove
 function dueTodayInRoutes(data: SuggestionsResult | undefined, routeIds: Set<string>, inDispatch: Set<string>) {
   if (!data || !routeIds.size) return 0;
   const seen = new Set<string>();
+  // Igual que el panel de sugeridos: solo los CPs que le tocan a las rutas elegidas.
   for (const r of data.routes) {
+    if (!routeIds.has(r.routeId)) continue;
     for (const p of r.packages) {
       if (seen.has(p.pieceKey) || inDispatch.has(p.scanCode)) continue;
-      if (p.bucket !== "vencido" && p.bucket !== "hoy") continue;
-      if (routeIds.has(r.routeId) || p.sharedRouteIds.some((id) => routeIds.has(id))) seen.add(p.pieceKey);
+      if (p.bucket === "vencido" || p.bucket === "hoy") seen.add(p.pieceKey);
     }
   }
   return seen.size;
@@ -78,11 +80,13 @@ interface Props {
   subsidiaryId: string | null;
   subsidiaryName: string | null;
   initialRouteId?: string | null;
+  /** Viene de "Crear salida con N": agrega al abrir los paquetes urgentes de esa ruta. */
+  initialAddScope?: PrefillScope | null;
   classicHref: string;
   onExit: () => void;
 }
 
-export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId, classicHref, onExit }: Props) {
+export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId, initialAddScope, classicHref, onExit }: Props) {
   const { toast } = useToast();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -180,7 +184,13 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
   const showErr = (f: string) => (attempted ? missingBy(f)?.message : undefined);
 
   // Lista filtrada y ordenada como el PDF.
-  const inDispatch = useMemo(() => new Set(s.packages.map(pieceId)), [s.packages]);
+  // Lo que ya está en la salida (válido o en "Por revisar"): no se vuelve a sugerir.
+  // Panel de sugeridos: el usuario lo puede ocultar (se recuerda en este equipo).
+  const [suggestedHidden, setSuggestedHidden] = useLocalStorage<boolean>("dispatch_suggested_hidden", false);
+  const inDispatch = useMemo(
+    () => new Set([...s.packages.flatMap((p) => [pieceId(p), p.trackingNumber]), ...s.invalidNumbers]),
+    [s.packages, s.invalidNumbers],
+  );
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = s.validPackages.filter((p) => {
@@ -263,6 +273,20 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
     toast({ title: `Se agregaron ${r.added} paquetes sugeridos`, description: r.invalid ? `${r.invalid} no pasaron la validación; revísalos en "Por revisar".` : undefined });
     focusScanner();
   };
+
+  // "Crear salida con N" desde las sugerencias: agrega esos paquetes una sola vez al abrir.
+  const initialAdded = useRef(false);
+  useEffect(() => {
+    if (!initialAddScope || !initialRouteId || !suggestions || initialAdded.current) return;
+    initialAdded.current = true;
+    // Se quita de la dirección para que recargar la página no los vuelva a pedir.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("agregar");
+    window.history.replaceState(window.history.state, "", url.toString());
+    const codes = prefillCodesFor(suggestions, initialRouteId, initialAddScope, inDispatch);
+    if (codes.length) void addSuggested(codes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAddScope, initialRouteId, suggestions]);
 
   // La barra inferior va fija a la ventana pero alineada con el área de contenido (sin tapar el menú).
   const [mainBox, setMainBox] = useState<{ left: number; width: number | string }>({ left: 0, width: "100%" });
@@ -395,7 +419,7 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
           </Field>
         </section>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_370px]">
+        <div className={cn("grid grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)]", suggestedHidden ? "2xl:grid-cols-[320px_minmax(0,1fr)_48px]" : "2xl:grid-cols-[320px_minmax(0,1fr)_460px]")}>
           {/* Escáner primero */}
           <section className="flex flex-col gap-3">
             <div className="space-y-2.5 rounded-lg border bg-background p-3">
@@ -590,7 +614,7 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
 
           {/* Vencen hoy en tus rutas */}
           <div className="lg:col-span-2 2xl:col-span-1">
-            <DispatchSuggestedPanel subsidiaryId={subsidiaryId} routes={s.routes.map((r) => ({ id: r.id, name: r.name }))} inDispatch={inDispatch} disabled={s.validating} onAdd={addSuggested} />
+            <DispatchSuggestedPanel subsidiaryId={subsidiaryId} routes={s.routes.map((r) => ({ id: r.id, name: r.name }))} inDispatch={inDispatch} disabled={s.validating} onAdd={addSuggested} hidden={suggestedHidden} onHiddenChange={setSuggestedHidden} />
           </div>
         </div>
 

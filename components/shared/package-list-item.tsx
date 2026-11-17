@@ -112,10 +112,21 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
   const days = pkg.isValid ? daysUntilCommit(pkg.commitDateTime) : null;
   const expiresToday = days === 0;
   const expiresTomorrow = days === 1;
+  const overdue = days !== null && days < 0;
+  // Fecha de vencimiento visible (no solo el color): "Hoy 16/11/2026", "Vencido 14/11/2026"…
+  const commitLabel = days === null || !pkg.commitDateTime
+    ? null
+    : (() => {
+        const date = new Date(pkg.commitDateTime).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" });
+        if (overdue) return { label: `Vencido ${date}`, tooltip: `Venció el ${date}`, className: "bg-red-600 text-white" };
+        if (expiresToday) return { label: `Hoy ${date}`, tooltip: "Vence hoy", className: "bg-red-100 text-red-700" };
+        if (expiresTomorrow) return { label: `Mañana ${date}`, tooltip: "Vence mañana", className: "bg-amber-100 text-amber-700" };
+        return { label: `Vence ${date}`, tooltip: `Vence el ${date}`, className: "bg-slate-100 text-slate-700" };
+      })();
 
   const accent = !pkg.isValid && !pkg.isPendingValidation
     ? "border-l-destructive"
-    : expiresToday
+    : overdue || expiresToday
     ? "border-l-red-500"
     : expiresTomorrow
     ? "border-l-amber-400"
@@ -124,7 +135,7 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
     : "border-l-transparent";
 
   const hasFlags =
-    expiresToday || expiresTomorrow || hasPayment || pkg.isCharge ||
+    !!commitLabel || hasPayment || pkg.isCharge ||
     pkg.isHighValue || pkg.priority === "alta";
 
   return (
@@ -172,8 +183,7 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
               <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
                 {hasFlags && (
                   <TooltipProvider delayDuration={100}>
-                    {expiresToday && <FlagChip icon={Clock} label="Hoy" tooltip="Vence hoy" className="bg-red-100 text-red-700" />}
-                    {expiresTomorrow && <FlagChip icon={Clock} label="Mañana" tooltip="Vence mañana" className="bg-amber-100 text-amber-700" />}
+                    {commitLabel && <FlagChip icon={Clock} label={commitLabel.label} tooltip={commitLabel.tooltip} className={commitLabel.className} />}
                     {hasPayment && (
                       <FlagChip
                         icon={BanknoteIcon}

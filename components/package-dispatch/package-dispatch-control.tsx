@@ -7,12 +7,14 @@ import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Send, Truck, Eye, Sheet, Lock, Layers } from "lucide-react"
+import { Send, Truck, Eye, Sheet, Lock, Layers, History, Sparkles } from "lucide-react"
+import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { getGroupCandidates } from "@/lib/services/route-closure"
 import type { GroupCandidate } from "@/lib/route-closure/group-dispatch"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
+import PackageDispatchForm from "./package-dispatch-form"
 import { PackageDispatchStatus, type PackageDispatchResponse } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
 import { usePackageDispatchs } from "@/hooks/services/package-dispatchs/use-package-distpatchs"
@@ -53,6 +55,9 @@ export default function PackageDispatchControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  // "Diseño anterior": sin sugerencias y la nueva salida en ventana, como antes del rediseño.
+  const [classicDesign, setClassicDesign] = useLocalStorage<boolean>("dispatch_classic_design", false)
+  const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false)
   const [isRouteClouserDialogOpen, setIsRouteClouserDialogOpen] = useState(false);
   const [selectedPackageDispatch, setSelectedPackageDispatch] = useState<string | null>(null);
   // Cierre agrupado: rutas del mismo chofer y día que se pueden cerrar juntas.
@@ -194,6 +199,10 @@ export default function PackageDispatchControl() {
   // Nueva salida: pantalla completa (la sucursal viaja por query; la app es estática, sin rutas [id]).
   const openDispatchDialog = () => {
     if (!effectiveSucursalId) return
+    if (classicDesign) {
+      setIsDispatchDialogOpen(true)
+      return
+    }
     const qs = new URLSearchParams({ sucursal: effectiveSucursalId, nombre: effectiveSucursalName })
     router.push(`/operaciones/salidas-a-ruta/nueva?${qs.toString()}`)
   }
@@ -419,6 +428,16 @@ const updatedColumns = columns.map((col) =>
             <>
             {isSuperAdmin && <RouteRiskReportButton />}
             <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setClassicDesign(!classicDesign)}
+              className="whitespace-nowrap"
+              title={classicDesign ? "Volver al diseño nuevo con sugerencias" : "Ver la pantalla como era antes del rediseño"}
+            >
+              {classicDesign ? <Sparkles className="mr-1.5 h-4 w-4" /> : <History className="mr-1.5 h-4 w-4" />}
+              {classicDesign ? "Ver diseño nuevo" : "Ver diseño anterior"}
+            </Button>
             <Button size="sm" onClick={openDispatchDialog} disabled={!selectedSucursalId} className="whitespace-nowrap">
               <Send className="mr-1.5 h-4 w-4" /> Nueva salida
             </Button>
@@ -442,7 +461,7 @@ const updatedColumns = columns.map((col) =>
           }
         />
 
-        {effectiveSucursalId && <RouteSuggestionsSection subsidiaryId={effectiveSucursalId} subsidiaryName={effectiveSucursalName} />}
+        {effectiveSucursalId && !classicDesign && <RouteSuggestionsSection subsidiaryId={effectiveSucursalId} subsidiaryName={effectiveSucursalName} />}
 
         {!selectedSucursalId ? (
           <div className="flex h-[200px] items-center justify-center">
@@ -506,6 +525,21 @@ const updatedColumns = columns.map((col) =>
           />
         )}
       </div>
+
+      {/* Diseño anterior: la nueva salida en ventana (el form es dueño de su propio Dialog) */}
+      {classicDesign && (
+        <PackageDispatchForm
+          open={isDispatchDialogOpen}
+          onOpenChange={setIsDispatchDialogOpen}
+          selectedSubsidiaryId={effectiveSucursalId}
+          subsidiaryName={effectiveSucursalName}
+          onClose={() => setIsDispatchDialogOpen(false)}
+          onSuccess={() => {
+            mutate()
+            setIsDispatchDialogOpen(false)
+          }}
+        />
+      )}
 
       {/* Package Dispatch Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={(open) => setIsDetailsDialogOpen(open)}>

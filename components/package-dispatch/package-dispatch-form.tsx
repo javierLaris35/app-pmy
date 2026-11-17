@@ -2,6 +2,7 @@
 
 import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { getRouteSuggestions, prefillCodesFor, type PrefillScope } from "@/lib/services/route-suggestions";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
@@ -46,13 +47,18 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { AppLayout } from "@/components/app-layout";
 import { getRoutesBySucursalId } from "@/lib/services/routes";
 import { DispatchSuggestedPanel } from "./dispatch-suggested-panel";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 type Props = {
   /** "dialog" (default, comportamiento histórico) o "page" (pantalla completa con AppLayout). */
   variant?: "dialog" | "page";
   /** Ruta a preseleccionar (viene de "Crear salida" en las sugerencias). Se suma a las ya elegidas. */
   initialRouteId?: string | null;
+  /** Viene de "Crear salida con N": agrega al abrir los paquetes urgentes de esa ruta. */
+  initialAddScope?: PrefillScope | null;
+  /** Pantalla completa: liga para probar la pantalla nueva (sucursales que aún no la tienen por defecto). */
+  newDesignHref?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedSubsidiaryId: string | null;
@@ -98,6 +104,8 @@ const isExpiringTodayLocal =(commitDateTime?: string | null): boolean => {
 const PackageDispatchForm: React.FC<Props> = ({
   variant = "dialog",
   initialRouteId,
+  initialAddScope,
+  newDesignHref,
   open,
   onOpenChange,
   selectedSubsidiaryId: propSubsidiaryId,
@@ -484,10 +492,31 @@ const PackageDispatchForm: React.FC<Props> = ({
     });
   }, [selectedSubsidiaryId, setPackages, toast]);
 
+  // Panel de sugeridos: el usuario lo puede ocultar (se recuerda en este equipo).
+  const [suggestedHidden, setSuggestedHidden] = useLocalStorage<boolean>("dispatch_suggested_hidden", false);
   const packagesInDispatch = useMemo(
-    () => new Set(packages.map((p) => (p as any).dhlUniqueId || p.trackingNumber)),
+    () => new Set(packages.flatMap((p) => [(p as any).dhlUniqueId || p.trackingNumber, p.trackingNumber])),
     [packages],
   );
+
+  // "Crear salida con N" desde las sugerencias: agrega esos paquetes una sola vez al abrir.
+  const initialAdded = useRef(false);
+  useEffect(() => {
+    if (!initialAddScope || !initialRouteId || !selectedSubsidiaryId || initialAdded.current) return;
+    initialAdded.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("agregar");
+    window.history.replaceState(window.history.state, "", url.toString());
+    getRouteSuggestions(selectedSubsidiaryId)
+      .then((data) => {
+        const codes = prefillCodesFor(data, initialRouteId, initialAddScope, packagesInDispatch);
+        if (codes.length) void handleAddSuggested(codes);
+      })
+      .catch(() => {
+        /* si falla, el panel de sugeridos sigue disponible para agregarlos a mano */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAddScope, initialRouteId, selectedSubsidiaryId]);
 
   const handleRemovePackage = useCallback((identifier: string) => {
     // Mantener el buffer del escáner (perScan) en sync para permitir re-escanear.
@@ -916,7 +945,7 @@ const PackageDispatchForm: React.FC<Props> = ({
   );
 
   const formGrid = (
-      <div className={cn("grid grid-cols-1 gap-4", isPage ? "lg:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(0,1fr)_380px]" : "xl:grid-cols-3")}>
+      <div className={cn("grid grid-cols-1 gap-4", isPage ? `lg:grid-cols-[320px_minmax(0,1fr)] ${suggestedHidden ? "2xl:grid-cols-[340px_minmax(0,1fr)_48px]" : "2xl:grid-cols-[340px_minmax(0,1fr)_460px]"}` : "xl:grid-cols-3")}>
         {/* Left Column - Configuration */}
         <div className={cn("space-y-6", !isPage && "xl:col-span-1")}>
           {/* Team Configuration Card */}
@@ -1346,6 +1375,8 @@ const PackageDispatchForm: React.FC<Props> = ({
                   inDispatch={packagesInDispatch}
                   disabled={isLoading}
                   onAdd={handleAddSuggested}
+                  hidden={suggestedHidden}
+                  onHiddenChange={setSuggestedHidden}
                 />
               </div>
             )}
@@ -1396,6 +1427,13 @@ const PackageDispatchForm: React.FC<Props> = ({
               <Button size="sm" variant="outline" onClick={onClose} disabled={isLoading} className="gap-2 whitespace-nowrap">
                 <ArrowLeft className="h-4 w-4" /> Salidas
               </Button>
+              {newDesignHref && (
+                <Button size="sm" variant="outline" asChild className="gap-2 whitespace-nowrap" title="Abrir esta salida en la pantalla nueva (lo capturado se conserva)">
+                  <Link href={newDesignHref}>
+                    <Sparkles className="h-4 w-4" /> Ver diseño nuevo
+                  </Link>
+                </Button>
+              )}
               {clearAllButton}
               {pdfButton}
               {dispatchButton}
