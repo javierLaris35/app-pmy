@@ -17,4 +17,7 @@ export interface ListParams {
   search?: string;
   /** Filtro adicional (p. ej. tipo de inventario). */
   type?: string;
+  /** Orden del lado del servidor (columna permitida por el backend). */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
 }

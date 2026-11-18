@@ -53,6 +53,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/operaciones/devoluciones": "Devoluciones y Recolecciones",
   "/operaciones/envios": "Envíos",
   "/operaciones/inventarios": "Inventarios",
+  "/operaciones/inventarios/nuevo": "Nuevo inventario",
   "/operaciones/consolidados": "Consolidados",
   "/operaciones/monitoreo": "Monitoreo",
   "/operaciones/pagos-fedex": "Pagos a FedEx",

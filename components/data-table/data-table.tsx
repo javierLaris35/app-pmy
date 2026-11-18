@@ -77,6 +77,14 @@ interface DataTableProps<TData, TValue> {
   dense?: boolean
   /** Orden inicial (opt-in), p. ej. [{ id: "dias", desc: true }]. */
   initialSorting?: SortingState
+  /**
+   * Orden del lado del servidor (opt-in; úsalo con `manualPagination`). La tabla NO ordena en el
+   * navegador (solo ordenaría la página actual): la pantalla controla `sorting`, lo manda al
+   * backend y recibe los datos ya ordenados. Sin estos props ordena en el navegador como siempre.
+   */
+  manualSorting?: boolean
+  sorting?: SortingState
+  onSortingChange?: OnChangeFn<SortingState>
   /** Renglones por página iniciales (default 10). */
   initialPageSize?: number
   /** Controles propios a la derecha de la barra de filtros (opt-in). */
@@ -115,6 +123,9 @@ export function DataTable<TData, TValue>({
   searchPlaceholder,
   dense = false,
   initialSorting,
+  manualSorting = false,
+  sorting: sortingProp,
+  onSortingChange,
   initialPageSize = 10,
   toolbarExtra,
   groupHeader,
@@ -145,7 +156,7 @@ export function DataTable<TData, TValue>({
     data,
     columns,
     state: {
-      sorting,
+      sorting: sortingProp ?? sorting,
       columnVisibility,
       rowSelection,
       columnFilters: effectiveColumnFilters,
@@ -160,7 +171,8 @@ export function DataTable<TData, TValue>({
     autoResetPageIndex,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange: onSortingChange ?? setSorting,
+    manualSorting,
     manualFiltering,
     onColumnFiltersChange: onColumnFiltersChange ?? setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,

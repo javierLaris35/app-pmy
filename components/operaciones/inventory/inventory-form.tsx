@@ -5,22 +5,26 @@ import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Check,
   CircleAlertIcon,
-  GemIcon,
   Package,
   PackageCheckIcon,
   Send,
   Trash2,
   Download,
+  MoreHorizontal,
+  ArrowLeft,
+  Search,
   X,
-  Clock,
-  BanknoteIcon
+  Keyboard,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import {
@@ -38,21 +42,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LoaderWithOverlay } from "@/components/loader";
 import { OperationHeader } from "@/components/shared/operation-header";
-import { StatBar, StatItem } from "@/components/shared/stat-bar";
-import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
-import { PackageFilters, computePackageFilterCounts } from "@/components/shared/package-filters";
-import { daysUntilCommit } from "@/components/shared/package-list-item";
 import { PackagesList } from "@/components/shared/packages-list";
-import { CarrierFilter, InventoryPackageToolbar, useInventoryPackageView } from "./inventory-package-view";
+import { InventoryPackageToolbar, useInventoryPackageView } from "./inventory-package-view";
+import { LastReadCard, QuickCounters } from "./inventory-capture-sidebar";
+import { Input } from "@/components/ui/input";
+import { countQuickFilters, findScannedPackage, matchesQuickFilter, type QuickFilterKey } from "@/lib/inventory-quick-filters";
 import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
 import {
   initScannerFeedback,
   playExpiresTodaySound,
   playExpiresTomorrowSound,
+  playExpiresMondaySound,
   playNotFoundSound,
   playInvalidSound,
 } from "@/lib/scanner-feedback";
 import { CatalogSelect } from "@/components/shared/catalog-select";
+import { downloadBlob, inventoryFileBase } from "@/lib/inventory-files";
+import { buildInventoryFiles } from "@/lib/services/inventory/inventory-email";
+import { apiError } from "@/components/maintenance/shared/confirm-action";
+import { capitalizeDay, isDueOn, nextAlertDay } from "@/lib/next-operating-day";
+import { noDueMark } from "@/lib/inventory-excel-rules";
+import { getHolidays } from "@/lib/services/holidays/holidays";
+import { ShortcutsDialog } from "@/components/warehouse/shared/shortcuts-dialog";
+import useSWR from "swr";
+import { adoptLegacyInventoryDraft, clearInventoryDraft, inventoryDraftKeys } from "@/lib/inventory-draft";
 
 // Hook useLocalStorage
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -87,12 +100,13 @@ function useLocalStorage<T>(key: string, initialValue: T) {
 }
 
 interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedSubsidiaryId?: string | null;
+  /** Sucursal del inventario (viene de la URL; no se cambia a media captura). */
+  subsidiaryId: string;
   subsidiaryName?: string | null;
-  onClose?: () => void;
-  onSuccess?: () => void;
+  /** Se llama al guardar (haya salido o no el correo). */
+  onSaved?: (saved: Inventory) => void;
+  /** Volver al historial (la captura sin guardar se queda en este navegador). */
+  onExit?: () => void;
 }
 
 // Tipos de inventario
@@ -106,30 +120,25 @@ export enum InventoryType {
 
 const INVALID_FORMAT_REASON = "Formato de guía inválido";
 
-export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId: propSubsidiaryId, subsidiaryName: propSubsidiaryName, onClose, onSuccess }: Props) {
+export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, onExit }: Props) {
+  // Captura POR SUCURSAL. Esto corre antes que los useLocalStorage de abajo: si hay una captura
+  // vieja (claves globales) de ESTA sucursal, se pasa a las claves nuevas para no perderla.
+  useState(() => adoptLegacyInventoryDraft(subsidiaryId));
+  const draftKeys = useMemo(() => inventoryDraftKeys(subsidiaryId), [subsidiaryId]);
+
   // Estados persistentes
-  const [scannedPackages, setScannedPackages] = useLocalStorage<{trackingNumber: string}[]>(
-    'inventory_scanned_packages', 
-    []
-  );
-  const [packages, setPackages] = useLocalStorage<PackageInfo[]>(
-    'inventory_packages', 
-    []
-  );
+  const [scannedPackages, setScannedPackages] = useLocalStorage<{trackingNumber: string}[]>(draftKeys.scanned, []);
+  const [packages, setPackages] = useLocalStorage<PackageInfo[]>(draftKeys.packages, []);
   // Estado para el tipo de inventario
-  const [inventoryType, setInventoryType] = useLocalStorage<InventoryType>(
-    'inventory_type',
-    InventoryType.INITIAL
-  );
+  const [inventoryType, setInventoryType] = useLocalStorage<InventoryType>(draftKeys.type, InventoryType.INITIAL);
 
   // Estados regulares
   const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [, setProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterPriority, setFilterPriority] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [onlyToday, setOnlyToday] = useState(false);
-  const [onlyPayment, setOnlyPayment] = useState(false);
+  // Rediseño A: los conteos de la izquierda filtran la lista (uno a la vez) y eligen la pestaña.
+  const [quickFilter, setQuickFilter] = useState<QuickFilterKey | null>(null);
+  const [listTab, setListTab] = useState<"valid" | "rejected">("valid");
   const [isValidationPackages, setIsValidationPackages] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
@@ -146,13 +155,8 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const canTransfer = ["subadmin", "admin", "superadmin"].includes((user?.role as string) || "");
   const [transferPkg, setTransferPkg] = useState<PackageInfo | null>(null);
 
-  const selectedSubsidiaryId = useMemo(() => {
-    return propSubsidiaryId || null; 
-  }, [propSubsidiaryId]);
-
-  const selectedSubsidiaryName = useMemo(() => {
-    return propSubsidiaryName || null;
-  }, [propSubsidiaryName]);
+  const selectedSubsidiaryId = subsidiaryId || null;
+  const selectedSubsidiaryName = subsidiaryName || null;
 
   // Funciones de utilidad (Sonidos, expiraciones, etc.)
   const getDaysUntilExpiration = useCallback((commitDateTime?: string | null) => {
@@ -173,35 +177,50 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   const playNotFoundSnd = useCallback(() => playNotFoundSound(), []);
   const playInvalidSnd = useCallback(() => playInvalidSound(), []);
 
+  // Días sin operación (domingo y festivos de Configuración): si mañana no se opera, se vigila
+  // lo que vence el siguiente día que sí. Sin festivos cargados, igual cubre el domingo.
+  const { data: holidays } = useSWR("holidays", () => getHolidays(), { revalidateOnFocus: false });
+  const alertDay = useMemo(() => nextAlertDay(new Date(), holidays ?? []), [holidays]);
+
   // Aviso de vencimiento SIN ventana: la ventana bloqueante se quitó en ene-2026 porque
   // cortaba el escaneo. Antes, además, la lista de "mañana" sobrescribía la de "hoy".
   const handleExpirationCheck = useCallback((newPackages: PackageInfo[]) => {
     const today: string[] = [];
     const tomorrow: string[] = [];
+    const monday: string[] = []; // si mañana no se opera: lo que vence el siguiente día que sí
     newPackages.forEach(pkg => {
-      if (!pkg.isValid || !pkg.commitDateTime || shownExpiringPackages.has(pkg.trackingNumber)) return;
+      // Ya entregado o devuelto a FedEx: sin aviso ni sonido de vencimiento.
+      if (!pkg.isValid || !pkg.commitDateTime || noDueMark(pkg.status) || shownExpiringPackages.has(pkg.trackingNumber)) return;
       const days = getDaysUntilExpiration(pkg.commitDateTime);
       if (days === 0) today.push(pkg.dhlUniqueId || pkg.trackingNumber);
       else if (days === 1) tomorrow.push(pkg.dhlUniqueId || pkg.trackingNumber);
+      else if (isDueOn(pkg.commitDateTime, alertDay)) monday.push(pkg.dhlUniqueId || pkg.trackingNumber);
     });
-    if (today.length === 0 && tomorrow.length === 0) return;
+    if (today.length === 0 && tomorrow.length === 0 && monday.length === 0) return;
 
+    // Gana el más urgente: hoy > mañana > lunes.
     if (today.length > 0) playExpirationSound();
-    else playTomorrowExpirationSound();
+    else if (tomorrow.length > 0) playTomorrowExpirationSound();
+    else playExpiresMondaySound();
     toast({
-      title: today.length > 0 ? `Vence hoy: ${today.length} guía(s)` : `Vence mañana: ${tomorrow.length} guía(s)`,
+      title: today.length > 0
+        ? `Vence hoy: ${today.length} guía(s)`
+        : tomorrow.length > 0
+          ? `Vence mañana: ${tomorrow.length} guía(s)`
+          : `Vence el ${alertDay?.weekday ?? "siguiente día"}: ${monday.length} guía(s)`,
       description: [
         today.length > 0 ? `Hoy: ${today.join(", ")}` : "",
         tomorrow.length > 0 ? `Mañana: ${tomorrow.join(", ")}` : "",
+        monday.length > 0 ? `${capitalizeDay(alertDay?.weekday ?? "siguiente")}: ${monday.join(", ")}` : "",
       ].filter(Boolean).join(" · "),
       variant: today.length > 0 ? "destructive" : undefined,
     });
 
     const keys = newPackages
-      .filter(p => p.commitDateTime && [0, 1].includes(getDaysUntilExpiration(p.commitDateTime)))
+      .filter(p => p.commitDateTime && ([0, 1].includes(getDaysUntilExpiration(p.commitDateTime)) || isDueOn(p.commitDateTime, alertDay)))
       .map(p => p.trackingNumber);
     setShownExpiringPackages(prev => new Set([...prev, ...keys]));
-  }, [getDaysUntilExpiration, shownExpiringPackages, playExpirationSound, playTomorrowExpirationSound, toast]);
+  }, [getDaysUntilExpiration, shownExpiringPackages, playExpirationSound, playTomorrowExpirationSound, toast, alertDay]);
 
   // Prepara el feedback sonoro y enlaza el desbloqueo por gesto (autoplay policy).
   useEffect(() => {
@@ -245,6 +264,15 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     return () => clearTimeout(handler);
   }, [scannedPackages, selectedSubsidiaryId, isLoading, isValidationPackages]);
 
+  // Al volver internet, las guías capturadas sin conexión se validan solas.
+  useEffect(() => {
+    if (!isOnline || isLoading || isValidationPackages || !selectedSubsidiaryId) return;
+    if (!packages.some(p => (p as any).isOffline)) return;
+    lastSignatureRef.current = "";
+    handleValidatePackages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
+
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => { if (e.ctrlKey) e.preventDefault(); };
     const preventKeyZoom = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "0"].includes(e.key)) e.preventDefault(); };
@@ -256,17 +284,8 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     };
   }, []);
 
-  const clearAllStorage = useCallback(() => {
-    const keys = [
-      'inventory_scanned_packages',
-      'inventory_packages',
-      'inventory_missing_trackings', // claves viejas: se limpian si quedaron
-      'inventory_unscanned_trackings',
-      'inventory_type'
-    ];
-    keys.forEach(key => {
-      try { window.localStorage.removeItem(key); } catch (error) { console.warn(`Error clearing ${key}:`, error); }
-    });
+  const clearAllStorage = useCallback((opts: { silent?: boolean } = {}) => {
+    clearInventoryDraft(subsidiaryId);
 
     setScannedPackages([]);
     setPackages([]);
@@ -276,11 +295,10 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     lastSignatureRef.current = "";
     barScannerInputRef.current?.clear();
 
-    toast({
-      title: "Datos limpiados",
-      description: "Todos los datos locales han sido eliminados.",
-    });
-  }, [setScannedPackages, setPackages, setInventoryType, toast]);
+    if (!opts.silent) {
+      toast({ title: "Captura limpiada", description: "Se borró la captura de esta sucursal." });
+    }
+  }, [subsidiaryId, setScannedPackages, setPackages, setInventoryType, toast]);
 
   const handleValidatePackages = async () => {
     if (isLoading || isValidationPackages) return;
@@ -314,18 +332,20 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     setIsLoading(true);
     setProgress(0);
 
+    // Códigos ya validados: no se reconsultan. Los capturados SIN CONEXIÓN no cuentan como
+    // validados: se vuelven a mandar en cuanto hay internet (antes se quedaban rechazados).
+    const isSettled = (p: PackageInfo) => !p.isPendingValidation && !(p as any).isOffline;
+    const validatedCodes = new Set<string>();
+    packages.forEach(p => {
+      if (!isSettled(p)) return;
+      if (p.trackingNumber) validatedCodes.add(p.trackingNumber.trim().toUpperCase());
+      if (p.dhlUniqueId) validatedCodes.add(p.dhlUniqueId.trim().toUpperCase());
+    });
+
+    // Solo lo NUEVO pega al backend => validación "en vivo" (payload liviano).
+    const newCodes = validNumbers.filter(tn => !validatedCodes.has(tn.trim().toUpperCase()));
+
     try {
-      // Códigos ya validados (no pendientes): no se reconsultan.
-      const validatedCodes = new Set<string>();
-      packages.forEach(p => {
-        if (p.isPendingValidation) return;
-        if (p.trackingNumber) validatedCodes.add(p.trackingNumber.trim().toUpperCase());
-        if (p.dhlUniqueId) validatedCodes.add(p.dhlUniqueId.trim().toUpperCase());
-      });
-
-      // Solo lo NUEVO pega al backend => validación "en vivo" (payload liviano).
-      const newCodes = validNumbers.filter(tn => !validatedCodes.has(tn.trim().toUpperCase()));
-
       let newlyValidated: PackageInfo[] = [];
       if (newCodes.length > 0) {
         const payload: InventoryValidationPayload[] = newCodes.map(tn => ({
@@ -362,7 +382,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
             else if (k.startsWith("JD")) byCode.set("J" + k, p);
           });
       };
-      packages.forEach(p => { if (!p.isPendingValidation) indexPkg(p); });
+      packages.forEach(p => { if (isSettled(p)) indexPkg(p); });
       newlyValidated.forEach(indexPkg);
       locallyInvalidPackages.forEach(indexPkg);
 
@@ -392,21 +412,26 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       }
     } catch (error) {
       console.error("Error validating packages:", error);
-      if (!isOnline) {
-        const offlinePackages: PackageInfo[] = validNumbers.map(tn => ({
-          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      if (!isOnline || !navigator.onLine) {
+        // Solo las guías NUEVAS quedan "sin conexión" (sin duplicar las que ya estaban).
+        const pendingCodes = new Set(newCodes.map(tn => tn.trim().toUpperCase()));
+        const offlinePackages: PackageInfo[] = newCodes.map(tn => ({
+          id: `offline-${tn}`,
           trackingNumber: tn,
           isValid: false,
-          reason: "Sin conexión - validar cuando se restablezca internet",
+          reason: "Sin conexión: se valida en cuanto vuelva internet",
           isOffline: true,
           createdAt: new Date(),
         } as unknown as PackageInfo));
 
-        setPackages((prev) => [...prev, ...offlinePackages]);
-        
+        setPackages((prev) => [
+          ...prev.filter(p => !pendingCodes.has((p.trackingNumber || "").trim().toUpperCase())),
+          ...offlinePackages,
+        ]);
+
         toast({
-          title: "Modo offline activado",
-          description: `Se guardaron localmente. Se validarán cuando se recupere la conexión.`,
+          title: "Sin conexión",
+          description: "Las guías quedan guardadas en este navegador y se validan solas al volver internet.",
         });
       } else {
         toast({ title: "Error", description: "Hubo un problema al validar los paquetes.", variant: "destructive" });
@@ -451,7 +476,7 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       // scannedPackages podría tener el input del usuario (ej. JD1234), lo comparamos
       return p.trackingNumber !== identifier && p.trackingNumber !== `J${identifier}` && `J${p.trackingNumber}` !== identifier;
     }));
-    
+
     setShownExpiringPackages(prev => {
       const newSet = new Set(prev);
       newSet.delete(identifier);
@@ -478,70 +503,78 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       })),
   [packages]);
 
-  // Contadores estandarizados (StatBar) para el resumen de la jornada.
-  const inventoryStats = useMemo<StatItem[]>(() => {
-    let today = 0, tomorrow = 0, withPayment = 0, f2 = 0, highValue = 0;
-    for (const p of validPackages) {
-      const d = daysUntilCommit(p.commitDateTime);
-      if (d === 0) today++;
-      else if (d === 1) tomorrow++;
-      if (p.payment) withPayment++;
-      if (p.isCharge) f2++;
-      if (p.isHighValue) highValue++;
-    }
-    return [
-      { label: "Total", value: packages.length, icon: Package },
-      { label: "Válidos", value: validPackages.length, valueClassName: "text-green-600" },
-      { label: "Vencen hoy", value: today, valueClassName: "text-red-600", icon: Clock },
-      { label: "Vencen mañana", value: tomorrow, valueClassName: "text-amber-600", icon: Clock },
-      { label: "Con cobro", value: withPayment, valueClassName: "text-blue-600", icon: BanknoteIcon },
-      { label: "F2 / Carga", value: f2, valueClassName: "text-green-600" },
-      { label: "Alto valor", value: highValue, valueClassName: "text-violet-600", icon: GemIcon },
-      { label: "No incluidas", value: rejectedTrackings.length, valueClassName: "text-red-600" },
-    ];
-  }, [validPackages, packages.length, rejectedTrackings.length]);
+  // Conteos de la columna izquierda (sobre las guías que entran al inventario).
+  const quickCounts = useMemo(() => countQuickFilters(validPackages, new Date(), alertDay), [validPackages, alertDay]);
 
-  // Filtros de búsqueda/chips (la paquetería y la ciudad van en la barra de vista).
-  const matchesFilters = useCallback((pkg: PackageInfo) => {
+  // Búsqueda libre (la paquetería, la ciudad y el orden van en la barra de vista).
+  const matchesSearch = useCallback((pkg: PackageInfo) => {
     const term = searchTerm.trim().toLowerCase();
-    const uniqueId = (pkg.dhlUniqueId || "").toLowerCase();
-    const matchesSearch = !term ||
+    if (!term) return true;
+    return (
       pkg.trackingNumber.toLowerCase().includes(term) ||
-      uniqueId.includes(term) ||
-      (pkg.recipientZip && pkg.recipientZip.includes(term)) ||
-      (pkg.recipientName && pkg.recipientName.toLowerCase().includes(term)) ||
-      (pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(term));
-    const matchesPriority = filterPriority === "all" || pkg.priority === filterPriority;
-    const matchesStatus = filterStatus === "all" ||
-      (filterStatus === "special" && (pkg.isCharge || pkg.isHighValue || pkg.payment)) ||
-      (filterStatus === "normal" && !pkg.isCharge && !pkg.isHighValue && !pkg.payment);
-    const matchesToday = !onlyToday || daysUntilCommit(pkg.commitDateTime) === 0;
-    const matchesPayment = !onlyPayment || !!pkg.payment;
-    return matchesSearch && matchesPriority && matchesStatus && matchesToday && matchesPayment;
-  }, [searchTerm, filterPriority, filterStatus, onlyToday, onlyPayment]);
+      (pkg.dhlUniqueId || "").toLowerCase().includes(term) ||
+      (!!pkg.recipientZip && pkg.recipientZip.includes(term)) ||
+      (!!pkg.recipientName && pkg.recipientName.toLowerCase().includes(term)) ||
+      (!!pkg.recipientAddress && pkg.recipientAddress.toLowerCase().includes(term))
+    );
+  }, [searchTerm]);
 
-  const filterCounts = useMemo(() => computePackageFilterCounts(packages, daysUntilCommit), [packages]);
-  const searchedPackages = useMemo(() => packages.filter(matchesFilters), [packages, matchesFilters]);
+  const searchedPackages = useMemo(() => packages.filter(matchesSearch), [packages, matchesSearch]);
   // Paquetería + ciudad + orden (igual que Entrada/Salida de bodega).
   const view = useInventoryPackageView(searchedPackages);
-  const visibleValid = useMemo(() => view.visible.filter(p => p.isValid && !p.isPendingValidation), [view.visible]);
+  const visibleValid = useMemo(
+    () => view.visible.filter(p => p.isValid && !p.isPendingValidation && matchesQuickFilter(p, quickFilter, new Date(), alertDay)),
+    [view.visible, quickFilter, alertDay],
+  );
   const visibleRejected = useMemo(() => view.visible.filter(p => !p.isValid && !p.isPendingValidation), [view.visible]);
 
-  const activeFilterCount =
-    (filterPriority !== "all" ? 1 : 0) +
-    (filterStatus !== "all" ? 1 : 0) +
-    (onlyToday ? 1 : 0) +
-    (onlyPayment ? 1 : 0);
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setFilterPriority("all");
-    setFilterStatus("all");
-    setOnlyToday(false);
-    setOnlyPayment(false);
-    view.setCarrier("all");
-    view.setCity("all");
+  const handlePickCounter = (key: QuickFilterKey | "valid" | "rejected") => {
+    if (key === "valid" || key === "rejected") {
+      setListTab(key);
+      setQuickFilter(null);
+      return;
+    }
+    setListTab("valid");
+    setQuickFilter(prev => (prev === key ? null : key));
   };
+
+  const QUICK_LABEL: Record<QuickFilterKey, string> = {
+    today: "Vencen hoy",
+    tomorrow: "Vencen mañana",
+    nextDay: `Vencen el ${alertDay?.weekday ?? "siguiente día"}`,
+    payment: "Con cobro",
+    f2: "F2 / carga",
+    highValue: "Alto valor",
+  };
+
+  // "Última lectura": el último código escaneado y lo que el sistema sabe de él.
+  const lastScan = scannedPackages[scannedPackages.length - 1] as (PackageInfo & { dhlUniqueId?: string }) | undefined;
+  const lastCode = lastScan ? (lastScan.dhlUniqueId || lastScan.trackingNumber || null) : null;
+  const lastPkg = useMemo(() => findScannedPackage(lastCode, packages), [lastCode, packages]);
+
+  // Atajos de teclado (mismas teclas que Entrada de bodega).
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (transferPkg || showShortcuts) return; // hay una ventana abierta: que la maneje ella
+      if (e.key === "F1") {
+        e.preventDefault();
+        barScannerInputRef.current?.focus();
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        saveRef.current();
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.key === "Escape" && quickFilter) {
+        setQuickFilter(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [transferPkg, showShortcuts, quickFilter]);
 
   const getInventoryTypeLabel = (type: InventoryType): string => {
     switch (type) {
@@ -552,22 +585,10 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
     }
   };
 
-  /** Descarga un archivo generado (no abre pestaña: el navegador bloquea ventanas tras un await). */
-  const downloadBlob = (blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
-  const fileStamp = () =>
-    new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-
-  /** Inventario en captura para PDF/Excel. */
+  /** Inventario en captura para PDF/Excel (nombre de archivo con tipo, sucursal y fecha). */
   const buildDraftReport = () => ({
     inventoryDate: new Date().toISOString(),
+    type: inventoryType,
     subsidiary: { id: selectedSubsidiaryId ?? "", name: selectedSubsidiaryName ?? "" },
     rejectedTrackings,
   });
@@ -579,12 +600,11 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       const report = buildDraftReport();
       const options = { packages: visibleValid, filterLabel: view.filterLabel };
       const blob = await pdf(<InventoryPDFReport report={report} {...options} />).toBlob();
-      const typeLabel = getInventoryTypeLabel(inventoryType).toUpperCase();
-      downloadBlob(blob, `INVENTARIO-${typeLabel}--${selectedSubsidiaryName ?? ""}--${fileStamp()}.pdf`);
+      downloadBlob(blob, `${inventoryFileBase(report)}.pdf`);
       await generateInventoryExcel(report, true, options);
     } catch (err) {
       console.error("PDF export error", err);
-      toast({ title: "Error", description: "No se pudo generar el PDF.", variant: "destructive" });
+      toast({ title: "No se generó el PDF", description: "Intenta de nuevo.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -593,21 +613,12 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
   /** PDF + Excel del inventario guardado (todos los paquetes, en el orden elegido) y envío por correo. */
   const handleSendEmail = async (inventory: Inventory): Promise<boolean> => {
     try {
-      const options = { packages: view.orderAll(validPackages) };
-      const inventoryTypeLabel = getInventoryTypeLabel(inventoryType).toUpperCase();
-      const baseName = `INVENTARIO-${inventoryTypeLabel}--${selectedSubsidiaryName}--${fileStamp()}`;
-
-      const blob = await pdf(<InventoryPDFReport report={inventory} {...options} />).toBlob();
-      downloadBlob(blob, `${baseName}.pdf`);
-      const pdfFile = new File([blob], `${baseName}.pdf`, { type: "application/pdf" });
-
-      const excelBuffer = await generateInventoryExcel(inventory, true, options);
-      const excelFile = new File([excelBuffer], `${baseName}.xlsx`, {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-
-      // IMPORTANTE: enviar el id del inventario para que el backend resuelva el
-      // correo de la sucursal correcta (fix que se había perdido al condensar el archivo).
+      const { baseName, pdfBlob, pdfFile, excelFile } = await buildInventoryFiles(
+        { ...inventory, type: inventory.type ?? inventoryType },
+        view.orderAll(validPackages),
+      );
+      downloadBlob(pdfBlob, `${baseName}.pdf`);
+      // El id del inventario es el que resuelve el correo de la sucursal correcta.
       await uploadFiles(pdfFile, excelFile, selectedSubsidiaryName ?? "", inventory.id);
       return true;
     } catch (err) {
@@ -641,7 +652,8 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
       saved = await saveInventory(payload);
     } catch (error) {
       console.error("saveInventory error", error);
-      toast({ title: "Error", description: "No se pudo guardar el inventario. Intenta de nuevo.", variant: "destructive" });
+      // El backend explica en llano qué pasó (p. ej. "Estas guías son de otra sucursal: …").
+      toast({ title: "No se guardó el inventario", description: apiError(error, "No se pudo guardar el inventario"), variant: "destructive" });
       setIsLoading(false);
       return;
     }
@@ -657,38 +669,40 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
         variant: "destructive",
       });
     }
-    clearAllStorage();
+    clearAllStorage({ silent: true });
     setIsLoading(false);
-    onSuccess?.();
+    onSaved?.(saved);
+  };
+
+  const pendingOffline = packages.filter(p => (p as any).isOffline).length;
+
+  saveRef.current = () => {
+    if (isLoading || isValidationPackages || validPackages.length === 0 || pendingOffline > 0) return;
+    handleSaveInventory();
+  };
+
+  const handleExit = () => {
+    if (packages.length > 0) {
+      toast({ title: "Captura guardada en este navegador", description: "La retomas al volver a Nuevo inventario en esta sucursal." });
+    }
+    onExit?.();
   };
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange} >
-        <DialogContent
-          className="max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden"
-          onInteractOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          showCloseButton={false}
-        >
-          <DialogHeader className="sr-only">
-            <DialogTitle>Inventario de Paquetes</DialogTitle>
-          </DialogHeader>
-
+      <div className="relative space-y-3">
           {isValidationPackages && (
             <LoaderWithOverlay overlay transparent text="Validando paquetes..." className="rounded-lg" />
           )}
 
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
             <OperationHeader
-              inline
               icon={PackageCheckIcon}
-              title="Inventario de Paquetes"
-              description="Escanea y valida paquetes"
+              title="Nuevo inventario"
+              description="Escanea y valida los paquetes que están en bodega"
               subsidiaryName={selectedSubsidiaryName}
               isOffline={!isOnline}
               actions={
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2 whitespace-nowrap">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="cursor-help text-muted-foreground hover:text-foreground transition-colors">
@@ -710,200 +724,185 @@ export default function InventoryForm({ open, onOpenChange, selectedSubsidiaryId
                     onValueChange={(value) => setInventoryType(value as InventoryType)}
                     disabled={isLoading || packages.length > 0}
                     placeholder="Tipo de inventario"
-                    className="h-9 flex-1 sm:flex-none sm:w-[170px]"
+                    className="h-9 w-[160px]"
                   />
 
-                  {packages.length > 0 && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setShowShortcuts(true)} aria-label="Atajos de teclado">
+                        <Keyboard className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Atajos de teclado</TooltipContent>
+                  </Tooltip>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-1.5" disabled={isLoading}>
+                        <MoreHorizontal className="h-4 w-4" />
+                        Más acciones
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onSelect={handleExportPDF} disabled={isValidationPackages || validPackages.length === 0}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar PDF y Excel
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => clearAllStorage()}
+                        disabled={packages.length === 0}
+                        className="text-rose-600 focus:text-rose-700"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Limpiar captura
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={handleExit}>
+                        <ArrowLeft className="mr-2 h-4 w-4" /> Volver al historial
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
                         <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={clearAllStorage}
-                          disabled={isLoading}
-                          className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          size="sm"
+                          onClick={handleSaveInventory}
+                          disabled={isLoading || isValidationPackages || validPackages.length === 0 || pendingOffline > 0}
+                          className="h-9 gap-1.5"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {isLoading ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                          Guardar inventario ({validPackages.length})
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Limpiar todo</TooltipContent>
-                    </Tooltip>
-                  )}
+                      </span>
+                    </TooltipTrigger>
+                    {pendingOffline > 0 && (
+                      <TooltipContent>Faltan {pendingOffline} guía(s) por validar cuando vuelva internet.</TooltipContent>
+                    )}
+                  </Tooltip>
                 </div>
               }
             />
 
-            {packages.length > 0 && <StatBar items={inventoryStats} />}
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              
-              {/* COLUMNA IZQUIERDA - Componente de escaneo */}
-              <div className="xl:col-span-1 space-y-4">
-                <Card>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-3">
-                      <ScanInput
-                        ref={barScannerInputRef}
-                        storageKey="scan:inventario"
-                        defaultView="rich"
-                        onPackagesChange={setScannedPackages}
-                        disabled={isValidationPackages || !selectedSubsidiaryId}
-                        placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
-                      />
-                    </div>
-
-                    {(isValidationPackages || isLoading) && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <Label>Progreso de validación</Label>
-                          <span className="text-sm text-muted-foreground">{progress}%</span>
-                        </div>
-                        <Progress value={progress} className="h-2" />
-                      </div>
-                    )}
-
-                    {/*<Button 
-                      onClick={handleValidatePackages} 
-                      disabled={isValidationPackages || isLoading || !selectedSubsidiaryId || scannedPackages.length === 0} 
-                      className="w-full gap-2"
-                      variant="outline"
-                    >
-                      {isValidationPackages ? <PmySpinner className="h-4 w-4" /> : <Scan className="h-4 w-4" />}
-                      {isValidationPackages ? "Validando..." : "Validar paquetes"}
-                    </Button>*/}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+              {/* Lector: escaneo, última lectura y conteos que filtran */}
+              <aside className="space-y-3 lg:sticky lg:top-3 lg:self-start">
+                <Card className="py-0">
+                  <CardContent className="space-y-3 p-3">
+                    <ScanInput
+                      ref={barScannerInputRef}
+                      storageKey={draftKeys.scanStorageKey}
+                      defaultView="simple"
+                      onPackagesChange={setScannedPackages}
+                      disabled={isValidationPackages || !selectedSubsidiaryId}
+                      placeholder={!selectedSubsidiaryId ? "Selecciona una sucursal primero" : "Escanea guías FedEx o DHL"}
+                    />
+                    <LastReadCard code={lastCode} pkg={lastPkg} onTransfer={canTransfer ? setTransferPkg : undefined} alertDay={alertDay} />
                   </CardContent>
                 </Card>
 
-              </div>
+                {packages.length > 0 && (
+                  <Card className="py-0">
+                    <CardContent className="p-2">
+                      <QuickCounters
+                        valid={validPackages.length}
+                        rejected={rejectedTrackings.length}
+                        counts={quickCounts}
+                        alertDay={alertDay}
+                        active={quickFilter}
+                        tab={listTab}
+                        onPick={handlePickCounter}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </aside>
 
-              {/* COLUMNA DERECHA - Tabla de validaciones */}
-              <div className="xl:col-span-2 space-y-3">
-                <PackagesPanelHeader
-                  subtitle={<>Tipo: <span className="font-medium">{getInventoryTypeLabel(inventoryType)}</span></>}
-                  isOffline={!isOnline}
-                />
+              {/* Lista de guías */}
+              <section className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[220px] flex-1">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      ref={searchInputRef}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Buscar guía, CP, nombre o dirección"
+                      className="h-9 pl-8"
+                    />
+                  </div>
+                  <InventoryPackageToolbar view={view} />
+                </div>
 
-                <PackageFilters
-                  searchTerm={searchTerm}
-                  onSearchChange={setSearchTerm}
-                  searchPlaceholder="Buscar ID de pieza, tracking maestro, CP, destinatario..."
-                  carrier={view.carrier}
-                  onCarrierChange={(v) => view.setCarrier(v as CarrierFilter)}
-                  showCarrier={false}
-                  onlyToday={onlyToday}
-                  onToggleToday={() => setOnlyToday((v) => !v)}
-                  onlyPayment={onlyPayment}
-                  onTogglePayment={() => setOnlyPayment((v) => !v)}
-                  priority={filterPriority}
-                  onPriorityChange={setFilterPriority}
-                  type={filterStatus}
-                  onTypeChange={setFilterStatus}
-                  activeFilterCount={activeFilterCount}
-                  onClear={clearFilters}
-                  counts={filterCounts}
-                />
-
-                {/* Listado Principal */}
                 {packages.length > 0 ? (
-                  <>
-                    <InventoryPackageToolbar view={view} />
-
-                    <Tabs defaultValue="todos" className="w-full">
-                      <TabsList className="grid w-full grid-cols-3 mb-3">
-                        <TabsTrigger value="todos" className="flex items-center gap-1 text-xs py-2">
-                          <Package className="h-3 w-3" /> Todos
-                          <Badge variant="secondary" className="ml-1 text-xs">{view.visible.length}</Badge>
+                  <Tabs value={listTab} onValueChange={(v) => setListTab(v as "valid" | "rejected")} className="w-full">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <TabsList className="h-8">
+                        <TabsTrigger value="valid" className="gap-1.5 text-xs">
+                          Válidos <Badge variant="secondary" className="px-1.5 text-xs">{visibleValid.length}</Badge>
                         </TabsTrigger>
-                        <TabsTrigger value="validos" className="flex items-center gap-1 text-xs py-2">
-                          <Check className="h-3 w-3" /> Válidos
-                          <Badge variant="secondary" className="ml-1 text-xs">{visibleValid.length}</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="no-incluidas" className="flex items-center gap-1 text-xs py-2">
-                          <CircleAlertIcon className="h-3 w-3" /> No incluidas
-                          <Badge variant="secondary" className="ml-1 text-xs">{visibleRejected.length}</Badge>
+                        <TabsTrigger value="rejected" className="gap-1.5 text-xs">
+                          No incluidas <Badge variant="secondary" className="px-1.5 text-xs">{visibleRejected.length}</Badge>
                         </TabsTrigger>
                       </TabsList>
+                      {quickFilter && listTab === "valid" && (
+                        <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setQuickFilter(null)}>
+                          {QUICK_LABEL[quickFilter]} <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
 
-                      <TabsContent value="todos">
-                        <PackagesList
-                          packages={view.visible}
-                          showFilters={false}
-                          groupBy={view.groupBy}
-                          showRowNumbers={view.showRowNumbers}
-                          onRemove={handleRemovePackage}
-                          onTransfer={canTransfer ? setTransferPkg : undefined}
-                          isLoading={isLoading || isValidationPackages}
-                          maxHeightClass="max-h-[400px]"
-                          emptyTitle="Sin coincidencias"
-                          emptyDescription="Ninguna guía coincide con la paquetería o ciudad elegida."
-                        />
-                      </TabsContent>
+                    <TabsContent value="valid" className="mt-2">
+                      <PackagesList
+                        packages={visibleValid}
+                        showFilters={false}
+                        groupBy={view.groupBy}
+                        showRowNumbers={view.showRowNumbers}
+                        alertDay={alertDay}
+                        onRemove={handleRemovePackage}
+                        isLoading={isLoading}
+                        maxHeightClass="max-h-[calc(100vh-15rem)] min-h-[240px]"
+                        emptyTitle={quickFilter ? `Sin guías en "${QUICK_LABEL[quickFilter]}"` : "Sin guías válidas"}
+                        emptyDescription={quickFilter ? "Quita el filtro para ver todas." : "Ninguna guía coincide con la búsqueda, la paquetería o la ciudad."}
+                      />
+                    </TabsContent>
 
-                      <TabsContent value="validos">
-                        <PackagesList
-                          packages={visibleValid}
-                          showFilters={false}
-                          groupBy={view.groupBy}
-                          showRowNumbers={view.showRowNumbers}
-                          onRemove={handleRemovePackage}
-                          isLoading={isLoading}
-                          maxHeightClass="max-h-[400px]"
-                          emptyTitle="Sin paquetes válidos"
-                          emptyDescription="No hay paquetes válidos con estos filtros."
-                        />
-                      </TabsContent>
-
-                      {/* Escaneadas que no entran: no existen, son de otra sucursal o el formato es inválido. */}
-                      <TabsContent value="no-incluidas">
-                        <PackagesList
-                          packages={visibleRejected}
-                          showFilters={false}
-                          groupBy={view.groupBy}
-                          showRowNumbers={view.showRowNumbers}
-                          onRemove={handleRemovePackage}
-                          onTransfer={canTransfer ? setTransferPkg : undefined}
-                          isLoading={isLoading || isValidationPackages}
-                          maxHeightClass="max-h-[400px]"
-                          emptyTitle="Todo entra al inventario"
-                          emptyDescription="No hay guías rechazadas."
-                        />
-                      </TabsContent>
-                    </Tabs>
-                  </>
+                    {/* Escaneadas que no entran: no existen, son de otra sucursal o el formato es inválido. */}
+                    <TabsContent value="rejected" className="mt-2">
+                      <PackagesList
+                        packages={visibleRejected}
+                        showFilters={false}
+                        groupBy={view.groupBy}
+                        showRowNumbers={view.showRowNumbers}
+                        onRemove={handleRemovePackage}
+                        onTransfer={canTransfer ? setTransferPkg : undefined}
+                        isLoading={isLoading || isValidationPackages}
+                        maxHeightClass="max-h-[calc(100vh-15rem)] min-h-[240px]"
+                        emptyTitle="Todo entra al inventario"
+                        emptyDescription="No hay guías rechazadas."
+                      />
+                    </TabsContent>
+                  </Tabs>
                 ) : (
-                  <div className="text-center py-16 border-2 border-dashed border-muted rounded-lg">
-                    <Package className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-                    <h3 className="text-lg font-medium text-muted-foreground mb-2">Sin paquetes escaneados</h3>
-                    <p className="text-muted-foreground">Escanea algunos paquetes para comenzar</p>
+                  <div className="rounded-lg border-2 border-dashed border-muted py-16 text-center">
+                    <Package className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
+                    <h3 className="mb-1 text-base font-medium">Escanea la primera guía</h3>
+                    <p className="text-sm text-muted-foreground">Las guías aparecen aquí agrupadas por ciudad conforme las lees.</p>
                   </div>
                 )}
-              </div>
+              </section>
             </div>
-          </div>
+      </div>
 
-          <DialogFooter className="flex-row justify-end gap-2 border-t bg-background p-3 sm:p-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading} className="gap-2">
-              <X className="h-4 w-4" /> Cancelar
-            </Button>
-            <Button
-              onClick={handleExportPDF}
-              disabled={isLoading || isValidationPackages || packages.length === 0}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" /> Exportar PDF
-            </Button>
-            <Button
-              onClick={handleSaveInventory}
-              disabled={isLoading || isValidationPackages || validPackages.length === 0}
-              className="gap-2"
-            >
-              {isLoading ? <PmySpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-              Guardar {getInventoryTypeLabel(inventoryType)}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ShortcutsDialog
+        open={showShortcuts}
+        onOpenChange={setShowShortcuts}
+        shortcuts={[
+          { key: "F1", action: "Ir al escáner" },
+          { key: "F2", action: "Guardar inventario" },
+          { key: "F3", action: "Buscar en la lista (guía o CP)" },
+          { key: "ESC", action: "Quitar el filtro de conteo" },
+        ]}
+      />
 
       <TransferPackageDialog
         open={!!transferPkg}

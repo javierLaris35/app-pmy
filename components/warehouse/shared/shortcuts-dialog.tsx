@@ -8,12 +8,14 @@ export interface ShortcutsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Ej. "Finalizar Ingreso" / "Finalizar Salida". */
-  finishActionLabel: string
+  finishActionLabel?: string
+  /** Lista propia de atajos (p. ej. Inventario). Sin ella se usan los de bodega. */
+  shortcuts?: { key: string; action: string }[]
 }
 
 /** Modal de atajos de teclado (ya neutral). Copiado tal cual, con `finishActionLabel` parametrizado. */
-export function ShortcutsDialog({ open, onOpenChange, finishActionLabel }: ShortcutsDialogProps) {
-  const shortcuts = [
+export function ShortcutsDialog({ open, onOpenChange, finishActionLabel = "", shortcuts: custom }: ShortcutsDialogProps) {
+  const shortcuts = custom ?? [
     { key: "F1", action: "Enfocar campo de Escáner" },
     { key: "F2", action: `Abrir ventana de ${finishActionLabel}` },
     { key: "F3", action: "Buscar en listado (Guía o CP)" },

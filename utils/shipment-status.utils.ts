@@ -118,7 +118,8 @@ export const getStatusBadgeResp = (status: string): StatusBadgeInfo => {
   )
 }
 
-const BADGES = {
+/** Tonos del semáforo de estatus (exportados para pintar con los mismos colores en otras pantallas). */
+export const BADGES: Record<'SUCCESS' | 'ERROR' | 'WARNING' | 'INFO' | 'STORAGE' | 'NEUTRAL', StatusBadgeInfo> = {
   SUCCESS: {
     label: 'Entregado',
     color: 'bg-green-50 text-green-700 ring-green-600/20',
@@ -246,11 +247,32 @@ const STATUS_BADGE_MAP: Record<ShipmentStatus, StatusBadgeInfo> = {
   [ShipmentStatus.DESCONOCIDO]: BADGES.NEUTRAL,
 }
 
+/**
+ * Estatus que existen en el backend y no estaban en el mapa (salían como "Desconocido").
+ * Mismo semáforo: entregas en verde, DEX/devoluciones en rojo, FedEx en morado.
+ */
+const EXTRA_STATUS_BADGES: Record<string, StatusBadgeInfo> = {
+  entregado_por_fedex: { ...BADGES.SUCCESS, label: 'Entregado por FedEx' },
+  entregado_en_bodega: { ...BADGES.SUCCESS, label: 'Entregado en bodega' },
+  acargo_de_fedex: { ...BADGES.INFO, label: 'A cargo de FedEx' },
+  retorno_abandono_fedex: { ...BADGES.ERROR, label: 'Retorno por abandono' },
+  empresa_cerrada: { ...BADGES.ERROR, label: 'Empresa cerrada' },
+  demora_en_entrega: { ...BADGES.ERROR, label: 'Demora en entrega' },
+  no_se_pudo_recolectar_el_cobro: { ...BADGES.ERROR, label: 'No se cobró' },
+  restriccion_seguridad_ubicacion: { ...BADGES.ERROR, label: 'Restricción de acceso' },
+  cambio_domicilio: { ...BADGES.ERROR, label: 'Cambio de domicilio' },
+  otro: { ...BADGES.ERROR, label: 'Otro DEX' },
+  dex03: { ...BADGES.ERROR, label: 'DEX 03' },
+  dex07: { ...BADGES.ERROR, label: 'DEX 07' },
+  dex08: { ...BADGES.ERROR, label: 'DEX 08' },
+}
+
 export const getStatusBadge = (status: string): StatusBadgeInfo => {
   const normalizedStatus = status?.toLowerCase() as ShipmentStatus
 
   return (
     STATUS_BADGE_MAP[normalizedStatus] ??
+    EXTRA_STATUS_BADGES[normalizedStatus] ??
     BADGES.NEUTRAL
   )
 }

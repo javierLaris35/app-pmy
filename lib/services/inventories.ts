@@ -1,11 +1,42 @@
 import { axiosConfig } from "../axios-config"
 import { Inventory, InventoryRequest } from "../types"
 import { Paginated, ListParams } from "./pagination"
+import type { InventoryGoneBucket, InventoryGoneCounts } from "../inventory-compare"
 
 const url = '/inventories'
 
 const getInventories = async (subsidiaryId: string, params: ListParams = {}) => {
     const response = await axiosConfig.get<Paginated<Inventory>>(`${url}/${subsidiaryId}`, { params });
+    return response.data;
+}
+
+/** Comparación contra el inventario anterior del mismo día (ya no están / aparecieron / siguen). */
+export interface InventoryGoneRow {
+    id: string;
+    trackingNumber: string;
+    dhlUniqueId: string | null;
+    recipientName: string | null;
+    recipientAddress: string | null;
+    recipientCity: string | null;
+    recipientZip: string | null;
+    commitDateTime: string | null;
+    paymentLabel: string | null;
+    status: string | null;
+    isCharge: boolean;
+    bucket: InventoryGoneBucket;
+    lastMovement: { at: string; status: string; exceptionCode: string | null; notes: string | null } | null;
+}
+
+export interface InventoryCompare {
+    previous: { id: string; trackingNumber: string; inventoryDate: string; type: string; totalPackages: number } | null;
+    counts: InventoryGoneCounts;
+    gone: InventoryGoneRow[];
+    appearedKeys: string[];
+    keptKeys: string[];
+}
+
+export const getInventoryCompare = async (id: string) => {
+    const response = await axiosConfig.get<InventoryCompare>(`${url}/detail/${id}/compare`);
     return response.data;
 }
 
@@ -17,11 +48,6 @@ export const getInventoryDetail = async (id: string) => {
 
 const saveInventory = async (inventory: InventoryRequest) => {
     const response = await axiosConfig.post<Inventory>(url, inventory);
-    return response.data;
-}
-
-const validateInventory = async(trackingNumber: string) => {
-    const response = await axiosConfig.get(`${url}/validate/${trackingNumber}`);
     return response.data;
 }
 
@@ -51,7 +77,9 @@ export async function uploadFiles(
     excelFile: File,
     subsidiaryName: string,
     inventoryId: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    /** `resend`: reenvío desde el historial (no repite el correo de "críticos"). */
+    opts: { resend?: boolean } = {}
 ): Promise<any> {
     if (!inventoryId) {
         throw new Error('uploadFiles: falta el inventoryId; no se puede enviar el correo al destinatario correcto.');
@@ -64,6 +92,7 @@ export async function uploadFiles(
     // El backend resuelve el destinatario del correo a partir de la sucursal
     // guardada en ESTE inventario. Sin el id, cargaría un inventario al azar.
     formData.append('inventoryId', inventoryId);
+    if (opts.resend) formData.append('resend', 'true');
 
     try {
         const response = await axiosConfig.post('inventories/upload', formData, {
@@ -89,7 +118,6 @@ export async function uploadFiles(
 
 export {
     getInventories,
-    validateInventory,
     validateTrackingNumbers,
     saveInventory
 }

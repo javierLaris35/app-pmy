@@ -874,6 +874,8 @@ export interface PackageInfo {
   isPendingValidation?: boolean,
   /** Validado sin conexión: pendiente de revalidar cuando vuelva internet. */
   isOffline?: boolean,
+  /** Cuándo llegó a su estatus actual (fecha de entrega o de DEX en el Excel de inventario). */
+  currentStatusAt?: string | null,
   createdAt?: Date | string,
   payment?: {
     amount: string
@@ -1113,6 +1115,11 @@ export interface Inventory {
   /** Solo en el listado (conteos). */
   totalPackages?: number;
   rejectedCount?: number;
+  /** Solo en el listado: quién lo hizo y si coincidió por guía (búsqueda). */
+  createdByName?: string | null;
+  matchedByTracking?: boolean;
+  /** Solo en el listado: "Contra el anterior" del mismo día (null = no hubo anterior). */
+  compareSummary?: import("./inventory-compare").InventoryCompareSummary | null;
   /** Inventarios viejos (nunca se guardaron en BD); se conservan por compatibilidad. */
   missingTrackings?: string[];
   unScannedTrackings?: string[];
