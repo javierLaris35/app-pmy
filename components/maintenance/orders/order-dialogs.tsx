@@ -4,16 +4,11 @@ import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Mail, MessageCircle } from "lucide-react";
+import { DateField, MoneyField, SelectField, SwitchField, TextareaField, TextField } from "@/components/ui/field";
+import { AlertTriangle, CalendarClock, CalendarDays, Gauge, Mail, MessageCircle, MessageSquareText, UserRound } from "lucide-react";
 import { ContactChannel, formatKms, formatMoney, PurchaseOrder } from "@/lib/types/maintenance";
-import { FieldError, invalidClass } from "../shared/field-error";
 
 /** Motivo obligatorio (rechazar / cancelar). */
 export function ReasonDialog({
@@ -40,17 +35,12 @@ export function ReasonDialog({
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <div className="grid gap-3 py-2">
-          <Label>Motivo</Label>
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} autoFocus />
+        <div className="grid gap-5 py-2">
+          <TextareaField label="Motivo" required icon={MessageSquareText} value={reason} onChange={(e) => setReason(e.target.value)} rows={3} autoFocus
+            hint="Escribe al menos 3 letras; se guarda en el historial." />
           {withNotifySupplier && (
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Avisar al proveedor</p>
-                <p className="text-xs text-muted-foreground">Se le avisa por el mismo medio por el que recibió la orden.</p>
-              </div>
-              <Switch checked={notify} onCheckedChange={setNotify} />
-            </div>
+            <SwitchField label="Avisar al proveedor" description="Se le avisa por el mismo medio por el que recibió la orden."
+              checked={notify} onCheckedChange={setNotify} />
           )}
         </div>
         <DialogFooter>
@@ -109,34 +99,27 @@ export function SendOrderDialog({
             {order.folio} · {order.supplier?.name} · {formatMoney(order.total)}. Se adjunta el PDF solo con lo autorizado.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label>Contacto</Label>
-            <Select value={contactId} onValueChange={(v) => {
+        <div className="grid gap-5 py-2">
+          <SelectField
+            label="Contacto" required icon={UserRound} placeholder="Elige un contacto" value={contactId}
+            onValueChange={(v) => {
               setContactId(v);
               const c = contacts.find((x) => x.id === v);
               if (c) setChannel(c.preferredChannel);
-            }}>
-              <SelectTrigger><SelectValue placeholder="Elige un contacto" /></SelectTrigger>
-              <SelectContent>
-                {contacts.map((c) => (
-                  <SelectItem key={c.id} value={c.id!}>{c.name}{c.isDefault ? " (predeterminado)" : ""}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Medio</Label>
-            <RadioGroup value={channel} onValueChange={(v) => setChannel(v as ContactChannel)} className="grid grid-cols-2 gap-2">
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm has-[[data-state=checked]]:border-primary">
+            }}
+            options={contacts.map((c) => ({ value: c.id!, label: `${c.name}${c.isDefault ? " (predeterminado)" : ""}` }))}
+          />
+          <div className="grid gap-1">
+            <RadioGroup value={channel} onValueChange={(v) => setChannel(v as ContactChannel)} className="grid grid-cols-2 gap-3" aria-label="Medio">
+              <label className="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-xl border border-[hsl(var(--field-border))] px-3.5 text-sm transition hover:border-foreground/30 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-4 has-[[data-state=checked]]:ring-primary/10">
                 <RadioGroupItem value="email" /> <Mail className="h-4 w-4 text-sky-600" /> Correo
               </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm has-[[data-state=checked]]:border-primary">
+              <label className="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-xl border border-[hsl(var(--field-border))] px-3.5 text-sm transition hover:border-foreground/30 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-4 has-[[data-state=checked]]:ring-primary/10">
                 <RadioGroupItem value="whatsapp" /> <MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp
               </label>
             </RadioGroup>
-            <p className="text-xs text-muted-foreground">
-              {destination ? <>Se enviará a <b>{destination}</b></> : "El contacto no tiene dato para este medio."}
+            <p className={destination ? "px-1 text-xs text-muted-foreground" : "px-1 text-xs text-destructive"}>
+              {destination ? <>Se enviará a <span className="font-medium text-foreground">{destination}</span></> : "El contacto no tiene dato para este medio."}
             </p>
           </div>
         </div>
@@ -213,18 +196,14 @@ export function CompleteOrderDialog({
               : "Confirma que ya se recibió lo comprado. Se registra el gasto de la sucursal."}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label>{withVehicle ? "Fecha del servicio" : "Fecha en que se recibió"}</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={invalidClass(errors.date)} />
-              <FieldError message={errors.date} />
-            </div>
-            {withVehicle && <div className="grid gap-1.5">
-              <Label>Km al servicio</Label>
-              <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} className={invalidClass(errors.kms)} />
-              <FieldError message={errors.kms} />
-            </div>}
+        <div className="grid gap-5 py-2">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
+            <DateField label={withVehicle ? "Fecha del servicio" : "Fecha en que se recibió"} required icon={CalendarDays}
+              value={date} onChange={setDate} error={errors.date} className={withVehicle ? undefined : "sm:col-span-2"} />
+            {withVehicle && (
+              <TextField label="Km al servicio" required icon={Gauge} type="number" min={0} inputMode="numeric"
+                value={kms} onChange={(e) => setKms(e.target.value)} error={errors.kms} />
+            )}
           </div>
           {lower && (
             <Alert>
@@ -232,17 +211,13 @@ export function CompleteOrderDialog({
               <AlertDescription>El km es menor al registrado ({formatKms(currentKms)}). Revisa que sea correcto.</AlertDescription>
             </Alert>
           )}
-          <div className="grid gap-1.5">
-            <Label>Monto final pagado (con IVA)</Label>
-            <Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={invalidClass(errors.amount)} />
-            <FieldError message={errors.amount} />
-            <p className="text-xs text-muted-foreground">Autorizado: {formatMoney(order.total)}. Este monto es el que se registra como gasto.</p>
-          </div>
+          <MoneyField
+            label="Monto final pagado (con IVA)" required error={errors.amount}
+            value={amount === "" ? "" : Number(amount)} onValueChange={(v) => setAmount(v === "" ? "" : String(v))}
+            hint={`Autorizado: ${formatMoney(order.total)}. Este monto es el que se registra como gasto de la sucursal.`}
+          />
           {withVehicle && (
-            <div className="grid gap-1.5">
-              <Label>Próximo servicio (fecha, opcional)</Label>
-              <Input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
-            </div>
+            <DateField label="Próximo servicio" icon={CalendarClock} value={nextDate} onChange={setNextDate} placeholder="Opcional" clearable />
           )}
         </div>
         <DialogFooter>

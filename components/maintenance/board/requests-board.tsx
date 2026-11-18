@@ -38,15 +38,14 @@ export function RequestsBoard({ cards, isLoading, role, views = BOARD_VIEWS, fil
     <div className="flex flex-col gap-4 md:flex-row">
       <BoardViewsRail cards={cards} active={view} role={role} onChange={setView} views={views} />
       <div className="min-w-0 flex-1 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar folio, unidad o descripción" className="h-9 pl-8" />
-            </div>
-            {filters}
+        {/* Una sola línea: buscador que se estira + filtros + Kanban/Lista (en pantallas angostas se acomoda). */}
+        <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar folio, unidad o descripción" className="h-9 pl-8" />
           </div>
-          <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as "kanban" | "lista")} size="sm" variant="outline">
+          {filters && <div className="flex shrink-0 items-center gap-2">{filters}</div>}
+          <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as "kanban" | "lista")} size="sm" variant="outline" className="shrink-0">
             <ToggleGroupItem value="kanban" className="h-8 gap-1.5 px-2.5 text-xs"><KanbanSquare className="h-4 w-4" />Kanban</ToggleGroupItem>
             <ToggleGroupItem value="lista" className="h-8 gap-1.5 px-2.5 text-xs"><List className="h-4 w-4" />Lista</ToggleGroupItem>
           </ToggleGroup>

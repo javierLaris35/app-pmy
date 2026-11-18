@@ -4,23 +4,20 @@ import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2 } from "lucide-react";
+import { AddItemButton, ComboField, FormSection, TextareaField, TextField } from "@/components/ui/field";
+import { Boxes, Hash, Package, ScrollText, Truck, Wrench, X } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProductCategories, useUnits } from "@/hooks/services/maintenance/use-maintenance";
 import { saveServiceTemplate } from "@/lib/services/maintenance";
 import { ServiceTemplate } from "@/lib/types/compras";
 import { validateServiceTemplate } from "@/lib/maintenance-validation";
 import { apiError } from "../shared/confirm-action";
-import { FieldError, invalidClass } from "../shared/field-error";
 import { KeywordsInput } from "../shared/keywords-input";
-import { SearchableSelect, SearchOption } from "../shared/searchable-select";
-import { newId } from "@/lib/uuid"
+import { SearchOption } from "../shared/searchable-select";
 
+import { newId } from "@/lib/uuid";
 interface RecipeRow { key: string; categoryId: string; quantity: number; unitId: string | null }
 
 /** Alta/edición de un servicio predefinido: nombre, sinónimos y receta opcional de piezas/insumos. */
@@ -90,76 +87,50 @@ export function ServiceTemplateDialog({ open, onOpenChange, service, onSaved }: 
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[68vh] pr-3">
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-              <div className="grid gap-1.5">
-                <Label>Nombre</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Servicio de 10,000 km" className={invalidClass(errors.name)} />
-                <FieldError message={errors.name} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Tipo de unidad (opcional)</Label>
-                <Input value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} placeholder="Todas" />
-              </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Descripción (opcional)</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Qué incluye el servicio" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Sinónimos</Label>
-              <KeywordsInput value={keywords} onChange={setKeywords} placeholder="Ej. frenos, rechina, truena al frenar" />
-              <p className="text-xs text-muted-foreground">Si quien pide escribe alguna de estas palabras, el sistema reconoce este servicio.</p>
-            </div>
+          <div className="grid gap-6 px-0.5 pb-1 pt-3">
+            <FormSection title="Servicio" columns={3}>
+              <TextField label="Nombre" required icon={Wrench} className="md:col-span-2" placeholder="Ej. Servicio de 10,000 km"
+                value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
+              <TextField label="Tipo de unidad" icon={Truck} placeholder="Todas" value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} />
+              <TextareaField label="Descripción" icon={ScrollText} className="md:col-span-3" rows={2} placeholder="Qué incluye el servicio (opcional)"
+                value={description} onChange={(e) => setDescription(e.target.value)} />
+              <KeywordsInput className="md:col-span-3" value={keywords} onChange={setKeywords} placeholder="Ej. frenos, rechina, truena al frenar"
+                hint="Si quien pide escribe alguna de estas palabras, el sistema reconoce este servicio." />
+            </FormSection>
 
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label>Receta: piezas e insumos que lleva (opcional)</Label>
-                <Button type="button" size="sm" variant="outline"
-                  onClick={() => setRows((rs) => [...rs, { key: newId(), categoryId: "", quantity: 1, unitId: null }])}>
-                  <Plus className="mr-1.5 h-4 w-4" /> Agregar
-                </Button>
-              </div>
+            <FormSection title="Receta" description="Piezas e insumos que lleva (opcional). Si la pones, en la cotización se sugieren exactamente estas.">
               {rows.length === 0 ? (
-                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
                   Sin receta. El sistema sugerirá piezas por lo que escriba quien pide.
                 </p>
               ) : (
-                <div className="grid gap-2">
+                <div className="grid gap-3">
                   {rows.map((r, i) => (
-                    <div key={r.key} className="grid gap-2 rounded-lg border p-2.5 md:grid-cols-[minmax(0,1fr)_100px_160px_auto] md:items-start">
-                      <div className="grid gap-1">
-                        <SearchableSelect value={r.categoryId || null} onChange={(v) => patch(r.key, { categoryId: v ?? "" })} options={categoryOptions}
-                          placeholder="Buscar pieza o insumo" searchPlaceholder="Escribe para buscar…" invalid={!!errors[`rows.${i}.categoryId`]} />
-                        <FieldError message={errors[`rows.${i}.categoryId`]} />
-                      </div>
-                      <div className="grid gap-1">
-                        <Input type="number" min={0.01} step="0.01" value={r.quantity} onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
-                          aria-label="Cantidad" className={invalidClass(errors[`rows.${i}.quantity`])} />
-                        <FieldError message={errors[`rows.${i}.quantity`]} />
-                      </div>
-                      <SearchableSelect value={r.unitId} onChange={(v) => patch(r.key, { unitId: v })} options={unitOptions} allowClear clearLabel="Presentación"
-                        searchPlaceholder="Buscar presentación…" />
-                      <Button type="button" size="icon" variant="ghost" className="text-destructive" aria-label="Quitar"
+                    <div key={r.key} className="grid items-start gap-3 md:grid-cols-[minmax(0,1fr)_120px_180px_auto]">
+                      <ComboField label="Pieza o insumo" required icon={Package} value={r.categoryId || null} onChange={(v) => patch(r.key, { categoryId: v ?? "" })}
+                        options={categoryOptions} placeholder="Buscar pieza o insumo" searchPlaceholder="Escribe para buscar…" error={errors[`rows.${i}.categoryId`]} />
+                      <TextField label="Cantidad" required icon={Hash} type="number" min={0.01} step="0.01" value={r.quantity}
+                        onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })} error={errors[`rows.${i}.quantity`]} />
+                      <ComboField label="Presentación" icon={Boxes} value={r.unitId} onChange={(v) => patch(r.key, { unitId: v })} options={unitOptions}
+                        allowClear clearLabel="Sin presentación" placeholder="Opcional" searchPlaceholder="Buscar presentación…" />
+                      <Button type="button" size="icon" variant="ghost" className="mt-1.5 h-9 w-9 text-muted-foreground hover:text-destructive" aria-label="Quitar"
                         onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}>
-                        <Trash2 className="h-4 w-4" />
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Activo</p>
-                <p className="text-xs text-muted-foreground">Los inactivos ya no se ofrecen al pedir.</p>
-              </div>
-              <Switch checked={active} onCheckedChange={setActive} />
-            </div>
+              <AddItemButton onClick={() => setRows((rs) => [...rs, { key: newId(), categoryId: "", quantity: 1, unitId: null }])}>
+                Agregar pieza o insumo
+              </AddItemButton>
+            </FormSection>
           </div>
         </ScrollArea>
-        <DialogFooter>
+        <DialogFooter className="items-center border-t pt-4">
+          <label className="mr-auto flex cursor-pointer items-center gap-2 text-sm" title="Los inactivos ya no se ofrecen al pedir.">
+            <Switch checked={active} onCheckedChange={setActive} /> {active ? "Activo" : "Inactivo (no se ofrece al pedir)"}
+          </label>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button onClick={save} disabled={saving}>{saving && <PmySpinner className="mr-2 h-4 w-4" />}Guardar servicio</Button>
         </DialogFooter>

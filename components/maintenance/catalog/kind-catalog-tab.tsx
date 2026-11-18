@@ -6,17 +6,15 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { TextField } from "@/components/ui/field";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pencil } from "lucide-react";
+import { Pencil, Ruler, Tag } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProductCategories, useUnits } from "@/hooks/services/maintenance/use-maintenance";
 import { saveProductCategory, saveUnit } from "@/lib/services/maintenance";
 import { KIND_LABEL, ProductKind } from "@/lib/types/compras";
 import { apiError } from "../shared/confirm-action";
-import { FieldError, invalidClass } from "../shared/field-error";
 import { KeywordsInput } from "../shared/keywords-input";
 
 interface SimpleRow { id: string; name: string; active: boolean; extra?: string | null; keywords?: string | null }
@@ -48,31 +46,20 @@ function SimpleFormDialog({ open, onOpenChange, title, row, withAbbreviation, wi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label>Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className={invalidClass(nameError)} autoFocus />
-            <FieldError message={nameError} />
-          </div>
+        <div className="grid gap-5 pt-3 pb-1">
+          <TextField label="Nombre" required icon={Tag} value={name} onChange={(e) => setName(e.target.value)} error={nameError} autoFocus />
           {withAbbreviation && (
-            <div className="grid gap-1.5">
-              <Label>Abreviatura</Label>
-              <Input value={abbr} onChange={(e) => setAbbr(e.target.value)} maxLength={15} placeholder="Ej. L, PZA, GAL" />
-            </div>
+            <TextField label="Abreviatura" icon={Ruler} value={abbr} onChange={(e) => setAbbr(e.target.value)} maxLength={15} placeholder="Ej. L, PZA, GAL" />
           )}
           {withKeywords && (
-            <div className="grid gap-1.5">
-              <Label>Sinónimos</Label>
-              <KeywordsInput value={keywords} onChange={setKeywords} />
-              <p className="text-xs text-muted-foreground">Palabras con las que la gente la describe. Sirven para sugerirla en la cotización.</p>
-            </div>
+            <KeywordsInput value={keywords} onChange={setKeywords}
+              hint="Palabras con las que la gente la describe. Sirven para sugerirla en la cotización." />
           )}
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <p className="text-sm font-medium">Activo</p>
-            <Switch checked={active} onCheckedChange={setActive} />
-          </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="items-center border-t pt-4">
+          <label className="mr-auto flex cursor-pointer items-center gap-2 text-sm">
+            <Switch checked={active} onCheckedChange={setActive} /> {active ? "Activo" : "Inactivo"}
+          </label>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button
             disabled={saving}

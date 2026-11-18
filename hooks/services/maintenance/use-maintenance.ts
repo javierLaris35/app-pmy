@@ -108,9 +108,12 @@ export function useMyRequests(type?: string) {
   return { cards: data ?? [], isLoading, mutate };
 }
 
+/** Vacío estable: un `[]` nuevo en cada render dispararía en bucle los efectos que dependen de `spec`. */
+const NO_SPEC: Awaited<ReturnType<typeof getVehicleSpec>> = [];
+
 export function useVehicleSpec(vehicleId?: string | null) {
   const { data, isLoading, mutate } = useSWR(vehicleId ? ["compras-spec", vehicleId] : null, () => getVehicleSpec(vehicleId!));
-  return { spec: data ?? [], isLoading, mutate };
+  return { spec: data ?? NO_SPEC, isLoading, mutate };
 }
 
 // ---------------- Compras: catálogos v3 ----------------

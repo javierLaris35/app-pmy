@@ -4,15 +4,13 @@ import { PmySpinner } from "@/components/ui/pmy-loader";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateField, FormSection, SelectField, TextField } from "@/components/ui/field";
+import { CalendarClock, CalendarDays, Gauge, Info, Repeat, Wrench } from "lucide-react";
 
 import { toast } from "@/lib/toast";
 import { updateVehicleSchedule } from "@/lib/services/maintenance";
 import { formatKms, MaintenanceVehicle, vehicleLabel } from "@/lib/types/maintenance";
 import { apiError } from "../shared/confirm-action";
-import { FieldError, invalidClass } from "../shared/field-error";
 
 const INTERVALS = [5000, 7500, 10000];
 const toDay = (d?: string | null) => (d ? new Date(d).toISOString().slice(0, 10) : "");
@@ -53,6 +51,7 @@ export function ScheduleDialog({ vehicle, onOpenChange, onSaved }: Props) {
     ...(lastKms !== "" && kms !== "" && Number(lastKms) > Number(kms) ? { lastKms: "El km del último servicio no puede ser mayor al km actual." } : {}),
   };
   const errors = tried ? allErrors : {};
+  const nextKmsText = lastKms !== "" && intervalValue >= 500 ? formatKms(Number(lastKms) + intervalValue) : null;
 
   const save = async () => {
     if (!vehicle) return;
@@ -79,54 +78,53 @@ export function ScheduleDialog({ vehicle, onOpenChange, onSaved }: Props) {
 
   return (
     <Dialog open={!!vehicle} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Programar mantenimiento</DialogTitle>
           <DialogDescription>{vehicleLabel(vehicle)}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label>Km actual</Label>
-            <Input type="number" min={0} value={kms} onChange={(e) => setKms(e.target.value)} className={invalidClass(errors.kms)} />
-            <FieldError message={errors.kms} />
-            <p className="text-xs text-muted-foreground">
-              Se actualiza solo con las salidas a ruta y cierres. Corrígelo aquí si está mal (registrado: {formatKms(vehicle?.kms)}).
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label>Servicio cada</Label>
-              <Select value={interval} onValueChange={setInterval}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {INTERVALS.map((i) => <SelectItem key={i} value={String(i)}>{i.toLocaleString("es-MX")} km</SelectItem>)}
-                  <SelectItem value="otro">Otro…</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {interval === "otro" && (
-              <div className="grid gap-1.5">
-                <Label>Km</Label>
-                <Input type="number" min={500} value={customInterval} onChange={(e) => setCustomInterval(e.target.value)} className={invalidClass(errors.interval)} />
-                <FieldError message={errors.interval} />
-              </div>
+        <div className="grid gap-6 py-2">
+          <FormSection title="Kilometraje" columns={2}>
+            <TextField
+              label="Km actual" icon={Gauge} type="number" min={0} inputMode="numeric" className="md:col-span-2"
+              value={kms} onChange={(e) => setKms(e.target.value)} error={errors.kms}
+              trailing={<span className="text-xs text-muted-foreground">km</span>}
+              hint={`Sube solo con salidas y cierres de ruta. Corrígelo si está mal (registrado: ${formatKms(vehicle?.kms)}).`}
+            />
+            <SelectField
+              label="Servicio cada" icon={Repeat} value={interval} onValueChange={setInterval}
+              options={[...INTERVALS.map((i) => ({ value: String(i), label: `${i.toLocaleString("es-MX")} km` })), { value: "otro", label: "Otro…" }]}
+              error={interval === "otro" ? undefined : errors.interval}
+            />
+            {interval === "otro" ? (
+              <TextField
+                label="Cada cuántos km" required icon={Repeat} type="number" min={500} inputMode="numeric"
+                value={customInterval} onChange={(e) => setCustomInterval(e.target.value)} error={errors.interval}
+              />
+            ) : (
+              <TextField
+                label="Último servicio (km)" icon={Wrench} type="number" min={0} inputMode="numeric" placeholder="Sin registro"
+                value={lastKms} onChange={(e) => setLastKms(e.target.value)} error={errors.lastKms}
+              />
             )}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label>Último servicio (km)</Label>
-              <Input type="number" min={0} value={lastKms} onChange={(e) => setLastKms(e.target.value)} placeholder="Sin registro" className={invalidClass(errors.lastKms)} />
-              <FieldError message={errors.lastKms} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Último servicio (fecha)</Label>
-              <Input type="date" value={lastDate} onChange={(e) => setLastDate(e.target.value)} />
-            </div>
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Próximo servicio (fecha, opcional)</Label>
-            <Input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Lo que ocurra primero (km o fecha) marca el servicio como próximo o vencido.</p>
+            {interval === "otro" && (
+              <TextField
+                label="Último servicio (km)" icon={Wrench} type="number" min={0} inputMode="numeric" placeholder="Sin registro" className="md:col-span-2"
+                value={lastKms} onChange={(e) => setLastKms(e.target.value)} error={errors.lastKms}
+              />
+            )}
+          </FormSection>
+          <FormSection title="Fechas" columns={2}>
+            <DateField label="Último servicio" icon={CalendarDays} value={lastDate} onChange={setLastDate} clearable />
+            <DateField label="Próximo servicio" icon={CalendarClock} value={nextDate} onChange={setNextDate} placeholder="Opcional" clearable />
+          </FormSection>
+          <div className="flex items-start gap-2 rounded-xl bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              {nextKmsText
+                ? <>Próximo servicio a los <span className="font-medium text-foreground">{nextKmsText}</span>{nextDate ? " o en la fecha" : ""}, lo que pase primero.</>
+                : "Captura el km del último servicio para calcular cuándo toca el siguiente. Lo que ocurra primero (km o fecha) lo marca como próximo o vencido."}
+            </span>
           </div>
         </div>
         <DialogFooter>

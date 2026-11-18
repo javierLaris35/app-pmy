@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   BoardCard, ExpedienteStage, formatMoney, PRIORITY_LABEL, REQUEST_TYPE_LABEL, STAGE_LABEL, vehicleLabel,
@@ -79,7 +79,7 @@ export function BoardKanban({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c:
       {columns.map((col) => {
         const list = cards.filter((c) => c.stage === col.stage);
         return (
-          <div key={col.stage} className="flex w-80 shrink-0 flex-col">
+          <div key={col.stage} className="flex min-w-[210px] flex-1 basis-0 flex-col">
             <div className="mb-2 rounded-lg bg-muted/60 px-3 py-2">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm font-medium">
@@ -126,7 +126,14 @@ export function BoardList({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: B
         accessorKey: "folio",
         header: "Folio",
         cell: ({ row }) => (
-          <button onClick={() => onOpen(row.original)} className="font-mono text-sm font-medium text-primary hover:underline">{row.original.folio}</button>
+          <span className="flex items-center gap-1.5">
+            <button onClick={() => onOpen(row.original)} className="font-mono text-[13px] font-medium text-primary hover:underline">{row.original.folio}</button>
+            {row.original.priority === "alta" && (
+              <Flag className="h-3.5 w-3.5 text-red-600" aria-label={`Prioridad ${PRIORITY_LABEL.alta}`}>
+                <title>{`Prioridad ${PRIORITY_LABEL.alta}`}</title>
+              </Flag>
+            )}
+          </span>
         ),
       },
       {
@@ -134,21 +141,21 @@ export function BoardList({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: B
         accessorFn: (c) => `${c.folio} ${vehicleLabel(c.vehicle)} ${c.description} ${c.subsidiary?.name ?? ""}`,
         header: "Solicitud",
         cell: ({ row }) => (
-          <div className="max-w-[320px]">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className={cn("h-5 rounded-md border-0 px-1.5 text-[11px]", TYPE_CLASS[row.original.type])}>
-                {REQUEST_TYPE_LABEL[row.original.type]}
-              </Badge>
-              {row.original.vehicle && <span className="text-sm font-medium">{vehicleLabel(row.original.vehicle)}</span>}
-            </div>
-            <p className="truncate text-xs text-muted-foreground">{row.original.description}</p>
+          <div className="flex max-w-[235px] items-center gap-2 overflow-hidden" title={row.original.description}>
+            <Badge variant="secondary" className={cn("h-5 shrink-0 rounded-md border-0 px-1.5 text-[11px]", TYPE_CLASS[row.original.type])}>
+              {REQUEST_TYPE_LABEL[row.original.type]}
+            </Badge>
+            {row.original.vehicle && <span className="min-w-0 truncate text-[13px] font-medium">{vehicleLabel(row.original.vehicle)}</span>}
           </div>
         ),
       },
-      { id: "subsidiary", header: "Sucursal", cell: ({ row }) => row.original.subsidiary?.name ?? "—" },
+      { id: "subsidiary", header: "Sucursal", cell: ({ row }) => <span className="block max-w-[100px] truncate" title={row.original.subsidiary?.name}>{row.original.subsidiary?.name ?? "—"}</span> },
       { id: "stage", header: "Etapa", cell: ({ row }) => <StageBadge stage={row.original.stage} /> },
-      { id: "next", header: "Qué sigue", cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.nextStep}</span> },
-      { id: "priority", header: "Prioridad", cell: ({ row }) => PRIORITY_LABEL[row.original.priority] },
+      {
+        id: "next",
+        header: "Qué sigue",
+        cell: ({ row }) => <span className="block max-w-[100px] truncate text-xs text-muted-foreground" title={row.original.nextStep}>{row.original.nextStep}</span>,
+      },
       {
         id: "amount",
         header: () => <div className="text-right">Monto</div>,
@@ -162,7 +169,8 @@ export function BoardList({ cards, onOpen }: { cards: BoardCard[]; onOpen: (c: B
     ],
     [onOpen],
   );
-  return <DataTable columns={columns} data={cards} searchKey="search" />;
+  // El buscador de arriba (RequestsBoard) ya filtra: sin barra propia para no tener dos buscadores. Un renglón por solicitud.
+  return <DataTable columns={columns} data={cards} hideToolbar dense onRowClick={onOpen} />;
 }
 
 export function BoardEmpty({ title, text, onCreate, createLabel }: { title: string; text: string; onCreate?: () => void; createLabel?: string }) {

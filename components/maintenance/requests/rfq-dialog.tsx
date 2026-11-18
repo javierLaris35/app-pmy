@@ -6,11 +6,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { FormSection, SelectField, TextareaField } from "@/components/ui/field";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, FileDown, Send, XCircle } from "lucide-react";
+import { CheckCircle2, FileDown, Send, StickyNote, XCircle } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useProducts, useSuppliers } from "@/hooks/services/maintenance/use-maintenance";
 import { openBlob, sendRfq } from "@/lib/services/maintenance";
@@ -139,8 +137,9 @@ export function RfqDialog({ open, onOpenChange, request, needs = [], onSent }: P
           </ul>
         ) : (
           <ScrollArea className="max-h-[60vh] pr-3">
-            <div className="grid gap-4 py-1">
-              <ul className="divide-y rounded-lg border">
+            <div className="grid gap-6 px-0.5 pb-1 pt-1">
+              <FormSection title="Proveedores" description="Marca a quién se le pide; se usa su contacto y su medio preferido.">
+              <ul className="divide-y rounded-xl border">
                 {sorted.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">No hay proveedores. Agrégalos en Catálogos → Proveedores.</li>}
                 {sorted.map((s) => {
                   const t = targets[s.id];
@@ -163,31 +162,25 @@ export function RfqDialog({ open, onOpenChange, request, needs = [], onSent }: P
                         )}
                       </div>
                       {s.contacts.length > 1 && (
-                        <Select value={t.contactId} onValueChange={(v) => {
-                          const c = s.contacts.find((x) => x.id === v);
-                          const next = channelsOf(c);
-                          patch(s.id, { contactId: v, channel: next.includes(t.channel) ? t.channel : next[0] ?? "email", selected: t.selected && next.length > 0 });
-                        }}>
-                          <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Contacto" /></SelectTrigger>
-                          <SelectContent>{s.contacts.map((c) => <SelectItem key={c.id} value={c.id!}>{c.name}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <SelectField size="sm" label="Contacto" placeholder="Contacto" className="w-44" value={t.contactId}
+                          onValueChange={(v) => {
+                            const c = s.contacts.find((x) => x.id === v);
+                            const next = channelsOf(c);
+                            patch(s.id, { contactId: v, channel: next.includes(t.channel) ? t.channel : next[0] ?? "email", selected: t.selected && next.length > 0 });
+                          }}
+                          options={s.contacts.map((c) => ({ value: c.id!, label: c.name }))} />
                       )}
                       {s.contacts.length === 1 && contact && <span className="text-xs text-muted-foreground">{contact.name}</span>}
-                      <Select value={t.channel} onValueChange={(v) => patch(s.id, { channel: v as ContactChannel })} disabled={chs.length < 2}>
-                        <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {(chs.length ? chs : (["email"] as ContactChannel[])).map((c) => <SelectItem key={c} value={c}>{CHANNEL_LABEL[c]}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <SelectField size="sm" label="Medio" className="w-32" value={t.channel} disabled={chs.length < 2}
+                        onValueChange={(v) => patch(s.id, { channel: v as ContactChannel })}
+                        options={(chs.length ? chs : (["email"] as ContactChannel[])).map((c) => ({ value: c, label: CHANNEL_LABEL[c] }))} />
                     </li>
                   );
                 })}
               </ul>
-              <div className="grid gap-1.5">
-                <Label>Notas para el proveedor (opcional)</Label>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000}
-                  placeholder="Ej. la necesitamos antes del viernes, entregar en sucursal Hermosillo…" />
-              </div>
+              </FormSection>
+              <TextareaField label="Notas para el proveedor" icon={StickyNote} rows={2} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ej. la necesitamos antes del viernes, entregar en sucursal Hermosillo…" hint="Opcional; aparecen en el PDF." />
             </div>
           </ScrollArea>
         )}
