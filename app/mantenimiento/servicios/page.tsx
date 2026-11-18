@@ -97,7 +97,7 @@ function ServiciosPage() {
 
   return (
     <AppLayout>
-      <div className="flex min-h-screen flex-col gap-4 p-4 md:p-5">
+      <div className="flex flex-col gap-4">
         <OperationHeader
           icon={ListChecks}
           title="Servicios de mantenimiento"

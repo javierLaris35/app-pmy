@@ -1,63 +1,85 @@
-import { ArrowRight } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { ArrowRight, CircleCheck, CircleSlash, Flag, Gauge, Store, Truck, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ExpedienteProgress, formatKms, MaintenanceRequest, PRIORITY_LABEL, REQUEST_TYPE_LABEL, vehicleLabel } from "@/lib/types/maintenance";
+import { ExpedienteProgress, formatKms, MaintenanceRequest, PRIORITY_LABEL, vehicleLabel } from "@/lib/types/maintenance";
 import { WAITING_LABEL } from "@/lib/compras-expediente";
-import { StageBadge } from "../board/board-views";
+import { relativeTime } from "../board/expediente-card";
 
 const personName = (p?: { name?: string; lastName?: string } | null) => [p?.name, p?.lastName].filter(Boolean).join(" ") || "—";
 
+function Fact({ icon: Icon, children, className }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground", className)}>
+      <Icon className="h-3.5 w-3.5 shrink-0" /> {children}
+    </span>
+  );
+}
+
 /**
- * Encabezado del expediente: folio + estado, datos clave y un recuadro de "Qué sigue" con quién debe actuar.
- * Reemplaza la barra de pasos lineal (con varias órdenes, cada una lleva su propio avance en "Órdenes").
+ * Tarjeta de arriba del expediente: "Qué sigue" a todo lo ancho (paso, a quién le toca y cuánto lleva esperando)
+ * y los datos clave en una sola línea con íconos. El folio, el estado y el tipo ya van en el encabezado.
  */
 export function ExpedienteHeader({ request, progress, totalLabel }: {
-  request: MaintenanceRequest;
+  request: MaintenanceRequest & { updatedAt?: string | null };
   progress: ExpedienteProgress;
   /** Monto de las órdenes activas (si hay). */
   totalLabel?: string | null;
 }) {
   const closed = ["terminado", "cancelado", "rechazada"].includes(progress.stage);
-  const facts: Array<[string, string]> = [
-    ["Tipo", REQUEST_TYPE_LABEL[request.type]],
-    ...(request.vehicle ? [["Unidad", vehicleLabel(request.vehicle)] as [string, string]] : []),
-    ...(request.vehicle && (request.kmsAtRequest ?? request.vehicle.kms) ? [["Km", formatKms(request.kmsAtRequest ?? request.vehicle.kms)] as [string, string]] : []),
-    ["Sucursal", request.subsidiary?.name ?? "—"],
-    ["Pidió", personName(request.createdBy)],
-    ["Prioridad", PRIORITY_LABEL[request.priority]],
-    ...(request.reviewedBy ? [["Revisó", personName(request.reviewedBy)] as [string, string]] : []),
-    ...(totalLabel ? [["Monto", totalLabel] as [string, string]] : []),
-  ];
+  const done = progress.stage === "terminado";
+  const since = request.updatedAt ?? request.reviewedAt ?? request.createdAt;
+  const km = request.kmsAtRequest ?? request.vehicle?.kms;
 
   return (
-    <div className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,300px)]">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="font-mono text-lg font-bold tracking-tight">{request.folio}</h2>
-          <StageBadge stage={progress.stage} />
-        </div>
-        <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
-          {facts.map(([k, v]) => (
-            <div key={k} className="min-w-0">
-              <dt className="text-[11px] text-muted-foreground">{k}</dt>
-              <dd className="truncate font-medium">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+    <div className="overflow-hidden rounded-xl border bg-card">
       {progress.nextStep && (
-        <div className={cn("self-start rounded-xl border p-3", closed ? "border-border bg-muted/40" : "border-amber-200 bg-amber-50")}>
-          <p className={cn("text-[11px] font-semibold uppercase tracking-wide", closed ? "text-muted-foreground" : "text-amber-800")}>
-            {closed ? "Estado" : "Qué sigue"}
-          </p>
-          <p className="mt-1 flex items-start gap-1.5 text-[13px] font-medium leading-snug">
-            {!closed && <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />}
-            {progress.nextStep}
-          </p>
-          {progress.waitingOn && !closed && (
-            <p className="mt-1 text-xs text-amber-800/80">Le toca a: {WAITING_LABEL[progress.waitingOn]}</p>
+        <div className={cn("flex flex-wrap items-center gap-3 px-4 py-3", closed ? "bg-muted/50" : "bg-amber-50")}>
+          <span
+            className={cn(
+              "grid h-8 w-8 shrink-0 place-items-center rounded-full",
+              closed ? (done ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground") : "bg-amber-400 text-amber-950",
+            )}
+            aria-hidden
+          >
+            {closed ? (done ? <CircleCheck className="h-4 w-4" /> : <CircleSlash className="h-4 w-4" />) : <ArrowRight className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={cn("text-[11px] font-semibold", closed ? "text-muted-foreground" : "text-amber-800")}>{closed ? "Estado" : "Qué sigue"}</p>
+            <p className="text-sm font-semibold leading-snug">{progress.nextStep}</p>
+          </div>
+          {!closed && progress.waitingOn && (
+            <div className="text-right text-xs text-amber-800">
+              <p>Le toca a <span className="font-semibold">{WAITING_LABEL[progress.waitingOn]}</span></p>
+              {since && <p className="text-amber-800/80">esperando {relativeTime(since)}</p>}
+            </div>
           )}
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 px-4 py-2.5">
+        {request.vehicle && (
+          <>
+            <Fact icon={Truck}><span className="font-medium text-foreground">{vehicleLabel(request.vehicle)}</span></Fact>
+            {km ? <><span className="h-3.5 w-px bg-border" aria-hidden /><Fact icon={Gauge}>{formatKms(km)} al pedir</Fact></> : null}
+            <span className="h-3.5 w-px bg-border" aria-hidden />
+          </>
+        )}
+        <Fact icon={Store}>{request.subsidiary?.name ?? "—"}</Fact>
+        <span className="h-3.5 w-px bg-border" aria-hidden />
+        <Fact icon={UserRound}>
+          Pidió <span className="font-medium text-foreground">{personName(request.createdBy)}</span>
+          {request.createdAt && <> · {format(new Date(request.createdAt), "d MMM", { locale: es })}</>}
+        </Fact>
+        {request.priority === "alta" && (
+          <>
+            <span className="h-3.5 w-px bg-border" aria-hidden />
+            <Fact icon={Flag} className="text-red-600">Prioridad {PRIORITY_LABEL.alta.toLowerCase()}</Fact>
+          </>
+        )}
+        <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground">
+          Monto <span className="font-semibold tabular-nums text-foreground">{totalLabel ?? "—"}</span>
+        </span>
+      </div>
     </div>
   );
 }

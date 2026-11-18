@@ -202,8 +202,17 @@ function SolicitudContent() {
   const hasDanger = canCancel || canCancelOrder || canDelete;
   const hasMore = moreItems.length > 0 || hasDanger;
 
-  const headerActions = primary || hasMore ? (
+  // "Volver" vive en el encabezado (barra de tareas), a la izquierda de las acciones del paso.
+  const backButton = (
+    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground"
+      title={isPurchaser ? "Volver al tablero" : "Volver a mis solicitudes"} aria-label={isPurchaser ? "Volver al tablero" : "Volver a mis solicitudes"}
+      onClick={() => router.push(isPurchaser ? "/compras/tablero" : "/compras/solicitudes")}>
+      <ArrowLeft className="h-4 w-4" />
+    </Button>
+  );
+  const headerActions = (
     <div className="flex items-center gap-2">
+      {backButton}
       {primary}
       {hasMore && (
         <DropdownMenu>
@@ -224,7 +233,7 @@ function SolicitudContent() {
         </DropdownMenu>
       )}
     </div>
-  ) : undefined;
+  );
 
   const close = (o: boolean) => { if (!o) setDialog(null); };
   const liveTotal = live.reduce((a, o) => a + Number(o.total), 0);
@@ -241,20 +250,14 @@ function SolicitudContent() {
   const currentTab: ExpedienteTab = tab && tabs.some((t) => t.key === tab) ? tab : tabs.some((t) => t.key === fallbackTab) ? fallbackTab : "solicitud";
 
   return (
-    <div className="flex min-h-screen flex-col gap-4 p-4 md:p-5">
+    <div className="flex flex-col gap-4">
       <OperationHeader
         icon={ClipboardList}
-        title={`Solicitud ${request.folio}`}
-        description={[REQUEST_TYPE_LABEL[request.type], request.vehicle ? vehicleLabel(request.vehicle) : null].filter(Boolean).join(" · ")}
+        title={request.folio}
+        description={[`Solicitud de ${REQUEST_TYPE_LABEL[request.type].toLowerCase()}`, request.vehicle ? vehicleLabel(request.vehicle) : null].filter(Boolean).join(" · ")}
         titleAccessory={<StageBadge stage={progress.stage} />}
         actions={headerActions}
       />
-
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => router.push(isPurchaser ? "/compras/tablero" : "/compras/solicitudes")}>
-          <ArrowLeft className="mr-1.5 h-4 w-4" /> {isPurchaser ? "Volver al tablero" : "Mis solicitudes"}
-        </Button>
-      </div>
 
       <ExpedienteHeader request={request} progress={progress} totalLabel={hasOrder ? formatMoney(liveTotal) : null} />
 
@@ -278,7 +281,7 @@ function SolicitudContent() {
               <AlertDescription>{request.rejectionReason}</AlertDescription>
             </Alert>
           )}
-          <RequestItemsCard items={request.items ?? []} services={request.services ?? []} description={request.description} />
+          <RequestItemsCard request={request} />
         </TabsContent>
 
         {canSeeQuotes && (
