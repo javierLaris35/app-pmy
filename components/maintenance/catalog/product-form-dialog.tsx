@@ -136,7 +136,7 @@ export function ProductFormDialog({ open, onOpenChange, product, onSaved }: Prop
               ) : (
                 <div className="grid gap-3">
                   {offers.map((o, i) => (
-                    <div key={o.key} className="grid items-start gap-3 md:grid-cols-[minmax(0,1fr)_170px_150px_auto_auto]">
+                    <div key={o.key} className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_170px_150px_auto_auto]">
                       <ComboField label="Proveedor" required icon={Store} value={o.supplierId || null} onChange={(v) => patch(o.key, { supplierId: v ?? "" })}
                         options={suppliers.map((sp) => ({ value: sp.id, label: sp.name }))} placeholder="Elige proveedor" searchPlaceholder="Buscar proveedor…"
                         error={errors[`offers.${i}.supplierId`]} />
@@ -145,10 +145,10 @@ export function ProductFormDialog({ open, onOpenChange, product, onSaved }: Prop
                         searchPlaceholder="Buscar presentación…" />
                       <MoneyField label="Precio sin IVA" required value={o.price} onValueChange={(v) => patch(o.key, { price: v === "" ? 0 : v })}
                         error={errors[`offers.${i}.price`]} />
-                      <div className="flex h-12 items-center px-1" title="Calidad">
+                      <div className="flex h-10 items-center px-1" title="Calidad">
                         <StarRating value={o.quality} onChange={(v) => patch(o.key, { quality: v })} />
                       </div>
-                      <Button type="button" size="icon" variant="ghost" className="mt-1.5 h-9 w-9 text-muted-foreground hover:text-destructive" aria-label="Quitar proveedor"
+                      <Button type="button" size="icon" variant="ghost" className="h-10 w-10 text-muted-foreground hover:text-destructive" aria-label="Quitar proveedor"
                         onClick={() => setOffers((os) => os.filter((x) => x.key !== o.key))}>
                         <X className="h-4 w-4" />
                       </Button>

@@ -168,7 +168,7 @@ export function SucursalSelector({
           aria-expanded={open}
           aria-invalid={invalid || undefined}
           className={cn(
-            bare ? "h-auto w-full flex-1 justify-between px-0 py-3 font-normal hover:bg-transparent" : "w-full justify-between",
+            bare ? "h-auto min-h-0 w-full flex-1 justify-between px-0 py-2 font-normal hover:bg-transparent" : "w-full justify-between",
             invalid && !bare && "border-destructive text-destructive",
           )}
         >

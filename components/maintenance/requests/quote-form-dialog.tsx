@@ -208,7 +208,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
                     emptyText="No está. Agrégalo con el botón de la derecha."
                     error={errors.supplierId}
                   />
-                  <Button type="button" variant="outline" className="h-12 rounded-xl" onClick={() => setNewSupplierOpen(true)}>
+                  <Button type="button" variant="outline" className="h-10" onClick={() => setNewSupplierOpen(true)}>
                     <PlusCircle className="mr-1.5 h-4 w-4" /> Nuevo
                   </Button>
                 </div>
@@ -306,7 +306,7 @@ export function QuoteFormDialog({ open, onOpenChange, request, quote, needs = []
                           </SwitchField>
                         </div>
                         {errors[`rows.${i}.iepsRate`] && <p className="px-1 text-xs text-destructive">{errors[`rows.${i}.iepsRate`]}</p>}
-                        <div className="flex min-h-12 items-center gap-3 rounded-xl border border-[hsl(var(--field-border))] px-3.5 py-2">
+                        <div className="flex min-h-10 items-center gap-3 rounded-md border-[1.5px] border-input px-3 py-2 shadow-sm">
                           <span className="text-sm font-medium">Calidad</span>
                           <StarRating value={r.quality} onChange={(v) => patch(r.key, { quality: v })} size="md" />
                           <span className="text-xs text-muted-foreground">{r.quality ? `${r.quality} de 5` : "Sin calificar"}</span>

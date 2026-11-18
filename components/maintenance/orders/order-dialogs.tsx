@@ -111,10 +111,10 @@ export function SendOrderDialog({
           />
           <div className="grid gap-1">
             <RadioGroup value={channel} onValueChange={(v) => setChannel(v as ContactChannel)} className="grid grid-cols-2 gap-3" aria-label="Medio">
-              <label className="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-xl border border-[hsl(var(--field-border))] px-3.5 text-sm transition hover:border-foreground/30 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-4 has-[[data-state=checked]]:ring-primary/10">
+              <label className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md border-[1.5px] border-input px-3 shadow-sm text-sm transition hover:border-foreground/30 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-4 has-[[data-state=checked]]:ring-primary/10">
                 <RadioGroupItem value="email" /> <Mail className="h-4 w-4 text-sky-600" /> Correo
               </label>
-              <label className="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-xl border border-[hsl(var(--field-border))] px-3.5 text-sm transition hover:border-foreground/30 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-4 has-[[data-state=checked]]:ring-primary/10">
+              <label className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md border-[1.5px] border-input px-3 shadow-sm text-sm transition hover:border-foreground/30 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-4 has-[[data-state=checked]]:ring-primary/10">
                 <RadioGroupItem value="whatsapp" /> <MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp
               </label>
             </RadioGroup>

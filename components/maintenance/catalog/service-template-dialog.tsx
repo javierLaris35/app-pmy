@@ -106,14 +106,14 @@ export function ServiceTemplateDialog({ open, onOpenChange, service, onSaved }: 
               ) : (
                 <div className="grid gap-3">
                   {rows.map((r, i) => (
-                    <div key={r.key} className="grid items-start gap-3 md:grid-cols-[minmax(0,1fr)_120px_180px_auto]">
+                    <div key={r.key} className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_120px_180px_auto]">
                       <ComboField label="Pieza o insumo" required icon={Package} value={r.categoryId || null} onChange={(v) => patch(r.key, { categoryId: v ?? "" })}
                         options={categoryOptions} placeholder="Buscar pieza o insumo" searchPlaceholder="Escribe para buscar…" error={errors[`rows.${i}.categoryId`]} />
                       <TextField label="Cantidad" required icon={Hash} type="number" min={0.01} step="0.01" value={r.quantity}
                         onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })} error={errors[`rows.${i}.quantity`]} />
                       <ComboField label="Presentación" icon={Boxes} value={r.unitId} onChange={(v) => patch(r.key, { unitId: v })} options={unitOptions}
                         allowClear clearLabel="Sin presentación" placeholder="Opcional" searchPlaceholder="Buscar presentación…" />
-                      <Button type="button" size="icon" variant="ghost" className="mt-1.5 h-9 w-9 text-muted-foreground hover:text-destructive" aria-label="Quitar"
+                      <Button type="button" size="icon" variant="ghost" className="h-10 w-10 text-muted-foreground hover:text-destructive" aria-label="Quitar"
                         onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}>
                         <X className="h-4 w-4" />
                       </Button>
