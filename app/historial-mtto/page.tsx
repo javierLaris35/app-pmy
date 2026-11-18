@@ -3,12 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
-import type { DateRange } from "react-day-picker";
 import { AppLayout } from "@/components/app-layout";
 import { OperationHeader } from "@/components/shared/operation-header";
 import { SucursalSelector } from "@/components/sucursal-selector";
 import { DataTable } from "@/components/data-table/data-table";
-import { DateRangePicker } from "@/components/date-range-picker";
+import { DateRangeFilter } from "@/components/shared/date-range-filter";
 import { withAuth } from "@/hoc/withAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,21 +18,22 @@ import { useMaintenanceHistory } from "@/hooks/services/maintenance/use-maintena
 import { useVehiclesBySubsidiary } from "@/hooks/services/vehicles/use-vehicles";
 import { formatKms, formatMoney, HistoryByVehicle, HistoryRow, MaintenanceVehicle, vehicleLabel } from "@/lib/types/maintenance";
 import { Subsidiary } from "@/lib/types";
+import { getWeekRange, WeekRange } from "@/lib/week";
 
 const ALL = "__all__";
-const toDay = (d?: Date) => (d ? d.toLocaleDateString("en-CA", { timeZone: "America/Hermosillo" }) : undefined);
 const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString("es-MX", { timeZone: "America/Hermosillo" }) : "—");
 
 type UnitRow = HistoryByVehicle & { legacy?: boolean };
 
 function HistorialMttoPage() {
   const [subsidiaryId, setSubsidiaryId] = useState("");
-  const [range, setRange] = useState<DateRange | undefined>();
+  // Semana en curso (lun–dom), como el resto de la app.
+  const [range, setRange] = useState<WeekRange>(() => getWeekRange());
   const [vehicleId, setVehicleId] = useState(ALL);
   const { vehicles } = useVehiclesBySubsidiary(subsidiaryId);
   const { history, isLoading } = useMaintenanceHistory(subsidiaryId, {
-    from: toDay(range?.from),
-    to: toDay(range?.to ?? range?.from),
+    from: range.from,
+    to: range.to,
     vehicleId: vehicleId === ALL ? undefined : vehicleId,
   });
 
@@ -121,11 +121,14 @@ function HistorialMttoPage() {
           title="Historial de mantenimiento"
           description="Servicios terminados y gasto por unidad"
           actions={
-            <div className="w-56">
-              <SucursalSelector
-                value={subsidiaryId}
-                onValueChange={(val) => { setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? ""); setVehicleId(ALL); }}
-              />
+            <div className="flex items-center gap-2">
+              <DateRangeFilter value={range} onChange={setRange} disabled={!subsidiaryId} />
+              <div className="w-56">
+                <SucursalSelector
+                  value={subsidiaryId}
+                  onValueChange={(val) => { setSubsidiaryId((typeof val === "string" ? val : (val as Subsidiary).id) ?? ""); setVehicleId(ALL); }}
+                />
+              </div>
             </div>
           }
         />
@@ -142,7 +145,6 @@ function HistorialMttoPage() {
                   {vehicles.map((v) => <SelectItem key={v.id} value={v.id!}>{[v.name || v.code, v.plateNumber].filter(Boolean).join(" · ")}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <DateRangePicker value={range} onChange={setRange} />
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               {kpis.map(({ label, value, icon: Icon, tone }) => (

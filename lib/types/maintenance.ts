@@ -174,7 +174,10 @@ export interface MaintenanceQuote {
 export interface ComparisonCell {
   quoteItemId: string;
   unitPrice: number;
+  /** Cantidad que se compra (la de la solicitud); importe y total salen de aquí. */
   quantity: number;
+  /** Lo que cotizó el proveedor (puede no coincidir con lo pedido). */
+  quotedQuantity?: number;
   amount: number;
   total: number;
   availability: Availability | string;

@@ -122,6 +122,11 @@ export function ComparisonMatrix({ requestId, comparison, editable, onChange }: 
                             ? <span className="rounded bg-red-50 px-1 text-[11px] font-semibold text-red-700">Sin existencia</span>
                             : <span className="text-[11px] text-muted-foreground">{availabilityText(c)}</span>}
                           {best && <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1 text-[11px] font-semibold text-emerald-700"><Award className="h-2.5 w-2.5" />Mejor</span>}
+                          {c.quotedQuantity !== undefined && Number(c.quotedQuantity) !== Number(c.quantity) && (
+                            <span className="rounded bg-amber-50 px-1 text-[11px] font-medium text-amber-800" title={`El proveedor cotizó ${qty(c.quotedQuantity)}; se compran ${qty(c.quantity)} al mismo precio unitario`}>
+                              cotizó {qty(c.quotedQuantity)}
+                            </span>
+                          )}
                         </div>
                       );
                       return (
