@@ -106,6 +106,15 @@ export function playExpiresTomorrowSound() {
   playTones([{ freq: 700, start: 0, duration: 0.12, type: "sine", gain: 0.12 }]);
 }
 
+/** SÁBADO, VENCE EL LUNES: tres tonos que suben (sine 600→800→1000 Hz), distinto a hoy/mañana. */
+export function playExpiresMondaySound() {
+  playTones([
+    { freq: 600, start: 0, duration: 0.1, type: "sine", gain: 0.15 },
+    { freq: 800, start: 0.13, duration: 0.1, type: "sine", gain: 0.15 },
+    { freq: 1000, start: 0.26, duration: 0.14, type: "sine", gain: 0.15 },
+  ]);
+}
+
 /** NO ENCONTRADA en sistema: dos tonos descendentes (triangle 880 → 660 Hz). */
 export function playNotFoundSound() {
   playTones([

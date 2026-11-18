@@ -4,10 +4,10 @@ import { ListParams, Paginated } from "@/lib/services/pagination";
 import useSWR from "swr";
 
 export function useInventories(subsidiaryId: string | null, params: ListParams = {}) {
-  const { page, limit, from, to, search, type } = params;
+  const { page, limit, from, to, search, type, sortBy, sortDir } = params;
 
   const { data, error, isLoading, mutate } = useSWR<Paginated<Inventory>>(
-    subsidiaryId ? ["inventories", subsidiaryId, page, limit, from, to, search, type] : null,
+    subsidiaryId ? ["inventories", subsidiaryId, page, limit, from, to, search, type, sortBy, sortDir] : null,
     () => getInventories(subsidiaryId as string, params),
     { keepPreviousData: true }
   );

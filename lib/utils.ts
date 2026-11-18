@@ -107,6 +107,8 @@ export function mapToPackageInfo(
     payment: s.payment,
     lastHistory: s.lastHistory,
     status: s.status,
+    createdAt: s.createdAt,
+    currentStatusAt: s.currentStatusAt,
   }));
 
   const chargePackages: PackageInfo[] = chargeShipments.map((c) => ({
@@ -133,6 +135,8 @@ export function mapToPackageInfo(
     payment: c.payment,
     lastHistory: c.lastHistory,
     status: c.status,
+    createdAt: c.createdAt,
+    currentStatusAt: c.currentStatusAt,
   }));
 
   return [...normalPackages, ...chargePackages];

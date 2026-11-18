@@ -2,28 +2,28 @@
 
 import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
-import { Eye, PackageCheckIcon, Plus, Sheet } from "lucide-react"
+import { CheckCircle2, Eye, Forward, PackageCheckIcon, Plus, Sheet } from "lucide-react"
 import { columns } from "./columns"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Card, CardContent } from "@/components/ui/card"
 import { useInventories } from "@/hooks/services/inventory/use-inventories"
 import { Inventory } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
-import InventoryForm from "./inventory-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateInventoryExcel } from "@/lib/services/inventory/inventory-excel-generator"
 import { orderWarehousePackages } from "@/components/warehouse/shared/warehouse-scan"
 import { mapToPackageInfo } from "@/lib/utils"
-import InventoryDetails from "./inventory-details"
+import InventoryDetails, { type CompareFilter } from "./inventory-details"
+import { GONE_BUCKETS, GONE_BUCKET_META, compareIsClean } from "@/lib/inventory-compare"
+import { cn } from "@/lib/utils"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
-import type { ColumnDef, PaginationState, Row } from "@tanstack/react-table"
+import type { ColumnDef, PaginationState, Row, SortingState } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -31,13 +31,28 @@ import { getInventoryDetail } from "@/lib/services/inventories"
 import { getSubsidiaryById } from "@/lib/services/subsidiaries"
 import { EnviarNotificacionButton, type NumberOption } from "@/components/notificaciones/enviar-notificacion"
 import { toast } from "@/lib/toast"
+import { resendInventoryEmail } from "@/lib/services/inventory/inventory-email"
+import { apiError } from "@/components/maintenance/shared/confirm-action"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+
+const TYPE_LABEL: Record<string, string> = { initial: "Inicial", dex: "DEX", final: "Final" }
 
 export default function InventoryPageControl() {
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
-  const [isInventoryDialogOpen, setIsInventoryDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null)
+  // Grupo de "Contra el anterior" con el que se abre el detalle (al tocar una pastilla del historial).
+  const [detailFilter, setDetailFilter] = useState<CompareFilter>(null)
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
   // Deep-link de correos: /operaciones/inventarios?seguimiento=XXXX enfoca el registro.
@@ -46,6 +61,11 @@ export default function InventoryPageControl() {
   const [search, setSearch] = useState(seguimientoParam)
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [isDetailLoading, setIsDetailLoading] = useState(false)
+  // Orden de TODO el historial (lo hace el backend, no solo la página visible).
+  const [sorting, setSorting] = useState<SortingState>([{ id: "inventoryDate", desc: true }])
+  // Reenvío de correo (con confirmación).
+  const [resendTarget, setResendTarget] = useState<Inventory | null>(null)
+  const [isResending, setIsResending] = useState(false)
 
   // Debounce de la búsqueda por número de seguimiento (server-side).
   useEffect(() => {
@@ -56,7 +76,7 @@ export default function InventoryPageControl() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  const { inventories, totalPages, isLoading, mutate } = useInventories(
+  const { inventories, totalPages, isLoading } = useInventories(
     selectedSucursalId,
     {
       page: pagination.pageIndex + 1,
@@ -65,18 +85,40 @@ export default function InventoryPageControl() {
       to: week.to,
       search: search || undefined,
       type: typeFilter !== "all" ? typeFilter : undefined,
+      sortBy: sorting[0]?.id,
+      sortDir: sorting[0] ? (sorting[0].desc ? "desc" : "asc") : undefined,
     }
   )
-  
+
+  const handleSortingChange = (updater: SortingState | ((old: SortingState) => SortingState)) => {
+    setSorting((old) => (typeof updater === "function" ? updater(old) : updater))
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+
+  const confirmResend = async () => {
+    if (!resendTarget) return
+    setIsResending(true)
+    try {
+      await resendInventoryEmail(resendTarget.id)
+      toast.success("Correo reenviado a la sucursal")
+      setResendTarget(null)
+    } catch (error) {
+      console.error("[InventoryPage] Error al reenviar:", error)
+      toast.error(apiError(error, "No se pudo reenviar el correo"))
+    } finally {
+      setIsResending(false)
+    }
+  }
+
 
   // Obtener usuario y estado de hidratación
   const user = useAuthStore((s) => s.user)
   const hasHydrated = useAuthStore((s) => s.hasHydrated)
-  
+
   // Determinar sucursal efectiva SOLO cuando auth esté hidratado
   const effectiveSucursalId = hasHydrated ? (selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || null) : null
   const effectiveSucursalName = hasHydrated ? (selectedSucursalName || user?.subsidiary?.name || user?.subsidiaryName || "") : ""
-  
+
   // Solo inicializar la sucursal cuando auth esté hidratado
   useEffect(() => {
     if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
@@ -107,13 +149,17 @@ export default function InventoryPageControl() {
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
-  const openInventoryDialog = () => {
-    setIsInventoryDialogOpen(true)
+  // La captura ahora es una pantalla completa (antes era una ventana sobre el historial).
+  const router = useRouter()
+  const openNewInventory = () => {
+    if (!effectiveSucursalId) return
+    router.push(`/operaciones/inventarios/nuevo?sucursal=${encodeURIComponent(effectiveSucursalId)}`)
   }
 
   // El listado devuelve conteos (sin paquetes). Para el detalle traemos el registro completo por id.
-  const openDetailsDialog = async (row: Inventory) => {
+  const openDetailsDialog = async (row: Inventory, filter: CompareFilter = null) => {
     if (!row?.id) return
+    setDetailFilter(filter)
     setIsDetailsDialogOpen(true)
     setSelectedInventory(null)
     setIsDetailLoading(true)
@@ -142,8 +188,55 @@ export default function InventoryPageControl() {
     }
   }
 
+  // "Contra el anterior": pastillas por grupo (del más urgente al menos); tocar una abre el detalle filtrado.
+  const renderCompare = (row: Inventory) => {
+    const c = row.compareSummary
+    if (!c) return <span className="text-xs text-muted-foreground">Sin inventario antes ese día</span>
+    const prevLabel = `Contra el ${TYPE_LABEL[c.previousType] ?? "inventario"} de las ${new Date(c.previousDate).toLocaleTimeString("es-MX", { timeZone: "America/Hermosillo", hour: "2-digit", minute: "2-digit", hour12: false })}`
+    if (compareIsClean(c.counts)) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-green-700 dark:text-green-400" onClick={() => openDetailsDialog(row, null)}>
+              <CheckCircle2 className="h-3.5 w-3.5" /> Todo cuadra
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {prevLabel}: {GONE_BUCKETS.filter((b) => c.counts[b] > 0).map((b) => `${c.counts[b]} ${GONE_BUCKET_META[b].label}`).join(", ") || "no falta ninguna"} · {c.appeared} nuevas
+          </TooltipContent>
+        </Tooltip>
+      )
+    }
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        {GONE_BUCKETS.filter((b) => c.counts[b] > 0).map((b) => (
+          <Tooltip key={b}>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn("h-6 gap-1 px-1.5 text-xs font-normal", GONE_BUCKET_META[b].className)}
+                onClick={() => openDetailsDialog(row, b)}
+              >
+                <span className="font-semibold tabular-nums">{c.counts[b]}</span> {GONE_BUCKET_META[b].label}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">{prevLabel}. {GONE_BUCKET_META[b].help}</TooltipContent>
+          </Tooltip>
+        ))}
+        {c.appeared > 0 && (
+          <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs font-normal text-muted-foreground" onClick={() => openDetailsDialog(row, "appeared")}>
+            · {c.appeared} nuevas
+          </Button>
+        )}
+      </div>
+    )
+  }
+
   const updatedColumns: ColumnDef<Inventory>[] = columns.map((col) =>
-    col.id === "actions"
+    col.id === "compare"
+      ? { ...col, cell: ({ row }: { row: Row<Inventory> }) => renderCompare(row.original) }
+      : col.id === "actions"
       ? {
           ...col,
           cell: ({ row }: { row: Row<Inventory> }) => (
@@ -176,6 +269,19 @@ export default function InventoryPageControl() {
                   return { numberOptions, context: { sucursal: sub.name || row.original.subsidiary?.name || "" } };
                 }}
               />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setResendTarget(row.original)}
+                    aria-label="Reenviar correo"
+                  >
+                    <Forward className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reenviar correo</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -220,7 +326,7 @@ export default function InventoryPageControl() {
                 }}
               />
             </div>
-            <Button onClick={openInventoryDialog} disabled={!selectedSucursalId} size="sm" className="gap-1.5 whitespace-nowrap">
+            <Button onClick={openNewInventory} disabled={!effectiveSucursalId} size="sm" className="gap-1.5 whitespace-nowrap">
               <Plus className="h-4 w-4" />
               Nuevo inventario
             </Button>
@@ -229,18 +335,21 @@ export default function InventoryPageControl() {
         />
 
         {/* Inventories Table */}
-        <Card>
-          <CardContent className="p-6">
+        {/* Sin tarjeta: el historial queda parejo con el encabezado de la pantalla. */}
+        <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-lg font-semibold">Historial de Inventarios</h3>
-                <p className="text-muted-foreground">Inventarios de la semana seleccionada</p>
+                <p className="text-muted-foreground">
+                  {search ? "Resultados de la búsqueda en todas las fechas" : "Inventarios de la semana seleccionada"}
+                </p>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="relative w-full sm:w-[240px]">
                   <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Buscar por número de seguimiento..."
+                    placeholder="Buscar folio o guía"
+                    title="Busca en todas las fechas, no solo en la semana elegida"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     className="pl-8"
@@ -257,7 +366,7 @@ export default function InventoryPageControl() {
                     <SelectItem value="final">Final</SelectItem>
                   </SelectContent>
                 </Select>
-                <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading} />
+                <WeekRangePicker value={week} onChange={handleWeekChange} disabled={isLoading || !!search} />
               </div>
             </div>
 
@@ -269,6 +378,14 @@ export default function InventoryPageControl() {
                 pageCount={totalPages}
                 pagination={pagination}
                 onPaginationChange={setPagination}
+                // El buscador y los filtros son los de arriba (buscan en el servidor).
+                hideToolbar
+                hideSelectionCount
+                manualSorting
+                sorting={sorting}
+                onSortingChange={handleSortingChange}
+                // Buscando por guía: se resaltan los inventarios donde estuvo.
+                rowClassName={(r) => (r.matchedByTracking ? "bg-sky-50 dark:bg-sky-950/30" : undefined)}
               />
             ) : (
               <div className="flex h-[200px] items-center justify-center">
@@ -277,21 +394,33 @@ export default function InventoryPageControl() {
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
-      {/* Inventory Form Dialog (el form es dueño de su propio Dialog) */}
-      <InventoryForm
-        open={isInventoryDialogOpen}
-        onOpenChange={setIsInventoryDialogOpen}
-        selectedSubsidiaryId={effectiveSucursalId}
-        subsidiaryName={effectiveSucursalName}
-        onSuccess={() => {
-          mutate()
-          setIsInventoryDialogOpen(false)
-        }}
-      />
+      <AlertDialog open={!!resendTarget} onOpenChange={(o) => !o && !isResending && setResendTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reenviar correo del inventario</AlertDialogTitle>
+            <AlertDialogDescription>
+              {resendTarget
+                ? `Se manda otra vez el PDF y el Excel del inventario ${TYPE_LABEL[resendTarget.type ?? ""] ?? ""} del ${new Date(resendTarget.inventoryDate).toLocaleDateString("es-MX", { timeZone: "America/Hermosillo" })} a la sucursal ${resendTarget.subsidiary?.name ?? ""}.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isResending}
+              onClick={(e) => {
+                e.preventDefault()
+                confirmResend()
+              }}
+            >
+              {isResending ? "Reenviando…" : "Reenviar correo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Inventory Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
@@ -304,6 +433,7 @@ export default function InventoryPageControl() {
           ) : selectedInventory ? (
             <InventoryDetails
               inventory={selectedInventory}
+              initialCompareFilter={detailFilter}
               onClose={() => setIsDetailsDialogOpen(false)}
             />
           ) : null}

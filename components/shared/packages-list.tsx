@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PackageFilters, computePackageFilterCounts } from "@/components/shared/package-filters";
 import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
 import { PackageInfo } from "@/lib/types";
+import type { AlertDay } from "@/lib/next-operating-day";
 import { cn } from "@/lib/utils";
 
 interface PackagesListProps {
@@ -43,6 +44,10 @@ interface PackagesListProps {
   groupBy?: (pkg: PackageInfo) => string;
   /** Número de fila al inicio (estilo Excel / VS Code), según el orden mostrado. */
   showRowNumbers?: boolean;
+  /** Si mañana no se opera, marca lo que vence el siguiente día que sí (solo Inventario). */
+  alertDay?: AlertDay | null;
+  /** Contenido extra por paquete a la derecha (p. ej. estatus al inventario). */
+  renderExtra?: (pkg: PackageInfo) => React.ReactNode;
   /**
    * Con `groupBy` por paquetería: cada grupo en su propio bloque (borde, encabezado de
    * color fijo al hacer scroll, plegable, numeración desde 1 y atajos "Ir a"), como en
@@ -85,6 +90,8 @@ export function PackagesList({
   getKey = defaultKey,
   groupBy,
   showRowNumbers = false,
+  alertDay = null,
+  renderExtra,
   carrierBlocks = false,
   className,
 }: PackagesListProps) {
@@ -179,6 +186,8 @@ export function PackagesList({
           onCompleteData={onCompleteData}
           isLoading={isLoading}
           index={rowNumber}
+          alertDay={alertDay}
+          extra={renderExtra?.(pkg)}
         />
         {extra ? (
           <>

@@ -1,13 +1,34 @@
 // lib/utils/excel/generateInventoryExcel.ts
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import { inventoryFileBase } from "@/lib/inventory-files";
 import { InventoryRejectedTracking, PackageInfo } from "@/lib/types";
 import { format, toZonedTime } from "date-fns-tz";
 import { mapToPackageInfo } from "@/lib/utils";
 import { warehouseCarrierLabel, warehouseCityLabel } from "@/components/warehouse/shared/warehouse-scan";
+import { commitUrgency, daysInWarehouse, deliveryOrDexDate, type CommitUrgency } from "@/lib/inventory-excel-rules";
+import { getStatusBadge } from "@/utils/shipment-status.utils";
+
+/** Colores por vencimiento (fila completa): rojo = vence hoy, naranja = vence mañana. */
+const URGENCY_STYLE: Record<Exclude<CommitUrgency, null>, { fill: string; font: string }> = {
+  today: { fill: "FFC7CE", font: "9C0006" },
+  tomorrow: { fill: "FFD8A8", font: "8A4B00" },
+};
+
+function paintUrgency(row: ExcelJS.Row, cols: number, urgency: CommitUrgency) {
+  if (!urgency) return;
+  const st = URGENCY_STYLE[urgency];
+  for (let col = 1; col <= cols; col++) {
+    const cell = row.getCell(col);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: st.fill } };
+    cell.font = { ...(cell.font ?? {}), color: { argb: st.font }, bold: urgency === "today" };
+  }
+}
 
 /** Lo mínimo que necesitan el PDF y el Excel (sirve un inventario guardado o uno en captura). */
 export interface InventoryDocReport {
+  /** initial | dex | final (para el nombre del archivo). */
+  type?: string | null;
   subsidiary?: { id?: string; name: string } | null;
   inventoryDate?: string;
   shipments?: any[];
@@ -23,6 +44,8 @@ export interface InventoryDocOptions {
   packages?: PackageInfo[];
   /** Filtro activo (p. ej. "DHL · HERMOSILLO") para que se note en el archivo. */
   filterLabel?: string;
+  /** Hoja extra "Contra el anterior" (detalle): guías que ya no están, con su grupo. */
+  compareSheet?: { title: string; rows: Record<string, string>[]; urgency?: CommitUrgency[] };
 }
 
 /** Guías no incluidas: las nuevas (con motivo) o las listas viejas. */
@@ -44,8 +67,9 @@ export async function generateInventoryExcel(
   const timeZone = "America/Hermosillo";
   const packages = options.packages ?? mapToPackageInfo(report.shipments, report.chargeShipments);
   const rejected = inventoryRejectedRows(report);
-  const COLS = 11;
-  const lastCol = "K";
+  const COLS = 15;
+  const lastCol = "O";
+  const now = new Date();
 
   // === ENCABEZADO GENERAL ===
   const titleRow = sheet.addRow([`📦 Inventario`]);
@@ -71,6 +95,10 @@ export async function generateInventoryExcel(
   sheet.addRow([`Fecha: ${createdAt}`]);
   sheet.addRow([`Paquetes: ${packages.length}`]);
   if (options.filterLabel) sheet.addRow([`Filtro: ${options.filterLabel}`]);
+  const legend = sheet.addRow([
+    "Rojo: vence hoy · Naranja: vence mañana · Días en bodega: desde que se registró en el sistema (si sigue en bodega, en ruta o con DEX) · Fecha entrega / DEX: cuándo se entregó o cuándo tuvo el DEX",
+  ]);
+  legend.font = { italic: true, size: 9, color: { argb: "666666" } };
   sheet.addRow([]);
 
   // === ENCABEZADO DE COLUMNAS ===
@@ -83,9 +111,13 @@ export async function generateInventoryExcel(
     "Dirección",
     "CP",
     "Cobro",
-    "Fecha",
-    "Hora",
+    "Vence",
+    "Hora vence",
     "Celular",
+    "Estatus",
+    "Registrado en sistema",
+    "Días en bodega",
+    "Fecha entrega / DEX",
   ]);
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
@@ -122,10 +154,19 @@ export async function generateInventoryExcel(
       commitDate,
       commitTime,
       pkg.recipientPhone || "",
+      pkg.status ? getStatusBadge(String(pkg.status)).label : "",
+      pkg.createdAt ? format(toZonedTime(new Date(pkg.createdAt), timeZone), "yyyy-MM-dd HH:mm") : "",
+      daysInWarehouse({ status: pkg.status, createdAt: pkg.createdAt }, now) ?? "",
+      (() => {
+        const d = deliveryOrDexDate(pkg);
+        return d ? format(toZonedTime(d, timeZone), "yyyy-MM-dd HH:mm") : "";
+      })(),
     ]);
 
-    // Filas alternadas en gris
-    if (index % 2 === 0) {
+    const urgency = commitUrgency(pkg.commitDateTime, now, pkg.status);
+
+    // Filas alternadas en gris (las que vencen hoy/mañana van en rojo/naranja)
+    if (!urgency && index % 2 === 0) {
       for (let col = 1; col <= COLS; col++) {
         sheet.getCell(row.number, col).fill = {
           type: "pattern",
@@ -149,7 +190,15 @@ export async function generateInventoryExcel(
         wrapText: true,
       };
     });
+    paintUrgency(row, COLS, urgency);
   });
+
+  // Filtro en los nombres de columna y encabezado fijo al bajar.
+  const lastDataRow = headerRow.number + packages.length;
+  if (packages.length > 0) {
+    sheet.autoFilter = { from: { row: headerRow.number, column: 1 }, to: { row: lastDataRow, column: COLS } };
+  }
+  sheet.views = [{ state: "frozen", ySplit: headerRow.number }];
 
   // === Guías no incluidas (no existen, otra sucursal, formato) ===
   if (rejected.length > 0) {
@@ -186,6 +235,32 @@ export async function generateInventoryExcel(
   sheet.getColumn(9).width = 12;  // Fecha
   sheet.getColumn(10).width = 12; // Hora
   sheet.getColumn(11).width = 18; // Celular
+  sheet.getColumn(12).width = 18; // Estatus
+  sheet.getColumn(13).width = 20; // Registrado en sistema
+  sheet.getColumn(14).width = 14; // Días en bodega
+  sheet.getColumn(15).width = 20; // Fecha entrega / DEX
+
+  // === HOJA "CONTRA EL ANTERIOR" (opcional) ===
+  if (options.compareSheet && options.compareSheet.rows.length > 0) {
+    const cs = workbook.addWorksheet("Contra el anterior");
+    cs.addRow([options.compareSheet.title]).font = { bold: true, size: 12 };
+    cs.addRow([]);
+    const headers = Object.keys(options.compareSheet.rows[0]);
+    const head = cs.addRow(headers);
+    head.font = { bold: true, color: { argb: "FFFFFF" } };
+    head.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "ef883a" } };
+    });
+    options.compareSheet.rows.forEach((r, i) => {
+      const row = cs.addRow(headers.map((h) => r[h] ?? ""));
+      paintUrgency(row, headers.length, options.compareSheet!.urgency?.[i] ?? null);
+    });
+    cs.autoFilter = { from: { row: head.number, column: 1 }, to: { row: head.number + options.compareSheet.rows.length, column: headers.length } };
+    cs.views = [{ state: "frozen", ySplit: head.number }];
+    headers.forEach((h, i) => {
+      cs.getColumn(i + 1).width = Math.min(48, Math.max(12, h.length + 4, ...options.compareSheet!.rows.map((r) => String(r[h] ?? "").length + 2)));
+    });
+  }
 
   // === EXPORTACIÓN ===
   const buffer = await workbook.xlsx.writeBuffer();
@@ -194,7 +269,7 @@ export async function generateInventoryExcel(
       new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       }),
-      `${report.subsidiary?.name ?? "Sucursal"}--Inventario--${createdAt}.xlsx`
+      `${inventoryFileBase(report)}.xlsx`
     );
   }
 

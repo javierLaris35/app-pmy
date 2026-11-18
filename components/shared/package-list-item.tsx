@@ -28,6 +28,9 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { PackageInfo } from "@/lib/types";
+import { capitalizeDay, isDueOn, type AlertDay } from "@/lib/next-operating-day";
+import { PILL_CLASS } from "@/components/shared/status-pill";
+import { noDueMark } from "@/lib/inventory-excel-rules";
 
 /** Días hasta el vencimiento (fecha local). null si no hay fecha. */
 export const daysUntilCommit = (commitDateTime?: string | null): number | null => {
@@ -63,7 +66,8 @@ const FlagChip = ({
     <TooltipTrigger asChild>
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none cursor-default",
+          PILL_CLASS,
+          "cursor-default",
           className
         )}
       >
@@ -97,6 +101,10 @@ export interface PackageListItemProps {
   onTransfer?: (pkg: PackageInfo) => void;
   /** Si se pasa, muestra un número de fila (gutter estilo VSCode) a la izquierda. */
   index?: number;
+  /** Si mañana no se opera, marca lo que vence el siguiente día que sí (solo Inventario lo pasa). */
+  alertDay?: AlertDay | null;
+  /** Contenido extra a la derecha (p. ej. estatus al inventario en el detalle). */
+  extra?: React.ReactNode;
 }
 
 /**
@@ -104,24 +112,33 @@ export interface PackageListItemProps {
  * salidas a ruta y desembarque): borde de acento por urgencia, pill de carrier,
  * ID prominente, chips de indicadores y datos del destinatario.
  */
-export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onCompleteData, onTransfer, index }: PackageListItemProps) {
+export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onCompleteData, onTransfer, index, alertDay = null, extra }: PackageListItemProps) {
   const pkgId = pkg.dhlUniqueId || pkg.trackingNumber;
   const needsData = pkg.isValid && (!pkg.recipientName || !pkg.recipientAddress || !pkg.recipientPhone);
   const isDhl = pkg.shipmentType === "dhl";
   const hasPayment = !!pkg.payment;
-  const days = pkg.isValid ? daysUntilCommit(pkg.commitDateTime) : null;
+  // Ya entregado o devuelto a FedEx: no se marca "Hoy"/"Mañana" aunque esa fuera su fecha.
+  const days = pkg.isValid && !noDueMark(pkg.status) ? daysUntilCommit(pkg.commitDateTime) : null;
   const expiresToday = days === 0;
   const expiresTomorrow = days === 1;
   const overdue = days !== null && days < 0;
+  // Si mañana no se opera (domingo/festivo), lo que vence el siguiente día que sí (solo Inventario).
+  const expiresMonday = !!alertDay && pkg.isValid && !noDueMark(pkg.status) && !expiresToday && !expiresTomorrow && isDueOn(pkg.commitDateTime, alertDay);
   // Fecha de vencimiento visible (no solo el color): "Hoy 16/11/2026", "Vencido 14/11/2026"…
-  const commitLabel = days === null || !pkg.commitDateTime
+  // Entregados y devueltos a FedEx muestran la fecha en gris, sin urgencia.
+  const commitLabel = !pkg.isValid || !pkg.commitDateTime
     ? null
     : (() => {
         const date = new Date(pkg.commitDateTime).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" });
+        const neutral = { label: `Vence ${date}`, tooltip: `Vence el ${date}`, className: "bg-slate-100 text-slate-700" };
+        if (days === null) return neutral;
         if (overdue) return { label: `Vencido ${date}`, tooltip: `Venció el ${date}`, className: "bg-red-600 text-white" };
         if (expiresToday) return { label: `Hoy ${date}`, tooltip: "Vence hoy", className: "bg-red-100 text-red-700" };
         if (expiresTomorrow) return { label: `Mañana ${date}`, tooltip: "Vence mañana", className: "bg-amber-100 text-amber-700" };
-        return { label: `Vence ${date}`, tooltip: `Vence el ${date}`, className: "bg-slate-100 text-slate-700" };
+        if (expiresMonday && alertDay) {
+          return { label: `${capitalizeDay(alertDay.weekday)} ${date}`, tooltip: `Vence el ${alertDay.weekday} (mañana no se opera)`, className: "bg-sky-100 text-sky-700" };
+        }
+        return neutral;
       })();
 
   const accent = !pkg.isValid && !pkg.isPendingValidation
@@ -130,6 +147,8 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
     ? "border-l-red-500"
     : expiresTomorrow
     ? "border-l-amber-400"
+    : expiresMonday
+    ? "border-l-sky-500"
     : hasPayment
     ? "border-l-blue-400"
     : "border-l-transparent";
@@ -179,8 +198,9 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
             )}
 
             {/* Indicadores (vence, cobro, F2, alto valor, prioridad) a la izquierda del CP */}
-            {(hasFlags || (pkg.isValid && pkg.recipientZip)) && (
+            {(hasFlags || extra || (pkg.isValid && pkg.recipientZip)) && (
               <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+                {extra}
                 {hasFlags && (
                   <TooltipProvider delayDuration={100}>
                     {commitLabel && <FlagChip icon={Clock} label={commitLabel.label} tooltip={commitLabel.tooltip} className={commitLabel.className} />}
@@ -198,7 +218,7 @@ export function PackageListItem({ pkg, onRemove, isLoading, reasonPicker, onComp
                   </TooltipProvider>
                 )}
                 {pkg.isValid && pkg.recipientZip && (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[12px] font-mono font-semibold text-slate-700 shrink-0">
+                  <span className={cn(PILL_CLASS, "bg-slate-100 font-mono text-slate-700")}>
                     <MapPin className="h-3 w-3" />
                     {pkg.recipientZip}
                   </span>
