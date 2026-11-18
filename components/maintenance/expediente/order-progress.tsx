@@ -1,34 +1,65 @@
 "use client";
 
-import { Check, Undo2, XCircle } from "lucide-react";
+import { Fragment } from "react";
+import { Check, ClipboardCheck, Package, Send, ShieldCheck, Undo2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMoney, OrderSummary } from "@/lib/types/maintenance";
-import { ORDER_STEPS, orderProgress } from "@/lib/compras-expediente";
-import { PoStatusBadge } from "../shared/status-badges";
+import { orderTrack } from "@/lib/compras-expediente";
 
-/** Avance de una orden: Por autorizar → Autorizada → Enviada → Recibida (devuelta/cancelada aparte). */
+/** Ícono de cada paso cuando es el que sigue (los hechos llevan palomita). */
+const STEP_ICON = [ClipboardCheck, ShieldCheck, Send, Package];
+
+/**
+ * Avance de una orden con círculos unidos por una línea: hechos en verde con palomita, el que sigue en ámbar
+ * diciendo qué falta y a quién le toca, y los que faltan en gris. Devuelta/cancelada se muestran aparte.
+ */
 export function OrderTrack({ status, rejectionReason }: { status: string; rejectionReason?: string | null }) {
-  const p = orderProgress(status, rejectionReason);
-  if (p.special) {
+  const t = orderTrack(status, rejectionReason);
+  if (t.special) {
     return (
-      <p className={cn("flex items-center gap-1.5 text-xs font-medium", p.special === "devuelta" ? "text-red-700" : "text-muted-foreground")}>
-        {p.special === "devuelta" ? <Undo2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-        {p.special === "devuelta" ? `Devuelta por quien autoriza${rejectionReason ? `: ${rejectionReason}` : ""}` : "Cancelada"}
+      <p className={cn("flex items-center gap-1.5 text-xs font-medium", t.special === "devuelta" ? "text-red-700" : "text-muted-foreground")}>
+        {t.special === "devuelta" ? <Undo2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+        {t.special === "devuelta" ? `Devuelta por quien autoriza${rejectionReason ? `: ${rejectionReason}` : ""}` : "Cancelada"}
       </p>
     );
   }
+  const last = t.steps.length - 1;
   return (
-    <ol className="grid grid-cols-4 gap-1" aria-label="Avance de la orden">
-      {ORDER_STEPS.map((label, i) => {
-        const done = i < p.reached && i !== p.current;
-        const now = i === p.current;
+    // Cada paso es una columna (círculo + nombre) y entre pasos va una línea que se estira: así el nombre
+    // siempre queda justo debajo de su círculo.
+    <ol className="flex items-start" aria-label="Avance de la orden">
+      {t.steps.map((s, i) => {
+        const Icon = STEP_ICON[i];
         return (
-          <li key={label} className="grid gap-1.5">
-            <div className={cn("h-1.5 rounded-full bg-muted", done && "bg-emerald-500", now && "bg-amber-400")} />
-            <span className={cn("flex items-center gap-1 text-[11px] text-muted-foreground", done && "text-emerald-700", now && "font-semibold text-amber-800")}>
-              {done && <Check className="h-3 w-3" />}{label}
-            </span>
-          </li>
+          <Fragment key={i}>
+            <li className={cn("flex w-28 shrink-0 flex-col gap-1.5", i === 0 ? "items-start text-left" : i === last ? "items-end text-right" : "items-center text-center")}>
+              <span
+                className={cn(
+                  "grid h-6 w-6 place-items-center rounded-full",
+                  s.state === "done" && "bg-emerald-500 text-white",
+                  s.state === "next" && "border-2 border-amber-400 bg-amber-50 text-amber-700",
+                  s.state === "todo" && "border border-[hsl(var(--field-border))] text-muted-foreground",
+                )}
+                aria-hidden
+              >
+                {s.state === "done" ? <Check className="h-3.5 w-3.5" /> : <Icon className="h-3 w-3" />}
+              </span>
+              <span
+                className={cn(
+                  "text-[11px] leading-tight",
+                  s.state === "done" && "text-emerald-700",
+                  s.state === "next" && "font-semibold text-amber-800",
+                  s.state === "todo" && "text-muted-foreground",
+                )}
+              >
+                {s.label}
+                {s.state === "next" && s.who && <span className="block font-normal text-amber-800/80">le toca a {s.who.toLowerCase()}</span>}
+              </span>
+            </li>
+            {i < last && (
+              <li aria-hidden className={cn("mt-[11px] h-0.5 min-w-4 flex-1 rounded-full bg-border", s.state === "done" && t.steps[i + 1].state === "done" && "bg-emerald-500")} />
+            )}
+          </Fragment>
         );
       })}
     </ol>
@@ -49,16 +80,16 @@ export function OrderProgressList({ orders, activeId, onSelect }: { orders: Orde
           onClick={() => onSelect(o.id)}
           aria-pressed={o.id === activeId}
           className={cn(
-            "grid gap-2.5 rounded-2xl border bg-card p-3 text-left transition hover:border-foreground/20",
-            o.id === activeId && "border-primary ring-4 ring-primary/10 hover:border-primary",
+            "grid gap-3 rounded-xl border bg-card p-3.5 text-left transition hover:border-foreground/30",
+            // Elegida: borde gris oscuro (el rojo se leía como error).
+            o.id === activeId && "border-foreground/60 ring-2 ring-foreground/10 hover:border-foreground/60",
             o.status === "cancelada" && "opacity-70",
           )}
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono text-sm font-semibold">{o.folio}</span>
             <span className="text-sm text-muted-foreground">{o.supplierName ?? "Proveedor"}</span>
-            <span className="text-sm font-semibold tabular-nums">{formatMoney(o.total)}</span>
-            <span className="ml-auto"><PoStatusBadge status={o.status} /></span>
+            <span className="ml-auto text-sm font-semibold tabular-nums">{formatMoney(o.total)}</span>
           </div>
           <OrderTrack status={o.status} rejectionReason={o.rejectionReason} />
         </button>

@@ -16,26 +16,32 @@ export function defaultExpedienteTab(
   return who.hasOrders ? "ordenes" : "solicitud";
 }
 
-/** Pasos del avance de una orden. */
-export const ORDER_STEPS = ["Por autorizar", "Autorizada", "Enviada", "Recibida"] as const;
+export type OrderStepState = "done" | "next" | "todo";
+export interface OrderTrackStep { label: string; state: OrderStepState; who?: string }
 
 /**
- * Avance de una orden: cuántos pasos alcanzó (`reached`), en cuál está (`current`) y si está en un
- * estado aparte (devuelta por quien autoriza o cancelada).
+ * Avance de una orden en 4 pasos (Pedida → Autorizada → Enviada → Recibida). Los hechos van con su nombre en
+ * pasado; el siguiente dice QUÉ falta y a quién le toca (p. ej. autorizada → "Enviar al proveedor", Compras).
+ * Devuelta (borrador con motivo) y cancelada van aparte en `special`.
  */
-export function orderProgress(status: PoStatus | string, rejectionReason?: string | null): {
-  reached: number;
-  current: number | null;
+export function orderTrack(status: PoStatus | string, rejectionReason?: string | null): {
+  steps: OrderTrackStep[];
   special: "devuelta" | "cancelada" | null;
 } {
-  switch (status) {
-    case "pendiente": return { reached: 1, current: 0, special: null };
-    case "autorizada": return { reached: 2, current: 1, special: null };
-    case "enviada": return { reached: 3, current: 2, special: null };
-    case "completada": return { reached: 4, current: null, special: null };
-    case "cancelada": return { reached: 0, current: null, special: "cancelada" };
-    default: return rejectionReason ? { reached: 0, current: null, special: "devuelta" } : { reached: 0, current: null, special: null };
-  }
+  const done = ["Pedida", "Autorizada", "Enviada", "Recibida"];
+  const next: Record<number, { label: string; who: string }> = {
+    1: { label: status === "borrador" ? "Mandar a autorizar" : "Por autorizar", who: status === "borrador" ? "Compras" : "Quien autoriza" },
+    2: { label: "Enviar al proveedor", who: "Compras" },
+    3: { label: "Por recibir", who: "El proveedor" },
+  };
+  const special = status === "cancelada" ? "cancelada" : status === "borrador" && rejectionReason ? "devuelta" : null;
+  const reached = ({ borrador: 1, pendiente: 1, autorizada: 2, enviada: 3, completada: 4 } as Record<string, number>)[status] ?? 1;
+  const steps = done.map((label, i): OrderTrackStep => {
+    if (i < reached) return { label, state: "done" };
+    if (i === reached) return { label: next[i].label, state: "next", who: next[i].who };
+    return { label, state: "todo" };
+  });
+  return { steps, special };
 }
 
 /** Quién debe actuar, en llano. */

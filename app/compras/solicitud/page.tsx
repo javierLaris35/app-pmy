@@ -204,7 +204,7 @@ function SolicitudContent() {
 
   // "Volver" vive en el encabezado (barra de tareas), a la izquierda de las acciones del paso.
   const backButton = (
-    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground"
+    <Button size="sm" variant="outline" className="w-9 shrink-0 px-0"
       title={isPurchaser ? "Volver al tablero" : "Volver a mis solicitudes"} aria-label={isPurchaser ? "Volver al tablero" : "Volver a mis solicitudes"}
       onClick={() => router.push(isPurchaser ? "/compras/tablero" : "/compras/solicitudes")}>
       <ArrowLeft className="h-4 w-4" />

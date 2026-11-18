@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultExpedienteTab, orderProgress } from "./compras-expediente";
+import { defaultExpedienteTab, orderTrack } from "./compras-expediente";
 
 const purchaser = { isPurchaser: true, canAuthorize: false, hasOrders: false };
 const requester = { isPurchaser: false, canAuthorize: false, hasOrders: false };
@@ -23,16 +23,32 @@ describe("defaultExpedienteTab", () => {
   });
 });
 
-describe("orderProgress", () => {
-  it("avance por estado", () => {
-    expect(orderProgress("borrador")).toEqual({ reached: 0, current: null, special: null });
-    expect(orderProgress("pendiente")).toEqual({ reached: 1, current: 0, special: null });
-    expect(orderProgress("autorizada")).toEqual({ reached: 2, current: 1, special: null });
-    expect(orderProgress("enviada")).toEqual({ reached: 3, current: 2, special: null });
-    expect(orderProgress("completada")).toEqual({ reached: 4, current: null, special: null });
+describe("orderTrack (avance con círculos)", () => {
+  const st = (s: string, r?: string | null) => orderTrack(s, r);
+  it("autorizada: Pedida y Autorizada hechas; lo que sigue es enviarla y le toca a Compras", () => {
+    const t = st("autorizada");
+    expect(t.steps.map((s) => s.state)).toEqual(["done", "done", "next", "todo"]);
+    expect(t.steps[2]).toMatchObject({ label: "Enviar al proveedor", who: "Compras" });
+    expect(t.steps[1].label).toBe("Autorizada");
   });
-  it("devuelta y cancelada son estados aparte", () => {
-    expect(orderProgress("borrador", "precio alto").special).toBe("devuelta");
-    expect(orderProgress("cancelada").special).toBe("cancelada");
+  it("pendiente: sigue autorizar (quien autoriza)", () => {
+    const t = st("pendiente");
+    expect(t.steps.map((s) => s.state)).toEqual(["done", "next", "todo", "todo"]);
+    expect(t.steps[1]).toMatchObject({ label: "Por autorizar", who: "Quien autoriza" });
+  });
+  it("borrador: sigue mandarla a autorizar (Compras)", () => {
+    expect(st("borrador").steps[1]).toMatchObject({ state: "next", label: "Mandar a autorizar", who: "Compras" });
+  });
+  it("enviada: sigue recibir (el proveedor entrega)", () => {
+    expect(st("enviada").steps.map((s) => s.state)).toEqual(["done", "done", "done", "next"]);
+    expect(st("enviada").steps[3]).toMatchObject({ label: "Por recibir", who: "El proveedor" });
+  });
+  it("completada: todo hecho, sin siguiente", () => {
+    expect(st("completada").steps.every((s) => s.state === "done")).toBe(true);
+    expect(st("completada").steps[3].label).toBe("Recibida");
+  });
+  it("devuelta y cancelada van aparte", () => {
+    expect(st("borrador", "precio alto").special).toBe("devuelta");
+    expect(st("cancelada").special).toBe("cancelada");
   });
 });
