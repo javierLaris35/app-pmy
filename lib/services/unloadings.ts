@@ -1,5 +1,5 @@
 import { axiosConfig } from "../axios-config"
-import { Consolidateds, Unloading, UnloadingFormData, UnloadingResponse, UnloadingValidationTrackings, ValidTrackingAndConsolidateds, UnloadingSessionInit, ValidatedUnloadingOne, ConsolidatedInitItem } from "@/lib/types"
+import { Consolidateds, Unloading, UnloadingFormData, UnloadingSaveResult, UnloadingResponse, UnloadingSessionInit, ValidatedUnloadingOne, ConsolidatedInitItem } from "@/lib/types"
 import { Paginated, ListParams } from "./pagination"
 
 const url = '/unloadings'
@@ -21,20 +21,9 @@ const getUnloadingById = async (id: string) => {
 }
 
 const saveUnloading = async (unloading: UnloadingFormData) => {
-    const response = await axiosConfig.post<Unloading>(url, unloading);
+    const response = await axiosConfig.post<UnloadingSaveResult>(url, unloading);
     return response.data;
 }
-
-const validateTrackingNumbers = async (trackingNumbers: UnloadingValidationTrackings[], subsidiaryId: string) => {
-  // 🕵️ TRAMPA: Imprimir exactamente lo que estamos a punto de enviar
-    //console.log("🚨 ATENCIÓN - Payload a punto de enviarse:", JSON.stringify(trackingNumbers, null, 2));
-    
-  const response = await axiosConfig.post<ValidTrackingAndConsolidateds>(
-    `${url}/validate-tracking-numbers`,
-    { trackingNumbers, subsidiaryId }
-  );
-  return response.data;
-};
 
 const getConsolidatedsToStartUnloading = async(subsidiaryId: string) => {
     const response = await axiosConfig.get<Consolidateds>(`${url}/consolidateds/${subsidiaryId}`);
@@ -108,7 +97,6 @@ export {
     getUnloadingDetail,
     saveUnloading,
     getUnloadingById,
-    validateTrackingNumbers,
     getConsolidatedsToStartUnloading,
     getUnloadingSessionInit,
     validateOne,

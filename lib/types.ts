@@ -940,6 +940,8 @@ export interface Unloading {
   unScannedTrackings: string[];
   date: string;
   createdAt: string;
+  /** "Hecho por" (el detalle solo trae id y nombre). */
+  createdBy?: { id: string; name: string } | null;
 }
 
 export interface UnloadingResponse {
@@ -957,14 +959,25 @@ export interface UnloadingResponse {
 
 export interface UnloadingFormData {
   id?: string;
-  vehicle?: Vehicles;
+  // El backend solo lee el id (y el nombre como dato informativo).
+  vehicle?: Pick<Vehicles, 'id'> & Partial<Pick<Vehicles, 'name'>>;
   // El backend solo lee id/name de la sucursal.
   subsidiary?: Pick<Subsidiary, 'id'> & Partial<Pick<Subsidiary, 'name'>>;
   shipments?: string[];
   missingTrackings: string[];
   unScannedTrackings: string[];
   date: string;
+  /** Folio único de la captura: evita duplicar el desembarque si se manda dos veces. */
+  clientRequestId?: string;
 }
+
+/** Respuesta al guardar: el desembarque + lo que el servidor saltó. */
+export type UnloadingSaveResult = Unloading & {
+  /** true si ese folio de captura ya se había guardado (no se creó otro). */
+  duplicate?: boolean;
+  /** Guías que ya estaban entregadas/devueltas: no cambiaron de estatus. */
+  skippedFinal?: { trackingNumber: string; reason: string }[];
+};
 
 export interface ShortShipment {
   id?: string;
@@ -1320,10 +1333,15 @@ export interface ValidatedUnloadingOne {
   recipientAddress?: string;
   recipientPhone?: string;
   recipientZip?: string;
+  recipientCity?: string;
+  /** fedex | dhl: la captura agrupa y filtra por paquetería. */
+  shipmentType?: string;
   priority?: string;
   isHighValue?: boolean;
   payment?: { type: string; amount: number };
   commitDateTime?: string;
+  /** Motivo si ya está entregada/devuelta: cuenta en el desembarque pero no cambia de estatus. */
+  alreadyFinal?: string;
 }
 
 // Día festivo adicional (global) que complementa la lista fija del Art. 74 LFT

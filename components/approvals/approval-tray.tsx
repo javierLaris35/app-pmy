@@ -59,7 +59,7 @@ export function ApprovalTray() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-[400px] overflow-hidden rounded-xl p-0 shadow-xl">
+      <PopoverContent align="end" sideOffset={8} className="w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl p-0 shadow-xl">
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white">
             <Inbox className="h-4 w-4" />

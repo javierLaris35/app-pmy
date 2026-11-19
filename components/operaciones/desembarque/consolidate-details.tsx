@@ -33,9 +33,9 @@ const typeIcons: Record<string, React.ElementType> = {
 
 // Mapeo local de colores
 const typeColors: Record<string, string> = {
-  Terrestre: "bg-blue-100 text-blue-700 border-blue-200",
-  Áereo: "bg-green-100 text-green-700 border-green-200",
-  "F2/Carga/31.5": "bg-orange-100 text-orange-700 border-orange-200",
+  Terrestre: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300",
+  Áereo: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300",
+  "F2/Carga/31.5": "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300",
 };
 
 // Añadir cache en memoria para consolidados por sucursal
@@ -82,7 +82,6 @@ export default function ConsolidateDetails({
   });
   
   const [error, setError] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<'props' | 'database'>('database');
   const [loading, setLoading] = useState(false);
 
   // SOLUCIÓN: Usar una ref para controlar si ya se hizo el fetch inicial
@@ -150,7 +149,6 @@ export default function ConsolidateDetails({
         : { airConsolidated: [], groundConsolidated: [], f2Consolidated: [] };
       
       setConsolidateds(validatedData);
-      setDataSource("props");
       setLoading(false);
       setError(null);
       return;
@@ -181,7 +179,6 @@ export default function ConsolidateDetails({
     if (swData === null) {
       console.log("[ConsolidateDetails] No data (404)");
       setConsolidateds({ airConsolidated: [], groundConsolidated: [], f2Consolidated: [] });
-      setDataSource("database");
       setLoading(false);
       setError(null);
       hasFetchedRef.current = true;
@@ -196,7 +193,6 @@ export default function ConsolidateDetails({
         : { airConsolidated: [], groundConsolidated: [], f2Consolidated: [] };
       
       setConsolidateds(validatedData);
-      setDataSource("database");
       setLoading(false);
       setError(null);
       hasFetchedRef.current = true;
@@ -349,66 +345,55 @@ export default function ConsolidateDetails({
   }, [handleRefetch]);
 
   // Barra de acciones: recargar + buscar por número de consolidado.
-  const actionsBar = (
-    <div className="flex flex-col gap-2 pb-2">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-          <Input
-            value={consNumberInput}
-            onChange={(e) => setConsNumberInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitConsNumberSearch(); } }}
-            placeholder="Buscar consolidado por número..."
-            className="h-8 pl-7 text-xs"
-            disabled={!subsidiaryId || reloading || !onSearchConsNumber}
-          />
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2 text-xs"
-          onClick={submitConsNumberSearch}
-          disabled={!subsidiaryId || reloading || !consNumberInput.trim() || !onSearchConsNumber}
-        >
-          Buscar
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2 text-xs gap-1"
-          onClick={handleReload}
-          disabled={!subsidiaryId || reloading}
-          title="Recargar consolidados desde la base de datos"
-        >
-          {reloading ? <PmySpinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Recargar
-        </Button>
+  const header = (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <IconTruckLoading className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="text-sm font-medium">Consolidados</span>
+        {allItems.length > 0 && (
+          <span className="text-xs text-muted-foreground">{selectedKeys.size} de {allItems.length}</span>
+        )}
       </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={handleReload}
+        disabled={!subsidiaryId || reloading}
+        aria-label="Recargar consolidados"
+        title="Recargar consolidados"
+      >
+        {reloading ? <PmySpinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+      </Button>
     </div>
   );
 
-  // SOLUCIÓN: Si no hay subsidiaryId, mostrar mensaje
+  const searchBar = (
+    <div className="relative">
+      <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={consNumberInput}
+        onChange={(e) => setConsNumberInput(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitConsNumberSearch(); } }}
+        placeholder="Agregar por número y Enter"
+        className="h-8 pl-7 text-xs"
+        disabled={!subsidiaryId || reloading || !onSearchConsNumber}
+      />
+    </div>
+  );
+
   if (!subsidiaryId) {
     return (
-      <div className="space-y-2 p-3 rounded-lg border bg-white shadow-sm">
-        <div className="flex items-center justify-between pb-1">
-          <div className="flex items-center gap-2">
-            <div className="rounded-full border p-1.5 bg-red-100 text-red-700 border-red-200">
-              <IconTruckLoading className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">Comparación Consolidado</span>
-          </div>
-        </div>
-        <div className="text-center py-6 text-gray-500">
-          <p className="text-sm">Selecciona una sucursal para ver los consolidados</p>
-        </div>
+      <div className="space-y-2 rounded-xl border bg-card p-3">
+        {header}
+        <p className="py-4 text-center text-sm text-muted-foreground">Elige una sucursal para ver los consolidados.</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="rounded-lg border bg-white">
+      <div className="rounded-xl border bg-card">
         <PmyLoader size="sm" text="Cargando consolidados…" className="py-6" />
       </div>
     );
@@ -416,24 +401,12 @@ export default function ConsolidateDetails({
 
   if (error) {
     return (
-      <div className="space-y-2 p-3 rounded-lg border bg-white">
-        <div className="flex items-center justify-between pb-1">
-          <div className="flex items-center gap-2">
-            <div className="rounded-full border p-1.5 bg-red-100 text-red-700 border-red-200">
-              <IconTruckLoading className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">Comparación Consolidado</span>
-          </div>
-        </div>
-        <div className="text-center py-4 text-red-600">
-          <p className="text-sm">{error}</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="mt-2"
-            onClick={handleRefetch}
-          >
-             Reintentar
+      <div className="space-y-2 rounded-xl border bg-card p-3">
+        {header}
+        <div className="py-3 text-center">
+          <p className="text-sm text-red-600">{error}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={handleRefetch}>
+            Reintentar
           </Button>
         </div>
       </div>
@@ -441,129 +414,75 @@ export default function ConsolidateDetails({
   }
 
   return (
-    <div className="space-y-2 p-3 rounded-lg border bg-white shadow-sm">
-      <div className="flex items-center justify-between pb-1">
-        <div className="flex items-center gap-2">
-          <div className="rounded-full border p-1.5 bg-red-100 text-red-700 border-red-200">
-            <IconTruckLoading className="h-4 w-4" />
-          </div>
-          <span className="text-sm font-medium text-gray-900">Comparación Consolidado</span>
-          <span className="text-xs text-gray-500">
-            ({dataSource === 'database' ? 'Desde BD' : 'Desde props'})
-          </span>
-        </div>
-      </div>
+    <div className="space-y-2 rounded-xl border bg-card p-3">
+      {header}
+      {searchBar}
 
-      {actionsBar}
-
-      <div className="flex items-center justify-between pb-2">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="select-all-consolidated"
-            checked={selectedKeys.size === allItems.length && allItems.length > 0}
-            onCheckedChange={(v) => selectAll(!!v)}
-            disabled={allItems.length === 0}
-          />
-          <label htmlFor="select-all-consolidated" className="text-xs text-gray-600">
+      {allItems.length > 0 && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <label className="flex items-center gap-2">
+            <Checkbox
+              checked={selectedKeys.size === allItems.length && allItems.length > 0}
+              onCheckedChange={(v) => selectAll(!!v)}
+            />
             Seleccionar todos
           </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{selectedKeys.size} seleccionados</span>
-        </div>
-      </div>
-      
-      {selectedTotals && (
-        <div className="flex items-center justify-between py-2 text-sm text-gray-700 border-b">
-          <div className="text-xs text-gray-500">Totales para seleccionados</div>
-          <div className="flex gap-4">
-            <div>Total: <strong className="ml-1">{selectedTotals.totalPackages}</strong></div>
-            <div>Agregados: <strong className="ml-1">{selectedTotals.totalAdded}</strong></div>
-            <div>Faltantes: <strong className="ml-1">{selectedTotals.totalNotFound}</strong></div>
-          </div>
+          {selectedTotals && (
+            <span className="tabular-nums">
+              {selectedTotals.totalAdded}/{selectedTotals.totalPackages}
+              {selectedTotals.totalNotFound > 0 && <span className="text-red-600"> · faltan {selectedTotals.totalNotFound}</span>}
+            </span>
+          )}
         </div>
       )}
 
       <div className="space-y-1">
         {orderedItems.map((item, index) => {
           if (!item || typeof item !== 'object') return null;
-          
+
           const IconComponent = typeIcons[item.type] || Truck;
-          const colorClass = typeColors[item.type] || "bg-gray-100 text-gray-700 border-gray-200";
+          const colorClass = typeColors[item.type] || "bg-muted text-muted-foreground border-border";
           const key = getItemKey(item, index);
           const checked = selectedKeys.has(key);
           const itemType = item.type || "Sin tipo";
           const consNumber = item.consNumber ?? item.cons_number ?? "-";
-          
+          const added = item.added?.length || 0;
+          const missing = item.notFound?.length || 0;
+          const total = Math.max(item.numberOfPackages || 0, added + missing);
+          const pct = total > 0 ? Math.min(100, Math.round((added / total) * 100)) : 0;
+          const done = total > 0 && missing === 0;
+
           return (
             <div
               key={key}
-              className="flex items-center justify-between p-2 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors"
+              className={`rounded-lg border px-2 py-1.5 transition-colors ${checked ? "border-primary/40 bg-primary/5" : "border-transparent hover:bg-muted/60"}`}
             >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <Checkbox checked={checked} onCheckedChange={() => toggleKey(key)} />
-                <div className={`p-1.5 rounded-full border ${colorClass}`}>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={checked} onCheckedChange={() => toggleKey(key)} aria-label={`Seleccionar ${itemType} ${consNumber}`} />
+                <span className={`rounded-full border p-1 ${colorClass}`}>
                   <IconComponent className="h-3 w-3" />
+                </span>
+                <div className="min-w-0 flex-1 leading-tight">
+                  <div className="truncate text-xs font-medium" title={itemType}>{itemType}</div>
+                  <div className="truncate font-mono text-[11px] text-muted-foreground" title={String(consNumber)}>{consNumber}</div>
                 </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-gray-900 truncate" title={itemType}>
-                    {itemType}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate" title={consNumber}>
-                    {consNumber}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 flex-1 justify-center">
-                <div className="text-center min-w-[60px]">
-                  <span className="text-xs text-gray-600 block">Total</span>
-                  {selectedKeys.size === 0 || checked ? (
-                    <span className="text-sm font-semibold text-gray-900">
-                      {item.numberOfPackages || 0}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </div>
-                
-                <div className="text-center min-w-[70px]">
-                  <span className="text-xs text-gray-600 block">Agregados</span>
-                  {selectedKeys.size === 0 || checked ? (
-                    <span className={`text-sm font-semibold ${(item.added?.length || 0) > 0 ? "text-green-600" : "text-gray-500"}`}>
-                      {item.added?.length || 0}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </div>
-                
-                <div className="text-center min-w-[70px]">
-                  <span className="text-xs text-gray-600 block">Faltantes</span>
-                  {selectedKeys.size === 0 || checked ? (
-                    <span className={`text-sm font-semibold ${(item.notFound?.length || 0) > 0 ? "text-red-600" : "text-gray-500"}`}>
-                      {item.notFound?.length || 0}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex justify-end">
+                <span className={`text-xs font-semibold tabular-nums ${done ? "text-green-600" : ""}`}>
+                  {added}/{total}
+                </span>
                 <NotFoundShipmentDetails
                   shipments={item.notFound || []}
                   trigger={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                      title={`Ver detalles de ${itemType}`}
-                    >
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" title={`Ver faltantes de ${itemType}`}>
                       <Eye className="h-3 w-3" />
                     </Button>
                   }
                 />
+              </div>
+              <div className="ml-6 mt-1 flex items-center gap-2">
+                <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div className={`h-1 rounded-full ${done ? "bg-green-600" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
+                </div>
+                {missing > 0 && <span className="text-[11px] text-red-600 tabular-nums">faltan {missing}</span>}
               </div>
             </div>
           );
@@ -571,19 +490,11 @@ export default function ConsolidateDetails({
       </div>
 
       {allItems.length === 0 && !loading && (
-        <div className="text-center py-3 text-gray-500">
-          <div className="p-2 rounded-full bg-gray-100 inline-block mb-1">
-            <Truck className="h-4 w-4 opacity-50" />
-          </div>
-          <p className="text-xs">No hay consolidados para mostrar</p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={handleReload}
-            disabled={reloading}
-          >
-            {reloading ? "Buscando..." : "Buscar consolidados"}
+        <div className="py-3 text-center text-muted-foreground">
+          <Truck className="mx-auto mb-1 h-4 w-4 opacity-50" />
+          <p className="text-xs">No hay consolidados por desembarcar.</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={handleReload} disabled={reloading}>
+            {reloading ? "Buscando…" : "Buscar consolidados"}
           </Button>
         </div>
       )}

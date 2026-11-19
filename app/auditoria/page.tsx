@@ -499,9 +499,9 @@ function AuditoriaPage() {
           </TabsContent>
 
           {/* HISTORIAL */}
-          <TabsContent value="historial" className="space-y-4">
-            <Card>
-              <CardContent className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
+          <TabsContent value="historial" className="space-y-3">
+            {/* Filtros sin tarjeta: parejos con el encabezado de la pantalla. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
                 <div className="relative sm:col-span-2 lg:flex-1 lg:min-w-[220px]">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input placeholder="Buscar usuario, registro, ruta..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
@@ -517,8 +517,7 @@ function AuditoriaPage() {
                 </select>
                 {(search || module || action || result) && <Button variant="ghost" size="sm" onClick={clearFilters}><X className="h-4 w-4" /> Limpiar</Button>}
                 <span className="text-xs text-muted-foreground lg:ml-auto">{total} eventos</span>
-              </CardContent>
-            </Card>
+            </div>
 
             {isLoading ? (
               <PmyLoader size="sm" messages="report" className="py-16" />

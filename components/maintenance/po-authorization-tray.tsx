@@ -33,7 +33,7 @@ export function PoAuthorizationTray() {
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-96 p-0">
+      <PopoverContent align="end" className="w-96 max-w-[calc(100vw-1rem)] p-0">
         <div className="border-b px-4 py-3">
           <p className="text-sm font-semibold">Órdenes por autorizar</p>
           <p className="text-xs text-muted-foreground">Mantenimiento de unidades</p>
