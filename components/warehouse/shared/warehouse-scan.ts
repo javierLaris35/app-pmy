@@ -1,4 +1,5 @@
 // components/warehouse/shared/warehouse-scan.ts
+import type { SoundKind } from "@/lib/sounds";
 import { PackageInfo } from "@/lib/types";
 import { toPackageInfo, WarehousePackageInfo } from "@/components/warehouse/shared/warehouse-package-list.helpers";
 import { isToday } from "@/components/warehouse/shared/warehouse-utils";
@@ -101,7 +102,8 @@ export function makeResolveWarehouseScan(deps: {
   validate: (code: string, warehouseId: string, ctx: "inbound" | "outbound") => Promise<any>;
   warehouseId: string;
   context: "inbound" | "outbound";
-  speak?: (t: string) => void;
+  /** Voz + sonido común (lib/sounds). */
+  speak?: (t: string, sound?: SoundKind) => void;
 }) {
   const { validate, warehouseId, context, speak } = deps;
   return async (code: string, current: PackageInfo[]): Promise<ScanResolution> => {
@@ -111,22 +113,22 @@ export function makeResolveWarehouseScan(deps: {
     );
     if (localMatch) {
       if ((localMatch as WarehousePackageInfo).dhlUniqueId === code) {
-        speak?.("Pieza repetida."); return { action: "reject", message: `La pieza ${code} ya está en la lista.` };
+        speak?.("Pieza repetida.", "duplicate"); return { action: "reject", message: `La pieza ${code} ya está en la lista.` };
       }
       if (localMatch.trackingNumber === code) {
         if ((localMatch.shipmentType || "").toLowerCase() === "dhl") {
           speak?.("Guía principal detectada. Confirme remesa.");
           return { action: "remittance", masterTracking: localMatch.trackingNumber };
         }
-        speak?.("Guía repetida."); return { action: "reject", message: `Guía ya en lista: ${code}` };
+        speak?.("Guía repetida.", "duplicate"); return { action: "reject", message: `Guía ya en lista: ${code}` };
       }
     }
     // 2. Backend.
     let result: any;
     try { result = await validate(code, warehouseId, context); }
-    catch { speak?.("Error de sistema"); return { action: "reject", message: "Error de servidor" }; }
+    catch { speak?.("Error de sistema", "error"); return { action: "reject", message: "Error de servidor" }; }
     if (result?.isValid === false) {
-      speak?.("No encontrado."); return { action: "reject", message: result.reason || "No encontrado en sistema" };
+      speak?.("No encontrado.", "notFound"); return { action: "reject", message: result.reason || "No encontrado en sistema" };
     }
     // 3. Dedup post-backend.
     const dup = current.find((p) => {
@@ -139,7 +141,7 @@ export function makeResolveWarehouseScan(deps: {
       if ((result.shipmentType || "").toLowerCase() === "dhl") {
         speak?.("Guía repetida. Confirme remesa."); return { action: "remittance", masterTracking: result.trackingNumber };
       }
-      speak?.("Paquete duplicado."); return { action: "reject", message: `El paquete con guía ${result.trackingNumber} ya está en la lista.` };
+      speak?.("Paquete duplicado.", "duplicate"); return { action: "reject", message: `El paquete con guía ${result.trackingNumber} ya está en la lista.` };
     }
     // 4. Válido → PackageInfo listo para mostrar.
     const pkg = toPackageInfo({
@@ -154,9 +156,10 @@ export function makeResolveWarehouseScan(deps: {
       recipientName: result.recipientName || "",
       recipientAddress: result.recipientAddress || "",
     });
-    if (result.statusWarning) speak?.("Atención, revise el estado del paquete.");
-    else if ((result.existingPieces || []).length > 0) speak?.("Guía existente. Escanee piezas restantes.");
-    else speak?.(isToday(new Date(result.commitDateTime)) ? "Vence hoy" : "Registrado");
+    if (result.statusWarning) speak?.("Atención, revise el estado del paquete.", "ok");
+    else if ((result.existingPieces || []).length > 0) speak?.("Guía existente. Escanee piezas restantes.", "ok");
+    else if (isToday(new Date(result.commitDateTime))) speak?.("Vence hoy", "expiresToday");
+    else speak?.("Registrado", "ok");
     return { action: "add", package: pkg };
   };
 }

@@ -1000,9 +1000,10 @@ function GastosPage() {
           </div>
         )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
-            <CardTitle>Historial de Gastos</CardTitle>
+        {/* Sin tarjeta: el historial queda parejo con el encabezado de la pantalla. */}
+        <div>
+          <div className="mb-3 flex flex-row flex-wrap items-center justify-between gap-3">
+            <h3 className="text-base font-semibold">Historial de gastos</h3>
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 id="btn-exportar-excel"
@@ -1040,8 +1041,8 @@ function GastosPage() {
                 Nuevo Gasto
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div>
             {effectiveSubsidiaryId ? (
               <DataTable columns={columns} data={expenses} filters={expenseFilters} autoResetPageIndex={false} />
             ) : (
@@ -1051,8 +1052,8 @@ function GastosPage() {
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>

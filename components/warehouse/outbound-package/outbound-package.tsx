@@ -214,13 +214,13 @@ export default function OutboundPackage() {
 
     if (master && (master.pieces?.includes(piece) || master.existingPieces?.includes(piece))) {
       setRemittance((d) => ({ ...d, error: `Pieza duplicada o ya registrada: ${piece}` }))
-      s.safeSpeak("Pieza duplicada")
+      s.safeSpeak("Pieza duplicada", "duplicate")
       setTimeout(() => pieceInputRef.current?.select(), 50)
       return
     }
 
     scanRef.current?.attachPieces(remittance.masterTracking, [piece])
-    s.safeSpeak("Pieza agregada")
+    s.safeSpeak("Pieza agregada", "ok")
     setRemittance((d) => ({ ...d, error: null, pieceInput: "" }))
     setTimeout(() => pieceInputRef.current?.focus(), 50)
   }, [remittance.pieceInput, remittance.masterTracking, packages, s.safeSpeak])
@@ -376,13 +376,13 @@ export default function OutboundPackage() {
     if (destinationError) {
       setShowDestinationError(true)
       toast({ title: "Falta la sucursal destino", description: destinationError, variant: "destructive" })
-      s.safeSpeak("Selecciona la sucursal destino")
+      s.safeSpeak("Selecciona la sucursal destino", "notFound")
       return
     }
     if (isReadyToFinish) {
       s.toggleModal("signatures", true)
     } else {
-      s.safeSpeak("Faltan datos para finalizar")
+      s.safeSpeak("Faltan datos para finalizar", "notFound")
     }
   }
 
@@ -440,7 +440,7 @@ export default function OutboundPackage() {
     s.runSubmit(async () => {
       try {
         const result = await saveWarehouseOutbound(buildOutboundPayload())
-        s.safeSpeak("Salida guardada con éxito")
+        s.safeSpeak("Salida guardada con éxito", "saved")
 
         // Auto-descarga de los MISMOS archivos que el correo (generados por el
         // backend). Si la descarga falla, no bloquea: se pueden regenerar desde
@@ -470,7 +470,7 @@ export default function OutboundPackage() {
           description: apiError(error, "No se pudo guardar la salida de bodega"),
           variant: "destructive",
         })
-        s.safeSpeak("Error al guardar en el servidor")
+        s.safeSpeak("Error al guardar en el servidor", "error")
       }
     })
   }

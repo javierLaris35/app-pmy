@@ -32,6 +32,31 @@ describe('unloading.store setters', () => {
     expect(st.surplusTrackings).toEqual([])
   })
 
+  it('cada sucursal tiene su propia captura', () => {
+    const s = useUnloadingStore.getState()
+    s.activateSubsidiary('A', 'A')
+    s.setShipments([pkg('111111111111', true)])
+    useUnloadingStore.getState().activateSubsidiary('B', 'A')
+    expect(useUnloadingStore.getState().shipments).toEqual([])
+    expect(useUnloadingStore.getState().subsidiaryId).toBe('B')
+    useUnloadingStore.getState().activateSubsidiary('A', 'A')
+    expect(useUnloadingStore.getState().shipments.map((p) => p.trackingNumber)).toEqual(['111111111111'])
+  })
+
+  it('cada captura tiene su folio: se conserva por sucursal y cambia al limpiar', () => {
+    const s = useUnloadingStore.getState()
+    s.activateSubsidiary('F1', 'F1')
+    s.setShipments([pkg('111111111111', true)])
+    const folio = useUnloadingStore.getState().clientRequestId
+    expect(folio).toBeTruthy()
+    useUnloadingStore.getState().activateSubsidiary('F2', 'F1')
+    expect(useUnloadingStore.getState().clientRequestId).not.toBe(folio)
+    useUnloadingStore.getState().activateSubsidiary('F1', 'F1')
+    expect(useUnloadingStore.getState().clientRequestId).toBe(folio)
+    useUnloadingStore.getState().clearAll()
+    expect(useUnloadingStore.getState().clientRequestId).not.toBe(folio)
+  })
+
   it('sigue aceptando valor directo', () => {
     useUnloadingStore.getState().setSurplusTrackings(['a', 'b'])
     expect(useUnloadingStore.getState().surplusTrackings).toEqual(['a', 'b'])

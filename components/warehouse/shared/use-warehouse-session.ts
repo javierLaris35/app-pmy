@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import type { Dispatch, SetStateAction } from "react"
 
-import { useBrowserVoice } from "@/hooks/use-browser-voice"
+import { playSound, speak, type SoundKind } from "@/lib/sounds"
 import { useAuthStore } from "@/store/auth.store"
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries"
 
@@ -69,7 +69,8 @@ export interface UseWarehouseSession {
   isSubmitting: boolean
   runSubmit: (fn: () => Promise<void>) => Promise<void>
   // voz
-  safeSpeak: (t: string) => void
+  /** Beep del evento (opcional) y después la voz. Nunca lanza. */
+  safeSpeak: (t: string, sound?: SoundKind) => void
 }
 
 // ============================================================================
@@ -98,23 +99,12 @@ export function useWarehouseSession({
   // ID por defecto tomado del store del usuario.
   const defaultWarehouseId = user?.subsidiary?.id || user?.subsidiaryId || ""
 
-  const { speak: speakMessage } = useBrowserVoice({ pitch: 0.8, rate: 1.3 })
-
-  const safeSpeak = useCallback(
-    (text: string) => {
-      try {
-        if (typeof window !== "undefined" && window.speechSynthesis) {
-          window.speechSynthesis.cancel()
-        }
-        if (typeof speakMessage === "function") {
-          speakMessage(text)
-        }
-      } catch (err) {
-        console.warn("Aviso: Fallo silencioso en la síntesis de voz.", err)
-      }
-    },
-    [speakMessage],
-  )
+  // Sonido + voz del módulo común (lib/sounds): el beep va primero y la voz
+  // después, en fila. Antes se hacía cancel()+speak() y Chrome perdía la frase.
+  const safeSpeak = useCallback((text: string, sound?: SoundKind) => {
+    if (sound) playSound(sound)
+    speak(text)
+  }, [])
 
   const [isClient, setIsClient] = useState(false)
 

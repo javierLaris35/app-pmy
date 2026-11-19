@@ -2,26 +2,24 @@
 
 import { PmyLoader } from "@/components/ui/pmy-loader"
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/app-layout"
 import { OperationHeader } from "@/components/shared/operation-header"
 import { DataTable } from "@/components/data-table/data-table"
 import { SucursalSelector } from "@/components/sucursal-selector"
 import { Button } from "@/components/ui/button"
-import { Eye, PackageCheckIcon, Sheet } from "lucide-react"
+import { Eye, PackageCheckIcon, Plus, Sheet } from "lucide-react"
 import { columns } from "./columns"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Card, CardContent } from "@/components/ui/card"
 import { useUnLoadings } from "@/hooks/services/unloadings/use-unloading"
-import { Unloading } from "@/lib/types"
+import type { Unloading, UnloadingResponse } from "@/lib/types"
 import { useAuthStore } from "@/store/auth.store"
-import UnloadingForm from "./unloading-form"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateUnloadingExcelClient } from "@/lib/services/unloading/unloading-excel-generator"
 import UnloadingDetails from "./unloading-details"
 import { WeekRangePicker } from "@/components/shared/week-range-picker"
 import { getWeekRange, WeekRange } from "@/lib/week"
-import type { PaginationState } from "@tanstack/react-table"
+import type { CellContext, PaginationState } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { getUnloadingDetail } from "@/lib/services/unloadings"
@@ -32,7 +30,6 @@ export default function UnLoadingPageControl() {
   // Estados
   const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
   const [selectedSucursalName, setSelectedSucursalName] = useState<string>("")
-  const [isUnloadingDialogOpen, setIsUnloadingDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [selectedUnloading, setSelectedUnloading] = useState<Unloading | null>(null)
   const [week, setWeek] = useState<WeekRange>(() => getWeekRange())
@@ -63,14 +60,12 @@ export default function UnLoadingPageControl() {
   // SOLUCIÓN: Solo inicializar la sucursal cuando auth esté hidratado
   useEffect(() => {
     if (hasHydrated && user?.subsidiary?.id && !selectedSucursalId) {
-      console.log("[UnloadingPage] Initializing with user subsidiary:", user.subsidiary.id, user.subsidiary.name)
       setSelectedSucursalId(user.subsidiary.id)
       setSelectedSucursalName(user.subsidiary.name || "")
     }
     
     // También manejar el caso antiguo donde subsidiaryId y subsidiaryName son propiedades directas
     if (hasHydrated && user?.subsidiaryId && !selectedSucursalId && !user?.subsidiary?.id) {
-      console.log("[UnloadingPage] Initializing with user subsidiary (legacy):", user.subsidiaryId, user.subsidiaryName)
       setSelectedSucursalId(user.subsidiaryId)
       setSelectedSucursalName(user.subsidiaryName || "")
     }
@@ -84,19 +79,8 @@ export default function UnLoadingPageControl() {
     { page: pagination.pageIndex + 1, limit: pagination.pageSize, from: week.from, to: week.to, search: search || undefined }
   )
 
-  console.log("[UnloadingPage] Debug:", {
-    hasHydrated,
-    user,
-    shouldFetch,
-    effectiveSucursalId,
-    effectiveSucursalName,
-    selectedSucursalId,
-    selectedSucursalName,
-    unloadingsCount: unloadings?.length || 0
-  })
 
   const handleSucursalChange = (id: string, name?: string) => {
-    console.log("[UnloadingPage] handleSucursalChange -> id:", id, "name:", name)
     setSelectedSucursalId(id || null)
     setSelectedSucursalName(name || "")
     setPagination((p) => ({ ...p, pageIndex: 0 }))
@@ -107,13 +91,15 @@ export default function UnLoadingPageControl() {
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
-  const openUnloadingDialog = () => {
-    console.log("[UnloadingPage] openUnloadingDialog -> selectedSucursalId:", selectedSucursalId, "selectedSucursalName:", selectedSucursalName)
-    setIsUnloadingDialogOpen(true)
+  // La captura ahora es a pantalla completa (antes era una ventana encima del historial).
+  const router = useRouter()
+  const openUnloadingCapture = () => {
+    if (!effectiveSucursalId) return
+    router.push(`/operaciones/desembarques/nuevo?sucursal=${encodeURIComponent(effectiveSucursalId)}`)
   }
 
   // El listado devuelve conteos (sin paquetes). Para el detalle traemos el registro completo por id.
-  const openDetailsDialog = async (row: Unloading) => {
+  const openDetailsDialog = async (row: Pick<UnloadingResponse, "id">) => {
     if (!row?.id) return
     setIsDetailsDialogOpen(true)
     setSelectedUnloading(null)
@@ -130,7 +116,7 @@ export default function UnLoadingPageControl() {
     }
   }
 
-  const handleExcelFileCreation = async (row: Unloading) => {
+  const handleExcelFileCreation = async (row: Pick<UnloadingResponse, "id">) => {
     if (!row?.id) return
     try {
       const full = await getUnloadingDetail(row.id)
@@ -145,7 +131,7 @@ export default function UnLoadingPageControl() {
     col.id === "actions"
       ? {
           ...col,
-          cell: ({ row }) => (
+          cell: ({ row }: CellContext<UnloadingResponse, unknown>) => (
             <div className="flex gap-2">
               <Button
                 variant="ghost"
@@ -215,7 +201,8 @@ export default function UnLoadingPageControl() {
           title="Desembarques"
           description="Gestiona los desembarques de paquetes."
           actions={
-            <div className="w-full sm:w-[250px]">
+            <div className="flex items-center gap-2 whitespace-nowrap">
+            <div className="w-56">
               <SucursalSelector
                 value={selectedSucursalId || user?.subsidiary?.id || user?.subsidiaryId || ""}
                 returnObject={true}
@@ -231,29 +218,20 @@ export default function UnLoadingPageControl() {
                 }}
               />
             </div>
+            <Button size="sm" className="h-9 gap-1.5" onClick={openUnloadingCapture} disabled={!shouldFetch}>
+              <Plus className="h-4 w-4" />
+              Nuevo desembarque
+            </Button>
+            </div>
           }
         />
 
-        {/* Main Action Button */}
-        <div className="flex justify-end">
-          <Button
-            onClick={openUnloadingDialog}
-            disabled={!shouldFetch}
-            size="lg"
-            className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
-          >
-            <PackageCheckIcon className="mr-2 h-5 w-5" />
-            Nuevo Desembarque
-          </Button>
-        </div>
-
-        {/* Dispatches Table */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        {/* Sin tarjeta: el historial queda parejo con el encabezado de la pantalla. */}
+        <div>
+            <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
-                <h3 className="text-lg font-semibold">Historial de Desembarques</h3>
-                <p className="text-muted-foreground">Desembarques de la semana seleccionada</p>
+                <h3 className="text-base font-semibold">Historial de desembarques</h3>
+                <p className="text-sm text-muted-foreground">Desembarques de la semana seleccionada</p>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="relative w-full sm:w-[260px]">
@@ -289,33 +267,20 @@ export default function UnLoadingPageControl() {
                 pageCount={totalPages}
                 pagination={pagination}
                 onPaginationChange={setPagination}
+                // El buscador y la semana son los de arriba (buscan en el servidor).
+                hideToolbar
+                hideSelectionCount
               />
             )}
-          </CardContent>
-        </Card>
+        </div>
       </div>
-
-      {/* Desembarque (el form es dueño de su propio Dialog) */}
-      <UnloadingForm
-        open={isUnloadingDialogOpen}
-        onOpenChange={setIsUnloadingDialogOpen}
-        onClose={() => setIsUnloadingDialogOpen(false)}
-        onSuccess={() => {
-          mutate()
-          setIsUnloadingDialogOpen(false)
-        }}
-        selectedSubsidiaryId={effectiveSucursalId}
-        selectedSubsidiaryName={effectiveSucursalName}
-      />
 
       {/* Unloading Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalles de Desembarque</DialogTitle>
-            <DialogDescription>
-              Visualiza los detalles del desembarque, incluyendo paquetes validados y guías no procesadas.
-            </DialogDescription>
+            <DialogTitle className="sr-only">Detalle de desembarque</DialogTitle>
+            <DialogDescription className="sr-only">Paquetes del desembarque, faltantes y sobrantes.</DialogDescription>
           </DialogHeader>
           {isDetailLoading ? (
             <PmyLoader size="sm" className="h-[200px] py-0" />

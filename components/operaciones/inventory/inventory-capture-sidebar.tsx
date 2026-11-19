@@ -22,17 +22,24 @@ export function LastReadCard({
   pkg,
   onTransfer,
   alertDay = null,
+  okText = "Última lectura: entra al inventario",
+  failText = "Última lectura: no entra",
+  emptyText = "Escanea la primera guía para empezar.",
 }: {
   code: string | null;
   pkg: PackageInfo | null;
   onTransfer?: (pkg: PackageInfo) => void;
   /** Día a vigilar cuando mañana no se opera. */
   alertDay?: AlertDay | null;
+  /** Textos de la tarjeta (los usa también el desembarque). */
+  okText?: string;
+  failText?: string;
+  emptyText?: string;
 }) {
   if (!code) {
     return (
       <div className="rounded-xl border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-        Escanea la primera guía para empezar.
+        {emptyText}
       </div>
     );
   }
@@ -60,9 +67,9 @@ export function LastReadCard({
         ) : offline ? (
           <><AlertCircle className="h-3.5 w-3.5" /> Sin conexión: se valida al volver internet</>
         ) : ok ? (
-          <><CheckCircle2 className="h-3.5 w-3.5" /> Última lectura: entra al inventario</>
+          <><CheckCircle2 className="h-3.5 w-3.5" /> {okText}</>
         ) : (
-          <><AlertCircle className="h-3.5 w-3.5" /> Última lectura: no entra</>
+          <><AlertCircle className="h-3.5 w-3.5" /> {failText}</>
         )}
       </div>
 

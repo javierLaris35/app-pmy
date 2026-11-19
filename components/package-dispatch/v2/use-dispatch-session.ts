@@ -5,7 +5,7 @@ import { DispatchFormData, DispatchSortMode, Driver, PackageDispatch, PackageInf
 import { savePackageDispatch, uploadPDFile, validateTrackingNumber, validateTrackingsList } from "@/lib/services/package-dispatchs";
 import { daysUntilCommit } from "@/components/shared/package-list-item";
 import { normalizeScannedCode, isValidScannedCode } from "@/lib/tracking/normalize-scan";
-import { playExpiresTodaySound, playExpiresTomorrowSound, playInvalidSound, playNotFoundSound } from "@/lib/scanner-feedback";
+import { playScanResult, playSound } from "@/lib/sounds";
 import type { ScanResolution } from "@/components/scanner/scan-input";
 
 /**
@@ -167,10 +167,14 @@ export function useDispatchSession(subsidiaryId: string | null, subsidiaryName: 
 
   const feedback = useCallback((results: PackageInfo[], hadMalformed = false) => {
     const valid = results.filter((r) => r.isValid);
-    if (hadMalformed) playInvalidSound();
-    else if (results.some((r) => !r.isValid && !r.isOffline)) playNotFoundSound();
-    else if (valid.some((r) => daysUntilCommit(r.commitDateTime) === 0)) playExpiresTodaySound();
-    else if (valid.some((r) => daysUntilCommit(r.commitDateTime) === 1)) playExpiresTomorrowSound();
+    // Un solo sonido por escaneo/lote, con la prioridad común de lib/sounds.
+    playScanResult({
+      invalid: hadMalformed,
+      notFound: results.some((r) => !r.isValid && !r.isOffline),
+      expiresToday: valid.some((r) => daysUntilCommit(r.commitDateTime) === 0),
+      expiresTomorrow: valid.some((r) => daysUntilCommit(r.commitDateTime) === 1),
+      added: valid.length > 0,
+    });
   }, []);
 
   const mergeResults = useCallback(
@@ -210,6 +214,7 @@ export function useDispatchSession(subsidiaryId: string | null, subsidiaryName: 
       }
       const id = pieceId(info);
       if (current.some((p) => pieceId(p) === id) || packagesRef.current.some((p) => pieceId(p) === id)) {
+        playSound("duplicate");
         return { action: "reject", message: `La guía ${id} ya está en la salida.` };
       }
       setPackages((prev) => (prev.some((p) => pieceId(p) === id) ? prev : [...prev, info]));
@@ -432,7 +437,8 @@ export function useDispatchSession(subsidiaryId: string | null, subsidiaryName: 
         sortMode,
       };
       dispatch = await savePackageDispatch(data);
-    } catch (e: any) {
+    } catch {
+      playSound("error");
       setProcess((p) => ({
         ...p,
         steps: { ...p.steps, save: "error" },
@@ -442,6 +448,7 @@ export function useDispatchSession(subsidiaryId: string | null, subsidiaryName: 
     }
     // La salida YA existe: se limpia la captura para que no se procese dos veces.
     setProcess((p) => ({ ...p, dispatch, steps: { ...p.steps, save: "done" } }));
+    playSound("saved");
     clearAll();
 
     try {

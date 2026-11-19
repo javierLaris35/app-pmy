@@ -43,6 +43,7 @@ import { WeekRangePicker } from '@/components/shared/week-range-picker'
 import { getWeekRange, WeekRange } from '@/lib/week'
 import { usePickUpHistory } from '@/hooks/services/pick-up/use-pick-up-history'
 import { useToast } from '@/components/ui/use-toast'
+import { playSound } from '@/lib/sounds'
 import { PackageInfo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -162,6 +163,7 @@ export default function PackageReception() {
       ? 'entrega_bodega'
       : null
     if (existsIn) {
+      playSound('duplicate')
       setError(`Este paquete ya está en la lista de ${typeLabel(existsIn as PickUpType)}.`)
       setScanInput('')
       inputRef.current?.focus()
@@ -188,8 +190,10 @@ export default function PackageReception() {
         commitDateTime: info?.commitDateTime || new Date(),
       }
       setLists((prev) => ({ ...prev, [pickUpType]: [newPackage, ...prev[pickUpType]] }))
+      playSound('ok')
     } catch (err: any) {
       const status = err?.response?.status
+      playSound(status === 404 ? 'notFound' : 'error')
       setError(
         status === 404
           ? `No se encontró la guía ${trackingNumber} en el sistema.`
@@ -236,6 +240,7 @@ export default function PackageReception() {
       )
       await savePackageReception({ subsidiaryId: effectiveSucursalId, items })
       setShowSuccess(true)
+      playSound('saved')
       toast({
         title: 'Registro exitoso',
         description: `${total} paquete(s): ${counts.ocurre} ocurre, ${counts.entrega_bodega} entrega.`,
@@ -247,6 +252,7 @@ export default function PackageReception() {
       }, 1500)
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'No se pudo completar el registro. Intenta de nuevo.'
+      playSound('error')
       toast({ title: 'Error al registrar', description: String(msg), variant: 'destructive' })
     } finally {
       setIsSaving(false)

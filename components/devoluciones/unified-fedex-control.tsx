@@ -139,13 +139,12 @@ export default function UpdatedFedExControl() {
           </div>
         )}
 
-        {/* Historial (única vista) */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        {/* Historial (única vista). Sin tarjeta: queda parejo con el encabezado de la pantalla. */}
+        <div>
+            <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
-                <h3 className="text-lg font-semibold">Historial de Salidas</h3>
-                <p className="text-muted-foreground">Salidas de la semana seleccionada</p>
+                <h3 className="text-base font-semibold">Historial de salidas</h3>
+                <p className="text-sm text-muted-foreground">Salidas de la semana seleccionada</p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="relative w-full sm:w-[240px]">
@@ -182,10 +181,12 @@ export default function UpdatedFedExControl() {
                 pageCount={totalPages}
                 pagination={pagination}
                 onPaginationChange={setPagination}
+                // El buscador y la semana son los de arriba (buscan en el servidor).
+                hideToolbar
+                hideSelectionCount
               />
             )}
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
       {/* Proceso unificado */}

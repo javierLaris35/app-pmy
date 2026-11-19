@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import type * as React from "react"
 import { AppSidebar } from "./app-sidebar"
@@ -27,11 +27,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover"
 import { useUiStore } from "@/store/ui.store"
 import { ensureClientMeta } from "@/lib/client-meta"
 import { initOfflineSync } from "@/lib/offline/sync"
 import { useOfflineStore } from "@/lib/offline/offline-store"
-import { WifiOff, CloudUpload, MapPin, Search, Plus, Gauge, LifeBuoy, HeadsetIcon, Inbox, KanbanSquare, PlusCircle } from "lucide-react"
+import { WifiOff, CloudUpload, MapPin, Search, Plus, Gauge, HeadsetIcon, Inbox, KanbanSquare, PlusCircle, MoreVertical } from "lucide-react"
 
 /** Roles que pueden ver el Tablero (gestión) de Soporte. */
 const SUPPORT_ADMIN_ROLES = ["admin", "superadmin", "superamin", "owner"]
@@ -54,6 +55,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/operaciones/envios": "Envíos",
   "/operaciones/inventarios": "Inventarios",
   "/operaciones/inventarios/nuevo": "Nuevo inventario",
+  "/operaciones/desembarques/nuevo": "Nuevo desembarque",
   "/operaciones/consolidados": "Consolidados",
   "/operaciones/monitoreo": "Monitoreo",
   "/operaciones/pagos-fedex": "Pagos a FedEx",
@@ -91,6 +93,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   const setSearchOpen = useUiStore((s) => s.setSearchOpen);
   const setAddShipmentOpen = useUiStore((s) => s.setAddShipmentOpen);
   const setWelcomeOpen = useUiStore((s) => s.setWelcomeOpen);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isSupportAdmin = SUPPORT_ADMIN_ROLES.includes((user?.role || "").toLowerCase());
 
   // Header unificado: datos publicados por la pantalla activa vía OperationHeader.
   const hIcon = usePageHeaderStore((s) => s.icon);
@@ -153,7 +157,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             publicada por OperationHeader) + utilidades globales (offline, campana,
             menú móvil). No hay segunda barra. */}
         <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/65">
-          <div className="flex items-center gap-3 px-3 py-2.5 md:px-6 md:py-3">
+          {/* Responsive: desde 2xl (1536px) todo va en un renglón. Abajo de 2xl las acciones de la
+              pantalla bajan a su propio renglón (antes empujaban el título y los botones fuera de
+              la pantalla). En celular los accesos globales se juntan en el menú ⋮. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 md:px-6 md:py-3 2xl:flex-nowrap">
             {/* Solo móvil: abre el panel. En desktop el colapso es por el rail
                 (clic en la unión del sidebar con el main). */}
             <SidebarTrigger className="h-9 w-9 shrink-0 rounded-full hover:bg-muted md:hidden" />
@@ -176,13 +183,13 @@ export function AppLayout({ children }: AppLayoutProps) {
                   {hTitleAccessory}
                 </div>
                 {(hDescription || hSubsidiary || hOffline) && (
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground md:text-sm">
-                    {hDescription && <span className="truncate">{hDescription}</span>}
+                  <div className="mt-0.5 flex min-w-0 items-center gap-x-2 text-xs text-muted-foreground md:text-sm">
+                    {hDescription && <span className="hidden truncate sm:inline">{hDescription}</span>}
                     {hDescription && hSubsidiary && (
-                      <span aria-hidden className="text-muted-foreground/40">•</span>
+                      <span aria-hidden className="hidden text-muted-foreground/40 sm:inline">•</span>
                     )}
                     {hSubsidiary && (
-                      <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                      <span className="inline-flex min-w-0 items-center gap-1 font-medium text-foreground">
                         <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                         <span className="truncate">{hSubsidiary}</span>
                       </span>
@@ -192,10 +199,17 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
             </div>
 
-            {/* Acciones de la pantalla + utilidades globales */}
-            <div className="flex shrink-0 items-center gap-2">
-              {hActions}
+            {/* Acciones de la pantalla: renglón propio abajo de 2xl, en línea desde 2xl. */}
+            {hActions && (
+              // Abajo de 2xl: renglón propio que se acomoda en varias líneas, alineado a la derecha.
+              // Sirve si la pantalla manda sus acciones sueltas (fragmento) o dentro de un div.
+              <div className="order-last flex w-full min-w-0 flex-wrap items-center justify-end gap-2 2xl:order-none 2xl:w-auto 2xl:shrink-0 2xl:flex-nowrap [&>div]:flex-wrap [&>div]:justify-end 2xl:[&>div]:flex-nowrap">
+                {hActions}
+              </div>
+            )}
 
+            {/* Utilidades globales */}
+            <div className="flex shrink-0 items-center gap-1 md:gap-2">
               {(!online || pending > 0) && (
                 <div className="hidden items-center gap-2 sm:flex">
                   {!online && (
@@ -211,12 +225,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </div>
               )}
 
-              {(hActions || !online || pending > 0) && (
-                <span className="mx-0.5 hidden h-6 w-px bg-border sm:block" aria-hidden />
-              )}
+              {hActions && <span className="mx-0.5 hidden h-6 w-px bg-border 2xl:block" aria-hidden />}
 
-              {/* Accesos globales (antes flotantes): búsqueda, alta de envío y
-                  bienvenida (solo dev). Cada uno con tooltip. */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -232,85 +242,117 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <TooltipContent>Buscar envíos</TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 rounded-full hover:bg-muted"
-                    onClick={() => setAddShipmentOpen(true)}
-                    aria-label="Agregar envío"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Agregar envío</TooltipContent>
-              </Tooltip>
-
-              <DropdownMenu>
+              {/* Desde tablet: cada acceso visible. */}
+              <div className="hidden items-center gap-2 md:flex">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 rounded-full hover:bg-muted text-red-600"
-                        aria-label="Soporte"
-                      >
-                        <HeadsetIcon className="h-5 w-5" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-full hover:bg-muted"
+                      onClick={() => setAddShipmentOpen(true)}
+                      aria-label="Agregar envío"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Soporte</TooltipContent>
+                  <TooltipContent>Agregar envío</TooltipContent>
                 </Tooltip>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel>Soporte</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push("/support/tickets")}>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Nueva solicitud
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/support/my-tickets")}>
-                    <Inbox className="h-4 w-4 mr-2" />
-                    Mis solicitudes
-                  </DropdownMenuItem>
-                  {SUPPORT_ADMIN_ROLES.includes((user?.role || "").toLowerCase()) && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => router.push("/support/admin")}>
-                        <KanbanSquare className="h-4 w-4 mr-2" />
-                        Tablero
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 rounded-full text-amber-600 hover:bg-amber-100 hover:text-amber-700 ring-1 ring-amber-200"
-                    onClick={() => setWelcomeOpen(true)}
-                    aria-label="Ver resumen operativo del día"
-                  >
-                    <Gauge className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Resumen del día · pendientes y sin escaneo</TooltipContent>
-              </Tooltip>
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-full hover:bg-muted text-red-600"
+                          aria-label="Soporte"
+                        >
+                          <HeadsetIcon className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Soporte</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuLabel>Soporte</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => router.push("/support/tickets")}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Nueva solicitud
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/support/my-tickets")}>
+                      <Inbox className="h-4 w-4 mr-2" />
+                      Mis solicitudes
+                    </DropdownMenuItem>
+                    {isSupportAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => router.push("/support/admin")}>
+                          <KanbanSquare className="h-4 w-4 mr-2" />
+                          Tablero
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-              <TasksTray />
-              <ApprovalTray />
-              <PoAuthorizationTray />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-full text-amber-600 hover:bg-amber-100 hover:text-amber-700 ring-1 ring-amber-200"
+                      onClick={() => setWelcomeOpen(true)}
+                      aria-label="Ver resumen operativo del día"
+                    >
+                      <Gauge className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Resumen del día · pendientes y sin escaneo</TooltipContent>
+                </Tooltip>
+
+                <TasksTray />
+                <ApprovalTray />
+                <PoAuthorizationTray />
+              </div>
+
               <NotificationBell />
+
+              {/* Celular: el resto de los accesos en un solo menú. */}
+              <Popover open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted md:hidden" aria-label="Más accesos">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" sideOffset={8} className="w-64 p-1">
+                  <MobileMenuItem icon={Plus} label="Agregar envío" onClick={() => { setMobileMenuOpen(false); setAddShipmentOpen(true) }} />
+                  <MobileMenuItem icon={Gauge} label="Resumen del día" onClick={() => { setMobileMenuOpen(false); setWelcomeOpen(true) }} />
+                  <div className="my-1 border-t" />
+                  <p className="px-2 pb-0.5 pt-1 text-xs font-medium text-muted-foreground">Soporte</p>
+                  <MobileMenuItem icon={PlusCircle} label="Nueva solicitud" onClick={() => { setMobileMenuOpen(false); router.push("/support/tickets") }} />
+                  <MobileMenuItem icon={Inbox} label="Mis solicitudes" onClick={() => { setMobileMenuOpen(false); router.push("/support/my-tickets") }} />
+                  {isSupportAdmin && (
+                    <MobileMenuItem icon={KanbanSquare} label="Tablero" onClick={() => { setMobileMenuOpen(false); router.push("/support/admin") }} />
+                  )}
+                  <div className="my-1 border-t" />
+                  <p className="px-2 pb-0.5 pt-1 text-xs font-medium text-muted-foreground">Pendientes</p>
+                  <div className="flex items-center gap-1 px-1 pb-1">
+                    <TasksTray />
+                    <ApprovalTray />
+                    <PoAuthorizationTray />
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </header>
         <NotificationPush />
         <WhatsNewGate />
-        <div className="p-4 md:p-6">
+        {/* Arriba menos espacio: el contenido queda pegado al encabezado. */}
+        <div className="px-4 pb-4 pt-3 md:px-6 md:pb-6 md:pt-4">
           {children}
           <CommandPalette />
           <AddShipmentDialog />
@@ -319,5 +361,15 @@ export function AppLayout({ children }: AppLayoutProps) {
       </SidebarInset>
       <Toaster />
     </SidebarProvider>
+  )
+}
+
+/** Renglón del menú ⋮ de celular (accesos globales que en tablet/escritorio son iconos). */
+function MobileMenuItem({ icon: Icon, label, onClick }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="sm" className="h-9 w-full justify-start gap-2 px-2 font-normal" onClick={onClick}>
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      {label}
+    </Button>
   )
 }

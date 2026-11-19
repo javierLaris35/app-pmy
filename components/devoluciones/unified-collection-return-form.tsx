@@ -16,6 +16,7 @@ import { saveReturning, uploadReturningFiles } from "@/lib/services/returning"
 import { DevolutionCard } from "./devolution-card"
 import { SHIPMENT_STATUS_MAP, DEVOLUTION_REASON_MAP } from "@/lib/constants"
 import { toast } from "@/lib/toast"
+import { playScanResult, playSound } from "@/lib/sounds"
 import { Driver, DevolutionRow, Devolution as LibDevolution, Vehicles } from "@/lib/types"
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input"
 import { clearScanBuffer } from "@/components/scanner/use-scan-buffer"
@@ -175,6 +176,11 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     }
 
     const newCollections = results.filter((r) => !collections.some((c) => c.trackingNumber === r.trackingNumber))
+    playScanResult({
+      invalid: invalids.length > 0,
+      duplicate: newCollections.length < results.length,
+      added: newCollections.length > 0,
+    })
 
     setCollections((prev) => [...prev, ...newCollections])
     setInvalidCollections(invalids)
@@ -274,6 +280,12 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
     const newDevolutions = foundResults.filter((r) => !devolutions.some((d) => d.trackingNumber === r.trackingNumber))
 
     const allInvalids = [...invalids, ...notFoundTns]
+    playScanResult({
+      invalid: invalids.length > 0,
+      notFound: notFoundTns.length > 0,
+      duplicate: newDevolutions.length < foundResults.length,
+      added: newDevolutions.length > 0,
+    })
 
     setDevolutions((prev) => [...prev, ...newDevolutions])
     setInvalidDevolutions(allInvalids)
@@ -463,6 +475,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       })
 
       const skippedInRoute: string[] = salida?.devolutions?.inRoute ?? []
+      playSound("saved")
       toast(
         `Se guardaron ${collections.length} recolecciones y ${devolutions.length - skippedInRoute.length} devoluciones.` +
           (skippedInRoute.length ? ` No se guardaron porque van en ruta: ${skippedInRoute.join(", ")}.` : ""),
@@ -503,6 +516,7 @@ const UnifiedCollectionReturnForm: React.FC<Props> = ({
       onSuccess()
     } catch (error) {
       console.error(error)
+      playSound("error")
       toast("Hubo un problema al guardar los datos.")
     } finally {
       setIsLoading(false)

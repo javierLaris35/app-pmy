@@ -45,7 +45,7 @@ export function TasksTray() {
         </TooltipTrigger>
         <TooltipContent>Tareas del día</TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" sideOffset={8} className="w-[340px] overflow-hidden rounded-xl p-0 shadow-xl">
+      <PopoverContent align="end" sideOffset={8} className="w-[340px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl p-0 shadow-xl">
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
             <ListChecks className="h-4 w-4" />
