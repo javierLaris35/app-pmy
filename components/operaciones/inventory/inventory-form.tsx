@@ -48,14 +48,7 @@ import { LastReadCard, QuickCounters } from "./inventory-capture-sidebar";
 import { Input } from "@/components/ui/input";
 import { countQuickFilters, findScannedPackage, matchesQuickFilter, type QuickFilterKey } from "@/lib/inventory-quick-filters";
 import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
-import {
-  initScannerFeedback,
-  playExpiresTodaySound,
-  playExpiresTomorrowSound,
-  playExpiresMondaySound,
-  playNotFoundSound,
-  playInvalidSound,
-} from "@/lib/scanner-feedback";
+import { initSounds, playScanResult, playSound, type ScanResultFlags } from "@/lib/sounds";
 import { CatalogSelect } from "@/components/shared/catalog-select";
 import { downloadBlob, inventoryFileBase } from "@/lib/inventory-files";
 import { buildInventoryFiles } from "@/lib/services/inventory/inventory-email";
@@ -169,13 +162,6 @@ export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, o
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   }, []);
 
-  // Sonidos del escáner: usan un AudioContext compartido y reanudado por gesto
-  // (ver lib/scanner-feedback). Antes cada beep creaba un AudioContext nuevo,
-  // por eso "se colgaban" tras varios escaneos y a veces no se oían.
-  const playExpirationSound = useCallback(() => playExpiresTodaySound(), []);
-  const playTomorrowExpirationSound = useCallback(() => playExpiresTomorrowSound(), []);
-  const playNotFoundSnd = useCallback(() => playNotFoundSound(), []);
-  const playInvalidSnd = useCallback(() => playInvalidSound(), []);
 
   // Días sin operación (domingo y festivos de Configuración): si mañana no se opera, se vigila
   // lo que vence el siguiente día que sí. Sin festivos cargados, igual cubre el domingo.
@@ -184,7 +170,9 @@ export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, o
 
   // Aviso de vencimiento SIN ventana: la ventana bloqueante se quitó en ene-2026 porque
   // cortaba el escaneo. Antes, además, la lista de "mañana" sobrescribía la de "hoy".
-  const handleExpirationCheck = useCallback((newPackages: PackageInfo[]) => {
+  // Devuelve qué vencimientos hubo; el sonido lo elige playScanResult junto con
+  // el resto del lote (suena solo uno, por prioridad).
+  const handleExpirationCheck = useCallback((newPackages: PackageInfo[]): ScanResultFlags => {
     const today: string[] = [];
     const tomorrow: string[] = [];
     const monday: string[] = []; // si mañana no se opera: lo que vence el siguiente día que sí
@@ -196,12 +184,7 @@ export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, o
       else if (days === 1) tomorrow.push(pkg.dhlUniqueId || pkg.trackingNumber);
       else if (isDueOn(pkg.commitDateTime, alertDay)) monday.push(pkg.dhlUniqueId || pkg.trackingNumber);
     });
-    if (today.length === 0 && tomorrow.length === 0 && monday.length === 0) return;
-
-    // Gana el más urgente: hoy > mañana > lunes.
-    if (today.length > 0) playExpirationSound();
-    else if (tomorrow.length > 0) playTomorrowExpirationSound();
-    else playExpiresMondaySound();
+    if (today.length === 0 && tomorrow.length === 0 && monday.length === 0) return {};
     toast({
       title: today.length > 0
         ? `Vence hoy: ${today.length} guía(s)`
@@ -220,11 +203,12 @@ export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, o
       .filter(p => p.commitDateTime && ([0, 1].includes(getDaysUntilExpiration(p.commitDateTime)) || isDueOn(p.commitDateTime, alertDay)))
       .map(p => p.trackingNumber);
     setShownExpiringPackages(prev => new Set([...prev, ...keys]));
-  }, [getDaysUntilExpiration, shownExpiringPackages, playExpirationSound, playTomorrowExpirationSound, toast, alertDay]);
+    return { expiresToday: today.length > 0, expiresTomorrow: tomorrow.length > 0, expiresMonday: monday.length > 0 };
+  }, [getDaysUntilExpiration, shownExpiringPackages, toast, alertDay]);
 
   // Prepara el feedback sonoro y enlaza el desbloqueo por gesto (autoplay policy).
   useEffect(() => {
-    initScannerFeedback();
+    initSounds();
   }, []);
 
   useEffect(() => {
@@ -402,14 +386,15 @@ export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, o
       barScannerInputRef.current?.updateValidatedPackages?.(allProcessedPackages);
       setPackages(allProcessedPackages);
 
-      handleExpirationCheck(newlyValidated);
+      const expiration = handleExpirationCheck(newlyValidated);
 
-      // Sonido diferenciado: formato inválido vs. no encontrada en sistema.
-      if (invalidNumbers.length > 0) {
-        playInvalidSnd();
-      } else if (newlyValidated.some(p => !p.isValid)) {
-        playNotFoundSnd();
-      }
+      // Un solo sonido por lote (lib/sounds): inválida > no encontrada > vencimientos > registrada.
+      playScanResult({
+        ...expiration,
+        invalid: invalidNumbers.length > 0,
+        notFound: newlyValidated.some(p => !p.isValid),
+        added: newlyValidated.some(p => p.isValid),
+      });
     } catch (error) {
       console.error("Error validating packages:", error);
       if (!isOnline || !navigator.onLine) {
@@ -652,6 +637,7 @@ export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, o
       saved = await saveInventory(payload);
     } catch (error) {
       console.error("saveInventory error", error);
+      playSound("error");
       // El backend explica en llano qué pasó (p. ej. "Estas guías son de otra sucursal: …").
       toast({ title: "No se guardó el inventario", description: apiError(error, "No se pudo guardar el inventario"), variant: "destructive" });
       setIsLoading(false);
@@ -659,6 +645,7 @@ export default function InventoryForm({ subsidiaryId, subsidiaryName, onSaved, o
     }
 
     // Ya quedó guardado: si falla el correo se avisa, pero la captura no se pierde.
+    playSound("saved");
     const sent = await handleSendEmail({ ...saved, subsidiary: saved.subsidiary ?? subsidiary, rejectedTrackings });
     if (sent) {
       toast({ title: "Inventario guardado", description: `Inventario ${getInventoryTypeLabel(inventoryType)} guardado y enviado por correo.` });

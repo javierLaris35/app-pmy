@@ -36,13 +36,7 @@ import { PackagesPanelHeader } from "@/components/shared/packages-panel-header";
 import { PackageFilters } from "@/components/shared/package-filters";
 import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
 import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
-import {
-  initScannerFeedback,
-  playExpiresTodaySound,
-  playExpiresTomorrowSound,
-  playNotFoundSound,
-  playInvalidSound,
-} from "@/lib/scanner-feedback";
+import { initSounds, playScanResult, playSound } from "@/lib/sounds";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AppLayout } from "@/components/app-layout";
 import { getRoutesBySucursalId } from "@/lib/services/routes";
@@ -299,7 +293,7 @@ const PackageDispatchForm: React.FC<Props> = ({
     setIsOnline(navigator.onLine);
 
     // Prepara el feedback sonoro y enlaza el desbloqueo por gesto (autoplay policy).
-    initScannerFeedback();
+    initSounds();
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -334,6 +328,7 @@ const PackageDispatchForm: React.FC<Props> = ({
     const rId = (info as any).dhlUniqueId || info.trackingNumber;
     const already = (arr: PackageInfo[]) => arr.some((p) => ((p as any).dhlUniqueId || p.trackingNumber) === rId);
     if (already(current) || already(packagesRef.current)) {
+      playSound("duplicate");
       return { action: "reject", message: `La guía ${rId} ya fue escaneada.` };
     }
 
@@ -342,9 +337,12 @@ const PackageDispatchForm: React.FC<Props> = ({
 
     // Feedback sonoro por guía (mismo criterio que el flujo por lote).
     if (!info.isOffline) {
-      if (!info.isValid) playNotFoundSound();
-      else if (daysUntilCommit(info.commitDateTime) === 0) playExpiresTodaySound();
-      else if (daysUntilCommit(info.commitDateTime) === 1) playExpiresTomorrowSound();
+      playScanResult({
+        notFound: !info.isValid,
+        expiresToday: info.isValid && daysUntilCommit(info.commitDateTime) === 0,
+        expiresTomorrow: info.isValid && daysUntilCommit(info.commitDateTime) === 1,
+        added: info.isValid,
+      });
     }
 
     return { action: "add", package: info };
@@ -431,18 +429,15 @@ const PackageDispatchForm: React.FC<Props> = ({
     setProgress(0);
     setIsLoading(false);
 
-    // Feedback sonoro estandarizado (mismo que inventario/desembarque).
+    // Un solo sonido por lote (lib/sounds): antes vencimiento + inválida sonaban encimados.
     const validResults = results.filter(r => r.isValid);
-    if (validResults.some(r => daysUntilCommit(r.commitDateTime) === 0)) {
-      playExpiresTodaySound();
-    } else if (validResults.some(r => daysUntilCommit(r.commitDateTime) === 1)) {
-      playExpiresTomorrowSound();
-    }
-    if (invalids.length > 0) {
-      playInvalidSound();
-    } else if (results.some(r => !r.isValid)) {
-      playNotFoundSound();
-    }
+    playScanResult({
+      invalid: invalids.length > 0,
+      notFound: results.some(r => !r.isValid),
+      expiresToday: validResults.some(r => daysUntilCommit(r.commitDateTime) === 0),
+      expiresTomorrow: validResults.some(r => daysUntilCommit(r.commitDateTime) === 1),
+      added: validResults.length > 0,
+    });
 
     toast({
       title: "Validación completada",
@@ -481,9 +476,12 @@ const PackageDispatchForm: React.FC<Props> = ({
     });
 
     const valid = results.filter((r) => r.isValid);
-    if (results.some((r) => !r.isValid)) playNotFoundSound();
-    else if (valid.some((r) => daysUntilCommit(r.commitDateTime) === 0)) playExpiresTodaySound();
-    else if (valid.some((r) => daysUntilCommit(r.commitDateTime) === 1)) playExpiresTomorrowSound();
+    playScanResult({
+      notFound: results.some((r) => !r.isValid),
+      expiresToday: valid.some((r) => daysUntilCommit(r.commitDateTime) === 0),
+      expiresTomorrow: valid.some((r) => daysUntilCommit(r.commitDateTime) === 1),
+      added: valid.length > 0,
+    });
 
     const invalidCount = results.length - valid.length;
     toast({
@@ -667,6 +665,7 @@ const PackageDispatchForm: React.FC<Props> = ({
       // Limpiar storage después de éxito
       clearAllStorage();
 
+      playSound("saved");
       toast({
         title: "Salida procesada exitosamente",
         description: `Se procesaron ${validPackages.length} paquetes para salida y se subió el PDF.`,
@@ -675,6 +674,7 @@ const PackageDispatchForm: React.FC<Props> = ({
       onSuccess();
     } catch (error) {
       console.error("Error in handleDispatch:", error);
+      playSound("error");
       toast({
         title: "Error al procesar salida",
         description: "Hubo un problema al procesar la salida de paquetes.",

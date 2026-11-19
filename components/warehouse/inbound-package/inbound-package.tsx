@@ -160,13 +160,13 @@ export default function InboundPackage() {
 
     if (master && (master.pieces?.includes(piece) || master.existingPieces?.includes(piece))) {
       setRemittance((d) => ({ ...d, error: `Pieza duplicada o ya registrada: ${piece}` }))
-      s.safeSpeak("Pieza duplicada")
+      s.safeSpeak("Pieza duplicada", "duplicate")
       setTimeout(() => pieceInputRef.current?.select(), 50)
       return
     }
 
     scanRef.current?.attachPieces(remittance.masterTracking, [piece])
-    s.safeSpeak("Pieza agregada")
+    s.safeSpeak("Pieza agregada", "ok")
     setRemittance((d) => ({ ...d, error: null, pieceInput: "" }))
     setTimeout(() => pieceInputRef.current?.focus(), 50)
   }, [remittance.pieceInput, remittance.masterTracking, packages, s.safeSpeak])
@@ -221,7 +221,7 @@ export default function InboundPackage() {
     if (isReadyToFinish) {
       s.toggleModal("signatures", true)
     } else {
-      s.safeSpeak("Faltan datos para finalizar")
+      s.safeSpeak("Faltan datos para finalizar", "notFound")
     }
   }
 
@@ -265,7 +265,7 @@ export default function InboundPackage() {
       try {
         await saveWarehouseInbound(buildInboundPayload())
         // La notificación por correo (PDF + Excel) la envía el backend.
-        s.safeSpeak("Entrada guardada con éxito")
+        s.safeSpeak("Entrada guardada con éxito", "saved")
         // Limpia el buffer del escáner en la ruta de éxito (evita guías colgadas).
         scanRef.current?.clear()
         setPackages([])
@@ -276,7 +276,7 @@ export default function InboundPackage() {
         toast({ title: "Entrada a bodega guardada", description: "Entrada guardada con éxito." })
       } catch (error) {
         console.error("Error al guardar la entrada en bodega:", error)
-        s.safeSpeak("Error al guardar en el servidor")
+        s.safeSpeak("Error al guardar en el servidor", "error")
       }
     })
   }
@@ -288,7 +288,7 @@ export default function InboundPackage() {
       s.safeSpeak("Archivo excel generado")
     } catch (err) {
       console.error("Error al exportar el archivo Excel en cliente:", err)
-      s.safeSpeak("Error al exportar excel")
+      s.safeSpeak("Error al exportar excel", "error")
     }
   }
 

@@ -28,7 +28,7 @@ import { RouteMap, type MapStop, type MapRoute } from "@/components/dev/route-op
 import { validateTrackingNumber } from "@/lib/services/package-dispatchs"
 import { geocodeAddress, saveManualGeocode } from "@/lib/services/geocode"
 import { normalizeScannedCode, isValidScannedCode } from "@/lib/tracking/normalize-scan"
-import { initScannerFeedback, playExpiresTodaySound, playExpiresTomorrowSound, playNotFoundSound, playInvalidSound } from "@/lib/scanner-feedback"
+import { initSounds, playScanResult, playSound } from "@/lib/sounds"
 import type { PackageInfo } from "@/lib/types"
 import { useRouteOptimizerStore, type Stop, type VariantId } from "@/store/route-optimizer.store"
 
@@ -79,7 +79,7 @@ function RouteOptimizerContent() {
   const geoBusy = useRef(false)
   const [geoTick, setGeoTick] = useState(0)
 
-  useEffect(() => { initScannerFeedback() }, [])
+  useEffect(() => { initSounds() }, [])
 
   // Default de sucursal = la del usuario (solo si el store está vacío).
   useEffect(() => {
@@ -126,32 +126,35 @@ function RouteOptimizerContent() {
     if (!subsidiaryId) { toast.error("Selecciona primero la sucursal."); return }
 
     const n = normalizeScannedCode(raw)
-    if (!isValidScannedCode(n)) { playInvalidSound(); toast.error(`Código inválido: ${raw}`); return }
+    if (!isValidScannedCode(n)) { playSound("invalid"); toast.error(`Código inválido: ${raw}`); return }
     const code = n.code
 
-    if (useRouteOptimizerStore.getState().isScanned(code)) { toast.info("Ese paquete ya fue escaneado."); return }
+    if (useRouteOptimizerStore.getState().isScanned(code)) { playSound("duplicate"); toast.info("Ese paquete ya fue escaneado."); return }
 
     setValidating(true)
     let info: PackageInfo
     try {
       info = await validateTrackingNumber(code, subsidiaryId)
     } catch {
-      playNotFoundSound(); toast.error("Error validando el paquete."); setValidating(false); return
+      playSound("notFound"); toast.error("Error validando el paquete."); setValidating(false); return
     } finally {
       setValidating(false)
       scanInputRef.current?.focus()
     }
 
-    if (!info?.isValid) { playNotFoundSound(); toast.error(info?.reason || "Paquete no válido."); return }
+    if (!info?.isValid) { playSound("notFound"); toast.error(info?.reason || "Paquete no válido."); return }
 
     const store = useRouteOptimizerStore.getState()
     const pkgKey = (info as any).dhlUniqueId || info.trackingNumber || code
-    if (store.isScanned(pkgKey)) { toast.info("Ese paquete ya fue escaneado."); return }
+    if (store.isScanned(pkgKey)) { playSound("duplicate"); toast.info("Ese paquete ya fue escaneado."); return }
     store.markScanned(pkgKey, code)
 
     const prio = isTodayDate(info.commitDateTime) || String(info.priority) === "alta"
-    if (isTodayDate(info.commitDateTime)) playExpiresTodaySound()
-    else if (isTomorrowDate(info.commitDateTime)) playExpiresTomorrowSound()
+    playScanResult({
+      expiresToday: isTodayDate(info.commitDateTime),
+      expiresTomorrow: isTomorrowDate(info.commitDateTime),
+      added: true,
+    })
 
     const id = stopKeyOf(info.recipientName, info.recipientAddress, info.recipientZip)
     const pkg = { trackingNumber: info.trackingNumber || code, key: pkgKey, commitDateTime: info.commitDateTime, priority: prio }

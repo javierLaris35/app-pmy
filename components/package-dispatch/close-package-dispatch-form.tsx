@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { ScanInput, ScanInputHandle } from "@/components/scanner/scan-input";
+import { countLines, createGrowthBeeper, playScanResult, playSound } from "@/lib/sounds";
 import { clearScanBuffer } from "@/components/scanner/use-scan-buffer";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
@@ -516,6 +517,13 @@ export default function ClosePackageDispatchWizard({
     }
   };
 
+  // Recolecciones: el escáner solo avisa la lista completa; suena "registrada" cuando crece.
+  const collectionsBeep = useMemo(() => createGrowthBeeper("ok"), []);
+  const onCollectionsChange = useCallback((raw: string) => {
+    collectionsBeep(countLines(raw));
+    setCollectionsRaw(raw);
+  }, [collectionsBeep]);
+
   const handleAddNoVanPackages = async () => {
     if (!noVanInput.trim() || isValidatingNoVan) return;
 
@@ -538,6 +546,7 @@ export default function ClosePackageDispatchWizard({
 
       const validResults = results.filter((r) => r.isValid);
       const invalidCount = results.length - validResults.length;
+      playScanResult({ notFound: invalidCount > 0, added: validResults.length > 0 });
 
       if (validResults.length > 0) {
         setNoVanPackages((prev) => [...prev, ...validResults]);
@@ -557,6 +566,7 @@ export default function ClosePackageDispatchWizard({
         });
       }
     } catch (error) {
+      playSound("error");
       toast({
         title: "Error de conexión",
         description: "No se pudo comunicar con el servidor para validar.",
@@ -638,6 +648,7 @@ export default function ClosePackageDispatchWizard({
         ? await saveGroup(closeIds, (({ packageDispatch, ...rest }) => rest)(closurePackageDispatch)).then((r) => ({ ...closurePackageDispatch, id: r.closures[0]?.id }))
         : await save(closurePackageDispatch);
 
+      playSound("saved");
       toast({ title: "Cierre exitoso", description: isGroup ? `Se cerraron ${closeIds.length} rutas juntas.` : "La ruta se ha cerrado correctamente." });
       // Limpieza del estado en memoria del escáner montado (si lo está en este paso).
       collectionsScanRef.current?.clear();
@@ -652,6 +663,7 @@ export default function ClosePackageDispatchWizard({
       await handleSendEmail(savedClosure);
       onSuccess();
     } catch (error) {
+      playSound("error");
       toast({ title: "Error", description: "No se pudo procesar el cierre de ruta.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
@@ -1282,7 +1294,7 @@ export default function ClosePackageDispatchWizard({
                         ref={collectionsScanRef}
                         storageKey="scan:dispatch-close-collections"
                         defaultView="simple"
-                        onTrackingNumbersChange={setCollectionsRaw}
+                        onTrackingNumbersChange={onCollectionsChange}
                         placeholder="Escanea guías recolectadas..."
                       />
                     </div>

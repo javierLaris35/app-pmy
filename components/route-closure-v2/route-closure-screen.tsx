@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/components/ui/use-toast"
+import { countLines, createGrowthBeeper, playScanResult, playSound } from "@/lib/sounds"
 import { clearScanBuffer } from "@/components/scanner/use-scan-buffer"
 import { apiError } from "@/components/maintenance/shared/confirm-action"
 import { ClosureDoctorPanel } from "@/components/package-dispatch/closure-doctor-panel"
@@ -261,6 +262,13 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
   const onAllDhlDelivered = () =>
     setDhlCodes((prev) => Object.fromEntries([...dhlVms.map((p) => [p.id, prev[p.id] ?? "OK"])]))
 
+  // Recolecciones: el escáner solo avisa la lista completa; suena "registrada" cuando crece.
+  const collectionsBeep = useMemo(() => createGrowthBeeper("ok"), [])
+  const onCollectionsChange = useCallback((raw: string) => {
+    collectionsBeep(countLines(raw))
+    setCollectionsRaw(raw)
+  }, [collectionsBeep])
+
   const addNoVan = async () => {
     const trackings = splitLines(noVanInput).filter((t) => !noVanPackages.some((p) => p.trackingNumber === t))
     if (!trackings.length) return setNoVanInput("")
@@ -268,6 +276,7 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
     try {
       const results = await validateTrackinNumberNoVan(trackings)
       const valid = results.filter((r) => r.isValid)
+      playScanResult({ notFound: results.length > valid.length, added: valid.length > 0 })
       if (valid.length) {
         setNoVanPackages((prev) => [...prev, ...valid])
         setNoVanInput("")
@@ -277,6 +286,7 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
         toast({ title: "Guías no válidas", description: `${results.length - valid.length} guía(s) no se pudieron validar.`, variant: "destructive" })
       }
     } catch (e) {
+      playSound("error")
       toast({ title: "No se pudieron validar las guías", description: apiError(e, "Revisa tu conexión e intenta de nuevo."), variant: "destructive" })
     } finally {
       setIsValidatingNoVan(false)
@@ -374,6 +384,7 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
         : await save(payload)
       clearScanBuffer(COLLECTIONS_SCAN_KEY)
       clearScanBuffer(NOVAN_SCAN_KEY)
+      playSound("saved")
       toast({ title: isGroup ? `${closeIds.length} rutas cerradas` : "Ruta cerrada", description: "El cierre se guardó con sus cambios." })
 
       // Documentos del correo (igual que el diálogo), con los estatus ya corregidos.
@@ -396,6 +407,7 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
       }
       router.push("/operaciones/salidas-a-ruta")
     } catch (e) {
+      playSound("error")
       toast({ title: "No se pudo cerrar la ruta", description: apiError(e, "Intenta de nuevo."), variant: "destructive" })
     } finally {
       setSubmitting(false)
@@ -512,7 +524,7 @@ export function RouteClosureScreen({ dispatchId, dispatchIds }: { dispatchId: st
                   onDhlChange={onDhlChange}
                   onAllDhlDelivered={onAllDhlDelivered}
                   collections={collections}
-                  onCollectionsChange={setCollectionsRaw}
+                  onCollectionsChange={onCollectionsChange}
                   noVanInput={noVanInput}
                   onNoVanInputChange={setNoVanInput}
                   noVanPackages={noVanPackages}

@@ -27,7 +27,7 @@ import { clearScanBuffer } from "@/components/scanner/use-scan-buffer";
 import { PackageListItem, daysUntilCommit } from "@/components/shared/package-list-item";
 import { PackageFilters } from "@/components/shared/package-filters";
 import { TransferPackageDialog } from "@/components/shared/transfer-package-dialog";
-import { initScannerFeedback } from "@/lib/scanner-feedback";
+import { initSounds } from "@/lib/sounds";
 import { useSubsidiaries } from "@/hooks/services/subsidiaries/use-subsidiaries";
 import { useAuthStore } from "@/store/auth.store";
 import { DispatchSortMode, Driver, PackageInfo, Vehicles } from "@/lib/types";
@@ -120,7 +120,7 @@ export function DispatchScreenV2({ subsidiaryId, subsidiaryName, initialRouteId,
   const [type, setType] = useState("all");
 
   useEffect(() => {
-    initScannerFeedback();
+    initSounds();
   }, []);
 
   // Catálogos de la sucursal (para aplicar sugerencias de repartidor/unidad).
